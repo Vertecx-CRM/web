@@ -1,46 +1,68 @@
+"use client";
+import Image from "next/image";
+import Link from "next/link";
+
 const Footer = () => {
   return (
-    <footer className="bg-gray-900 text-gray-300 py-8 mt-12">
-      <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-3 gap-6 text-center md:text-left">
-        {/* Columna 1 */}
-        <div>
-          <h3 className="text-white font-bold text-lg mb-2">SISTEMAS PC</h3>
-          <p className="text-sm">
-            Tu aliado tecnológico de confianza. Innovación y soluciones que
-            impulsan tu negocio.
+    <footer className="bg-white text-gray-800 mt-12 border-t border-gray-300">
+      <div className="max-w-7xl mx-auto px-6 py-10 grid md:grid-cols-4 gap-8 text-center md:text-left">
+        
+        {/* Columna 1: Derechos de autor */}
+        <div className="flex flex-col items-center md:items-start">
+          <p className="mt-4 text-xs text-red-600">
+            © {new Date().getFullYear()} SISTEMAS PC. <br />
+            Todos los derechos reservados
           </p>
         </div>
 
-        {/* Columna 2 */}
+        {/* Columna 2: Logo y descripción */}
+        <div className="flex flex-col items-center md:items-start">
+          <Image
+            src="/assets/imgs/logo.png"
+            alt="Sistemas PC"
+            width={120}
+            height={60}
+            priority
+          />
+          <p className="mt-3 text-sm text-gray-600 max-w-[200px]">
+            Expertos en desarrollo y soluciones a medida.
+          </p>
+          
+        </div>
+
+        {/* Columna 3: Compañía */}
         <div>
-          <h4 className="text-white font-semibold mb-2">Enlaces</h4>
-          <ul className="space-y-1 text-sm">
-            <li>
-              <a href="/services">Servicios</a>
-            </li>
-            <li>
-              <a href="/products">Productos</a>
-            </li>
-            <li>
-              <a href="/about">Nosotros</a>
-            </li>
-            <li>
-              <a href="/contact">Contáctanos</a>
-            </li>
+          <h4 className="text-red-700 font-semibold mb-3 uppercase">
+            Compañía
+          </h4>
+          <ul className="space-y-2 text-sm">
+            <li><Link href="/services">Servicios</Link></li>
+            <li><Link href="/products">Productos</Link></li>
+            <li><Link href="/about">Quienes Somos</Link></li>
           </ul>
         </div>
 
-        {/* Columna 3 */}
+        {/* Columna 4: Redes Sociales */}
         <div>
-          <h4 className="text-white font-semibold mb-2">Contacto</h4>
-          <p className="text-sm">📍 Medellín, Colombia</p>
-          <p className="text-sm">📞 +57 300 123 4567</p>
-          <p className="text-sm">📧 contacto@sistemasp.com</p>
+          <h4 className="text-red-700 font-semibold mb-3 uppercase">
+            Redes Sociales
+          </h4>
+          <ul className="space-y-2 text-sm">
+            <li><a href="#">Instagram</a></li>
+            <li><a href="#">Facebook</a></li>
+          </ul>
         </div>
+
+        {/* Columna vacía para simetría */}
+        <div></div>
       </div>
 
-      <div className="text-center text-gray-500 text-sm mt-6 border-t border-gray-700 pt-4">
-        © {new Date().getFullYear()} SISTEMAS PC — Todos los derechos reservados
+      {/* Línea divisoria y links inferiores */}
+      <div className=" mt-2">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-end gap-16 text-sm text-gray-500">
+          <Link href="#">Políticas de Privacidad</Link>
+          <Link href="#">Términos de Uso</Link>
+        </div>
       </div>
     </footer>
   );

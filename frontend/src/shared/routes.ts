@@ -5,6 +5,7 @@ interface IRoutes {
     services: string;
     about: string;
     contact: string;
+    cart: string;
   };
   auth: {
     login: string;
@@ -36,6 +37,7 @@ export const routes: IRoutes = {
     services: "/services",
     about: "/about",
     contact: "/contact",
+    cart: "/cart",
   },
   auth: {
     login: "/auth/login",
