@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ShoppingCart } from "lucide-react";
+import LoginPage from "@/features/auth/login/login";
 
 const Nav = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,7 +21,7 @@ const Nav = () => {
           <Link href="/products">Productos</Link>
           <Link href="/about">Nosotros</Link>
           <Link href="/contact">Contáctanos</Link>
-          <Link href="/login">Iniciar Sesión</Link>
+          <Link href="/login" >Iniciar Sesión</Link>
           <Link href="/cart" className="flex items-center">
             <ShoppingCart className="h-5 w-5 text-red-600" />
           </Link>
@@ -42,7 +43,7 @@ const Nav = () => {
           <Link href="/products">Productos</Link>
           <Link href="/about">Nosotros</Link>
           <Link href="/contact">Contáctanos</Link>
-          <Link href="/login">Iniciar Sesión</Link>
+          <Link href="auth/login"><LoginPage/></Link>
           <Link href="/cart" className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-red-600" /> Carrito
           </Link>
