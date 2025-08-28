@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import PublicNavbar from "@/features/landing/components/PublicNavbar";
+import Nav from '../../landing/layout/Nav';
 
 export default function LoginPage() {
   const [show, setShow] = useState(false);
@@ -9,8 +9,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col bg-login-red with-circuit-pattern">
       {/* Navbar pública */}
-      <PublicNavbar />
-
+    <Nav />
       {/* Contenido */}
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         {/* Tarjeta dividida grande */}
