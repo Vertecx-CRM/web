@@ -1,0 +1,19 @@
+/* Solo estilos de Suppliers */
+
+.layout {
+  min-height: 100vh;
+  display: flex; /* sidebar + contenido */
+}
+
+.sidebar {
+  width: 16rem;      /* w-64 */
+  height: 100vh;     /* h-screen */
+  color: #fff;
+  flex-shrink: 0;
+  background-color: #B20000; /* color exacto solicitado */
+}
+
+/* Puedes agregar helpers propios de la vista si quieres:
+.tableWrap { ... }
+.header { ... } 
+*/
