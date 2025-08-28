@@ -12,13 +12,16 @@ const Nav = () => {
     <nav className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo */}
-        <Image
-          src="/assets/imgs/logo.png"
-          alt="logo"
-          width={120}
-          height={60}
-          priority
-        />
+        <Link href={routes.path} className="flex items-center">
+          <Image
+            src="/assets/imgs/logo.png"
+            alt="logo"
+            width={120}
+            height={60}
+            priority
+            className="cursor-pointer"
+          />
+        </Link>
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-8 text-gray-900 font-semibold text-base">

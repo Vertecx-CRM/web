@@ -1,4 +1,5 @@
 interface IRoutes {
+  path: string;
   landing: {
     home: string;
     products: string;
@@ -31,6 +32,7 @@ interface IRoutes {
   };
 }
 export const routes: IRoutes = {
+  path: "/",
   landing: {
     home: "/home",
     products: "/products",
