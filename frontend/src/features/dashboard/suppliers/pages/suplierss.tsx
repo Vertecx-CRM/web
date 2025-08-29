@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import styles from "@/features/suppliers/pages/suppliers.module.css";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 
@@ -61,7 +60,7 @@ const TrashIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24
 export default function SuppliersPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 5;
 
   const { logout, user } = useAuth();
   const router = useRouter();
@@ -89,36 +88,8 @@ export default function SuppliersPage() {
 
   return (
     <RequireAuth>
-      <div className={styles.layout}>
-        {/* Sidebar */}
-        <aside className={styles.sidebar}>
-          <div className="px-4 py-6 font-semibold">
-            Dashboard <br /> Administrador
-          </div>
-          <nav className="text-sm divide-y divide-white/10">
-            {["Dashboard","Acceso","Productos","Servicios","Clientes","Configuración"].map((item, i) => (
-              <div key={i} className="px-4 py-3 hover:bg-white/10 cursor-pointer">
-                {item}
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Contenido */}
         <main className="flex-1 flex flex-col bg-gray-100">
-          {/* Header de página */}
-          <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b">
-            <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
-              <h1 className="text-3xl font-extrabold tracking-tight text-red-700">Proveedores</h1>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <span>{user?.name ?? "Usuario"}</span>
-                <div className="h-8 w-8 rounded-full bg-gray-200" />
-                <button onClick={handleLogout} className="rounded-md border px-3 py-1 hover:bg-gray-50">
-                  Cerrar sesión
-                </button>
-              </div>
-            </div>
-          </header>
+
 
           {/* Tools */}
           <div className="px-6 pt-6">
@@ -230,7 +201,6 @@ export default function SuppliersPage() {
             </div>
           </div>
         </main>
-      </div>
     </RequireAuth>
   );
 }

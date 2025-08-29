@@ -19,7 +19,7 @@ export default function LoginPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ email: "", password: "", remember: false });
 
-  const next = search.get("next") || "/suppliers";
+  const next = search.get("next") || "/dashboard";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -101,6 +101,12 @@ const AsideNav = () => {
           {openMenu === "compras" && (
             <div className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-56 z-50">
               <Link
+                href={routes.dashboard.suppliers}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Proveedores
+              </Link>
+              <Link
                 href={routes.dashboard.purchasesOrders}
                 className="px-3 py-2 hover:bg-gray-200"
               >
