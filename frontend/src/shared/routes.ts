@@ -13,6 +13,8 @@ interface IRoutes {
     register: string;
   };
   dashboard: {
+    newClient: any;
+    newService: any;
     main: string;
     users: string;
     products: string;
@@ -22,6 +24,8 @@ interface IRoutes {
     technicians: string;
     appointments: string;
     purchases: string;
+    purchasesGraph: string;
+    purchasesOrders: string;
     suppliers: string;
     sales: string;
     clients: string;
@@ -30,6 +34,7 @@ interface IRoutes {
     settings: string;
     profile: string;
   };
+  notFound: string;
 }
 export const routes: IRoutes = {
   path: "/",
@@ -55,6 +60,8 @@ export const routes: IRoutes = {
     technicians: "/dashboard/technicians",
     appointments: "/dashboard/appointments",
     purchases: "/dashboard/purchases",
+    purchasesGraph: "/dashboard/purchases/graph",
+    purchasesOrders: "/dashboard/purchases/orders",
     suppliers: "/dashboard/suppliers",
     sales: "/dashboard/sales",
     clients: "/dashboard/clients",
@@ -62,5 +69,8 @@ export const routes: IRoutes = {
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",
     profile: "/dashboard/profile",
+    newClient: undefined,
+    newService: undefined
   },
+  notFound: "/404",
 };
