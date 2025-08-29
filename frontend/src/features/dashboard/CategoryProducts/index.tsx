@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { CreateCategoryModal } from "./components/CreateCategoryProduct";
+import AsideNav from "../layout/AsideNav";
 
 /** ====== Tipos ====== */
 type Row = {
@@ -83,20 +84,6 @@ export default function CategoriesPage() {
 
     return (
         <div className="min-h-screen flex">
-            {/* Sidebar (color exacto pedido) */}
-            <aside className="w-64 h-screen text-white flex-shrink-0" style={{ backgroundColor: "#B20000" }}>
-                <div className="px-4 py-6 font-semibold">
-                    Dashboard <br /> Administrador
-                </div>
-                <nav className="text-sm divide-y divide-white/10">
-                    {["Dashboard", "Acceso", "Productos", "Servicios", "Clientes", "Configuración"].map((item, i) => (
-                        <div key={i} className="px-4 py-3 hover:bg-white/10 cursor-pointer">
-                            {item}
-                        </div>
-                    ))}
-                </nav>
-            </aside>
-
             {/* Contenido */}
             <main className="flex-1 flex flex-col bg-gray-100" style={{ backgroundColor: "#E8E8E8" }}>
                 {/* Toast Container para mostrar notificaciones */}
@@ -112,17 +99,7 @@ export default function CategoriesPage() {
                     pauseOnHover
                     theme="light"
                 />
-                
-                {/* Header */}
-                <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b">
-                    <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
-                        <h1 className="text-3xl font-extrabold tracking-tight text-red-700">Categorías de Productos</h1>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
-                            <span>Joao Estid Ortiz Cuello</span>
-                            <div className="h-8 w-8 rounded-full bg-gray-200" />
-                        </div>
-                    </div>
-                </header>
+            
 
                 {/* Tools + Tabla */}
                 <div className="flex-1 px-6 py-6">

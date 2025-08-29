@@ -51,7 +51,7 @@ const TrashIcon = (p: React.SVGProps<SVGSVGElement>) => (
 export function DataTable<T extends { id: number | string }>({
   data,
   columns,
-  pageSize = 10,
+  pageSize = 5,
   searchableKeys = [],
   onView,
   onEdit,
