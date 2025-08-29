@@ -17,8 +17,10 @@ interface IColors {
     secondary: string;
     tertiary: string;
   };
-  tableBackground: {
+  table: {
     primary: string;
+    lines: string;
+    header: string;
   };
   asideNavBackground: {
     primary: string;
@@ -55,8 +57,10 @@ const Colors: IColors = {
     secondary: "#F2F2F2",
     tertiary: "##626262",
   },
-  tableBackground: {
+  table: {
     primary: "#ffffff",
+    lines: "#E6E6E6",
+    header: "#F4F4F4",
   },
   asideNavBackground: {
     primary: "#B20000",
