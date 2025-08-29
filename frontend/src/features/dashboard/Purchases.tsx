@@ -2,6 +2,7 @@
 
 import { Eye, FileDown, CheckCircle2, XCircle } from "lucide-react";
 import { Column, DataTable } from "./components/DataTable";
+import RequireAuth from "../auth/requireauth";
 
 // Tipo de datos de cada compra
 type Purchase = {
@@ -76,18 +77,20 @@ export default function Purchases() {
   ];
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
+    <RequireAuth>
+      <div className="p-6">
+        <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
-      <DataTable
-        data={purchases}
-        columns={columns}
-        searchableKeys={["orderNumber", "supplier", "status"]}
-        pageSize={5}
-        onView={(row) => alert(`Ver detalle de ${row.orderNumber}`)}
-        onEdit={(row) => alert(`Editar ${row.orderNumber}`)}
-        onDelete={(row) => alert(`Eliminar ${row.orderNumber}`)}
-      />
-    </div>
+        <DataTable
+          data={purchases}
+          columns={columns}
+          searchableKeys={["orderNumber", "supplier", "status"]}
+          pageSize={5}
+          onView={(row) => alert(`Ver detalle de ${row.orderNumber}`)}
+          onEdit={(row) => alert(`Editar ${row.orderNumber}`)}
+          onDelete={(row) => alert(`Eliminar ${row.orderNumber}`)}
+        />
+      </div>
+    </RequireAuth>
   );
 }
