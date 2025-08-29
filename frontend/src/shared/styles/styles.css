@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ====== Fuente y reset ====== */
+html,
+body {
+  @apply min-h-screen antialiased;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ====== Fondo gradiente rojo (para login) ====== */
+.bg-login-red {
+  background: linear-gradient(to right, #8F0000 38%, #B80000 73%);
+}
+
+/* ====== Patrón de circuitos ====== */
+.with-circuits {
+  position: relative;
+  overflow: hidden;
+}
+
+.with-circuits::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  /* Gradiente de fondo + patrón repetido */
+  background-image:
+    /* fondo circuitos */
+    radial-gradient(circle, rgba(255,255,255,0.08) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+
+  background-size:
+    80px 80px,   /* puntos más grandes */
+    80px 80px,   /* líneas verticales */
+    80px 80px;   /* líneas horizontales */
+
+  background-position:
+    center,      /* puntos centrados */
+    center,
+    center;
+
+  z-index: 0;
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%);
+}

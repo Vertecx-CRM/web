@@ -13,6 +13,8 @@ interface IRoutes {
     register: string;
   };
   dashboard: {
+    newClient: any;
+    newService: any;
     main: string;
     users: string;
     products: string;
@@ -67,6 +69,8 @@ export const routes: IRoutes = {
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",
     profile: "/dashboard/profile",
+    newClient: undefined,
+    newService: undefined
   },
   notFound: "/404",
 };
