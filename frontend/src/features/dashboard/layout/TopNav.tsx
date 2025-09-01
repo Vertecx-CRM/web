@@ -18,6 +18,9 @@ const titles: Record<string, string> = {
   [routes.dashboard.clients]: "Clientes",
   [routes.dashboard.newClient]: "Nuevo Cliente",
   [routes.dashboard.settings]: "Configuración",
+  [routes.dashboard.products]: "Productos",
+  [routes.dashboard.productsCategories]: "Categorías de Productos",
+  [routes.dashboard.suppliers]: "Proveedores",
 };
 
 type TopNavProps = {
@@ -33,10 +36,11 @@ const TopNav = ({
   const router = useRouter();
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
-
-  // Buscar el título según la ruta actual
   const currentTitle =
-    Object.entries(titles).find(([path]) => pathname.startsWith(path))?.[1] ||
+    titles[pathname] || // exact match
+    Object.entries(titles)
+      .sort((a, b) => b[0].length - a[0].length) // rutas largas primero
+      .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
   async function handleLogout() {
