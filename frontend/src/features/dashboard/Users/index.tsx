@@ -5,6 +5,10 @@ import { useMemo, useState } from "react";
 import CreateUserModal from "./components/createUser";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import AsideNav from "../layout/AsideNav";
+import TopNav from "../layout/TopNav";
+import { DataTable, Column } from "../components/DataTable";
+
 
 /** ====== Tipos ====== */
 type Row = {
@@ -52,221 +56,115 @@ const MOCK: Row[] = [
     { id: 30, documento: "CC", numeroDocumento: "1122334455", nombre: "Tomás Cárdenas", telefono: "3205566778", email: "tomas.cardenas@email.com", rol: "Usuario", estado: "Inactivo" },
 ];
 
-/** ====== Iconos (SVG minimal) ====== */
-const PlusIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path strokeWidth="2" d="M12 5v14M5 12h14" /></svg>);
-const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3-3" /></svg>);
-const EyeIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z" /><circle cx="12" cy="12" r="3" /></svg>);
-const PenIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path d="M12 20h9" /><path d="M16.5 3.5l4 4L7 21l-4 1 1-4L16.5 3.5z" /></svg>);
-const TrashIcon = (p: React.SVGProps<SVGSVGElement>) => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></svg>);
-
 export default function UsersPage() {
     const [users, setUsers] = useState<Row[]>(MOCK);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [q, setQ] = useState("");
-    const [page, setPage] = useState(1);
-    const pageSize = 10;
 
     const handleCreateUser = (userData: any) => {
         const newUser: Row = {
-            id: users.length + 1, // genera ID simple
+            id: users.length + 1,
             documento: userData.tipoDocumento,
             numeroDocumento: userData.documento,
             nombre: `${userData.nombre} ${userData.apellido}`,
             telefono: userData.telefono,
             email: userData.email,
-            rol: "Usuario", // puedes elegir si pedirlo en el form
-            estado: "Activo", // valor inicial
+            rol: "Usuario",
+            estado: "Activo",
         };
 
         setUsers((prev) => [...prev, newUser]);
         setIsCreateModalOpen(false);
     };
 
-    const filtered = useMemo(() => {
-        const term = q.trim().toLowerCase();
-        if (!term) return users;
-        return users.filter(
-            r =>
-                r.nombre.toLowerCase().includes(term) ||
-                r.email.toLowerCase().includes(term) ||
-                r.rol.toLowerCase().includes(term) ||
-                r.documento.toLowerCase().includes(term) ||
-                r.numeroDocumento.toLowerCase().includes(term)
-        );
-    }, [q, users]);
+    const handleView = (row: Row) => {
+        console.log("Ver usuario:", row);
+        // Aquí puedes implementar la lógica para ver el usuario
+    };
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    const current = filtered.slice((page - 1) * pageSize, page * pageSize);
-    const goTo = (p: number) => setPage(Math.min(Math.max(p, 1), totalPages));
+    const handleEdit = (row: Row) => {
+        console.log("Editar usuario:", row);
+        // Aquí puedes implementar la lógica para editar el usuario
+    };
+
+    const handleDelete = (row: Row) => {
+        console.log("Eliminar usuario:", row);
+        // Aquí puedes implementar la lógica para eliminar el usuario
+    };
+
+    // Definición de columnas para el DataTable
+    const columns: Column<Row>[] = [
+        { key: "id", header: "#" },
+        { key: "documento", header: "T. Documento" },
+        { key: "numeroDocumento", header: "Número" },
+        { key: "nombre", header: "Nombre" },
+        { key: "telefono", header: "Teléfono" },
+        { key: "email", header: "Correo electrónico" },
+        { key: "rol", header: "Rol" },
+        { 
+            key: "estado", 
+            header: "Estado",
+            render: (row) => (
+                <span
+                    className="rounded-full px-2 py-0.5 text-xs font-medium"
+                    style={{
+                        color: row.estado === "Activo" ? Colors.states.success : Colors.states.inactive
+                    }}
+                >
+                    {row.estado}
+                </span>
+            )
+        },
+    ];
 
     return (
         <div className="min-h-screen flex">
-            {/* Sidebar (color exacto pedido) */}
-            <aside className="w-64 h-screen text-white flex-shrink-0" style={{ backgroundColor: "#B20000" }}>
-                <div className="px-4 py-6 font-semibold">
-                    Dashboard <br /> Administrador
-                </div>
-                <nav className="text-sm divide-y divide-white/10">
-                    {["Dashboard", "Acceso", "Productos", "Servicios", "Clientes", "Configuración"].map((item, i) => (
-                        <div key={i} className="px-4 py-3 hover:bg-white/10 cursor-pointer">
-                            {item}
-                        </div>
-                    ))}
-                </nav>
-            </aside>
+            {/* Toast Container para mostrar notificaciones */}
+            <ToastContainer
+                position="bottom-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light"
+            />
 
-            {/* Contenido */}
-            <main className="flex-1 flex flex-col bg-gray-100" style={{ backgroundColor: "#E8E8E8" }}>
-                {/* Toast Container para mostrar notificaciones */}
-                <ToastContainer
-                    position="bottom-right"
-                    autoClose={3000}
-                    hideProgressBar={false}
-                    newestOnTop={false}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                    theme="light"
-                />
-                
-                {/* Header */}
-                <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b">
-                    <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
-                        <h1 className="text-3xl font-extrabold tracking-tight text-red-700">Usuarios</h1>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
-                            <span>Joao Estid Ortiz Cuello</span>
-                            <div className="h-8 w-8 rounded-full bg-gray-200" />
-                        </div>
+            {/* AsideNav */}
+            <AsideNav />
+
+            {/* Contenido principal */}
+            <div className="flex-1 flex flex-col">
+                {/* TopNav */}
+                <TopNav />
+
+                {/* Contenido */}
+                <main className="flex-1 flex flex-col" style={{ backgroundColor: "#E8E8E8" }}>
+                    <div className="px-6 pt-6">
+                        <CreateUserModal
+                            isOpen={isCreateModalOpen}
+                            onClose={() => setIsCreateModalOpen(false)}
+                            onSave={handleCreateUser}
+                        />
+
+                        {/* DataTable genérico */}
+                        <DataTable<Row>
+                            data={users}
+                            columns={columns}
+                            pageSize={10}
+                            searchableKeys={["nombre", "email", "rol", "documento", "numeroDocumento", "telefono", "estado"]}
+                            onView={handleView}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onCreate={() => setIsCreateModalOpen(true)}
+                            searchPlaceholder="Buscar por nombre, email, rol, documento, teléfono o estado…"
+                            createButtonText="Crear Usuario"
+                        />
                     </div>
-                </header>
-
-                {/* Tools + Tabla */}
-                <div className="flex-1 px-6 py-6">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                        <div className="relative w-full max-w-md">
-                            <img
-                                src="/icons/search.svg"
-                                alt="Buscar"
-                                className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none"
-                            />
-                            <input
-                                value={q}
-                                onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                                className="w-full rounded-full border-none bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-                            />
-                        </div>
-
-                        <button className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700" style={{ background: Colors.buttons.primary }} onClick={() => setIsCreateModalOpen(true)}>
-                            <img src="/icons/Plus.svg" className="h-4 w-4" />
-                            Crear Usuario
-                        </button>
-                    </div>
-                    <CreateUserModal
-                        isOpen={isCreateModalOpen}
-                        onClose={() => setIsCreateModalOpen(false)}
-                        onSave={handleCreateUser}
-                    />
-
-                    <div className="overflow-hidden rounded-xl bg-white shadow-sm flex flex-col">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10" style={{ backgroundColor: Colors.table.header }}>
-                                <tr className="text-left">
-                                    <Th>#</Th>
-                                    <Th>T. Documento</Th>
-                                    <Th>Número</Th>
-                                    <Th>Nombre</Th>
-                                    <Th>Teléfono</Th>
-                                    <Th>Correo electrónico</Th>
-                                    <Th>Rol</Th>
-                                    <Th>Estado</Th>
-                                    <Th>Acciones</Th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#E6E6E6]">
-                                {current.map((r) => (
-                                    <tr key={r.id} className="hover:bg-gray-50" >
-                                        <Td>{r.id}</Td>
-                                        <Td>{r.documento}</Td>
-                                        <Td>{r.numeroDocumento}</Td>
-                                        <Td >{r.nombre}</Td>
-                                        <Td>{r.telefono}</Td>
-                                        <Td>{r.email}</Td>
-                                        <Td>{r.rol}</Td>
-                                        <Td>
-                                            <span
-                                                className="rounded-full px-2 py-0.5 text-xs font-medium"
-                                                style={{
-                                                    color: r.estado === "Activo" ? Colors.states.success : Colors.states.inactive
-                                                }}
-                                            >
-                                                {r.estado}
-                                            </span>
-                                        </Td>
-                                        <Td>
-                                            <div className="flex items-center gap-3 text-gray-600">
-                                                <button className="hover:text-gray-900" title="Ver"><img src="/icons/Eye.svg" className="h-4 w-4" /></button>
-                                                <button className="hover:text-gray-900" title="Editar"><img src="/icons/Edit.svg" className="h-4 w-4" /></button>
-                                                <button className="hover:text-red-600" title="Eliminar"><img src="/icons/delete.svg" className="h-4 w-4" /></button>
-                                            </div>
-                                        </Td>
-                                    </tr>
-                                ))}
-
-                                {current.length === 0 && (
-                                    <tr>
-                                        <td colSpan={9} className="px-4 py-10 text-center text-gray-500">Sin resultados.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-
-                        {/* Paginación */}
-                        <div className="border-t border-[#E6E6E6] bg-white px-3 py-2" >
-                            <div className="flex items-center justify-center gap-1">
-                                <PageBtn onClick={() => goTo(page - 1)} disabled={page === 1}>{"<"}</PageBtn>
-                                {Array.from({ length: totalPages }).map((_, i) => {
-                                    const p = i + 1;
-                                    const active = p === page;
-                                    return (
-                                        <PageBtn key={p} onClick={() => goTo(p)} active={active} aria-current={active ? "page" : undefined}>
-                                            {p}
-                                        </PageBtn>
-                                    );
-                                })}
-                                <PageBtn onClick={() => goTo(page + 1)} disabled={page === totalPages}>{">"}</PageBtn>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
+                </main>
+            </div>
         </div>
-    );
-}
-
-/** ====== Helpers UI ====== */
-function Th({ children }: { children: React.ReactNode }) {
-    return <th className="px-4 py-3 font-semibold">{children}</th>;
-}
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-    return <td className={`px-4 py-3 align-top ${className}`}>{children}</td>;
-}
-function PageBtn({
-    children, onClick, disabled, active, ...rest
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
-    return (
-        <button
-            {...rest}
-            onClick={onClick}
-            disabled={disabled}
-            style={{
-                backgroundColor: active ? 'white' : Colors.table.header,
-                borderColor: Colors.table.lines,
-            }}
-            className="min-w-8 rounded-md px-2 py-1 text-xs border text-black disabled:opacity-40 disabled:pointer-events-none transition-colors duration-200"
-        >
-            {children}
-        </button>
     );
 }

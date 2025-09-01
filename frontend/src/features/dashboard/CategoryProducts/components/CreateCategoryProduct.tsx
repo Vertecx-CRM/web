@@ -18,11 +18,13 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
     });
 
     const [errors, setErrors] = useState({
-        nombre: ''
+        nombre: '',
+        descripcion: ''
     });
 
     const [touched, setTouched] = useState({
-        nombre: false
+        nombre: false,
+        descripcion: false
     });
 
     // Resetear formulario cuando se abre/cierra el modal
@@ -34,10 +36,12 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
                 icono: null
             });
             setErrors({
-                nombre: ''
+                nombre: '',
+                descripcion: ''
             });
             setTouched({
-                nombre: false
+                nombre: false,
+                descripcion: false
             });
         }
     }, [isOpen]);
@@ -45,10 +49,14 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
     // Validar campos cuando cambian
     useEffect(() => {
         validateField('nombre', formData.nombre);
+        validateField('descripcion', formData.descripcion);
     }, [formData]);
 
     const validateField = (fieldName: string, value: any) => {
         let error = '';
+        
+        // Lista de caracteres especiales no permitidos
+        const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
         
         switch (fieldName) {
             case 'nombre':
@@ -58,6 +66,13 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
                     error = 'El nombre debe tener al menos 3 caracteres';
                 } else if (/[0-9]/.test(value)) {
                     error = 'El nombre no puede contener números';
+                } else if (specialChars.test(value)) {
+                    error = 'El nombre no puede contener caracteres especiales';
+                }
+                break;
+            case 'descripcion':
+                if (value && specialChars.test(value)) {
+                    error = 'La descripción no puede contener caracteres especiales';
                 }
                 break;
         }
@@ -68,9 +83,18 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         
-        // Validación en tiempo real para el campo nombre (no permitir números)
-        if (name === 'nombre' && /[0-9]/.test(value)) {
-            return; // No actualizar el valor si contiene números
+        // Validación en tiempo real para los campos
+        if (name === 'nombre' || name === 'descripcion') {
+            // No permitir caracteres especiales
+            const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
+            if (specialChars.test(value)) {
+                return; // No actualizar el valor si contiene caracteres especiales
+            }
+            
+            // Para el campo nombre, no permitir números
+            if (name === 'nombre' && /[0-9]/.test(value)) {
+                return;
+            }
         }
         
         setFormData(prev => ({ ...prev, [name]: value }));
@@ -92,14 +116,15 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Marcar el campo nombre como "touched" para mostrar el error
-        setTouched(prev => ({...prev, nombre: true}));
+        // Marcar todos los campos como "touched" para mostrar errores
+        setTouched(prev => ({...prev, nombre: true, descripcion: true}));
         
-        // Validar el campo nombre antes de enviar
+        // Validar todos los campos antes de enviar
         validateField('nombre', formData.nombre);
+        validateField('descripcion', formData.descripcion);
         
-        // Verificar si hay errores (solo validamos el nombre)
-        const hasErrors = errors.nombre !== '';
+        // Verificar si hay errores
+        const hasErrors = Object.values(errors).some(error => error !== '');
         
         if (!hasErrors) {
             // Mostrar mensaje de éxito con react-toastify
@@ -122,7 +147,7 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
             }, 1000);
         } else {
             // Mostrar mensaje de error si hay campos inválidos
-            toast.error('Por favor complete el nombre correctamente', {
+            toast.error('Por favor complete los campos correctamente', {
                 position: "top-right",
                 autoClose: 3000,
                 hideProgressBar: false,
@@ -223,12 +248,16 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({ isOpen
                                 placeholder="Ingrese la descripción de la categoría del producto"
                                 value={formData.descripcion}
                                 onChange={handleInputChange}
+                                onBlur={handleBlur}
                                 rows={4}
                                 className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                                 style={{
-                                    borderColor: Colors.table.lines,
+                                    borderColor: errors.descripcion && touched.descripcion ? 'red' : Colors.table.lines,
                                 }}
                             />
+                            {errors.descripcion && touched.descripcion && (
+                                <span className="text-red-500 text-xs mt-1">{errors.descripcion}</span>
+                            )}
                         </div>
 
                         {/* Botones */}
