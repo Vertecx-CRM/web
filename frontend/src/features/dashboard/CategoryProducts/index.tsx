@@ -118,13 +118,10 @@ export default function CategoriesPage() {
         theme="light"
       />
       
-      {/* AsideNav */}
-      <AsideNav />
-      
+
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
-        {/* TopNav */}
-        <TopNav />
+
         
         {/* Contenido */}
         <main className="flex-1 flex flex-col bg-gray-100" style={{ backgroundColor: "#E8E8E8" }}>
