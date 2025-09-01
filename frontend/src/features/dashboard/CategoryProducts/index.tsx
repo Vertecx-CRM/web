@@ -15,6 +15,10 @@ type Row = {
   nombre: string;
   descripcion: string;
   estado: "Activo" | "Inactivo";
+  id: number;
+  nombre: string;
+  descripcion: string;
+  estado: "Activo" | "Inactivo";
 };
 
 /** ====== Datos realistas (30 ítems) ====== */
@@ -62,7 +66,17 @@ export default function CategoriesPage() {
       descripcion: categoryData.descripcion,
       estado: "Activo", // valor inicial
     };
+  const handleCreateCategory = (categoryData: any) => {
+    const newCategory: Row = {
+      id: categories.length + 1, // genera ID simple
+      nombre: categoryData.nombre,
+      descripcion: categoryData.descripcion,
+      estado: "Activo", // valor inicial
+    };
 
+    setCategories((prev) => [...prev, newCategory]);
+    setIsCreateModalOpen(false);
+  };
     setCategories((prev) => [...prev, newCategory]);
     setIsCreateModalOpen(false);
   };

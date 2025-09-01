@@ -4,11 +4,8 @@ import { useState } from "react";
 import { UserCircle, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
-import { useAuth } from "@/features/auth/authcontext";
+import { useAuth } from "@/features/auth/authContext";
 
-/**
- * Títulos por ruta (igual que tenías)
- */
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
   [routes.dashboard.users]: "Usuarios",
@@ -24,9 +21,7 @@ const titles: Record<string, string> = {
 };
 
 type TopNavProps = {
-  /** Ruta a la que se redirige después de cerrar sesión */
-  logoutRedirectTo?: string; // por defecto: /auth/login
-  /** Opcional: nombre mostrado si no hay usuario en contexto */
+  logoutRedirectTo?: string;
   fallbackUserName?: string;
 };
 

@@ -1,40 +1,79 @@
-import React, { useState, useEffect } from 'react';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
 import { createPortal } from "react-dom";
-import 'react-toastify/dist/ReactToastify.css';
-import Colors from '@/shared/theme/colors';
+import "react-toastify/dist/ReactToastify.css";
+import Colors from "@/shared/theme/colors";
 
 interface CreateUserModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (userData: any) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (userData: any) => void;
 }
 
-export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClose, onSave }) => {
-    const [formData, setFormData] = useState({
-        tipoDocumento: '',
-        documento: '',
-        nombre: '',
-        apellido: '',
-        telefono: '',
-        email: '',
-        imagen: null as File | null,
-        password: '',
-        confirmPassword: ''
-    });
+export const CreateUserModal: React.FC<CreateUserModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+}) => {
+  const [formData, setFormData] = useState({
+    tipoDocumento: "",
+    documento: "",
+    nombre: "",
+    apellido: "",
+    telefono: "",
+    email: "",
+    imagen: null as File | null,
+    password: "",
+    confirmPassword: "",
+  });
 
-    const [errors, setErrors] = useState({
-        tipoDocumento: '',
-        documento: '',
-        nombre: '',
-        apellido: '',
-        telefono: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-    });
+  const [errors, setErrors] = useState({
+    tipoDocumento: "",
+    documento: "",
+    nombre: "",
+    apellido: "",
+    telefono: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
 
-    const [touched, setTouched] = useState({
+  const [touched, setTouched] = useState({
+    tipoDocumento: false,
+    documento: false,
+    nombre: false,
+    apellido: false,
+    telefono: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
+
+  // Resetear formulario cuando se abre/cierra el modal
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        tipoDocumento: "",
+        documento: "",
+        nombre: "",
+        apellido: "",
+        telefono: "",
+        email: "",
+        imagen: null,
+        password: "",
+        confirmPassword: "",
+      });
+      setErrors({
+        tipoDocumento: "",
+        documento: "",
+        nombre: "",
+        apellido: "",
+        telefono: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+      });
+      setTouched({
         tipoDocumento: false,
         documento: false,
         nombre: false,
@@ -42,56 +81,21 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         telefono: false,
         email: false,
         password: false,
-        confirmPassword: false
-    });
+        confirmPassword: false,
+      });
+    }
+  }, [isOpen]);
 
-    // Resetear formulario cuando se abre/cierra el modal
-    useEffect(() => {
-        if (isOpen) {
-            setFormData({
-                tipoDocumento: '',
-                documento: '',
-                nombre: '',
-                apellido: '',
-                telefono: '',
-                email: '',
-                imagen: null,
-                password: '',
-                confirmPassword: ''
-            });
-            setErrors({
-                tipoDocumento: '',
-                documento: '',
-                nombre: '',
-                apellido: '',
-                telefono: '',
-                email: '',
-                password: '',
-                confirmPassword: ''
-            });
-            setTouched({
-                tipoDocumento: false,
-                documento: false,
-                nombre: false,
-                apellido: false,
-                telefono: false,
-                email: false,
-                password: false,
-                confirmPassword: false
-            });
-        }
-    }, [isOpen]);
-
-    // Validar campos cuando cambian
-    useEffect(() => {
-        validateField('tipoDocumento', formData.tipoDocumento);
-        validateField('documento', formData.documento);
-        validateField('nombre', formData.nombre);
-        validateField('apellido', formData.apellido);
-        validateField('telefono', formData.telefono);
-        validateField('password', formData.password);
-        validateField('confirmPassword', formData.confirmPassword);
-    }, [formData]);
+  // Validar campos cuando cambian
+  useEffect(() => {
+    validateField("tipoDocumento", formData.tipoDocumento);
+    validateField("documento", formData.documento);
+    validateField("nombre", formData.nombre);
+    validateField("apellido", formData.apellido);
+    validateField("telefono", formData.telefono);
+    validateField("password", formData.password);
+    validateField("confirmPassword", formData.confirmPassword);
+  }, [formData]);
 
     const validateField = (fieldName: string, value: string) => {
         let error = '';
@@ -158,8 +162,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         setErrors(prev => ({ ...prev, [fieldName]: error }));
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value, type } = e.target;
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
 
         // Validación en tiempo real para campos numéricos
         if ((name === 'documento' || name === 'telefono') && value && !/^\d*$/.test(value)) {
@@ -249,7 +255,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         }
     };
 
-    if (!isOpen) return null;
+  if (!isOpen) return null;
 
     return createPortal(
 
@@ -271,12 +277,12 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                         />
                     </button>
 
-                    {/* Header */}
-                    <div className="px-6 py-4 rounded-t-lg text-black font-semibold text-3xl">
-                        Crear usuario
-                    </div>
+          {/* Header */}
+          <div className="px-6 py-4 rounded-t-lg text-black font-semibold text-3xl">
+            Crear usuario
+          </div>
 
-                    <div className="w-110 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+          <div className="w-110 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -422,30 +428,33 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                             </div>
                         </div>
 
-                        {/* Imagen */}
-                        <div>
-                            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                                Imagen
-                            </label>
-                            <div className="border border-dashed border-gray-300 rounded-md p-4 text-center">
-                                <input
-                                    type="file"
-                                    name="imagen"
-                                    onChange={handleInputChange}
-                                    className="hidden"
-                                    id="imagen-upload"
-                                    accept="image/*"
-                                />
-                                <label htmlFor="imagen-upload" className="cursor-pointer">
-                                    <div className="text-sm text-gray-500">Cargar el archivo</div>
-                                    {formData.imagen && (
-                                        <div className="text-xs text-green-600 mt-1">
-                                            {formData.imagen.name}
-                                        </div>
-                                    )}
-                                </label>
-                            </div>
-                        </div>
+            {/* Imagen */}
+            <div>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
+                Imagen
+              </label>
+              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center">
+                <input
+                  type="file"
+                  name="imagen"
+                  onChange={handleInputChange}
+                  className="hidden"
+                  id="imagen-upload"
+                  accept="image/*"
+                />
+                <label htmlFor="imagen-upload" className="cursor-pointer">
+                  <div className="text-sm text-gray-500">Cargar el archivo</div>
+                  {formData.imagen && (
+                    <div className="text-xs text-green-600 mt-1">
+                      {formData.imagen.name}
+                    </div>
+                  )}
+                </label>
+              </div>
+            </div>
 
                         {/* Contraseña */}
                         <div>
@@ -493,37 +502,37 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                             )}
                         </div>
 
-                        {/* Botones */}
-                        <div className="flex justify-end space-x-3 pt-4">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="px-4 py-2 rounded-md font-medium"
-                                style={{
-                                    backgroundColor: Colors.buttons.tertiary,
-                                    color: Colors.texts.quaternary
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                className="px-4 py-2 rounded-md font-medium"
-                                style={{
-                                    backgroundColor: Colors.buttons.quaternary,
-                                    color: Colors.texts.quaternary
-                                }}
-                            >
-                                Guardar
-                            </button>
-                        </div>
-                        <div className="w-108 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
-                    </form>
-                </div>
+            {/* Botones */}
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-md font-medium"
+                style={{
+                  backgroundColor: Colors.buttons.tertiary,
+                  color: Colors.texts.quaternary,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-md font-medium"
+                style={{
+                  backgroundColor: Colors.buttons.quaternary,
+                  color: Colors.texts.quaternary,
+                }}
+              >
+                Guardar
+              </button>
             </div>
-        </>,
-        document.body
-    );
+            <div className="w-108 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+          </form>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
 };
 
 export default CreateUserModal;
