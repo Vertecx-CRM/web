@@ -63,7 +63,7 @@ export function DataTable<T extends { id: number | string }>({
         const value = String(row[key] ?? "").toLowerCase();
 
         // Si la columna es "estado" y se busca exactamente activo/inactivo
-        if (key === "estado" && isEstadoExact) {
+        if (key === "estado" || key === "status" && isEstadoExact) {
           return value === term;
         }
 

@@ -15,10 +15,7 @@ type Row = {
   nombre: string;
   descripcion: string;
   estado: "Activo" | "Inactivo";
-  id: number;
-  nombre: string;
-  descripcion: string;
-  estado: "Activo" | "Inactivo";
+
 };
 
 /** ====== Datos realistas (30 ítems) ====== */

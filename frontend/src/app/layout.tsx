@@ -1,5 +1,5 @@
 import "@/app/globals.css";
-import { AuthProvider } from "@/features/auth/authContext";
+import { AuthProvider } from "@/features/auth/authcontext";
 
 export const metadata = {
   title: "Vertecx",
