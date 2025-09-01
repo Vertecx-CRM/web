@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { routes } from "@/shared/routes";
 import {
   Home,
-  Package,
   Users,
   Settings,
   Wrench,

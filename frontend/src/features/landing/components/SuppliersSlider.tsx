@@ -17,7 +17,6 @@ const SuppliersSlider = () => {
   const [isTransitioning, setIsTransitioning] = useState(true);
   const sliderRef = useRef(null);
 
-  // Creamos el array infinito: [últimos] + [originales] + [primeros]
   const extendedSuppliers = [
     ...suppliers.slice(-itemsToShow), // Últimos elementos al inicio
     ...suppliers, // Array original
