@@ -83,6 +83,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
     }, [isOpen]);
 
     // Validar campos cuando cambian
+    // Validar campos cuando cambian
     useEffect(() => {
         validateField('tipoDocumento', formData.tipoDocumento);
         validateField('documento', formData.documento);
@@ -95,7 +96,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
 
     const validateField = (fieldName: string, value: string) => {
         let error = '';
-        
+
+        // Lista de caracteres especiales no permitidos
+        const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
+
         switch (fieldName) {
             case 'tipoDocumento':
                 if (!value.trim()) error = 'El tipo de documento es obligatorio';
@@ -112,6 +116,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                     error = 'El nombre es obligatorio';
                 } else if (/[0-9]/.test(value)) {
                     error = 'El nombre no puede contener números';
+                } else if (specialChars.test(value)) {
+                    error = 'El nombre no puede contener caracteres especiales';
                 }
                 break;
             case 'apellido':
@@ -119,6 +125,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                     error = 'El apellido es obligatorio';
                 } else if (/[0-9]/.test(value)) {
                     error = 'El apellido no puede contener números';
+                } else if (specialChars.test(value)) {
+                    error = 'El apellido no puede contener caracteres especiales';
                 }
                 break;
             case 'telefono':
@@ -134,9 +142,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                 if (value && value.length < 6) {
                     error = 'La contraseña debe tener al menos 6 caracteres';
                 } else if (formData.confirmPassword && value !== formData.confirmPassword) {
-                    setErrors(prev => ({...prev, confirmPassword: 'Las contraseñas no coinciden'}));
+                    setErrors(prev => ({ ...prev, confirmPassword: 'Las contraseñas no coinciden' }));
                 } else if (formData.confirmPassword && value === formData.confirmPassword) {
-                    setErrors(prev => ({...prev, confirmPassword: ''}));
+                    setErrors(prev => ({ ...prev, confirmPassword: '' }));
                 }
                 break;
             case 'confirmPassword':
@@ -147,8 +155,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                 }
                 break;
         }
-        
-        setErrors(prev => ({...prev, [fieldName]: error}));
+
+        setErrors(prev => ({ ...prev, [fieldName]: error }));
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -157,6 +165,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         // Validación en tiempo real para campos numéricos
         if ((name === 'documento' || name === 'telefono') && value && !/^\d*$/.test(value)) {
             return; // No actualizar el valor si no es numérico
+        }
+
+        // Validación en tiempo real para nombre y apellido (no permitir caracteres especiales)
+        if ((name === 'nombre' || name === 'apellido') && value) {
+            const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
+            if (specialChars.test(value)) {
+                return; // No actualizar el valor si contiene caracteres especiales
+            }
         }
 
         if (name === 'imagen' && type === 'file') {
@@ -168,27 +184,27 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
-        
+
         // Marcar el campo como "touched" cuando el usuario interactúa con él
-        setTouched(prev => ({...prev, [name]: true}));
+        setTouched(prev => ({ ...prev, [name]: true }));
     };
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name } = e.target;
-        setTouched(prev => ({...prev, [name]: true}));
+        setTouched(prev => ({ ...prev, [name]: true }));
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Marcar todos los campos como "touched" para mostrar todos los errores
         const allTouched = Object.keys(touched).reduce((acc, key) => {
             acc[key as keyof typeof touched] = true;
             return acc;
         }, {} as typeof touched);
-        
+
         setTouched(allTouched);
-        
+
         // Validar todos los campos antes de enviar
         validateField('tipoDocumento', formData.tipoDocumento);
         validateField('documento', formData.documento);
@@ -197,10 +213,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
         validateField('telefono', formData.telefono);
         validateField('password', formData.password);
         validateField('confirmPassword', formData.confirmPassword);
-        
+
         // Verificar si hay errores
         const hasErrors = Object.values(errors).some(error => error !== '');
-        
+
         if (!hasErrors) {
             // Mostrar mensaje de éxito con react-toastify
             toast.success('Usuario creado exitosamente!', {
@@ -212,10 +228,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                 draggable: true,
                 theme: "light",
             });
-            
+
             // Llamar a la función onSave para guardar los datos
             onSave(formData);
-            
+
             // Cerrar el modal después de guardar
             setTimeout(() => {
                 onClose();
@@ -237,9 +253,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
     if (!isOpen) return null;
 
     return createPortal(
-        
+
         <>
-        
+
             <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50">
 
                 <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50">
@@ -282,7 +298,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                         style={{
                                             borderColor: errors.tipoDocumento && touched.tipoDocumento ? 'red' : Colors.table.lines,
                                         }}
-                                        
+
                                     >
                                         <option value="" disabled hidden></option>
                                         <option value="CC">CC</option>
@@ -306,7 +322,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                         style={{
                                             borderColor: errors.documento && touched.documento ? 'red' : Colors.table.lines,
                                         }}
-                                        
+
                                     />
                                     {errors.documento && touched.documento && (
                                         <span className="text-red-500 text-xs mt-1">{errors.documento}</span>
@@ -335,7 +351,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                     style={{
                                         borderColor: errors.nombre && touched.nombre ? 'red' : Colors.table.lines,
                                     }}
-                                    
+
                                 />
                                 {errors.nombre && touched.nombre && (
                                     <span className="text-red-500 text-xs mt-1">{errors.nombre}</span>
@@ -356,7 +372,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                     style={{
                                         borderColor: errors.apellido && touched.apellido ? 'red' : Colors.table.lines,
                                     }}
-                                    
+
                                 />
                                 {errors.apellido && touched.apellido && (
                                     <span className="text-red-500 text-xs mt-1">{errors.apellido}</span>
@@ -381,7 +397,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                     style={{
                                         borderColor: errors.telefono && touched.telefono ? 'red' : Colors.table.lines,
                                     }}
-                                    
+
                                 />
                                 {errors.telefono && touched.telefono && (
                                     <span className="text-red-500 text-xs mt-1">{errors.telefono}</span>
@@ -402,7 +418,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                     style={{
                                         borderColor: Colors.table.lines,
                                     }}
-                                    
+
                                 />
                             </div>
                         </div>
@@ -448,7 +464,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                 style={{
                                     borderColor: errors.password && touched.password ? 'red' : Colors.table.lines,
                                 }}
-                                
+
                             />
                             {errors.password && touched.password && (
                                 <span className="text-red-500 text-xs mt-1">{errors.password}</span>
@@ -471,7 +487,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({ isOpen, onClos
                                 style={{
                                     borderColor: errors.confirmPassword && touched.confirmPassword ? 'red' : Colors.table.lines
                                 }}
-                                
+
                             />
                             {errors.confirmPassword && touched.confirmPassword && (
                                 <span className="text-red-500 text-xs mt-1">{errors.confirmPassword}</span>

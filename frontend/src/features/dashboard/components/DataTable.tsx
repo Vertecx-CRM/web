@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Colors from "@/shared/theme/colors";
 
 /** ===== Tipos ===== */
 export type Column<T> = {
@@ -17,6 +18,9 @@ type DataTableProps<T> = {
   onView?: (row: T) => void;
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
+  onCreate?: () => void;
+  searchPlaceholder?: string;
+  createButtonText?: string;
 };
 
 /** ====== Iconos mínimos ====== */
@@ -26,24 +30,9 @@ const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
     <path d="M20 20l-3-3" />
   </svg>
 );
-const EyeIcon = (p: React.SVGProps<SVGSVGElement>) => (
+const PlusIcon = (p: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-const PenIcon = (p: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-    <path d="M12 20h9" />
-    <path d="M16.5 3.5l4 4L7 21l-4 1 1-4L16.5 3.5z" />
-  </svg>
-);
-const TrashIcon = (p: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
-    <path d="M3 6h18" />
-    <path d="M8 6V4h8v2" />
-    <path d="M19 6l-1 14H6L5 6" />
-    <path d="M10 11v6M14 11v6" />
+    <path strokeWidth="2" d="M12 5v14M5 12h14" />
   </svg>
 );
 
@@ -56,6 +45,9 @@ export function DataTable<T extends { id: number | string }>({
   onView,
   onEdit,
   onDelete,
+  onCreate,
+  searchPlaceholder = "Buscar…",
+  createButtonText = "Crear",
 }: DataTableProps<T>) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -63,14 +55,24 @@ export function DataTable<T extends { id: number | string }>({
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return data;
+
+    const isEstadoExact = term === "activo" || term === "inactivo";
+
     return data.filter((row) =>
-      searchableKeys.some((key) =>
-        String(row[key] ?? "")
-          .toLowerCase()
-          .includes(term)
-      )
+      searchableKeys.some((key) => {
+        const value = String(row[key] ?? "").toLowerCase();
+
+        // Si la columna es "estado" y se busca exactamente activo/inactivo
+        if (key === "estado" && isEstadoExact) {
+          return value === term; // igualdad estricta
+        }
+
+
+        return value.includes(term);
+      })
     );
   }, [q, data, searchableKeys]);
+
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -78,77 +80,121 @@ export function DataTable<T extends { id: number | string }>({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Buscador */}
-      <div className="relative w-full max-w-md">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Buscar…"
-          className="w-full rounded-full border bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-        />
+      {/* Header con buscador y botón crear */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="relative w-full max-w-md">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <input
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
+            placeholder={searchPlaceholder}
+            className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+          />
+        </div>
+
+        {onCreate && (
+          <button
+            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+            style={{ background: Colors.buttons.primary }}
+            onClick={onCreate}
+          >
+            <PlusIcon className="h-4 w-4" />
+            {createButtonText || "Crear"} 
+          </button>
+        )}
       </div>
 
       {/* Tabla */}
-      <div className="overflow-hidden rounded-lg bg-white border border-gray-200">
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm flex flex-col">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-100 text-gray-700">
+          <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10" style={{ backgroundColor: Colors.table.header }}>
             <tr className="text-left">
               {columns.map((c) => (
-                <th key={String(c.key)} className="px-4 py-3 font-semibold">
-                  {c.header}
-                </th>
+                <Th key={String(c.key)}>{c.header}</Th>
               ))}
               {(onView || onEdit || onDelete) && (
-                <th className="px-4 py-3 font-semibold">Acciones</th>
+                <Th>Acciones</Th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-[#E6E6E6]">
             {current.map((row) => (
               <tr key={row.id} className="hover:bg-gray-50">
                 {columns.map((c) => (
-                  <td key={String(c.key)} className="px-4 py-3">
+                  <Td key={String(c.key)}>
                     {c.render ? c.render(row) : String(row[c.key])}
-                  </td>
+                  </Td>
                 ))}
                 {(onView || onEdit || onDelete) && (
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      className="text-gray-500 hover:text-red-600"
-                      onClick={() => onDelete?.(row)}
-                    >
-                      ✕
-                    </button>
-                  </td>
+                  <Td>
+                    <div className="flex items-center gap-3 text-gray-600">
+                      {onView && (
+                        <button
+                          className="hover:text-gray-900"
+                          title="Ver"
+                          onClick={() => onView(row)}
+                        >
+                          <img src="/icons/Eye.svg" className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onEdit && (
+                        <button
+                          className="hover:text-gray-900"
+                          title="Editar"
+                          onClick={() => onEdit(row)}
+                        >
+                          <img src="/icons/Edit.svg" className="h-4 w-4" />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="hover:text-red-600"
+                          title="Eliminar"
+                          onClick={() => onDelete(row)}
+                        >
+                          <img src="/icons/delete.svg" className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </Td>
                 )}
               </tr>
             ))}
+
+            {current.length === 0 && (
+              <tr>
+                <td colSpan={columns.length + (onView || onEdit || onDelete ? 1 : 0)} className="px-4 py-10 text-center text-gray-500">
+                  Sin resultados.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
 
         {/* Paginación */}
-        <div className="flex justify-center items-center gap-1 border-t p-3">
-          <PageBtn onClick={() => goTo(page - 1)} disabled={page === 1}>
-            {"<"}
-          </PageBtn>
-          {Array.from({ length: totalPages }).map((_, i) => {
-            const p = i + 1;
-            return (
-              <PageBtn key={p} onClick={() => goTo(p)} active={p === page}>
-                {p}
-              </PageBtn>
-            );
-          })}
-          <PageBtn
-            onClick={() => goTo(page + 1)}
-            disabled={page === totalPages}
-          >
-            {">"}
-          </PageBtn>
+        <div className="border-t border-[#E6E6E6] bg-white px-3 py-2">
+          <div className="flex items-center justify-center gap-1">
+            <PageBtn onClick={() => goTo(page - 1)} disabled={page === 1}>
+              {"<"}
+            </PageBtn>
+            {Array.from({ length: totalPages }).map((_, i) => {
+              const p = i + 1;
+              return (
+                <PageBtn key={p} onClick={() => goTo(p)} active={p === page}>
+                  {p}
+                </PageBtn>
+              );
+            })}
+            <PageBtn
+              onClick={() => goTo(page + 1)}
+              disabled={page === totalPages}
+            >
+              {">"}
+            </PageBtn>
+          </div>
         </div>
       </div>
     </div>
@@ -156,6 +202,14 @@ export function DataTable<T extends { id: number | string }>({
 }
 
 /** ===== Helpers ===== */
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="px-4 py-3 font-semibold">{children}</th>;
+}
+
+function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <td className={`px-4 py-3 align-top ${className}`}>{children}</td>;
+}
+
 function PageBtn({
   children,
   onClick,
@@ -168,11 +222,11 @@ function PageBtn({
       {...rest}
       onClick={onClick}
       disabled={disabled}
-      className={`min-w-8 rounded-md px-2 py-1 text-xs ${
-        active
-          ? "bg-gray-900 text-white"
-          : "bg-white text-gray-700 hover:bg-gray-100"
-      } border disabled:opacity-40 disabled:pointer-events-none`}
+      style={{
+        backgroundColor: active ? 'white' : Colors.table.header,
+        borderColor: Colors.table.lines,
+      }}
+      className="min-w-8 rounded-md px-2 py-1 text-xs border text-black disabled:opacity-40 disabled:pointer-events-none transition-colors duration-200"
     >
       {children}
     </button>
