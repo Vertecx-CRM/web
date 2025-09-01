@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 type User = {
   name: string;
@@ -10,14 +16,13 @@ type User = {
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  login: (
+    email: string,
+    password: string
+  ) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
 };
 
-/** ====== Lista local de usuarios (demo) ======
- * Puedes agregar/quitar usuarios a tu gusto.
- * Contraseñas en texto plano SOLO para demo.
- */
 const USERS: Array<{ email: string; password: string; name: string }> = [
   { email: "admin@sistemaspc.com", password: "123456", name: "Administrador" },
   { email: "ventas@sistemaspc.com", password: "ventas2024", name: "Ventas" },
@@ -45,7 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login: AuthContextType["login"] = async (email, password) => {
-    const found = USERS.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const found = USERS.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
     if (!found || found.password !== password) {
       return { ok: false, message: "Credenciales inválidas" };
     }

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAuth } from "@/features/auth/authcontext";
+import { useAuth } from "@/features/auth/authContext";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-export default function RequireAuth({ children }: { children: React.ReactNode }) {
+export default function RequireAuth({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
