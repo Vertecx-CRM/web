@@ -1,8 +1,7 @@
 "use client";
 
-import { Eye, FileDown, CheckCircle2, XCircle } from "lucide-react";
 import { Column, DataTable } from "./components/DataTable";
-import RequireAuth from "../auth/requireauth";
+import RequireAuth from "../auth/requireAuth";
 
 // Tipo de datos de cada compra
 type Purchase = {
