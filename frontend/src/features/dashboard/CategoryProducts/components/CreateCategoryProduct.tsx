@@ -21,69 +21,91 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
     icono: null as File | null,
   });
 
-  const [errors, setErrors] = useState({
-    nombre: "",
-  });
+    const [errors, setErrors] = useState({
+        nombre: '',
+        descripcion: ''
+    });
 
-  const [touched, setTouched] = useState({
-    nombre: false,
-  });
-
-  // Resetear formulario cuando se abre/cierra el modal
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        nombre: "",
-        descripcion: "",
-        icono: null,
-      });
-      setErrors({
-        nombre: "",
-      });
-      setTouched({
+    const [touched, setTouched] = useState({
         nombre: false,
-      });
-    }
-  }, [isOpen]);
+        descripcion: false
+    });
 
-  // Validar campos cuando cambian
-  useEffect(() => {
-    validateField("nombre", formData.nombre);
-  }, [formData]);
-
-  const validateField = (fieldName: string, value: any) => {
-    let error = "";
-
-    switch (fieldName) {
-      case "nombre":
-        if (!value.trim()) {
-          error = "El nombre de la categoría es obligatorio";
-        } else if (value.length < 3) {
-          error = "El nombre debe tener al menos 3 caracteres";
-        } else if (/[0-9]/.test(value)) {
-          error = "El nombre no puede contener números";
+    // Resetear formulario cuando se abre/cierra el modal
+    useEffect(() => {
+        if (isOpen) {
+            setFormData({
+                nombre: '',
+                descripcion: '',
+                icono: null
+            });
+            setErrors({
+                nombre: '',
+                descripcion: ''
+            });
+            setTouched({
+                nombre: false,
+                descripcion: false
+            });
         }
-        break;
-    }
+    }, [isOpen]);
 
-    setErrors((prev) => ({ ...prev, [fieldName]: error }));
-  };
+    // Validar campos cuando cambian
+    useEffect(() => {
+        validateField('nombre', formData.nombre);
+        validateField('descripcion', formData.descripcion);
+    }, [formData]);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
+    const validateField = (fieldName: string, value: any) => {
+        let error = '';
+        
+        // Lista de caracteres especiales no permitidos
+        const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
+        
+        switch (fieldName) {
+            case 'nombre':
+                if (!value.trim()) {
+                    error = 'El nombre de la categoría es obligatorio';
+                } else if (value.length < 3) {
+                    error = 'El nombre debe tener al menos 3 caracteres';
+                } else if (/[0-9]/.test(value)) {
+                    error = 'El nombre no puede contener números';
+                } else if (specialChars.test(value)) {
+                    error = 'El nombre no puede contener caracteres especiales';
+                }
+                break;
+            case 'descripcion':
+                if (value && specialChars.test(value)) {
+                    error = 'La descripción no puede contener caracteres especiales';
+                }
+                break;
+        }
+        
+        setErrors(prev => ({...prev, [fieldName]: error}));
+    };
 
-    // Validación en tiempo real para el campo nombre (no permitir números)
-    if (name === "nombre" && /[0-9]/.test(value)) {
-      return; // No actualizar el valor si contiene números
-    }
-
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // Marcar el campo como "touched" cuando el usuario interactúa con él
-    setTouched((prev) => ({ ...prev, [name]: true }));
-  };
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        
+        // Validación en tiempo real para los campos
+        if (name === 'nombre' || name === 'descripcion') {
+            // No permitir caracteres especiales
+            const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
+            if (specialChars.test(value)) {
+                return; // No actualizar el valor si contiene caracteres especiales
+            }
+            
+            // Para el campo nombre, no permitir números
+            if (name === 'nombre' && /[0-9]/.test(value)) {
+                return;
+            }
+        }
+        
+        setFormData(prev => ({ ...prev, [name]: value }));
+        
+        // Marcar el campo como "touched" cuando el usuario interactúa con él
+        setTouched(prev => ({...prev, [name]: true}));
+    };
 
   const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -97,50 +119,51 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
     setTouched((prev) => ({ ...prev, [name]: true }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Marcar el campo nombre como "touched" para mostrar el error
-    setTouched((prev) => ({ ...prev, nombre: true }));
-
-    // Validar el campo nombre antes de enviar
-    validateField("nombre", formData.nombre);
-
-    // Verificar si hay errores (solo validamos el nombre)
-    const hasErrors = errors.nombre !== "";
-
-    if (!hasErrors) {
-      // Mostrar mensaje de éxito con react-toastify
-      toast.success("Categoría creada exitosamente!", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        theme: "light",
-      });
-
-      // Llamar a la función onSave para guardar los datos
-      onSave(formData);
-
-      // Cerrar el modal después de guardar
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } else {
-      // Mostrar mensaje de error si hay campos inválidos
-      toast.error("Por favor complete el nombre correctamente", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        theme: "light",
-      });
-    }
-  };
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Marcar todos los campos como "touched" para mostrar errores
+        setTouched(prev => ({...prev, nombre: true, descripcion: true}));
+        
+        // Validar todos los campos antes de enviar
+        validateField('nombre', formData.nombre);
+        validateField('descripcion', formData.descripcion);
+        
+        // Verificar si hay errores
+        const hasErrors = Object.values(errors).some(error => error !== '');
+        
+        if (!hasErrors) {
+            // Mostrar mensaje de éxito con react-toastify
+            toast.success('Categoría creada exitosamente!', {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                theme: "light",
+            });
+            
+            // Llamar a la función onSave para guardar los datos
+            onSave(formData);
+            
+            // Cerrar el modal después de guardar
+            setTimeout(() => {
+                onClose();
+            }, 1000);
+        } else {
+            // Mostrar mensaje de error si hay campos inválidos
+            toast.error('Por favor complete los campos correctamente', {
+                position: "top-right",
+                autoClose: 3000,
+                hideProgressBar: false,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                theme: "light",
+            });
+        }
+    };
 
   if (!isOpen) return null;
 
@@ -241,26 +264,27 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
               </div>
             </div>
 
-            {/* Descripción */}
-            <div>
-              <label
-                className="block text-sm font-medium mb-2"
-                style={{ color: Colors.texts.primary }}
-              >
-                Descripción
-              </label>
-              <textarea
-                name="descripcion"
-                placeholder="Ingrese la descripción de la categoría del producto"
-                value={formData.descripcion}
-                onChange={handleInputChange}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                style={{
-                  borderColor: Colors.table.lines,
-                }}
-              />
-            </div>
+                        {/* Descripción */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2" style={{ color: Colors.texts.primary }}>
+                                Descripción
+                            </label>
+                            <textarea
+                                name="descripcion"
+                                placeholder="Ingrese la descripción de la categoría del producto"
+                                value={formData.descripcion}
+                                onChange={handleInputChange}
+                                onBlur={handleBlur}
+                                rows={4}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                                style={{
+                                    borderColor: errors.descripcion && touched.descripcion ? 'red' : Colors.table.lines,
+                                }}
+                            />
+                            {errors.descripcion && touched.descripcion && (
+                                <span className="text-red-500 text-xs mt-1">{errors.descripcion}</span>
+                            )}
+                        </div>
 
             {/* Botones */}
             <div className="flex justify-end space-x-4 pt-6">
