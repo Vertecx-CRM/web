@@ -26,7 +26,7 @@ const MOCK: Row[] = [
   { id: 7,  name: "Cableado Estructurado del Caribe", nit:"800456789-0", rating: 3.9, contact:"Hernán Bustos", category: "Redes", status: "Activo" },
   { id: 8,  name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo" },
   { id: 9,  name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo" },
-  { id:10,  name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo" }
+  { id:10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo" }
 ];
 
 function stars(rating: number) {
@@ -43,17 +43,22 @@ export default function SuppliersPage() {
     { key: "id", header: "Id" },
     { key: "name", header: "Nombre", render: (r) => <span className="font-medium text-gray-900">{r.name}</span> },
     { key: "nit", header: "NIT" },
-    { key: "rating", header: "Calificación", render: (r) => <span><span className="mr-1">{stars(r.rating)}</span><span className="text-xs text-gray-500">({r.rating.toFixed(1)})</span></span> },
+    { key: "rating", header: "Calificación", render: (r) => (
+      <span>
+        <span className="mr-1">{stars(r.rating)}</span>
+        <span className="text-xs text-gray-500">({r.rating.toFixed(1)})</span>
+      </span>
+    ) },
     { key: "contact", header: "Contacto" },
     { key: "category", header: "Categoría" },
     { key: "status", header: "Estado", render: (r) => (
-      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "Activo" ? "text-green-600 font-medium" : "text-red-600 font-medium"}`}>
+      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "Activo" ? "text-green-600" : "text-red-600"}`}>
         {r.status}
       </span>
     ) }
   ];
 
-  const searchableKeys: (keyof Row)[] = ["name", "contact", "category", "nit","status"];
+  const searchableKeys: (keyof Row)[] = ["name", "contact", "category", "nit", "status"];
 
   const onView = (row: Row) => router.push(`/dashboard/suppliers/${row.id}`);
   const onEdit = (row: Row) => router.push(`/dashboard/suppliers/${row.id}/edit`);
@@ -68,35 +73,34 @@ export default function SuppliersPage() {
     router.replace("/auth/login");
   }
 
+  const createButton = (
+    <button
+      className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+      onClick={() => router.push("/dashboard/suppliers/new")}
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+        <path strokeWidth="2" d="M12 5v14M5 12h14" />
+      </svg>
+      Crear Proveedor
+    </button>
+  );
+
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
-        <div className="px-6 pt-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div />
-            <button
-              className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-              onClick={() => router.push("/dashboard/suppliers/new")}
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-                <path strokeWidth="2" d="M12 5v14M5 12h14" />
-              </svg>
-              Crear Proveedor
-            </button>
-          </div>
-        </div>
+        {/* Ahora el botón va como parámetro al DataTable */}
+        <DataTable<Row>
+          data={rows}
+          columns={columns}
+          pageSize={5}
+          searchableKeys={searchableKeys}
+          onView={onView}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onCreate={() => alert("Abrir modal: crear Proveedor")}
+          createButtonText="Crear Proveedor"
 
-        <div className="px-6 pb-6">
-          <DataTable<Row>
-            data={rows}
-            columns={columns}
-            pageSize={5}
-            searchableKeys={searchableKeys}
-            onView={onView}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        </div>
+        />
       </main>
     </RequireAuth>
   );
