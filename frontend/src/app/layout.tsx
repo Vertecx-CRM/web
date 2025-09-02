@@ -1,6 +1,6 @@
 import "@/app/globals.css";
 import { AuthProvider } from "@/features/auth/authcontext";
-import { LoaderProvider } from "@/shared/components/loader"; // 👈 lo jalas de ahí mismo
+import { LoaderProvider } from "@/shared/components/loader"; 
 
 export const metadata = {
   title: "Vertecx",
