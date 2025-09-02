@@ -2,10 +2,12 @@
 
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { CreateCategoryModal } from "./components/CreateCategoryProduct";
+import { CreateCategoryModal } from "./components/CreateCategoryModal/index";
 import AsideNav from "../layout/AsideNav";
 import TopNav from "../layout/TopNav";
 import { DataTable, Column } from "../components/DataTable";
+import CategoriesTable from './components/CategoriesTable';
+import { useCategories } from './hooks/useCategories';
 
 /** ====== Tipos ====== */
 type Row = {
