@@ -35,6 +35,7 @@ export default function CategoriesPage() {
       
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
+
         {/* Contenido */}
         <main className="flex-1 flex flex-col" style={{ backgroundColor: "#E8E8E8" }}>
           {/* Tools + Tabla */}

@@ -86,9 +86,7 @@ export default function Purchases() {
           columns={columns}
           searchableKeys={["orderNumber", "supplier", "status"]}
           pageSize={5}
-          onView={(row) => alert(`Ver detalle de ${row.orderNumber}`)}
-          onEdit={(row) => alert(`Editar ${row.orderNumber}`)}
-          onDelete={(row) => alert(`Eliminar ${row.orderNumber}`)}
+          onCancel={(row) => console.log("Anular →", row)}
         />
       </div>
     </RequireAuth>
