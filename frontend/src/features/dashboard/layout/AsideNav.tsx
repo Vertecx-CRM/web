@@ -155,6 +155,12 @@ const AsideNav = () => {
                 Listado
               </Link>
               <Link
+                href={routes.dashboard.technicians}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Técnicos
+              </Link>
+              <Link
                 href={routes.notFound}
                 className="px-3 py-2 hover:bg-gray-200"
               >
