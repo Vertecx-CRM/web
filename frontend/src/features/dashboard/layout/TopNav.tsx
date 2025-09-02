@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UserCircle, LogOut } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
-import { useAuth } from "@/features/auth/authContext";
+import { useAuth } from "@/features/auth/authcontext";
 
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",

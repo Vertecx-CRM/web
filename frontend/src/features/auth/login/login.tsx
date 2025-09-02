@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import styles from "@/features/auth/login/login.module.css";
-import { useAuth } from "@/features/auth/authContext";
+import { useAuth } from "@/features/auth/authcontext";
 import Nav from "@/features/landing/layout/Nav";
 
 type FormState = { email: string; password: string; remember: boolean };
