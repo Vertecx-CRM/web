@@ -1,23 +1,8 @@
-"use client";
+import { useState } from "react";
+import { Category, CreateCategoryData } from "../types";
 
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { CreateCategoryModal } from "./components/CreateCategoryProduct";
-import AsideNav from "../layout/AsideNav";
-import TopNav from "../layout/TopNav";
-import { DataTable, Column } from "../components/DataTable";
-
-/** ====== Tipos ====== */
-type Row = {
-  id: number;
-  nombre: string;
-  descripcion: string;
-  estado: "Activo" | "Inactivo";
-
-};
-
-/** ====== Datos realistas (30 ítems) ====== */
-const MOCK: Row[] = [
+// Datos mock iniciales
+const initialCategories: Category[] = [
   { id: 1, nombre: "Electrónicos", descripcion: "Dispositivos electrónicos y gadgets", estado: "Activo" },
   { id: 2, nombre: "Ropa", descripcion: "Prendas de vestir para todas las edades", estado: "Activo" },
   { id: 3, nombre: "Hogar", descripcion: "Artículos para el hogar y decoración", estado: "Inactivo" },
@@ -50,8 +35,38 @@ const MOCK: Row[] = [
   { id: 30, nombre: "Coleccionables", descripcion: "Artículos de colección y antigüedades", estado: "Activo" },
 ];
 
-export default function CategoriesPage() {
-  const {
+export const useCategories = () => {
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const handleCreateCategory = (categoryData: CreateCategoryData) => {
+    const newCategory: Category = {
+      id: categories.length + 1,
+      nombre: categoryData.nombre,
+      descripcion: categoryData.descripcion,
+      estado: "Activo",
+    };
+
+    setCategories(prev => [...prev, newCategory]);
+    setIsCreateModalOpen(false);
+  };
+
+  const handleView = (category: Category) => {
+    console.log("Ver categoría:", category);
+    // Aquí puedes implementar la lógica para ver la categoría
+  };
+
+  const handleEdit = (category: Category) => {
+    console.log("Editar categoría:", category);
+    // Aquí puedes implementar la lógica para editar la categoría
+  };
+
+  const handleDelete = (category: Category) => {
+    console.log("Eliminar categoría:", category);
+    // Aquí puedes implementar la lógica para eliminar la categoría
+  };
+
+  return {
     categories,
     isCreateModalOpen,
     setIsCreateModalOpen,
@@ -59,47 +74,5 @@ export default function CategoriesPage() {
     handleView,
     handleEdit,
     handleDelete
-  } = useCategories();
-
-  return (
-    <div className="min-h-screen flex">
-      {/* Toast Container para mostrar notificaciones */}
-      <ToastContainer
-        position="bottom-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
-      
-      {/* Contenido principal */}
-      <div className="flex-1 flex flex-col">
-
-        {/* Contenido */}
-        <main className="flex-1 flex flex-col" style={{ backgroundColor: "#E8E8E8" }}>
-          {/* Tools + Tabla */}
-          <div className="flex-1 px-6 py-6">
-            <CreateCategoryModal
-              isOpen={isCreateModalOpen}
-              onClose={() => setIsCreateModalOpen(false)}
-              onSave={handleCreateCategory}
-            />
-
-            <CategoriesTable
-              categories={categories}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onCreate={() => setIsCreateModalOpen(true)}
-            />
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
+  };
+};

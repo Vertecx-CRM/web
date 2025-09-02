@@ -1,7 +1,8 @@
 "use client";
 
-import { Column, DataTable } from "./components/DataTable";
 import RequireAuth from "../auth/requireauth";
+import { Column, DataTable } from "./components/DataTable";
+
 
 // Tipo de datos de cada compra
 type Purchase = {

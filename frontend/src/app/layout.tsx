@@ -1,6 +1,8 @@
 import "@/app/globals.css";
 import { AuthProvider } from "@/features/auth/authcontext";
 
+
+
 export const metadata = {
   title: "Vertecx",
   description: "Dashboard Vertecx",
