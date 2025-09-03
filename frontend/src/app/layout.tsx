@@ -1,7 +1,6 @@
 import "@/app/globals.css";
 import { AuthProvider } from "@/features/auth/authcontext";
-
-
+import { LoaderProvider } from "@/shared/components/loader"; 
 
 export const metadata = {
   title: "Vertecx",
@@ -16,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <LoaderProvider>{children}</LoaderProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 import RequireAuth from "../auth/requireauth";
 import { Column, DataTable } from "./components/DataTable";
-
+import RequireAuth from "../auth/requireauth";
 
 // Tipo de datos de cada compra
 type Purchase = {
