@@ -57,6 +57,7 @@ export const useUsers = () => {
               numeroDocumento: userData.documento,
               nombre: `${userData.nombre} ${userData.apellido}`,
               telefono: userData.telefono,
+              rol: userData.rol,
               email: userData.email,
               estado: userData.estado
             }

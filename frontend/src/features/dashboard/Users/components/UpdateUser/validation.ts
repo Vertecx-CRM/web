@@ -56,6 +56,9 @@ export const validateField = (fieldName: string, value: string, formData: UserFo
         error = 'Las contraseñas no coinciden';
       }
       break;
+      case 'rol':
+      if (!value.trim()) error = 'El rol es obligatorio';
+      break;
   }
 
   return error;
@@ -69,6 +72,7 @@ export const validateAllFields = (formData: UserFormData): FormErrors => {
     apellido: validateField('apellido', formData.apellido, formData),
     telefono: validateField('telefono', formData.telefono, formData),
     email: '',
+    rol: validateField('rol', formData.rol || '', formData),
     password: validateField('password', formData.password || '', formData),
     confirmPassword: validateField('confirmPassword', formData.confirmPassword || '', formData),
   };

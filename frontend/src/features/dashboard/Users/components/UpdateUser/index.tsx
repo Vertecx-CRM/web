@@ -184,22 +184,50 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
 
             {/* Estado */}
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Estado
-              </label>
-              <select
-                name="estado"
-                value={formData.estado}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                style={{
-                  borderColor: Colors.table.lines,
-                }}
-              >
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Estado
+                </label>
+                <select
+                  name="estado"
+                  value={formData.estado}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: Colors.table.lines,
+                  }}
+                >
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+              </div>
+
+              {/* Nuevo campo Rol */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Rol
+                </label>
+                <select
+                  name="rol"
+                  value={formData.rol || 'Usuario'} // Asegurar valor por defecto
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: errors.rol && touched.rol ? 'red' : Colors.table.lines,
+                  }}
+                >
+                  <option value="" disabled hidden>Seleccione un rol</option>
+                  <option value="Administrador">Administrador</option>
+                  <option value="Usuario">Usuario</option>
+                  <option value="Editor">Editor</option>
+                  <option value="Invitado">Invitado</option>
+                </select>
+                {errors.rol && touched.rol && (
+                  <span className="text-red-500 text-xs mt-1">{errors.rol}</span>
+                )}
+              </div>
             </div>
 
             {/* Imagen */}
