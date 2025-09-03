@@ -2,12 +2,13 @@
 
 import Colors from "@/shared/theme/colors";
 import { useMemo, useState } from "react";
-import CreateUserModal from "./components/createUser";
+
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import AsideNav from "../layout/AsideNav";
 import TopNav from "../layout/TopNav";
 import { DataTable, Column } from "../components/DataTable";
+import CreateUserModal from "./components/CreateUser";
 
 
 /** ====== Tipos ====== */
