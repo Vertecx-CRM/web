@@ -19,6 +19,7 @@ type DataTableProps<T> = {
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
   onCreate?: () => void;
+  onCancel?: (row: T) => void;
   searchPlaceholder?: string;
   createButtonText?: string;
 };
@@ -40,10 +41,11 @@ const PlusIcon = (p: React.SVGProps<SVGSVGElement>) => (
 export function DataTable<T extends { id: number | string }>({
   data,
   columns,
-  pageSize = 10,
+  pageSize = 5,
   searchableKeys = [],
   onView,
   onEdit,
+  onCancel,
   onDelete,
   onCreate,
   searchPlaceholder = "Buscar…",
@@ -63,10 +65,9 @@ export function DataTable<T extends { id: number | string }>({
         const value = String(row[key] ?? "").toLowerCase();
 
         // Si la columna es "estado" y se busca exactamente activo/inactivo
-        if (key === "estado" && isEstadoExact) {
-          return value === term; // igualdad estricta
+        if (key === "estado" || key === "status" && isEstadoExact) {
+          return value === term;
         }
-
 
         return value.includes(term);
       })
@@ -102,7 +103,8 @@ export function DataTable<T extends { id: number | string }>({
             onClick={onCreate}
           >
             <PlusIcon className="h-4 w-4" />
-            {createButtonText || "Crear"} 
+            {createButtonText || "Crear"}{" "}
+            {/* <- Usa el texto personalizado o "Crear" por defecto */}
           </button>
         )}
       </div>
@@ -110,14 +112,15 @@ export function DataTable<T extends { id: number | string }>({
       {/* Tabla */}
       <div className="overflow-hidden rounded-xl bg-white shadow-sm flex flex-col">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10" style={{ backgroundColor: Colors.table.header }}>
+          <thead
+            className="bg-gray-50 text-gray-700 sticky top-0 z-10"
+            style={{ backgroundColor: Colors.table.header }}
+          >
             <tr className="text-left">
               {columns.map((c) => (
                 <Th key={String(c.key)}>{c.header}</Th>
               ))}
-              {(onView || onEdit || onDelete) && (
-                <Th>Acciones</Th>
-              )}
+              {(onView || onEdit || onDelete || onCancel) && <Th>Acciones</Th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E6E6E6]">
@@ -128,7 +131,7 @@ export function DataTable<T extends { id: number | string }>({
                     {c.render ? c.render(row) : String(row[c.key])}
                   </Td>
                 ))}
-                {(onView || onEdit || onDelete) && (
+                {(onView || onEdit || onDelete || onCancel) && (
                   <Td>
                     <div className="flex items-center gap-3 text-gray-600">
                       {onView && (
@@ -158,6 +161,28 @@ export function DataTable<T extends { id: number | string }>({
                           <img src="/icons/delete.svg" className="h-4 w-4" />
                         </button>
                       )}
+                      {onCancel && (
+                        <button
+                          className="hover:text-red-500"
+                          title="Anular"
+                          onClick={() => onCancel(row)}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </Td>
                 )}
@@ -166,7 +191,12 @@ export function DataTable<T extends { id: number | string }>({
 
             {current.length === 0 && (
               <tr>
-                <td colSpan={columns.length + (onView || onEdit || onDelete ? 1 : 0)} className="px-4 py-10 text-center text-gray-500">
+                <td
+                  colSpan={
+                    columns.length + (onView || onEdit || onDelete ? 1 : 0)
+                  }
+                  className="px-4 py-10 text-center text-gray-500"
+                >
                   Sin resultados.
                 </td>
               </tr>
@@ -206,7 +236,13 @@ function Th({ children }: { children: React.ReactNode }) {
   return <th className="px-4 py-3 font-semibold">{children}</th>;
 }
 
-function Td({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Td({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return <td className={`px-4 py-3 align-top ${className}`}>{children}</td>;
 }
 
@@ -223,7 +259,7 @@ function PageBtn({
       onClick={onClick}
       disabled={disabled}
       style={{
-        backgroundColor: active ? 'white' : Colors.table.header,
+        backgroundColor: active ? "white" : Colors.table.header,
         borderColor: Colors.table.lines,
       }}
       className="min-w-8 rounded-md px-2 py-1 text-xs border text-black disabled:opacity-40 disabled:pointer-events-none transition-colors duration-200"

@@ -6,9 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 
-/**
- * Títulos por ruta (igual que tenías)
- */
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
   [routes.dashboard.users]: "Usuarios",
@@ -21,12 +18,13 @@ const titles: Record<string, string> = {
   [routes.dashboard.clients]: "Clientes",
   [routes.dashboard.newClient]: "Nuevo Cliente",
   [routes.dashboard.settings]: "Configuración",
+  [routes.dashboard.products]: "Productos",
+  [routes.dashboard.productsCategories]: "Categorías de Productos",
+  [routes.dashboard.suppliers]: "Proveedores",
 };
 
 type TopNavProps = {
-  /** Ruta a la que se redirige después de cerrar sesión */
-  logoutRedirectTo?: string; // por defecto: /auth/login
-  /** Opcional: nombre mostrado si no hay usuario en contexto */
+  logoutRedirectTo?: string;
   fallbackUserName?: string;
 };
 
@@ -38,10 +36,11 @@ const TopNav = ({
   const router = useRouter();
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
-
-  // Buscar el título según la ruta actual
   const currentTitle =
-    Object.entries(titles).find(([path]) => pathname.startsWith(path))?.[1] ||
+    titles[pathname] || // exact match
+    Object.entries(titles)
+      .sort((a, b) => b[0].length - a[0].length) // rutas largas primero
+      .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
   async function handleLogout() {

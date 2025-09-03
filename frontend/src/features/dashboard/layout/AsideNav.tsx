@@ -6,12 +6,12 @@ import { usePathname } from "next/navigation";
 import { routes } from "@/shared/routes";
 import {
   Home,
-  Package,
   Users,
   Settings,
   Wrench,
   Truck,
   ChevronDown,
+  Box,
 } from "lucide-react";
 import Colors from "@/shared/theme/colors";
 
@@ -155,6 +155,12 @@ const AsideNav = () => {
                 Listado
               </Link>
               <Link
+                href={routes.dashboard.technicians}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Técnicos
+              </Link>
+              <Link
                 href={routes.notFound}
                 className="px-3 py-2 hover:bg-gray-200"
               >
@@ -195,6 +201,47 @@ const AsideNav = () => {
                 className="px-3 py-2 hover:bg-gray-200"
               >
                 Nuevo cliente
+              </Link>
+            </div>
+          )}
+        </div>
+        {/* Productos */}
+        <div className="relative">
+          <button
+            onClick={() => toggleMenu("productos")}
+            className={`flex items-center justify-between w-full px-3 py-2 rounded-md ${isActive(
+              routes.dashboard.products
+            )}`}
+          >
+            <span className="flex items-center gap-2">
+              <Box size={18} /> Productos
+            </span>
+            <ChevronDown
+              size={16}
+              className={`transition-transform ${
+                openMenu === "productos" ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {openMenu === "productos" && (
+            <div className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-56 z-50">
+              <Link
+                href={routes.dashboard.products}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Listado
+              </Link>
+              <Link
+                href={routes.notFound}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Nuevo producto
+              </Link>
+              <Link
+                href={routes.dashboard.productsCategories}
+                className="px-3 py-2 hover:bg-gray-200"
+              >
+                Categorías
               </Link>
             </div>
           )}
