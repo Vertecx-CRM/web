@@ -4,13 +4,18 @@ import "react-toastify/dist/ReactToastify.css";
 import { useUsers } from "./hooks/useUsers";
 import CreateUserModal from "./components/CreateUser";
 import UsersTable from "./components/UsersTable";
+import EditUserModal from "./components/UpdateUser";
 
 export default function UsersPage() {
   const {
     users,
     isCreateModalOpen,
     setIsCreateModalOpen,
+    isEditModalOpen,
+    setIsEditModalOpen,
+    selectedUser,
     handleCreateUser,
+    handleEditUser,
     handleView,
     handleEdit,
     handleDelete
@@ -35,15 +40,19 @@ export default function UsersPage() {
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
         {/* Contenido */}
-        <main
-          className="flex-1 flex flex-col"
-          style={{ backgroundColor: "#E8E8E8" }}
-        >
+        <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
             <CreateUserModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateUser}
+            />
+
+            <EditUserModal
+              isOpen={isEditModalOpen}
+              onClose={() => setIsEditModalOpen(false)}
+              onSave={handleEditUser}
+              user={selectedUser}
             />
 
             <UsersTable
