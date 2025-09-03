@@ -1,6 +1,6 @@
 import "@/app/globals.css";
 import { AuthProvider } from "@/features/auth/authcontext";
-
+import { LoaderProvider } from "@/shared/components/loader"; // 👈 lo jalas de ahí mismo
 
 
 export const metadata = {
@@ -16,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <LoaderProvider>{children}</LoaderProvider>
+        </AuthProvider>
       </body>
     </html>
   );
