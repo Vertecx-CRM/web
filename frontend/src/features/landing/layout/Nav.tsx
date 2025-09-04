@@ -7,7 +7,8 @@ import { routes } from "@/shared/routes";
 import CartModal from "../components/CartModal";
 
 const Nav = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
   return (
     <>
@@ -35,7 +36,7 @@ const Nav = () => {
 
             {/* Carrito */}
             <button
-              onClick={() => setIsOpen(true)}
+              onClick={() => setIsCartOpen(true)}
               className="ml-4 bg-red-700 hover:bg-red-800 text-white px-4 py-1 rounded-md flex items-center justify-center transition"
             >
               <ShoppingCart className="h-5 w-5" />
@@ -45,15 +46,34 @@ const Nav = () => {
           {/* Mobile Menu Button */}
           <button
             className="md:hidden text-gray-700"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             ☰
           </button>
         </div>
+
+        {/* Mobile Menu desplegable */}
+        {isMenuOpen && (
+          <div className="md:hidden bg-white px-6 py-4 flex flex-col gap-4 shadow-md">
+            <Link href={routes.landing.services}>Servicios</Link>
+            <Link href={routes.landing.products}>Productos</Link>
+            <Link href={routes.landing.about}>Nosotros</Link>
+            <Link href={routes.landing.contact}>Contáctanos</Link>
+            <Link href={routes.auth.login}>Iniciar Sesión</Link>
+
+            {/* Carrito en móvil */}
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
+            >
+              <ShoppingCart className="h-5 w-5 mr-2" /> Carrito
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* Modal del carrito */}
-      <CartModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
+      <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   );
 };

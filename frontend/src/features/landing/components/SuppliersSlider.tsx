@@ -103,7 +103,7 @@ const SuppliersSlider = () => {
                 className="flex-shrink-0 flex justify-center items-center p-4"
                 style={{ width: `${25 / itemsToShow}%` }}
               >
-                <div className="relative w-full h-28 grayscale hover:grayscale-0 transition-all duration-300 hover:scale-105">
+                <div className="cursor-pointer relative w-full h-28 grayscale hover:grayscale-0 transition-all duration-300 hover:scale-120">
                   <Image
                     src={src}
                     alt={`Proveedor ${(index % suppliers.length) + 1}`}

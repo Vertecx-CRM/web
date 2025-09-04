@@ -4,39 +4,10 @@ import { useState } from "react";
 import RequireAuth from "../../auth/requireauth";
 import { Column, DataTable } from "../components/DataTable";
 import Modal from "../components/Modal";
-import RegisterPurchaseForm from "./RegisterPurchase";
+import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
-import SeeMorePurchase from "./SeeMorePurchase";
-
-const purchases: IPurchase[] = [
-  {
-    id: 1,
-    orderNumber: "OC-2025-001",
-    invoiceNumber: "FAC-2025-1001",
-    supplier: "Proveedor A",
-    registerDate: "2025-08-20",
-    amount: 1200.5,
-    status: "Aprobado",
-  },
-  {
-    id: 2,
-    orderNumber: "OC-2025-002",
-    invoiceNumber: "FAC-2025-1002",
-    supplier: "Proveedor B",
-    registerDate: "2025-08-21",
-    amount: 530.0,
-    status: "Anulado",
-  },
-  {
-    id: 3,
-    orderNumber: "OC-2025-003",
-    invoiceNumber: "FAC-2025-1003",
-    supplier: "Proveedor C",
-    registerDate: "2025-08-22",
-    amount: 890.75,
-    status: "Aprobado",
-  },
-];
+import SeeMorePurchase from "./components/SeeMorePurchase";
+import { purchases } from "./mock/purchases.mock";
 
 export default function PurchasesIndex() {
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
