@@ -1,6 +1,6 @@
 "use client";
 
-import { IPurchase } from "./Types/Purchase.type";
+import { IPurchase } from "../Types/Purchase.type";
 
 type SeeMorePurchaseProps = {
   purchase: IPurchase;
@@ -64,6 +64,15 @@ export default function SeeMorePurchase({ purchase }: SeeMorePurchaseProps) {
           <input
             type="text"
             value={purchase.amount}
+            disabled
+            className="w-full border p-2 rounded-lg bg-gray-100"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">IVA</label>
+          <input
+            type="text"
+            value={purchase.tax || "19%"}
             disabled
             className="w-full border p-2 rounded-lg bg-gray-100"
           />

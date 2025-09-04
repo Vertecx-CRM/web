@@ -81,7 +81,7 @@ const TopNav = ({
         <button
           onClick={handleLogout}
           disabled={loading}
-          className="text-red-700 hover:text-red-900 flex items-center gap-1 disabled:opacity-60"
+          className="cursor-pointer text-red-700 hover:text-red-900 flex items-center gap-1 disabled:opacity-60"
         >
           <LogOut size={18} />
           {loading ? "Saliendo…" : "Cerrar sesión"}
@@ -100,7 +100,7 @@ const TopNav = ({
           <button
             onClick={handleLogout}
             disabled={loading}
-            className="text-red-700 hover:text-red-900 flex items-center gap-2 disabled:opacity-60"
+            className="cursor-pointer text-red-700 hover:text-red-900 flex items-center gap-2 disabled:opacity-60"
           >
             <LogOut size={18} />
             {loading ? "Saliendo…" : "Cerrar sesión"}

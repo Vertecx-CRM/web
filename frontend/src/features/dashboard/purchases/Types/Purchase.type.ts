@@ -6,4 +6,6 @@ export type IPurchase = {
   registerDate: string;
   amount: number;
   status: "Aprobado" | "Anulado";
+  products?: any[];
+  tax?: number;
 };
