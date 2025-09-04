@@ -12,11 +12,19 @@ import {
   Truck,
   ChevronDown,
   Box,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import Colors from "@/shared/theme/colors";
 import { motion, AnimatePresence } from "framer-motion";
 
-const AsideNav = () => {
+const AsideNav = ({
+  isCollapsed,
+  setIsCollapsed,
+}: {
+  isCollapsed: boolean;
+  setIsCollapsed: (value: boolean) => void;
+}) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
 
@@ -35,12 +43,25 @@ const AsideNav = () => {
       : "hover:bg-red-600 hover:scale-105 transition transform duration-200";
 
   return (
-    <aside
-      className="text-white w-64 h-screen flex flex-col relative"
+    <motion.aside
+      initial={{ x: -260 }} // 👈 animación inicial
+      animate={{ x: isCollapsed ? -260 : 0 }} // 👈 se mueve con toggle
+      transition={{ duration: 0.3 }}
+      className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50"
       style={{ backgroundColor: Colors.asideNavBackground.primary }}
     >
+      {/* Botón flecha arriba a la derecha */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="cursor-pointer absolute -right-7 top-4 bg-red-700 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition"
+      >
+        {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+      </button>
+
+      {/* Header */}
       <h2 className="text-xl font-bold p-4">Dashboard Administrador</h2>
 
+      {/* NAV */}
       <nav className="flex flex-col gap-1 px-2">
         {/* Dashboard */}
         <Link
@@ -344,7 +365,7 @@ const AsideNav = () => {
           <Settings size={20} /> Configuración
         </Link>
       </div>
-    </aside>
+    </motion.aside>
   );
 };
 
