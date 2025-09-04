@@ -14,6 +14,7 @@ const titles: Record<string, string> = {
   [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
   [routes.dashboard.purchasesGraph]: "Listado de Compras",
   [routes.dashboard.services]: "Servicios",
+  [routes.dashboard.technicians]: "Técnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
   [routes.dashboard.clients]: "Clientes",
   [routes.dashboard.newClient]: "Nuevo Cliente",

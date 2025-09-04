@@ -4,10 +4,10 @@ import Colors from "@/shared/theme/colors";
 import { useState } from "react";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { CreateCategoryModal } from "./components/CreateCategoryProduct";
 import AsideNav from "../layout/AsideNav";
 import TopNav from "../layout/TopNav";
 import { DataTable, Column } from "../components/DataTable";
+import CreateCategoryModal from "./components/CreateCategoryModal";
 
 /** ====== Tipos ====== */
 type Row = {
@@ -134,16 +134,13 @@ export default function CategoriesPage() {
         theme="light"
       />
       
-      {/* AsideNav */}
-      <AsideNav />
+
       
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
-        {/* TopNav */}
-        <TopNav />
         
         {/* Contenido */}
-        <main className="flex-1 flex flex-col bg-gray-100" style={{ backgroundColor: "#E8E8E8" }}>
+        <main className="flex-1 flex flex-col " >
           {/* Tools + Tabla */}
           <div className="flex-1 px-6 py-6">
             <CreateCategoryModal

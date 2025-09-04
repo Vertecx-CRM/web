@@ -34,49 +34,50 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b text-left text-gray-600">
-                <th className="p-3">Producto</th>
-                <th className="p-3">Precio</th>
-                <th className="p-3">Cantidad</th>
-                <th className="p-3">Servicio</th>
-                <th className="p-3">Sub-total</th>
-                <th className="p-3">Acciones</th>
+              <tr className="border-b text-gray-600">
+                <th className="p-3 text-center">Producto</th>
+                <th className="p-3 text-center">Precio</th>
+                <th className="p-3 text-center">Cantidad</th>
+                <th className="p-3 text-center">Servicio</th>
+                <th className="p-3 text-center">Sub-total</th>
+                <th className="p-3 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {/* Ejemplo de fila */}
-              <tr className="border-b">
-                <td className="p-3 flex items-center gap-3">
-                  <Image
-                    src="/assets/imgs/laptop.png"
-                    alt="Producto"
-                    width={60}
-                    height={60}
-                  />
-                  Victus HP SIO
-                </td>
-                <td className="p-3">$2.000.000</td>
-                <td className="p-3 flex items-center gap-2">
-                  <button className="px-2 border rounded">-</button>
-                  <span>1</span>
-                  <button className="px-2 border rounded">+</button>
-                </td>
-                <td className="p-3">
-                  <input type="checkbox" defaultChecked />
-                </td>
-                <td className="p-3">$2.000.000</td>
-                <td className="p-3">
-                  <button className="text-red-600 hover:text-red-800">
-                    🗑️
-                  </button>
-                </td>
-              </tr>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  <td className="p-3 flex items-center gap-3 justify-center">
+                    <Image
+                      src="/assets/imgs/laptop.png"
+                      alt="Producto"
+                      width={60}
+                      height={60}
+                    />
+                    Victus HP SIO
+                  </td>
+                  <td className="p-3 text-center">$2.000.000</td>
+                  <td className="p-3 flex items-center justify-center gap-2">
+                    <button className="px-2 border rounded">-</button>
+                    <span>1</span>
+                    <button className="px-2 border rounded">+</button>
+                  </td>
+                  <td className="p-3 text-center">
+                    <input type="checkbox" defaultChecked />
+                  </td>
+                  <td className="p-3 text-center">$2.000.000</td>
+                  <td className="p-3 text-center">
+                    <button className="text-red-600 hover:text-red-800">
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
         {/* Datos del cliente */}
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 text-center">
           <p>
             <strong>Nombre:</strong> Samuel Córdoba
           </p>
@@ -91,7 +92,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
         {/* Total y botón */}
         <div className="flex justify-between items-center mt-6">
-          <p className="text-2xl font-bold">Total: $6.000.000</p>
+          <p className="text-2xl font-bold">Total: $8.000.000</p>
           <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-2 rounded-md text-lg font-semibold transition">
             Comprar
           </button>

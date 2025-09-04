@@ -54,22 +54,50 @@ export function DataTable<T extends { id: number | string }>({
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
 
+  function normalize(value: any): string[] {
+    if (value == null) return [];
+
+    // Convertir a string
+    let str = String(value).toLowerCase().trim();
+
+    // ---- Números / montos ----
+    if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
+      const num = Number(str.replace(/[\$,]/g, ""));
+      return [
+        num.toString(), // "1200.5"
+        num.toFixed(0), // "1200"
+        num.toFixed(2), // "1200.50"
+      ];
+    }
+
+    // ---- Fechas ----
+    if (!isNaN(Date.parse(str))) {
+      const d = new Date(str);
+      return [
+        d.toISOString().slice(0, 10), // 2025-08-20
+        d.toLocaleDateString("es-ES"), // 20/8/2025
+        d.getFullYear().toString(), // 2025
+        d.toLocaleDateString("es-ES", { month: "long", year: "numeric" }), // agosto de 2025
+      ].map((f) => f.toLowerCase());
+    }
+
+    // ---- Texto normal ----
+    return [str];
+  }
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return data;
 
-    const isEstadoExact = term === "activo" || term === "inactivo";
+    const keys =
+      searchableKeys && searchableKeys.length > 0
+        ? searchableKeys
+        : (Object.keys(data[0] ?? {}) as (keyof T)[]);
 
     return data.filter((row) =>
-      searchableKeys.some((key) => {
-        const value = String(row[key] ?? "").toLowerCase();
-
-        // Si la columna es "estado" y se busca exactamente activo/inactivo
-        if (key === "estado" || key === "status" && isEstadoExact) {
-          return value === term;
-        }
-
-        return value.includes(term);
+      keys.some((key) => {
+        const values = normalize(row[key]);
+        return values.some((v) => v.includes(term));
       })
     );
   }, [q, data, searchableKeys]);
