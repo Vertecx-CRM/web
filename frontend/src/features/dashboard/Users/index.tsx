@@ -1,4 +1,3 @@
-// index.tsx principal
 "use client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -6,7 +5,9 @@ import { useUsers } from "./hooks/useUsers";
 import CreateUserModal from "./components/CreateUser";
 import UsersTable from "./components/UsersTable";
 import EditUserModal from "./components/UpdateUser";
-import ViewUserModal from "./components/ViewUserModal"; // Importar el nuevo modal
+import ViewUserModal from "./components/ViewUserModal";
+import DeleteConfirmation from "./components/DeleteUser/DeleteConfirmation";
+
 
 export default function UsersPage() {
   const {
@@ -15,14 +16,17 @@ export default function UsersPage() {
     setIsCreateModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
-    isViewModalOpen, // Obtener el nuevo estado
-    setIsViewModalOpen, // Obtener el setter del nuevo estado
+    isViewModalOpen,
+    setIsViewModalOpen,
     selectedUser,
+    userToDelete, // Obtener usuario a eliminar
     handleCreateUser,
     handleEditUser,
     handleView,
     handleEdit,
-    handleDelete
+    handleDelete,
+    confirmDelete,
+    cancelDelete
   } = useUsers();
 
   return (
@@ -59,18 +63,24 @@ export default function UsersPage() {
               user={selectedUser}
             />
 
-            {/* Nuevo modal para visualizar usuario */}
             <ViewUserModal
               isOpen={isViewModalOpen}
               onClose={() => setIsViewModalOpen(false)}
               user={selectedUser}
             />
 
+            {/* Modal de confirmación de eliminación */}
+            <DeleteConfirmation
+              user={userToDelete}
+              onConfirm={confirmDelete}
+              onCancel={cancelDelete}
+            />
+
             <UsersTable
               users={users}
               onView={handleView}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDelete} // Pasar la función que solo guarda el usuario a eliminar
               onCreate={() => setIsCreateModalOpen(true)}
             />
           </div>
