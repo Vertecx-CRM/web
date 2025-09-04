@@ -31,8 +31,9 @@ export const useUsers = () => {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false); // Nuevo estado
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null); // Nuevo estado para el usuario a eliminar
 
   const handleCreateUser = (userData: CreateUserData) => {
     const newUser: User = {
@@ -77,7 +78,7 @@ export const useUsers = () => {
 
   const handleView = (user: User) => {
     setSelectedUser(user);
-    setIsViewModalOpen(true); // Abrir modal de visualización
+    setIsViewModalOpen(true);
   };
 
   const handleEdit = (user: User) => {
@@ -85,9 +86,20 @@ export const useUsers = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleDelete = (user: User) => {
-    console.log("Eliminar usuario:", user);
-    setUsers(prev => prev.filter(u => u.id !== user.id));
+  const handleDeleteClick = (user: User) => {
+    // Solo guardamos el usuario a eliminar, la confirmación se maneja en el componente
+    setUserToDelete(user);
+  };
+
+  const confirmDelete = () => {
+    if (userToDelete) {
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      setUserToDelete(null); // Limpiar después de eliminar
+    }
+  };
+
+  const cancelDelete = () => {
+    setUserToDelete(null); // Cancelar eliminación
   };
 
   return {
@@ -96,14 +108,17 @@ export const useUsers = () => {
     setIsCreateModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
-    isViewModalOpen, // Exportar nuevo estado
-    setIsViewModalOpen, // Exportar setter del nuevo estado
+    isViewModalOpen,
+    setIsViewModalOpen,
     selectedUser,
     setSelectedUser,
+    userToDelete, // Exportar el usuario a eliminar
     handleCreateUser,
     handleEditUser,
     handleView,
     handleEdit,
-    handleDelete
+    handleDelete: handleDeleteClick, // Cambiar nombre para claridad
+    confirmDelete, // Nueva función para confirmar eliminación
+    cancelDelete // Nueva función para cancelar eliminación
   };
 };

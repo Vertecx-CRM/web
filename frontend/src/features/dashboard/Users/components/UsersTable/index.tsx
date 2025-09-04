@@ -1,4 +1,3 @@
-
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
 import { User } from "../../types";
 import Colors from "@/shared/theme/colors";
