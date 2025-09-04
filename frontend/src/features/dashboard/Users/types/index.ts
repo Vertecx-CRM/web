@@ -7,6 +7,7 @@ export interface User {
   email: string;
   rol: string;
   estado: "Activo" | "Inactivo";
+  imagen?: string;
 }
 
 export interface CreateUserData {
@@ -17,7 +18,7 @@ export interface CreateUserData {
   telefono: string;
   email: string;
   imagen: File | null;
-  rol: string; // Mantener como requerido para creación
+  rol: string; 
   password: string;
   confirmPassword: string;
 }
@@ -30,15 +31,16 @@ export interface EditUserData {
   apellido: string;
   telefono: string;
   email: string;
-  rol: string; // Mantener como requerido para edición
+  imagen: File | null;
+  rol: string; 
   estado: "Activo" | "Inactivo";
 }
 
-// Cambia la extensión para hacer rol opcional en UserFormData
+
 export interface UserFormData extends Omit<CreateUserData, 'password' | 'confirmPassword' | 'rol'> {
   id?: number;
   estado?: "Activo" | "Inactivo";
-  rol?: string; // Ahora es opcional
+  rol?: string; 
   password?: string;
   confirmPassword?: string;
 }

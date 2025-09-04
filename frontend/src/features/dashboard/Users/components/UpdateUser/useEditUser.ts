@@ -44,9 +44,22 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
   useEffect(() => {
     if (isOpen && user) {
       // Separar nombre y apellido
-      const nombreCompleto = user.nombre?.split(' ') || [];
-      const nombre = nombreCompleto[0] || '';
-      const apellido = nombreCompleto.slice(1).join(' ') || '';
+      const names = user.nombre?.trim().split(/\s+/) || [];
+      let nombre = "";
+      let apellido = "";
+
+      if (names.length === 1) {
+        nombre = names[0];
+      } else if (names.length === 2) {
+        nombre = names[0];
+        apellido = names[1];
+      } else if (names.length === 3) {
+        nombre = `${names[0]} ${names[1]}`;
+        apellido = names[2];
+      } else if (names.length >= 4) {
+        nombre = `${names[0]} ${names[1]}`;
+        apellido = names.slice(2).join(" ");
+      }
 
       setFormData({
         id: user.id,
@@ -56,7 +69,7 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         apellido: apellido,
         telefono: user.telefono || '',
         email: user.email || '',
-        rol: user.rol || 'Usuario', 
+        rol: user.rol || 'Usuario',
         imagen: null,
         estado: user.estado || 'Activo'
       });
@@ -185,7 +198,8 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         telefono: formData.telefono,
         email: formData.email,
         rol: formData.rol || 'Usuario',
-        estado: formData.estado || 'Activo'
+        estado: formData.estado || 'Activo',
+        imagen: formData.imagen
       };
 
       // Mostrar mensaje de éxito con react-toastify
