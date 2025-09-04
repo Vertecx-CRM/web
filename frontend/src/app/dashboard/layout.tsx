@@ -20,8 +20,8 @@ export default function DashboardLayout({
       <div
         className={`flex flex-col transition-all duration-300`}
         style={{
-          width: isCollapsed ? "100%" : "calc(100% - 16rem)", // 👈 ajusta según aside
-          marginLeft: isCollapsed ? 0 : "16rem", // 👈 evita espacio vacío
+          width: isCollapsed ? "100%" : "calc(100% - 16rem)", 
+          marginLeft: isCollapsed ? 0 : "16rem", 
         }}
       >
         {/* Top navigation */}
