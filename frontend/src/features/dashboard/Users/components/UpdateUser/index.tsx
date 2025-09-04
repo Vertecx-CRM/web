@@ -47,6 +47,61 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                        {/* Imagen */}
+            <div>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
+                Imagen
+              </label>
+
+              {/* Contenedor de la imagen que actúa como botón */}
+              <div className="flex justify-center mb-2">
+                <input
+                  type="file"
+                  name="imagen"
+                  onChange={handleInputChange}
+                  className="hidden"
+                  id="imagen-upload"
+                  accept="image/*"
+                />
+                <label htmlFor="imagen-upload" className="cursor-pointer">
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
+                    {formData.imagen ? (
+                      <img
+                        src={URL.createObjectURL(formData.imagen)}
+                        alt="Nueva imagen"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : user?.imagen ? (
+                      <img
+                        src={user.imagen}
+                        alt="Imagen actual"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-gray-500 text-xs text-center">
+                        <img
+                          src="/icons/Plus.svg"
+                          alt="Agregar imagen"
+                          className="w-6 h-6 mx-auto mb-1"
+                        />
+                        <span>Agregar</span>
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Texto del nombre del archivo seleccionado (solo si hay archivo) */}
+              {formData.imagen && (
+                <div className="text-xs text-green-600 text-center mt-1">
+                  {formData.imagen.name}
+                </div>
+              )}
+            </div>
+
             {/* Documento */}
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
@@ -184,49 +239,49 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
 
             {/* Estado */}
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Estado
-              </label>
-              <select
-                name="estado"
-                value={formData.estado}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                style={{
-                  borderColor: Colors.table.lines,
-                }}
-              >
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-              </select>
-            </div>
-
-            {/* Imagen */}
-            <div>
-              <label
-                className="block text-sm font-medium mb-1"
-                style={{ color: Colors.texts.primary }}
-              >
-                Imagen
-              </label>
-              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center">
-                <input
-                  type="file"
-                  name="imagen"
-                  onChange={handleInputChange}
-                  className="hidden"
-                  id="imagen-upload"
-                  accept="image/*"
-                />
-                <label htmlFor="imagen-upload" className="cursor-pointer">
-                  <div className="text-sm text-gray-500">Cargar el archivo</div>
-                  {formData.imagen && (
-                    <div className="text-xs text-green-600 mt-1">
-                      {formData.imagen.name}
-                    </div>
-                  )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Estado
                 </label>
+                <select
+                  name="estado"
+                  value={formData.estado}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: Colors.table.lines,
+                  }}
+                >
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+              </div>
+
+              {/* Nuevo campo Rol */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Rol
+                </label>
+                <select
+                  name="rol"
+                  value={formData.rol || 'Usuario'} // Asegurar valor por defecto
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: errors.rol && touched.rol ? 'red' : Colors.table.lines,
+                  }}
+                >
+                  <option value="" disabled hidden>Seleccione un rol</option>
+                  <option value="Administrador">Administrador</option>
+                  <option value="Usuario">Usuario</option>
+                  <option value="Editor">Editor</option>
+                  <option value="Invitado">Invitado</option>
+                </select>
+                {errors.rol && touched.rol && (
+                  <span className="text-red-500 text-xs mt-1">{errors.rol}</span>
+                )}
               </div>
             </div>
 

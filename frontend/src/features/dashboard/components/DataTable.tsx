@@ -102,6 +102,7 @@ export function DataTable<T extends { id: number | string }>({
     );
   }, [q, data, searchableKeys]);
 
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
   const goTo = (p: number) => setPage(Math.min(Math.max(p, 1), totalPages));

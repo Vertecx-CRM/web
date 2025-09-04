@@ -11,6 +11,7 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
     apellido: '',
     telefono: '',
     email: '',
+    rol: '',
     imagen: null,
     estado: 'Activo'
   });
@@ -22,6 +23,7 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
     apellido: '',
     telefono: '',
     email: '',
+    rol: '',
     password: '',
     confirmPassword: '',
   });
@@ -33,6 +35,7 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
     apellido: false,
     telefono: false,
     email: false,
+    rol: false,
     password: false,
     confirmPassword: false,
   });
@@ -41,10 +44,23 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
   useEffect(() => {
     if (isOpen && user) {
       // Separar nombre y apellido
-      const nombreCompleto = user.nombre?.split(' ') || [];
-      const nombre = nombreCompleto[0] || '';
-      const apellido = nombreCompleto.slice(1).join(' ') || '';
-      
+      const names = user.nombre?.trim().split(/\s+/) || [];
+      let nombre = "";
+      let apellido = "";
+
+      if (names.length === 1) {
+        nombre = names[0];
+      } else if (names.length === 2) {
+        nombre = names[0];
+        apellido = names[1];
+      } else if (names.length === 3) {
+        nombre = `${names[0]} ${names[1]}`;
+        apellido = names[2];
+      } else if (names.length >= 4) {
+        nombre = `${names[0]} ${names[1]}`;
+        apellido = names.slice(2).join(" ");
+      }
+
       setFormData({
         id: user.id,
         tipoDocumento: user.documento || '',
@@ -53,10 +69,11 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         apellido: apellido,
         telefono: user.telefono || '',
         email: user.email || '',
+        rol: user.rol || 'Usuario',
         imagen: null,
         estado: user.estado || 'Activo'
       });
-      
+
       // Resetear errores y touched
       setErrors({
         tipoDocumento: '',
@@ -65,10 +82,11 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         apellido: '',
         telefono: '',
         email: '',
+        rol: '',
         password: '',
         confirmPassword: '',
       });
-      
+
       setTouched({
         tipoDocumento: false,
         documento: false,
@@ -76,6 +94,7 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         apellido: false,
         telefono: false,
         email: false,
+        rol: false,
         password: false,
         confirmPassword: false,
       });
@@ -85,17 +104,17 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
   // Validar campos cuando cambian
   useEffect(() => {
     const newErrors = { ...errors };
-    
+
     Object.keys(formData).forEach((key) => {
       if (key !== 'imagen' && key !== 'email' && key !== 'estado' && key !== 'id') {
         newErrors[key as keyof FormErrors] = validateField(
-          key, 
-          formData[key as keyof UserFormData] as string, 
+          key,
+          formData[key as keyof UserFormData] as string,
           formData
         );
       }
     });
-    
+
     setErrors(newErrors);
   }, [formData]);
 
@@ -151,16 +170,16 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
       password: 'dummy', // Valor dummy para evitar errores de validación
       confirmPassword: 'dummy'
     };
-    
+
     const newErrors = validateAllFields(validationData);
-    
+
     // Eliminar errores de password y confirmPassword ya que no son requeridos en edición
     const filteredErrors = {
       ...newErrors,
       password: '',
       confirmPassword: ''
     };
-    
+
     setErrors(filteredErrors);
 
     // Verificar si hay errores (excluyendo password y confirmPassword)
@@ -178,7 +197,9 @@ export const useEditUser = (user: User | null, isOpen: boolean, onClose: () => v
         apellido: formData.apellido,
         telefono: formData.telefono,
         email: formData.email,
-        estado: formData.estado || 'Activo'
+        rol: formData.rol || 'Usuario',
+        estado: formData.estado || 'Activo',
+        imagen: formData.imagen
       };
 
       // Mostrar mensaje de éxito con react-toastify

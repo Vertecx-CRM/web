@@ -1,3 +1,4 @@
+// index.tsx principal
 "use client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -5,6 +6,7 @@ import { useUsers } from "./hooks/useUsers";
 import CreateUserModal from "./components/CreateUser";
 import UsersTable from "./components/UsersTable";
 import EditUserModal from "./components/UpdateUser";
+import ViewUserModal from "./components/ViewUserModal"; // Importar el nuevo modal
 
 export default function UsersPage() {
   const {
@@ -13,6 +15,8 @@ export default function UsersPage() {
     setIsCreateModalOpen,
     isEditModalOpen,
     setIsEditModalOpen,
+    isViewModalOpen, // Obtener el nuevo estado
+    setIsViewModalOpen, // Obtener el setter del nuevo estado
     selectedUser,
     handleCreateUser,
     handleEditUser,
@@ -52,6 +56,13 @@ export default function UsersPage() {
               isOpen={isEditModalOpen}
               onClose={() => setIsEditModalOpen(false)}
               onSave={handleEditUser}
+              user={selectedUser}
+            />
+
+            {/* Nuevo modal para visualizar usuario */}
+            <ViewUserModal
+              isOpen={isViewModalOpen}
+              onClose={() => setIsViewModalOpen(false)}
               user={selectedUser}
             />
 

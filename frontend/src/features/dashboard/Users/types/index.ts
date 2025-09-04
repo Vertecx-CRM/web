@@ -7,6 +7,7 @@ export interface User {
   email: string;
   rol: string;
   estado: "Activo" | "Inactivo";
+  imagen?: string;
 }
 
 export interface CreateUserData {
@@ -17,6 +18,7 @@ export interface CreateUserData {
   telefono: string;
   email: string;
   imagen: File | null;
+  rol: string; 
   password: string;
   confirmPassword: string;
 }
@@ -29,12 +31,16 @@ export interface EditUserData {
   apellido: string;
   telefono: string;
   email: string;
+  imagen: File | null;
+  rol: string; 
   estado: "Activo" | "Inactivo";
 }
 
-export interface UserFormData extends Omit<CreateUserData, 'password' | 'confirmPassword'> {
+
+export interface UserFormData extends Omit<CreateUserData, 'password' | 'confirmPassword' | 'rol'> {
   id?: number;
   estado?: "Activo" | "Inactivo";
+  rol?: string; 
   password?: string;
   confirmPassword?: string;
 }
@@ -46,6 +52,7 @@ export interface FormErrors {
   apellido: string;
   telefono: string;
   email: string;
+  rol: string;
   password: string;
   confirmPassword: string;
 }
@@ -57,6 +64,7 @@ export interface FormTouched {
   apellido: boolean;
   telefono: boolean;
   email: boolean;
+  rol: boolean;
   password: boolean;
   confirmPassword: boolean;
 }
