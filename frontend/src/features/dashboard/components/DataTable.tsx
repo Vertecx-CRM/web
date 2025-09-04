@@ -53,6 +53,21 @@ export function DataTable<T extends { id: number | string }>({
 }: DataTableProps<T>) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+  function Td({
+    children,
+    className = "",
+    ...rest
+  }: {
+    children: React.ReactNode;
+    className?: string;
+    [key: string]: any;
+  }) {
+    return (
+      <td {...rest} className={`px-4 py-3 align-top ${className}`}>
+        {children}
+      </td>
+    );
+  }
 
   function normalize(value: any): string[] {
     if (value == null) return [];
@@ -102,7 +117,6 @@ export function DataTable<T extends { id: number | string }>({
     );
   }, [q, data, searchableKeys]);
 
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
   const goTo = (p: number) => setPage(Math.min(Math.max(p, 1), totalPages));
@@ -125,23 +139,34 @@ export function DataTable<T extends { id: number | string }>({
         </div>
 
         {onCreate && (
-          <button
-            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-            style={{ background: Colors.buttons.primary }}
-            onClick={onCreate}
-          >
-            <PlusIcon className="h-4 w-4" />
-            {createButtonText || "Crear"}{" "}
-            {/* <- Usa el texto personalizado o "Crear" por defecto */}
-          </button>
+          <>
+            {/* Botón normal (solo visible en escritorio) */}
+            <button
+              className="hidden md:inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
+              style={{ background: Colors.buttons.primary }}
+              onClick={onCreate}
+            >
+              <PlusIcon className="h-4 w-4" />
+              {createButtonText || "Crear"}
+            </button>
+
+            {/* Botón flotante circular (solo visible en móviles) */}
+            <button
+              className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
+              style={{ background: Colors.buttons.primary }}
+              onClick={onCreate}
+            >
+              <PlusIcon className="h-6 w-6" />
+            </button>
+          </>
         )}
       </div>
 
       {/* Tabla */}
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm flex flex-col">
-        <table className="min-w-full text-sm">
+      <div className="overflow-x-auto rounded-xl bg-white shadow-sm flex flex-col">
+        <table className="min-w-max w-full text-sm">
           <thead
-            className="bg-gray-50 text-gray-700 sticky top-0 z-10"
+            className="bg-gray-50 text-gray-700 sticky top-0 z-10 hidden md:table-header-group"
             style={{ backgroundColor: Colors.table.header }}
           >
             <tr className="text-left">
@@ -151,16 +176,28 @@ export function DataTable<T extends { id: number | string }>({
               {(onView || onEdit || onDelete || onCancel) && <Th>Acciones</Th>}
             </tr>
           </thead>
+
           <tbody className="divide-y divide-[#E6E6E6]">
             {current.map((row) => (
-              <tr key={row.id} className="hover:bg-gray-50">
+              <tr
+                key={row.id}
+                className="hover:bg-gray-50 block md:table-row" // 👈 en mobile cada fila es un bloque
+              >
                 {columns.map((c) => (
-                  <Td key={String(c.key)}>
+                  <Td
+                    key={String(c.key)}
+                    className="block md:table-cell before:content-[attr(data-label)] before:font-semibold before:mr-2 md:before:content-none"
+                    data-label={c.header} // 👈 agrega el header como label en móvil
+                  >
                     {c.render ? c.render(row) : String(row[c.key])}
                   </Td>
                 ))}
+
                 {(onView || onEdit || onDelete || onCancel) && (
-                  <Td>
+                  <Td
+                    className="block md:table-cell before:content-['Acciones'] before:font-semibold before:mr-2 md:before:content-none"
+                    data-label="Acciones"
+                  >
                     <div className="flex items-center gap-3 text-gray-600">
                       {onView && (
                         <button
