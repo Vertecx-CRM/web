@@ -328,8 +328,26 @@ function PageBtn({
       style={{
         backgroundColor: active ? "white" : Colors.table.header,
         borderColor: Colors.table.lines,
+        cursor: disabled ? "not-allowed" : "pointer", // 👈 base
       }}
-      className="min-w-8 rounded-md px-2 py-1 text-xs border text-black disabled:opacity-40 disabled:pointer-events-none transition-colors duration-200"
+      className={`
+        min-w-8 rounded-md px-2 py-1 text-xs border text-black
+        transition-all duration-200 ease-in-out
+        ${active ? "shadow-md scale-105" : "hover:shadow-sm hover:scale-105"}
+        ${disabled ? "opacity-40" : ""}
+      `}
+      // 👇 cursor personalizado tipo candado (se puede usar un svg/png propio)
+      onMouseOver={(e) => {
+        if (disabled) {
+          (e.currentTarget.style.cursor =
+            "url('/icons/lock.png'), not-allowed"); // 🔒 tu ícono
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) {
+          (e.currentTarget.style.cursor = "not-allowed");
+        }
+      }}
     >
       {children}
     </button>
