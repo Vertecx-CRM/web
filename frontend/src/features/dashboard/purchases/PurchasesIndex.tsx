@@ -18,7 +18,7 @@ export default function PurchasesIndex() {
 
   const columns: Column<IPurchase>[] = [
     { key: "orderNumber", header: "N° Orden" },
-    { key: "invoiceNumber", header: "Factura" },
+    { key: "invoiceNumber", header: "N° Factura" },
     { key: "supplier", header: "Proveedor" },
     { key: "registerDate", header: "Fecha Registro" },
     {

@@ -25,14 +25,21 @@ const Nav = () => {
               className="cursor-pointer"
             />
           </Link>
-
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8 text-gray-900 font-semibold text-base">
-            <Link href={routes.landing.services}>Servicios</Link>
-            <Link href={routes.landing.products}>Productos</Link>
-            <Link href={routes.landing.about}>Nosotros</Link>
-            <Link href={routes.landing.contact}>Contáctanos</Link>
-            <Link href={routes.auth.login}>Iniciar Sesión</Link>
+            {[
+              { href: routes.landing.services, label: "Servicios" },
+              { href: routes.landing.products, label: "Productos" },
+              { href: routes.landing.about, label: "Nosotros" },
+              { href: routes.landing.contact, label: "Contáctanos" },
+              { href: routes.auth.login, label: "Iniciar Sesión" },
+            ].map((link) => (
+              <Link key={link.href} href={link.href} className="relative group">
+                <span className="relative z-10">{link.label}</span>
+                {/* underline animado */}
+                <span className="absolute left-0 -bottom-1 h-[2px] w-full origin-left scale-x-0 bg-red-700 transition-transform duration-300 group-hover:scale-x-100" />
+              </Link>
+            ))}
 
             {/* Carrito */}
             <button

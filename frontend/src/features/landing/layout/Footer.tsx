@@ -34,15 +34,18 @@ const Footer = () => {
             Compañía
           </h4>
           <ul className="space-y-2 text-sm">
-            <li>
-              <Link href="/services">Servicios</Link>
-            </li>
-            <li>
-              <Link href="/products">Productos</Link>
-            </li>
-            <li>
-              <Link href="/about">Quienes Somos</Link>
-            </li>
+            {[
+              { href: "/services", label: "Servicios" },
+              { href: "/products", label: "Productos" },
+              { href: "/about", label: "Quienes Somos" },
+            ].map((link) => (
+              <li key={link.href}>
+                <Link href={link.href} className="relative group">
+                  <span className="relative z-10">{link.label}</span>
+                  <span className="absolute left-0 -bottom-0.5 h-[2px] w-full origin-left scale-x-0 bg-red-700 transition-transform duration-300 group-hover:scale-x-100" />
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -52,24 +55,33 @@ const Footer = () => {
             Redes Sociales
           </h4>
           <ul className="space-y-2 text-sm">
-            <li>
-              <a href="#">Instagram</a>
-            </li>
-            <li>
-              <a href="#">Facebook</a>
-            </li>
+            {[
+              { href: "#", label: "Instagram" },
+              { href: "#", label: "Facebook" },
+            ].map((social) => (
+              <li key={social.label}>
+                <a href={social.href} className="relative group">
+                  <span className="relative z-10">{social.label}</span>
+                  <span className="absolute left-0 -bottom-0.5 h-[2px] w-full origin-left scale-x-0 bg-red-700 transition-transform duration-300 group-hover:scale-x-100" />
+                </a>
+              </li>
+            ))}
           </ul>
         </div>
-
-        {/* Columna vacía para simetría */}
-        <div></div>
       </div>
 
       {/* Línea divisoria y links inferiores */}
-      <div className=" mt-2">
+      <div className="mt-2">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-end gap-16 text-sm text-gray-500">
-          <Link href="#">Políticas de Privacidad</Link>
-          <Link href="#">Términos de Uso</Link>
+          {[
+            { href: "#", label: "Políticas de Privacidad" },
+            { href: "#", label: "Términos de Uso" },
+          ].map((link) => (
+            <Link key={link.label} href={link.href} className="relative group">
+              <span className="relative z-10">{link.label}</span>
+              <span className="absolute left-0 -bottom-0.5 h-[2px] w-full origin-left scale-x-0 bg-red-700 transition-transform duration-300 group-hover:scale-x-100" />
+            </Link>
+          ))}
         </div>
       </div>
     </footer>
