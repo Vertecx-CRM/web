@@ -1,78 +1,341 @@
-import { useState } from "react";
-import { Category, CreateCategoryData } from "../types";
+import { useState, useEffect } from "react";
+import { CategoryBase, Category, CreateCategoryData, EditCategoryData, FormErrors, FormTouched, EditCategoryModalProps, CreateCategoryModalProps } from "../types/typeCategoryProducts";
+import { initialCategories } from "../mocks/mockCategoryProducts";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+import { hasNumbers, hasSpecialChars, validateAllFields, validateField } from "../validations/categoryValidations";
+import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
-// Datos mock iniciales
-const initialCategories: Category[] = [
-  { id: 1, nombre: "Electrónicos", descripcion: "Dispositivos electrónicos y gadgets", estado: "Activo" },
-  { id: 2, nombre: "Ropa", descripcion: "Prendas de vestir para todas las edades", estado: "Activo" },
-  { id: 3, nombre: "Hogar", descripcion: "Artículos para el hogar y decoración", estado: "Inactivo" },
-  { id: 4, nombre: "Deportes", descripcion: "Equipamiento y ropa deportiva", estado: "Activo" },
-  { id: 5, nombre: "Juguetes", descripcion: "Juguetes para niños y niñas", estado: "Activo" },
-  { id: 6, nombre: "Libros", descripcion: "Libros de todos los géneros", estado: "Activo" },
-  { id: 7, nombre: "Belleza", descripcion: "Productos de cuidado personal y belleza", estado: "Inactivo" },
-  { id: 8, nombre: "Alimentos", descripcion: "Productos alimenticios y bebidas", estado: "Activo" },
-  { id: 9, nombre: "Muebles", descripcion: "Muebles para interior y exterior", estado: "Activo" },
-  { id: 10, nombre: "Jardín", descripcion: "Herramientas y plantas para jardín", estado: "Activo" },
-  { id: 11, nombre: "Tecnología", descripcion: "Dispositivos tecnológicos y accesorios", estado: "Activo" },
-  { id: 12, nombre: "Salud", descripcion: "Productos para el cuidado de la salud", estado: "Inactivo" },
-  { id: 13, nombre: "Automóviles", descripcion: "Accesorios y repuestos para autos", estado: "Activo" },
-  { id: 14, nombre: "Instrumentos", descripcion: "Instrumentos musicales y accesorios", estado: "Activo" },
-  { id: 15, nombre: "Oficina", descripcion: "Suministros y muebles de oficina", estado: "Activo" },
-  { id: 16, nombre: "Bebés", descripcion: "Productos para bebés y niños pequeños", estado: "Inactivo" },
-  { id: 17, nombre: "Mascotas", descripcion: "Alimentos y accesorios para mascotas", estado: "Activo" },
-  { id: 18, nombre: "Viajes", descripcion: "Equipaje y accesorios de viaje", estado: "Activo" },
-  { id: 19, nombre: "Joyeria", descripcion: "Joyas y accesorios personales", estado: "Activo" },
-  { id: 20, nombre: "Herramientas", descripcion: "Herramientas manuales y eléctricas", estado: "Inactivo" },
-  { id: 21, nombre: "Arte", descripcion: "Materiales y suministros de arte", estado: "Activo" },
-  { id: 22, nombre: "Videojuegos", descripcion: "Consolas y videojuegos", estado: "Activo" },
-  { id: 23, nombre: "Fotografía", descripcion: "Cámaras y equipos de fotografía", estado: "Activo" },
-  { id: 24, nombre: "Relojes", descripcion: "Relojes de pulsera y de pared", estado: "Inactivo" },
-  { id: 25, nombre: "Calzado", descripcion: "Zapatos and calzado para toda ocasión", estado: "Activo" },
-  { id: 26, nombre: "Outdoor", descripcion: "Equipamiento para actividades al aire libre", estado: "Activo" },
-  { id: 27, nombre: "Limpieza", descripcion: "Productos de limpieza para el hogar", estado: "Activo" },
-  { id: 28, nombre: "Electrodomésticos", descripcion: "Electrodomésticos grandes y pequeños", estado: "Inactivo" },
-  { id: 29, nombre: "Navidad", descripcion: "Decoraciones y artículos navideños", estado: "Activo" },
-  { id: 30, nombre: "Coleccionables", descripcion: "Artículos de colección y antigüedades", estado: "Activo" },
-];
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<EditCategoryData | null>(null);
+  const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
 
   const handleCreateCategory = (categoryData: CreateCategoryData) => {
     const newCategory: Category = {
-      id: categories.length + 1,
+      id: Math.max(...categories.map(c => c.id)) + 1,
       nombre: categoryData.nombre,
       descripcion: categoryData.descripcion,
       estado: "Activo",
+      icono: categoryData.icono
     };
 
     setCategories(prev => [...prev, newCategory]);
     setIsCreateModalOpen(false);
+
+    showSuccess('Categoría creada exitosamente!');
+  };
+
+  const handleEditCategory = (id: number, categoryData: EditCategoryData) => {
+    setCategories(prev =>
+      prev.map(category =>
+        category.id === id
+          ? { ...category, ...categoryData }
+          : category
+      )
+    );
+    setEditingCategory(null);
+
+    showSuccess('Categoría actualizada exitosamente!');
+  };
+
+  const handleDeleteCategory = async (category: Category): Promise<boolean> => {
+    return confirmDelete(
+      {
+        itemName: category.nombre,
+        itemType: 'categoría',
+        successMessage: `La categoría "${category.nombre}" ha sido eliminada correctamente.`,
+        errorMessage: 'No se pudo eliminar la categoría. Por favor, intenta nuevamente.',
+      },
+      () => {
+        setCategories(prev => prev.filter(c => c.id !== category.id));
+      }
+    );
   };
 
   const handleView = (category: Category) => {
-    console.log("Ver categoría:", category);
-    // Aquí puedes implementar la lógica para ver la categoría
+    setViewingCategory(category);
   };
 
-  const handleEdit = (category: Category) => {
-    console.log("Editar categoría:", category);
-    // Aquí puedes implementar la lógica para editar la categoría
+  const handleEdit = (category: EditCategoryData) => {
+    setEditingCategory(category);
   };
 
-  const handleDelete = (category: Category) => {
-    console.log("Eliminar categoría:", category);
-    // Aquí puedes implementar la lógica para eliminar la categoría
+  const handleDelete = async (category: Category) => {
+    await handleDeleteCategory(category);
+  };
+
+  const closeModals = () => {
+    setEditingCategory(null);
+    setViewingCategory(null);
+    setIsCreateModalOpen(false);
   };
 
   return {
     categories,
     isCreateModalOpen,
     setIsCreateModalOpen,
+    editingCategory,
+    viewingCategory,
     handleCreateCategory,
+    handleEditCategory,
+    handleDeleteCategory,
     handleView,
     handleEdit,
-    handleDelete
+    handleDelete,
+    closeModals,
+    setEditingCategory,
+    setViewingCategory
+  };
+};
+
+// Hook para el formulario de creación
+export const useCreateCategoryForm = ({
+  isOpen,
+  onClose,
+  onSave,
+}: CreateCategoryModalProps) => {
+  const [formData, setFormData] = useState<CreateCategoryData>({
+    nombre: '',
+    descripcion: '',
+    icono: null,
+  });
+
+  const [errors, setErrors] = useState<FormErrors>({
+    nombre: '',
+    descripcion: ''
+  });
+
+  const [touched, setTouched] = useState<FormTouched>({
+    nombre: false,
+    descripcion: false
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        nombre: '',
+        descripcion: '',
+        icono: null
+      });
+      setErrors({
+        nombre: '',
+        descripcion: ''
+      });
+      setTouched({
+        nombre: false,
+        descripcion: false
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const newErrors = { ...errors };
+
+    Object.keys(formData).forEach((key) => {
+      if (key !== 'icono') {
+        newErrors[key as keyof FormErrors] = validateField(
+          key,
+          formData[key as keyof CreateCategoryData] as string
+        );
+      }
+    });
+
+    setErrors(newErrors);
+  }, [formData]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+
+    if (name === 'nombre' || name === 'descripcion') {
+      // Usar las funciones de validación importadas
+      if (hasSpecialChars(value)) return;
+
+      if (name === 'nombre' && hasNumbers(value)) return;
+    }
+
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setTouched(prev => ({ ...prev, [name]: true }));
+  };
+
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFormData((prev) => ({ ...prev, icono: file }));
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setTouched(prev => ({ ...prev, nombre: true, descripcion: true }));
+
+    const newErrors = validateAllFields(formData);
+    setErrors(newErrors);
+
+    const hasErrors = Object.values(newErrors).some(error => error !== '');
+
+    if (!hasErrors) {
+      onSave(formData);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      showError('Por favor complete los campos correctamente');
+    }
+  };
+
+  return {
+    formData,
+    errors,
+    touched,
+    handleInputChange,
+    handleIconChange,
+    handleBlur,
+    handleSubmit
+  };
+};
+
+// Hook para el formulario de Editar 
+export const useEditCategoryForm = ({
+  isOpen,
+  category,
+  onClose,
+  onSave,
+}: EditCategoryModalProps) => {
+  const [formData, setFormData] = useState<EditCategoryData>({
+    id: 0,
+    nombre: '',
+    descripcion: '',
+    estado: 'Activo',
+    icono: null,
+  });
+
+  const [errors, setErrors] = useState<FormErrors>({
+    nombre: '',
+    descripcion: ''
+  });
+
+  const [touched, setTouched] = useState<FormTouched>({
+    nombre: false,
+    descripcion: false
+  });
+
+  const [currentIcon, setCurrentIcon] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (isOpen && category) {
+      setFormData({
+        id: category.id,
+        nombre: category.nombre,
+        descripcion: category.descripcion,
+        icono: category.icono || null,
+        estado: category.estado
+      });
+      setCurrentIcon(category.icono || null);
+      setErrors({
+        nombre: '',
+        descripcion: ''
+      });
+      setTouched({
+        nombre: false,
+        descripcion: false
+      });
+    }
+  }, [isOpen, category]);
+
+  useEffect(() => {
+    const newErrors = { ...errors };
+
+    Object.keys(formData).forEach((key) => {
+      if (key !== 'icono') {
+        newErrors[key as keyof FormErrors] = validateField(
+          key,
+          formData[key as keyof CategoryBase] as string
+        );
+      }
+    });
+
+    setErrors(newErrors);
+  }, [formData]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+
+    if (name === 'nombre' || name === 'descripcion') {
+      if (hasSpecialChars(value)) return;
+
+      if (name === 'nombre' && hasNumbers(value)) return;
+    }
+
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setTouched(prev => ({ ...prev, [name]: true }));
+  };
+
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFormData(prev => ({ ...prev, icono: file }));
+    setCurrentIcon(file);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setTouched(prev => ({ ...prev, nombre: true, descripcion: true }));
+
+    const newErrors = validateAllFields(formData);
+    setErrors(newErrors);
+
+    const hasErrors = Object.values(newErrors).some(error => error !== '');
+
+    if (!hasErrors) {
+      onSave(formData);
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      showError('Por favor complete los campos correctamente');
+    }
+  };
+
+  const removeIcon = () => {
+    setFormData(prev => ({ ...prev, icono: null }));
+    setCurrentIcon(null);
+  };
+
+  return {
+    formData,
+    errors,
+    touched,
+    currentIcon,
+    handleInputChange,
+    handleIconChange,
+    handleBlur,
+    handleSubmit,
+    removeIcon
+  };
+};
+
+// Hook para el formulario de Ver 
+export const useViewCategory = (category: Category | null) => {
+  const [currentIcon, setCurrentIcon] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (category) {
+      setCurrentIcon(category.icono || null);
+    }
+  }, [category]);
+
+  return {
+    currentIcon
   };
 };

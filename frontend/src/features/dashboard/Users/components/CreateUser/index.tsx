@@ -23,42 +23,42 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50">
-        <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50">
+      <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
+        <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10"
+            className="absolute top-2 right-2 md:top-4 md:right-4 z-10"
           >
             <img
               src="/icons/X.svg"
               alt="Cerrar"
-              className="w-6 h-6"
+              className="w-5 h-5 md:w-6 md:h-6"
             />
           </button>
 
           {/* Header */}
-          <div className="px-6 py-4 rounded-t-lg text-black font-semibold text-3xl">
+          <div className="px-4 md:px-6 py-3 md:py-4 rounded-t-lg text-black font-semibold text-2xl md:text-3xl">
             Crear usuario
           </div>
 
-          <div className="w-110 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Form - Contenedor con altura máxima y sin scroll */}
+          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
             {/* Documento */}
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
                 Documento
               </label>
-              <div className="flex gap-0.5">
+              <div className="flex flex-col sm:flex-row gap-2">
                 {/* Select de tipo de documento */}
-                <div className="flex relative">
+                <div className="flex relative w-full sm:w-auto">
                   <select
                     name="tipoDocumento"
                     value={formData.tipoDocumento}
                     onChange={handleInputChange}
                     onBlur={handleBlur}
-                    className="w-19 px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md"
                     style={{
                       borderColor: errors.tipoDocumento && touched.tipoDocumento ? 'red' : Colors.table.lines,
                     }}
@@ -73,7 +73,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 </div>
 
                 {/* Input de número de documento */}
-                <div className="flex-2 flex flex-col">
+                <div className="flex-1 flex flex-col">
                   <input
                     type="text"
                     name="documento"
@@ -97,7 +97,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             </div>
 
             {/* Nombre y Apellido */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
                   Nombre
@@ -141,7 +141,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             </div>
 
             {/* Teléfono y Email */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
                   Teléfono
@@ -181,7 +181,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               </div>
             </div>
 
-            {/* Imagen */}
+            {/* Imagen - Versión compacta */}
             <div>
               <label
                 className="block text-sm font-medium mb-1"
@@ -189,7 +189,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               >
                 Imagen
               </label>
-              <div className="border border-dashed border-gray-300 rounded-md p-4 text-center">
+              <div className="border border-dashed border-gray-300 rounded-md p-2 text-center">
                 <input
                   type="file"
                   name="imagen"
@@ -198,10 +198,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   id="imagen-upload"
                   accept="image/*"
                 />
-                <label htmlFor="imagen-upload" className="cursor-pointer">
-                  <div className="text-sm text-gray-500">Cargar el archivo</div>
+                <label htmlFor="imagen-upload" className="cursor-pointer flex flex-col items-center">
+                  <div className="text-xs text-gray-500">Haga clic para cargar imagen</div>
                   {formData.imagen && (
-                    <div className="text-xs text-green-600 mt-1">
+                    <div className="text-xs text-green-600 mt-1 truncate max-w-full">
                       {formData.imagen.name}
                     </div>
                   )}
@@ -209,56 +209,56 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               </div>
             </div>
 
-            {/* Contraseña */}
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Contraseña
-              </label>
-              <input
-                type="password"
-                name="password"
-                placeholder="Ingrese una contraseña"
-                value={formData.password}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                style={{
-                  borderColor: errors.password && touched.password ? 'red' : Colors.table.lines,
-                }}
-              />
-              {errors.password && touched.password && (
-                <span className="text-red-500 text-xs mt-1">{errors.password}</span>
-              )}
-            </div>
-
-            {/* Confirmar Contraseña */}
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Confirmar contraseña
-              </label>
-              <input
-                type="password"
-                name="confirmPassword"
-                placeholder="Confirme la contraseña"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
-                style={{
-                  borderColor: errors.confirmPassword && touched.confirmPassword ? 'red' : Colors.table.lines
-                }}
-              />
-              {errors.confirmPassword && touched.confirmPassword && (
-                <span className="text-red-500 text-xs mt-1">{errors.confirmPassword}</span>
-              )}
+            {/* Contraseña y Confirmar Contraseña en una sola fila en pantallas grandes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Contraseña
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  placeholder="Ingrese una contraseña"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: errors.password && touched.password ? 'red' : Colors.table.lines,
+                  }}
+                />
+                {errors.password && touched.password && (
+                  <span className="text-red-500 text-xs mt-1">{errors.password}</span>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  Confirmar contraseña
+                </label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="Confirme la contraseña"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  style={{
+                    borderColor: errors.confirmPassword && touched.confirmPassword ? 'red' : Colors.table.lines
+                  }}
+                />
+                {errors.confirmPassword && touched.confirmPassword && (
+                  <span className="text-red-500 text-xs mt-1">{errors.confirmPassword}</span>
+                )}
+              </div>
             </div>
 
             {/* Botones */}
-            <div className="flex justify-end space-x-3 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-md font-medium"
+                className="px-4 py-2 rounded-md font-medium mt-2 sm:mt-0"
                 style={{
                   backgroundColor: Colors.buttons.tertiary,
                   color: Colors.texts.quaternary,
@@ -277,7 +277,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 Guardar
               </button>
             </div>
-            <div className="w-108 h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+            <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
           </form>
         </div>
       </div>

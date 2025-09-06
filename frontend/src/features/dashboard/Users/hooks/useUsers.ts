@@ -33,7 +33,7 @@ export const useUsers = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null); // Nuevo estado para el usuario a eliminar
+  const [userToDelete, setUserToDelete] = useState<User | null>(null); 
 
   const handleCreateUser = (userData: CreateUserData) => {
     const newUser: User = {
