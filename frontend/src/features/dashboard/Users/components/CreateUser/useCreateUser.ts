@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { UserFormData, FormErrors, FormTouched } from './types';
+import { User, UserFormData, FormErrors, FormTouched } from '../../types';
 import { validateField, validateAllFields } from './validation';
 
 export const useCreateUser = (isOpen: boolean, onClose: () => void, onSave: (userData: any) => void) => {
@@ -23,6 +23,7 @@ export const useCreateUser = (isOpen: boolean, onClose: () => void, onSave: (use
     apellido: '',
     telefono: '',
     email: '',
+    rol: '',
     password: '',
     confirmPassword: '',
   });
@@ -34,6 +35,7 @@ export const useCreateUser = (isOpen: boolean, onClose: () => void, onSave: (use
     apellido: false,
     telefono: false,
     email: false,
+    rol: false,
     password: false,
     confirmPassword: false,
   });
@@ -59,6 +61,7 @@ export const useCreateUser = (isOpen: boolean, onClose: () => void, onSave: (use
         apellido: '',
         telefono: '',
         email: '',
+        rol: '',
         password: '',
         confirmPassword: '',
       });
@@ -69,6 +72,7 @@ export const useCreateUser = (isOpen: boolean, onClose: () => void, onSave: (use
         apellido: false,
         telefono: false,
         email: false,
+        rol: false,
         password: false,
         confirmPassword: false,
       });

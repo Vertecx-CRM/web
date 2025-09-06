@@ -80,7 +80,7 @@ export default function UsersPage() {
               users={users}
               onView={handleView}
               onEdit={handleEdit}
-              onDelete={handleDelete} // Pasar la función que solo guarda el usuario a eliminar
+              onDelete={handleDelete} 
               onCreate={() => setIsCreateModalOpen(true)}
             />
           </div>

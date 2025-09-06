@@ -104,15 +104,19 @@ export function DataTable<T extends { id: number | string }>({
     const term = q.trim().toLowerCase();
     if (!term) return data;
 
-    const keys =
-      searchableKeys && searchableKeys.length > 0
-        ? searchableKeys
-        : (Object.keys(data[0] ?? {}) as (keyof T)[]);
+    const isEstadoExact = term === "activo" || term === "inactivo";
 
     return data.filter((row) =>
-      keys.some((key) => {
-        const values = normalize(row[key]);
-        return values.some((v) => v.includes(term));
+      searchableKeys.some((key) => {
+        const value = String(row[key] ?? "").toLowerCase();
+
+        // Si la columna es "estado" y se busca exactamente activo/inactivo
+        if (key === "estado" || key === "state" && isEstadoExact) {
+          return value === term; // igualdad estricta
+        }
+
+        // Para todo lo demás
+        return value.includes(term);
       })
     );
   }, [q, data, searchableKeys]);
