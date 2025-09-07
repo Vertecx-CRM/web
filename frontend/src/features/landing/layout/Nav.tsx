@@ -44,7 +44,7 @@ const Nav = () => {
             {/* Carrito */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="ml-4 bg-red-700 hover:bg-red-800 text-white px-4 py-1 rounded-md flex items-center justify-center transition"
+              className="cursor-pointer ml-4 bg-red-700 hover:bg-red-800 text-white px-4 py-1 rounded-md flex items-center justify-center transition"
             >
               <ShoppingCart className="h-5 w-5" />
             </button>
@@ -71,7 +71,7 @@ const Nav = () => {
             {/* Carrito en móvil */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
+              className="cursor-pointer bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
             >
               <ShoppingCart className="h-5 w-5 mr-2" /> Carrito
             </button>

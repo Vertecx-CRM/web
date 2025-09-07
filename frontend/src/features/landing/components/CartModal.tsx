@@ -10,6 +10,12 @@ interface CartModalProps {
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
   if (!isOpen) return null;
 
+  const handlePurchase = () => {
+    // redirect to payment page
+    window.location.href = "/payments/register";
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Fondo oscuro */}
@@ -93,7 +99,10 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         {/* Total y botón */}
         <div className="flex justify-between items-center mt-6">
           <p className="text-2xl font-bold">Total: $8.000.000</p>
-          <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-2 rounded-md text-lg font-semibold transition">
+          <button
+            onClick={handlePurchase}
+            className="cursor-pointer bg-red-700 hover:bg-red-800 text-white px-6 py-2 rounded-md text-lg font-semibold transition"
+          >
             Comprar
           </button>
         </div>

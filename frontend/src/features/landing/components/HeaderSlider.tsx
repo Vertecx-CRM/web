@@ -2,7 +2,10 @@ import Image from "next/image";
 import React, { useEffect, useState } from "react";
 
 const HeaderSlider = () => {
-  const images = ["/assets/imgs/HomeSlider1.webp"];
+  const images = [
+    "/assets/imgs/HomeSlider1.webp",
+    "/assets/imgs/HomeSlider2.webp",
+  ];
 
   const [current, setCurrent] = useState(0);
 
