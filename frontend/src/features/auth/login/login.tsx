@@ -3,9 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import styles from "@/features/auth/login/login.module.css";
+import styles from "@/features/auth/login/auth.module.css";
 import { useAuth } from "@/features/auth/authcontext";
 import Nav from "@/features/landing/layout/Nav";
+import { routes } from "@/shared/routes";
 
 type FormState = { email: string; password: string; remember: boolean };
 
@@ -13,16 +14,10 @@ export default function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
   const { login } = useAuth();
-
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>({
-    email: "",
-    password: "",
-    remember: false,
-  });
-
+  const [form, setForm] = useState<FormState>({email: "",password: "",remember: false,});
   const next = search.get("next") || "/dashboard";
 
   async function onSubmit(e: React.FormEvent) {
@@ -104,7 +99,7 @@ export default function LoginPage() {
                     }
                     title={show ? "Ocultar contraseña" : "Mostrar contraseña"}
                   >
-                    {show ? "🙈" : "👁️"}
+                    {show ?  <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
@@ -139,9 +134,7 @@ export default function LoginPage() {
                 <Link href="#" className="hover:underline">
                   ¿Olvidaste tu contraseña?
                 </Link>
-                <Link href="#" className="hover:underline">
-                  Crear Cuenta
-                </Link>
+                <Link href={routes.auth.register}>Crear Cuenta</Link>
               </div>
 
               <div className="pt-2 text-xs text-gray-500">

@@ -4,7 +4,7 @@ import Colors from "@/shared/theme/colors";
 import { useState } from "react";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { CreateCategoryModal } from "./components/CreateCategoryProduct";
+import { CreateCategoryModal } from "./components/CreateCategoryModal";
 import AsideNav from "../layout/AsideNav";
 import TopNav from "../layout/TopNav";
 import { DataTable, Column } from "../components/DataTable";
