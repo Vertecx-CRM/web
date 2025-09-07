@@ -35,7 +35,7 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
         </button>
 
         <div className="px-4 py-3 rounded-t-lg text-black font-semibold text-2xl">
-          Crear Categoría
+          Crear Categoría de producto
         </div>
 
         <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
@@ -194,8 +194,8 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
               Guardar
             </button>
           </div>
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
         </form>
+        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
       </div>
     </div>,
     document.body

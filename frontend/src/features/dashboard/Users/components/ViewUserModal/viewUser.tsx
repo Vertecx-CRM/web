@@ -1,20 +1,39 @@
 // components/ViewUserModal/index.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Colors from "@/shared/theme/colors";
-import { User } from "../../types";
+import { user, viewUserModalProps } from "../../types/typesUser";
 
-interface ViewUserModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    user: User | null;
-}
-
-export const ViewUserModal: React.FC<ViewUserModalProps> = ({
+export const ViewUserModal: React.FC<viewUserModalProps> = ({
     isOpen,
     onClose,
     user,
 }) => {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+    // Efecto para manejar la imagen (File o URL)
+    useEffect(() => {
+        if (!user?.imagen) {
+            setImageUrl(null);
+            return;
+        }
+
+        // Si la imagen es una string (URL)
+        if (typeof user.imagen === 'string') {
+            setImageUrl(user.imagen);
+        } 
+        // Si la imagen es un objeto File
+        else if (user.imagen instanceof File) {
+            const url = URL.createObjectURL(user.imagen);
+            setImageUrl(url);
+            
+            // Cleanup function para revocar la URL cuando el componente se desmonte
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        }
+    }, [user?.imagen]);
+
     if (!isOpen || !user) return null;
 
     // Función para dividir el nombre completo en nombre y apellido
@@ -67,14 +86,18 @@ export const ViewUserModal: React.FC<ViewUserModalProps> = ({
 
                     {/* Contenido */}
                     <div className="p-4 md:p-6 space-y-4">
-                        {/* Foto del usuario - Usa user.imagen en lugar de user.foto */}
+                        {/* Foto del usuario */}
                         <div className="flex justify-center mb-4">
                             <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                                {user.imagen ? (
+                                {imageUrl ? (
                                     <img
-                                        src={user.imagen}
+                                        src={imageUrl}
                                         alt="Foto de perfil"
                                         className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            // Si la imagen falla al cargar, mostrar iniciales
+                                            e.currentTarget.style.display = 'none';
+                                        }}
                                     />
                                 ) : (
                                     <span className="text-gray-500 text-xl md:text-2xl">
@@ -96,7 +119,7 @@ export const ViewUserModal: React.FC<ViewUserModalProps> = ({
                                         className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md"
                                         style={{ borderColor: Colors.table.lines }}
                                     >
-                                        {user.documento}
+                                        {user.tipoDocumento}
                                     </div>
                                 </div>
 
@@ -204,8 +227,8 @@ export const ViewUserModal: React.FC<ViewUserModalProps> = ({
                                 Cerrar
                             </button>
                         </div>
-                        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
                     </div>
+                    <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
                 </div>
             </div>
         </>,
