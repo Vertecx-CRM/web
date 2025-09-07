@@ -1,29 +1,30 @@
-// index.tsx principal
 "use client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { useUsers } from "./hooks/useUsers";
-import CreateUserModal from "./components/CreateUser";
-import UsersTable from "./components/UsersTable";
-import EditUserModal from "./components/UpdateUser";
-import ViewUserModal from "./components/ViewUserModal"; // Importar el nuevo modal
+import CreateUserModal from "./components/CreateUserModal/CreateUser";
+import UsersTable from "./components/UsersTable/Usertable";
+import EditUserModal from "./components/EditUserModal/EditUser";
+import ViewUserModal from "./components/ViewUserModal/viewUser";
 
 export default function UsersPage() {
   const {
     users,
     isCreateModalOpen,
     setIsCreateModalOpen,
-    isEditModalOpen,
-    setIsEditModalOpen,
-    isViewModalOpen, // Obtener el nuevo estado
-    setIsViewModalOpen, // Obtener el setter del nuevo estado
-    selectedUser,
+    editingUser,
+    viewingUser,
     handleCreateUser,
     handleEditUser,
     handleView,
     handleEdit,
-    handleDelete
+    handleDelete, 
+    closeModals
   } = useUsers();
+
+  // Determinar si los modales están abiertos basado en el estado
+  const isEditModalOpen = !!editingUser;
+  const isViewModalOpen = !!viewingUser;
 
   return (
     <div className="min-h-screen flex">
@@ -43,7 +44,6 @@ export default function UsersPage() {
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
-        {/* Contenido */}
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
             <CreateUserModal
@@ -54,17 +54,19 @@ export default function UsersPage() {
 
             <EditUserModal
               isOpen={isEditModalOpen}
-              onClose={() => setIsEditModalOpen(false)}
+              onClose={closeModals}
               onSave={handleEditUser}
-              user={selectedUser}
+              user={editingUser}
             />
 
-            {/* Nuevo modal para visualizar usuario */}
             <ViewUserModal
               isOpen={isViewModalOpen}
-              onClose={() => setIsViewModalOpen(false)}
-              user={selectedUser}
+              onClose={closeModals}
+              user={viewingUser}
             />
+
+            {/* NO necesitas DeleteConfirmation modal aquí */}
+            {/* SweetAlert2 se encargará del modal de confirmación */}
 
             <UsersTable
               users={users}

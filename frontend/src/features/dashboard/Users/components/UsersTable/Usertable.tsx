@@ -1,15 +1,6 @@
-
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import { User } from "../../types";
+import { editUser, user, userForTable, UsersTableProps } from "../../types/typesUser";
 import Colors from "@/shared/theme/colors";
-
-interface UsersTableProps {
-  users: User[];
-  onView: (user: User) => void;
-  onEdit: (user: User) => void;
-  onDelete: (user: User) => void;
-  onCreate: () => void;
-}
 
 export const UsersTable: React.FC<UsersTableProps> = ({
   users,
@@ -18,11 +9,18 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onDelete,
   onCreate
 }) => {
+
+  // Convertir usuarios para la tabla asegurando que tengan ID
+  const usersForTable: userForTable[] = users.map((user, index) => ({
+    ...user,
+    id: user.id || index + 1 // Usar index + 1 como fallback
+  }));
+
   // Definición de columnas para el DataTable
-  const columns: Column<User>[] = [
+  const columns: Column<userForTable>[] = [
     { key: "id", header: "#" },
-    { key: "documento", header: "T. Documento" },
-    { key: "numeroDocumento", header: "Número" },
+    { key: "tipoDocumento", header: "T. Documento" },
+    { key: "numeroDocumento", header: "Número de documento" },
     { key: "nombre", header: "Nombre" },
     { key: "telefono", header: "Teléfono" },
     { key: "email", header: "Correo electrónico" },
@@ -46,23 +44,35 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     },
   ];
 
+  // Funciones adaptadoras para mantener la compatibilidad
+  const handleView = (user: userForTable) => {
+    onView(user as user);
+  };
+
+  const handleEdit = (user: userForTable) => {
+    onEdit(user as editUser);
+  };
+
+  const handleDelete = (user: userForTable) => {
+    onDelete(user as user);
+  };
+
   return (
-    <DataTable<User>
-      data={users}
+    <DataTable<userForTable>
+      data={usersForTable}
       columns={columns}
       pageSize={10}
       searchableKeys={[
         "nombre",
         "email",
         "rol",
-        "documento",
         "numeroDocumento",
         "telefono",
         "estado",
       ]}
-      onView={onView}
-      onEdit={onEdit}
-      onDelete={onDelete}
+      onView={handleView}
+      onEdit={handleEdit}
+      onDelete={handleDelete}
       onCreate={onCreate}
       searchPlaceholder="Buscar por nombre, email, rol, documento, teléfono o estado…"
       createButtonText="Crear Usuario"

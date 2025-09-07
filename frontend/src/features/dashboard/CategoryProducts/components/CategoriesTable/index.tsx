@@ -1,6 +1,6 @@
 
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import { Category } from "../../types";
+import { Category } from "../../types/typeCategoryProducts";
 import Colors from "@/shared/theme/colors";
 
 interface CategoriesTableProps {
