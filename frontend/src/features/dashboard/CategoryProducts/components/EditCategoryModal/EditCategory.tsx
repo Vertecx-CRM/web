@@ -38,7 +38,7 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
         </button>
 
         <div className="px-4 py-3 rounded-t-lg text-black font-semibold text-2xl">
-          Editar Categoría
+          Editar Categoría de producto
         </div>
 
         <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
@@ -213,8 +213,8 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
               Guardar Cambios
             </button>
           </div>
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
         </form>
+        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
       </div>
     </div>,
     document.body

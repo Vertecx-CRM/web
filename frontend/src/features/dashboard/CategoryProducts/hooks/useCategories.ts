@@ -1,10 +1,16 @@
 import { useState, useEffect } from "react";
-import { CategoryBase, Category, CreateCategoryData, EditCategoryData, FormErrors, FormTouched, EditCategoryModalProps, CreateCategoryModalProps } from "../types/typeCategoryProducts";
+import {  Category, CreateCategoryData, EditCategoryData, FormErrors, FormTouched, EditCategoryModalProps, CreateCategoryModalProps } from "../types/typeCategoryProducts";
 import { initialCategories } from "../mocks/mockCategoryProducts";
-import { showError, showSuccess } from "@/shared/utils/notifications";
-import { hasNumbers, hasSpecialChars, validateAllFields, validateField } from "../validations/categoryValidations";
-import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
+import { showSuccess } from "@/shared/utils/notifications";
+import { 
+  hasNumbers, 
+  hasSpecialChars, 
 
+  validateFormWithNotification,
+  validateNombreWithNotification,
+  validateDescripcionWithNotification
+} from "../validations/categoryValidations";
+import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -24,7 +30,7 @@ export const useCategories = () => {
     setCategories(prev => [...prev, newCategory]);
     setIsCreateModalOpen(false);
 
-    showSuccess('Categoría creada exitosamente!');
+    showSuccess('Categoría de producto creada exitosamente!');
   };
 
   const handleEditCategory = (id: number, categoryData: EditCategoryData) => {
@@ -37,7 +43,7 @@ export const useCategories = () => {
     );
     setEditingCategory(null);
 
-    showSuccess('Categoría actualizada exitosamente!');
+    showSuccess('Categoría de producto actualizada exitosamente!');
   };
 
   const handleDeleteCategory = async (category: Category): Promise<boolean> => {
@@ -130,33 +136,24 @@ export const useCreateCategoryForm = ({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const newErrors = { ...errors };
-
-    Object.keys(formData).forEach((key) => {
-      if (key !== 'icono') {
-        newErrors[key as keyof FormErrors] = validateField(
-          key,
-          formData[key as keyof CreateCategoryData] as string
-        );
-      }
-    });
-
-    setErrors(newErrors);
-  }, [formData]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
 
     if (name === 'nombre' || name === 'descripcion') {
       // Usar las funciones de validación importadas
       if (hasSpecialChars(value)) return;
-
       if (name === 'nombre' && hasNumbers(value)) return;
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
     setTouched(prev => ({ ...prev, [name]: true }));
+    
+    // Validación en tiempo real con notificaciones
+    if (name === 'nombre') {
+      validateNombreWithNotification({ nombre: value, descripcion: formData.descripcion }, setErrors, setTouched);
+    } else if (name === 'descripcion') {
+      validateDescripcionWithNotification({ nombre: formData.nombre, descripcion: value }, setErrors, setTouched);
+    }
   };
 
   const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,25 +164,26 @@ export const useCreateCategoryForm = ({
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name } = e.target;
     setTouched((prev) => ({ ...prev, [name]: true }));
+    
+    // Validación al perder el foco
+    if (name === 'nombre') {
+      validateNombreWithNotification(formData, setErrors, setTouched);
+    } else if (name === 'descripcion') {
+      validateDescripcionWithNotification(formData, setErrors, setTouched);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    setTouched(prev => ({ ...prev, nombre: true, descripcion: true }));
+    // Usar la nueva función de validación con notificaciones
+    const isValid = validateFormWithNotification(formData, setErrors, setTouched);
 
-    const newErrors = validateAllFields(formData);
-    setErrors(newErrors);
-
-    const hasErrors = Object.values(newErrors).some(error => error !== '');
-
-    if (!hasErrors) {
+    if (isValid) {
       onSave(formData);
       setTimeout(() => {
         onClose();
       }, 1000);
-    } else {
-      showError('Por favor complete los campos correctamente');
     }
   };
 
@@ -248,32 +246,23 @@ export const useEditCategoryForm = ({
     }
   }, [isOpen, category]);
 
-  useEffect(() => {
-    const newErrors = { ...errors };
-
-    Object.keys(formData).forEach((key) => {
-      if (key !== 'icono') {
-        newErrors[key as keyof FormErrors] = validateField(
-          key,
-          formData[key as keyof CategoryBase] as string
-        );
-      }
-    });
-
-    setErrors(newErrors);
-  }, [formData]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
 
     if (name === 'nombre' || name === 'descripcion') {
       if (hasSpecialChars(value)) return;
-
       if (name === 'nombre' && hasNumbers(value)) return;
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
     setTouched(prev => ({ ...prev, [name]: true }));
+    
+    // Validación en tiempo real con notificaciones
+    if (name === 'nombre') {
+      validateNombreWithNotification({ nombre: value, descripcion: formData.descripcion }, setErrors, setTouched);
+    } else if (name === 'descripcion') {
+      validateDescripcionWithNotification({ nombre: formData.nombre, descripcion: value }, setErrors, setTouched);
+    }
   };
 
   const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -285,25 +274,26 @@ export const useEditCategoryForm = ({
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name } = e.target;
     setTouched(prev => ({ ...prev, [name]: true }));
+    
+    // Validación al perder el foco
+    if (name === 'nombre') {
+      validateNombreWithNotification(formData, setErrors, setTouched);
+    } else if (name === 'descripcion') {
+      validateDescripcionWithNotification(formData, setErrors, setTouched);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    setTouched(prev => ({ ...prev, nombre: true, descripcion: true }));
+    // Usar la nueva función de validación con notificaciones
+    const isValid = validateFormWithNotification(formData, setErrors, setTouched);
 
-    const newErrors = validateAllFields(formData);
-    setErrors(newErrors);
-
-    const hasErrors = Object.values(newErrors).some(error => error !== '');
-
-    if (!hasErrors) {
+    if (isValid) {
       onSave(formData);
       setTimeout(() => {
         onClose();
       }, 1000);
-    } else {
-      showError('Por favor complete los campos correctamente');
     }
   };
 

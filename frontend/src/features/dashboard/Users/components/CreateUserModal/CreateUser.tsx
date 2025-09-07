@@ -2,10 +2,11 @@ import React from "react";
 import { createPortal } from "react-dom";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
-import { CreateUserModalProps } from "./types";
-import { useCreateUser } from "./useCreateUser";
+import { createUserModalProps } from "../../types/typesUser";
+import { useCreateUserForm } from "../../hooks/useUsers";
 
-export const CreateUserModal: React.FC<CreateUserModalProps> = ({
+
+export const CreateUserModal: React.FC<createUserModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -16,10 +17,31 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     touched,
     handleInputChange,
     handleBlur,
-    handleSubmit
-  } = useCreateUser(isOpen, onClose, onSave);
+    handleSubmit,
+    isSubmitting
+  } = useCreateUserForm({
+    isOpen,
+    onClose,
+    onSave
+  });
 
   if (!isOpen) return null;
+
+  // Función para manejar cambios en inputs de tipo file
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    handleInputChange('imagen', file);
+  };
+
+  // Función para manejar cambios en selects
+  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    handleInputChange(event.target.name as keyof typeof formData, event.target.value);
+  };
+
+  // Función para manejar cambios en inputs de texto
+  const handleTextChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(event.target.name as keyof typeof formData, event.target.value);
+  };
 
   return createPortal(
     <>
@@ -56,14 +78,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   <select
                     name="tipoDocumento"
                     value={formData.tipoDocumento}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md"
+                    onChange={handleSelectChange}
+                    onBlur={() => handleBlur('tipoDocumento')}
+                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
                     style={{
                       borderColor: errors.tipoDocumento && touched.tipoDocumento ? 'red' : Colors.table.lines,
                     }}
                   >
-                    <option value="" disabled hidden></option>
+                    <option value="" disabled hidden>Seleccione</option>
                     <option value="CC">CC</option>
                     <option value="CE">CE</option>
                     <option value="PPT">PPT</option>
@@ -76,18 +98,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <div className="flex-1 flex flex-col">
                   <input
                     type="text"
-                    name="documento"
+                    name="numeroDocumento"
                     placeholder="Ingrese su documento"
-                    value={formData.documento}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                    value={formData.numeroDocumento}
+                    onChange={handleTextChange}
+                    onBlur={() => handleBlur('numeroDocumento')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     style={{
-                      borderColor: errors.documento && touched.documento ? 'red' : Colors.table.lines,
+                      borderColor: errors.numeroDocumento && touched.numeroDocumento ? 'red' : Colors.table.lines,
                     }}
                   />
-                  {errors.documento && touched.documento && (
-                    <span className="text-red-500 text-xs mt-1">{errors.documento}</span>
+                  {errors.numeroDocumento && touched.numeroDocumento && (
+                    <span className="text-red-500 text-xs mt-1">{errors.numeroDocumento}</span>
                   )}
                 </div>
               </div>
@@ -107,9 +129,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="nombre"
                   placeholder="Ingrese su nombre"
                   value={formData.nombre}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('nombre')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.nombre && touched.nombre ? 'red' : Colors.table.lines,
                   }}
@@ -127,9 +149,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="apellido"
                   placeholder="Ingrese su apellido"
                   value={formData.apellido}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('apellido')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.apellido && touched.apellido ? 'red' : Colors.table.lines,
                   }}
@@ -151,9 +173,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="telefono"
                   placeholder="Ingrese su teléfono"
                   value={formData.telefono}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('telefono')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.telefono && touched.telefono ? 'red' : Colors.table.lines,
                   }}
@@ -171,14 +193,42 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="email"
                   placeholder="Ingrese su correo electronico"
                   value={formData.email}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('email')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
-                    borderColor: Colors.table.lines,
+                    borderColor: errors.email && touched.email ? 'red' : Colors.table.lines,
                   }}
                 />
+                {errors.email && touched.email && (
+                  <span className="text-red-500 text-xs mt-1">{errors.email}</span>
+                )}
               </div>
+            </div>
+
+            {/* Rol */}
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                Rol
+              </label>
+              <select
+                name="rol"
+                value={formData.rol}
+                onChange={handleSelectChange}
+                onBlur={() => handleBlur('rol')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor: errors.rol && touched.rol ? 'red' : Colors.table.lines,
+                }}
+              >
+                <option value="" disabled hidden>Seleccione un rol</option>
+                <option value="Administrador">Administrador</option>
+                <option value="Usuario">Usuario</option>
+                <option value="Invitado">Invitado</option>
+              </select>
+              {errors.rol && touched.rol && (
+                <span className="text-red-500 text-xs mt-1">{errors.rol}</span>
+              )}
             </div>
 
             {/* Imagen - Versión compacta */}
@@ -193,7 +243,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <input
                   type="file"
                   name="imagen"
-                  onChange={handleInputChange}
+                  onChange={handleFileChange}
                   className="hidden"
                   id="imagen-upload"
                   accept="image/*"
@@ -209,7 +259,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               </div>
             </div>
 
-            {/* Contraseña y Confirmar Contraseña en una sola fila en pantallas grandes */}
+            {/* Contraseña y Confirmar Contraseña */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
@@ -220,9 +270,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="password"
                   placeholder="Ingrese una contraseña"
                   value={formData.password}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('password')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.password && touched.password ? 'red' : Colors.table.lines,
                   }}
@@ -240,9 +290,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   name="confirmPassword"
                   placeholder="Confirme la contraseña"
                   value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleTextChange}
+                  onBlur={() => handleBlur('confirmPassword')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.confirmPassword && touched.confirmPassword ? 'red' : Colors.table.lines
                   }}
@@ -268,17 +318,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-md font-medium"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-md font-medium disabled:opacity-50"
                 style={{
                   backgroundColor: Colors.buttons.quaternary,
                   color: Colors.texts.quaternary,
                 }}
               >
-                Guardar
+                {isSubmitting ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
-            <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
           </form>
+          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
         </div>
       </div>
     </>,

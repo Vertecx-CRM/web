@@ -1,16 +1,9 @@
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { showSuccess, showError } from '../notifications';
+import { ConfirmDeleteOptions } from './typeConfirmDelete';
 
 const MySwal = withReactContent(Swal);
-
-export interface ConfirmDeleteOptions {
-  itemName: string;
-  itemType?: string;
-  customMessage?: string;
-  successMessage?: string;
-  errorMessage?: string;
-}
 
 export const confirmDelete = async (
   options: ConfirmDeleteOptions,

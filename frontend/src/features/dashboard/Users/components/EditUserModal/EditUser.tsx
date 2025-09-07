@@ -2,10 +2,11 @@ import React from "react";
 import { createPortal } from "react-dom";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
-import { useEditUser } from "./useEditUser";
-import { EditUserModalProps } from "./types";
+import { editUserModalProps } from "../../types/typesUser";
+import { useEditUserForm } from "../../hooks/useUsers";
 
-export const EditUserModal: React.FC<EditUserModalProps> = ({
+
+export const EditUserModal: React.FC<editUserModalProps> = ({
   isOpen,
   onClose,
   onSave,
@@ -15,10 +16,40 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
     formData,
     errors,
     touched,
+    isSubmitting,
     handleInputChange,
     handleBlur,
     handleSubmit
-  } = useEditUser(user, isOpen, onClose, onSave);
+  } = useEditUserForm({
+    isOpen,
+    onClose,
+    onSave,
+    user
+  });
+
+  // Función específica para manejar cambios de archivo
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    handleInputChange('imagen', file);
+  };
+
+  // Función para manejar cambios en selects e inputs
+  const handleFieldChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    handleInputChange(event.target.name as keyof typeof formData, event.target.value);
+  };
+
+  const getImageSrc = () => {
+    if (formData.imagen instanceof File) {
+      return URL.createObjectURL(formData.imagen);
+    } else if (typeof formData.imagen === 'string') {
+      return formData.imagen;
+    } else if (user?.imagen) {
+      return typeof user.imagen === 'string' ? user.imagen : '';
+    }
+    return null;
+  };
+
+  const imageSrc = getImageSrc();
 
   if (!isOpen) return null;
 
@@ -60,24 +91,22 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <input
                   type="file"
                   name="imagen"
-                  onChange={handleInputChange}
+                  onChange={handleFileChange}
                   className="hidden"
                   id="imagen-upload"
                   accept="image/*"
                 />
                 <label htmlFor="imagen-upload" className="cursor-pointer">
                   <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
-                    {formData.imagen ? (
+                    {imageSrc ? (
                       <img
-                        src={URL.createObjectURL(formData.imagen)}
-                        alt="Nueva imagen"
+                        src={imageSrc}
+                        alt="Imagen de usuario"
                         className="w-full h-full object-cover"
-                      />
-                    ) : user?.imagen ? (
-                      <img
-                        src={user.imagen}
-                        alt="Imagen actual"
-                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Manejar error de carga de imagen
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <div className="text-gray-500 text-xs text-center">
@@ -94,7 +123,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
               </div>
 
               {/* Texto del nombre del archivo seleccionado (solo si hay archivo) */}
-              {formData.imagen && (
+              {formData.imagen instanceof File && (
                 <div className="text-xs text-green-600 text-center mt-1 truncate">
                   {formData.imagen.name}
                 </div>
@@ -112,14 +141,14 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   <select
                     name="tipoDocumento"
                     value={formData.tipoDocumento}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md"
+                    onChange={handleFieldChange}
+                    onBlur={() => handleBlur('tipoDocumento')}
+                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
                     style={{
                       borderColor: errors.tipoDocumento && touched.tipoDocumento ? 'red' : Colors.table.lines,
                     }}
                   >
-                    <option value="" disabled hidden></option>
+                    <option value="" disabled hidden>Seleccione</option>
                     <option value="CC">CC</option>
                     <option value="CE">CE</option>
                     <option value="PPT">PPT</option>
@@ -132,18 +161,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <div className="flex-1 flex flex-col">
                   <input
                     type="text"
-                    name="documento"
+                    name="numeroDocumento"
                     placeholder="Ingrese su documento"
-                    value={formData.documento}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                    value={formData.numeroDocumento}
+                    onChange={handleFieldChange}
+                    onBlur={() => handleBlur('numeroDocumento')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                     style={{
-                      borderColor: errors.documento && touched.documento ? 'red' : Colors.table.lines,
+                      borderColor: errors.numeroDocumento && touched.numeroDocumento ? 'red' : Colors.table.lines,
                     }}
                   />
-                  {errors.documento && touched.documento && (
-                    <span className="text-red-500 text-xs mt-1">{errors.documento}</span>
+                  {errors.numeroDocumento && touched.numeroDocumento && (
+                    <span className="text-red-500 text-xs mt-1">{errors.numeroDocumento}</span>
                   )}
                 </div>
               </div>
@@ -163,9 +192,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   name="nombre"
                   placeholder="Ingrese su nombre"
                   value={formData.nombre}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('nombre')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.nombre && touched.nombre ? 'red' : Colors.table.lines,
                   }}
@@ -183,9 +212,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   name="apellido"
                   placeholder="Ingrese su apellido"
                   value={formData.apellido}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('apellido')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.apellido && touched.apellido ? 'red' : Colors.table.lines,
                   }}
@@ -207,9 +236,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   name="telefono"
                   placeholder="Ingrese su teléfono"
                   value={formData.telefono}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('telefono')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.telefono && touched.telefono ? 'red' : Colors.table.lines,
                   }}
@@ -227,13 +256,16 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                   name="email"
                   placeholder="Ingrese su correo electronico"
                   value={formData.email}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('email')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
-                    borderColor: Colors.table.lines,
+                    borderColor: errors.email && touched.email ? 'red' : Colors.table.lines,
                   }}
                 />
+                {errors.email && touched.email && (
+                  <span className="text-red-500 text-xs mt-1">{errors.email}</span>
+                )}
               </div>
             </div>
 
@@ -246,28 +278,32 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
                 <select
                   name="estado"
                   value={formData.estado}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('estado')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
-                    borderColor: Colors.table.lines,
+                    borderColor: errors.estado && touched.estado ? 'red' : Colors.table.lines,
                   }}
                 >
                   <option value="Activo">Activo</option>
                   <option value="Inactivo">Inactivo</option>
                 </select>
+                {errors.estado && touched.estado && (
+                  <span className="text-red-500 text-xs mt-1">{errors.estado}</span>
+                )}
               </div>
 
-              {/* Nuevo campo Rol */}
+              {/* Campo Rol */}
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
                   Rol
                 </label>
                 <select
                   name="rol"
-                  value={formData.rol || 'Usuario'} // Asegurar valor por defecto
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2"
+                  value={formData.rol}
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('rol')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                   style={{
                     borderColor: errors.rol && touched.rol ? 'red' : Colors.table.lines,
                   }}
@@ -299,17 +335,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-md font-medium"
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-md font-medium disabled:opacity-50"
                 style={{
                   backgroundColor: Colors.buttons.quaternary,
                   color: Colors.texts.quaternary,
                 }}
               >
-                Actualizar
+                {isSubmitting ? 'Actualizando...' : 'Actualizar'}
               </button>
             </div>
-            <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
           </form>
+          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
         </div>
       </div>
     </>,
