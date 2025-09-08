@@ -25,20 +25,26 @@ const Nav = () => {
               className="cursor-pointer"
             />
           </Link>
-
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center gap-8 text-gray-900 font-semibold text-base">
-            <Link href={routes.landing.services}>Servicios</Link>
-            <Link href={routes.landing.products}>Productos</Link>
-            <Link href={routes.landing.about}>Nosotros</Link>
-            <Link href={routes.landing.contact}>Contáctanos</Link>
-            <Link href={routes.auth.login}>Iniciar Sesión</Link>
-            <Link href={routes.auth.register}>Registrarse</Link>
+            {[
+              { href: routes.landing.services, label: "Servicios" },
+              { href: routes.landing.products, label: "Productos" },
+              { href: routes.landing.about, label: "Nosotros" },
+              { href: routes.landing.contact, label: "Contáctanos" },
+              { href: routes.auth.login, label: "Iniciar Sesión" },
+            ].map((link) => (
+              <Link key={link.href} href={link.href} className="relative group">
+                <span className="relative z-10">{link.label}</span>
+                {/* underline animado */}
+                <span className="absolute left-0 -bottom-1 h-[2px] w-full origin-left scale-x-0 bg-red-700 transition-transform duration-300 group-hover:scale-x-100" />
+              </Link>
+            ))}
 
             {/* Carrito */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="ml-4 bg-red-700 hover:bg-red-800 text-white px-4 py-1 rounded-md flex items-center justify-center transition"
+              className="cursor-pointer ml-4 bg-red-700 hover:bg-red-800 text-white px-4 py-1 rounded-md flex items-center justify-center transition"
             >
               <ShoppingCart className="h-5 w-5" />
             </button>
@@ -65,7 +71,7 @@ const Nav = () => {
             {/* Carrito en móvil */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
+              className="cursor-pointer bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
             >
               <ShoppingCart className="h-5 w-5 mr-2" /> Carrito
             </button>

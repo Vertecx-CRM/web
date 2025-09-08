@@ -81,18 +81,20 @@ export function DataTable<T extends { id: number | string }>({
   return (
     <div className="flex flex-col gap-4">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-md">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-          <input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-            placeholder={searchPlaceholder}
-            className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-          />
-        </div>
+        {searchableKeys && searchableKeys.length > 0 && (
+          <div className="relative w-full max-w-md">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <input
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+              placeholder={searchPlaceholder}
+              className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+            />
+          </div>
+        )}
 
         {(rightActions || onCreate) && (
           <>
@@ -252,8 +254,29 @@ function PageBtn({
       {...rest}
       onClick={onClick}
       disabled={disabled}
-      style={{ backgroundColor: active ? "white" : Colors.table.header, borderColor: Colors.table.lines }}
-      className="min-w-8 rounded-md px-2 py-1 text-xs border text-black disabled:opacity-40 disabled:pointer-events-none transition-colors duration-200"
+      style={{
+        backgroundColor: active ? "white" : Colors.table.header,
+        borderColor: Colors.table.lines,
+        cursor: disabled ? "not-allowed" : "pointer", // 👈 base
+      }}
+      className={`
+        min-w-8 rounded-md px-2 py-1 text-xs border text-black
+        transition-all duration-200 ease-in-out
+        ${active ? "shadow-md scale-105" : "hover:shadow-sm hover:scale-105"}
+        ${disabled ? "opacity-40" : ""}
+      `}
+      // 👇 cursor personalizado tipo candado (se puede usar un svg/png propio)
+      onMouseOver={(e) => {
+        if (disabled) {
+          (e.currentTarget.style.cursor =
+            "url('/icons/lock.png'), not-allowed"); // 🔒 tu ícono
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) {
+          (e.currentTarget.style.cursor = "not-allowed");
+        }
+      }}
     >
       {children}
     </button>
