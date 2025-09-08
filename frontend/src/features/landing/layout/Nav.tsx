@@ -33,6 +33,7 @@ const Nav = () => {
             <Link href={routes.landing.about}>Nosotros</Link>
             <Link href={routes.landing.contact}>Contáctanos</Link>
             <Link href={routes.auth.login}>Iniciar Sesión</Link>
+            <Link href={routes.auth.register}>Registrarse</Link>
 
             {/* Carrito */}
             <button
