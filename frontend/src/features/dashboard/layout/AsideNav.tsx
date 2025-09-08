@@ -236,6 +236,20 @@ const AsideNav = ({
                   transition={{ duration: 0.25 }}
                   className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
                 >
+                   <Link
+                    href={routes.dashboard.requestsServices}
+                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Solicitudes
+                  </Link>
+                   <Link
+                    href={routes.dashboard.ordersServices}
+                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Ordenes
+                  </Link>
                   <Link
                     href={routes.dashboard.services}
                     onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click

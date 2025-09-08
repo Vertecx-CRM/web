@@ -42,7 +42,7 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-xl shadow-lg lg:grid-cols-2">
           {/* Izquierda branding */}
-          <div className="relative hidden bg-[#CC0000] p-10 text-white lg:flex lg:flex-col lg:justify-center">
+         <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
             <div className="absolute inset-x-0 bottom-0 h-10 bg-black/10 blur-2xl" />
             <h2 className="mb-4 text-3xl font-extrabold tracking-tight">
               SistemasPc

@@ -103,10 +103,14 @@ export default function RegisterPage() {
           "
         >
           {/* Izquierda: branding (compacto) */}
-          <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:justify-center">
+          <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
             <div className="absolute inset-x-0 bottom-0 h-10 bg-black/10 blur-2xl" />
-            <h2 className="mb-2 text-2xl font-extrabold tracking-tight">SistemasPc</h2>
-            <p className="max-w-xs text-red-50 text-sm">20 años conectando tu mundo</p>
+            <h2 className="mb-2 text-2xl font-extrabold tracking-tight">
+              SistemasPc
+            </h2>
+            <p className="max-w-xs text-red-50 text-sm">
+              20 años conectando tu mundo
+            </p>
           </div>
 
           {/* Derecha: formulario compacto en 2 columnas */}
@@ -115,8 +119,12 @@ export default function RegisterPage() {
               Crear cuenta
             </h1>
 
-            <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit} noValidate>
-              {/* Tipo + Número de documento */}
+            <form
+              className="grid gap-3 md:grid-cols-2"
+              onSubmit={onSubmit}
+              noValidate
+            >
+              {/* Tipo + Número de documento (full width) */}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-700">
                   Tipo y número de documento
@@ -124,13 +132,17 @@ export default function RegisterPage() {
                 <div className="flex gap-2">
                   <select
                     value={form.docType}
-                    onChange={(e) => update("docType", e.target.value as DocType)}
-                    className="w-28 rounded-md border border-gray-300 bg-gray-100 px-2 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                    onChange={(e) =>
+                      update("docType", e.target.value as DocType)
+                    }
+                    className="w-28 rounded-md border border-gray-300 bg-gray-100 px-2 h-9 text-sm shadow-sm
+                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                   >
                     <option value="CC">CC</option>
                     <option value="CE">CE</option>
                     <option value="TI">TI</option>
-                    <option value="PPT">PPT</option>
+                    <option value="NIT">NIT</option>
+                    <option value="PP">PP</option>
                   </select>
 
                   <input
@@ -140,7 +152,8 @@ export default function RegisterPage() {
                     placeholder="Número Documento"
                     value={form.docNumber}
                     onChange={(e) => update("docNumber", e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                    className="flex-1 rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
+                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                   />
                 </div>
                 {!docOk && form.docNumber.length > 0 && (
@@ -150,46 +163,59 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Nombre completo */}
-              <div>
-                <label className="mb-1 block text-xs text-gray-700">Nombre completo</label>
+              {/* Nombre (FULL WIDTH) */}
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs text-gray-700">
+                  Nombre completo
+                </label>
                 <input
                   name="fullName"
                   type="text"
                   placeholder="Nombre Completo"
                   value={form.fullName}
                   onChange={(e) => update("fullName", e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
+                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                 />
               </div>
 
-              {/* Correo */}
-              <div>
-                <label className="mb-1 block text-xs text-gray-700">Correo</label>
+              {/* Correo (FULL WIDTH) */}
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs text-gray-700">
+                  Correo
+                </label>
                 <input
                   name="email"
                   type="email"
                   placeholder="Correo"
                   value={form.email}
                   onChange={(e) => update("email", e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
+                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                 />
                 {!emailOk && form.email.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">Correo inválido.</p>
+                  <p className="mt-1 text-[11px] text-red-600">
+                    Correo inválido.
+                  </p>
                 )}
               </div>
 
-              {/* Teléfono */}
-              <div>
-                <label className="mb-1 block text-xs text-gray-700">Teléfono</label>
+              {/* Teléfono (full o puedes dejarlo a 1 col si quieres más compacto) */}
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs text-gray-700">
+                  Teléfono
+                </label>
                 <input
                   name="phone"
                   type="tel"
                   inputMode="tel"
                   placeholder="Teléfono"
                   value={form.phone}
-                  onChange={(e) => update("phone", e.target.value.replace(/[^\d+]/g, ""))}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                  onChange={(e) =>
+                    update("phone", e.target.value.replace(/[^\d+]/g, ""))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
+                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                 />
                 {!phoneOk && form.phone.length > 0 && (
                   <p className="mt-1 text-[11px] text-red-600">
@@ -198,9 +224,11 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Contraseña */}
+              {/* Contraseña (col izquierda) */}
               <div>
-                <label className="mb-1 block text-xs text-gray-700">Contraseña</label>
+                <label className="mb-1 block text-xs text-gray-700">
+                  Contraseña
+                </label>
                 <div className="relative">
                   <input
                     name="password"
@@ -208,26 +236,35 @@ export default function RegisterPage() {
                     placeholder="Contraseña"
                     value={form.password}
                     onChange={(e) => update("password", e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm
+                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPwd((s) => !s)}
                     className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
-                    title={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    aria-label={
+                      showPwd ? "Ocultar contraseña" : "Mostrar contraseña"
+                    }
+                    title={
+                      showPwd ? "Ocultar contraseña" : "Mostrar contraseña"
+                    }
                   >
-                      {showPwd ?  <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
+                    {showPwd ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
                   </button>
                 </div>
                 {!passOk && form.password.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">La contraseña debe tener al menos 6 caracteres.</p>
+                  <p className="mt-1 text-[11px] text-red-600">
+                    Mínimo 6 caracteres.
+                  </p>
                 )}
               </div>
 
-              {/* Confirmar */}
+              {/* Confirmar (col derecha) */}
               <div>
-                <label className="mb-1 block text-xs text-gray-700">Confirmar contraseña</label>
+                <label className="mb-1 block text-xs text-gray-700">
+                  Confirmar contraseña
+                </label>
                 <div className="relative">
                   <input
                     name="confirm"
@@ -235,20 +272,31 @@ export default function RegisterPage() {
                     placeholder="Confirmar contraseña"
                     value={form.confirm}
                     onChange={(e) => update("confirm", e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm
+                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirm((s) => !s)}
                     className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
-                    title={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
+                    aria-label={
+                      showConfirm
+                        ? "Ocultar confirmación"
+                        : "Mostrar confirmación"
+                    }
+                    title={
+                      showConfirm
+                        ? "Ocultar confirmación"
+                        : "Mostrar confirmación"
+                    }
                   >
                     {showConfirm ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
                   </button>
                 </div>
                 {!passwordsMatch && form.confirm.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">Las contraseñas no coinciden.</p>
+                  <p className="mt-1 text-[11px] text-red-600">
+                    Las contraseñas no coinciden.
+                  </p>
                 )}
               </div>
 
@@ -256,7 +304,7 @@ export default function RegisterPage() {
               <label className="md:col-span-2 flex items-center gap-2 text-xs text-gray-700">
                 <input
                   type="checkbox"
-                  className="size-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                  className="size-4 rounded border-gray-300 text-[#CC0000] focus:ring-[#CC0000]"
                   checked={form.terms}
                   onChange={(e) => update("terms", e.target.checked)}
                 />
@@ -274,7 +322,9 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="md:col-span-2 h-9 rounded-md bg-red-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                className="md:col-span-2 h-9 rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm
+               hover:bg-[#b30000] focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40
+               disabled:opacity-60"
               >
                 {loading ? "Creando cuenta..." : "Acceder"}
               </button>
@@ -282,7 +332,10 @@ export default function RegisterPage() {
               {/* Enlaces inferiores */}
               <div className="md:col-span-2 mt-1 flex items-center justify-between text-xs">
                 <span className="text-gray-600">¿Ya tienes una cuenta?</span>
-                <Link href="/auth/login" className="text-red-600 hover:underline">
+                <Link
+                  href="/auth/login"
+                  className="text-[#CC0000] hover:underline"
+                >
                   Iniciar sesión
                 </Link>
               </div>
