@@ -22,6 +22,8 @@ const titles: Record<string, string> = {
   [routes.dashboard.products]: "Productos",
   [routes.dashboard.productsCategories]: "Categorías de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
+  [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
+  [routes.dashboard.ordersServices]: "Ordenes de Servicio",
 };
 
 type TopNavProps = {
