@@ -33,6 +33,7 @@ const Nav = () => {
               { href: routes.landing.about, label: "Nosotros" },
               { href: routes.landing.contact, label: "Contáctanos" },
               { href: routes.auth.login, label: "Iniciar Sesión" },
+              { href: routes.auth.register, label: "Registrarse" },
             ].map((link) => (
               <Link key={link.href} href={link.href} className="relative group">
                 <span className="relative z-10">{link.label}</span>
