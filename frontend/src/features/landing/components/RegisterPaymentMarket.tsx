@@ -12,7 +12,8 @@ const RegisterPaymentMarket = () => {
         {/* Card principal */}
         <div className="bg-white rounded-lg shadow-lg w-full max-w-sm relative">
           {/* Botón cerrar */}
-          <button className="cursor-pointer absolute top-3 right-3 text-gray-600 hover:text-black">
+          <button className="cursor-pointer absolute top-3 right-3 text-gray-600 hover:text-black"
+            onClick={() => window.history.back()}>
             <X size={22} />
           </button>
 
@@ -70,7 +71,7 @@ const RegisterPaymentMarket = () => {
 
             {/* Checkbox */}
             <label className="flex items-center text-sm gap-2">
-              <input type="checkbox" className="accent-blue-600" />
+              <input type="checkbox" className="cursor-pointer accent-blue-600" />
               <span>
                 Acepto los{" "}
                 <a href="#" className="text-blue-600 underline">

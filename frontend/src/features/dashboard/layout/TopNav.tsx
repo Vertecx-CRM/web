@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UserCircle, LogOut, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
@@ -50,6 +50,22 @@ const TopNav = ({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
+  const [displayedText, setDisplayedText] = useState("");
+
+  useEffect(() => {
+    setDisplayedText("");
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < currentTitle.length) {
+        setDisplayedText(currentTitle.slice(0, i + 1));
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 80);
+    return () => clearInterval(interval);
+  }, [currentTitle]);
+
   const handleLogout = async () => {
     setLoading(true);
     showLoader();
@@ -65,9 +81,9 @@ const TopNav = ({
   };
 
   return (
-    <header className="bg-white shadow px-8 py-3 flex items-center justify-between relative">
+    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
       <h1 className="text-xl md:text-2xl font-bold text-red-800 truncate">
-        {currentTitle}
+        {displayedText}
       </h1>
 
       <button

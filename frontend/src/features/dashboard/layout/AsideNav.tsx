@@ -7,7 +7,6 @@ import { routes } from "@/shared/routes";
 import {
   Home,
   Users,
-  Settings,
   Wrench,
   Truck,
   ChevronDown,
@@ -38,16 +37,16 @@ const AsideNav = ({
       : "hover:bg-red-600 hover:scale-105 transition transform duration-200";
 
   const isActive = (path: string) =>
-    pathname.startsWith(path)
+    pathname === path
       ? "bg-red-800 text-white hover:scale-105 transition transform duration-200"
       : "hover:bg-red-600 hover:scale-105 transition transform duration-200";
 
   return (
     <motion.aside
-      initial={{ x: -260 }} // 👈 animación inicial
-      animate={{ x: isCollapsed ? -260 : 0 }} // 👈 se mueve con toggle
+      initial={{ x: -260 }}
+      animate={{ x: isCollapsed ? -260 : 0 }}
       transition={{ duration: 0.3 }}
-      className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50"
+      className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.25)]"
       style={{ backgroundColor: Colors.asideNavBackground.primary }}
     >
       {/* Botón flecha arriba a la derecha */}
@@ -73,65 +72,25 @@ const AsideNav = ({
           <Home size={20} /> Dashboard
         </Link>
 
-        {/* Acceso */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("acceso")}
-          onMouseLeave={() => setOpenMenu(null)}
+        {/* Usuarios */}
+        <Link
+          href={routes.dashboard.users}
+          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
+            routes.dashboard.users
+          )}`}
         >
-          <button
-            onClick={() => toggleMenu("acceso")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.users, routes.dashboard.roles]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Users size={20} /> Acceso
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "acceso" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {openMenu === "acceso" && (
-            <AnimatePresence>
-              {openMenu === "acceso" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-0 w-full bg-red-600"
-                >
-                  <motion.div
-                    initial={{ x: -20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: 20, opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                  >
-                    <Link
-                      href={routes.dashboard.users}
-                      onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer clic
-                      className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                    >
-                      Usuarios
-                    </Link>
-                    <Link
-                      href={routes.dashboard.roles}
-                      onClick={() => setOpenMenu(null)}
-                      className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                    >
-                      Roles
-                    </Link>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
+          <Users size={20} /> Usuarios
+        </Link>
+
+        {/* Roles */}
+        <Link
+          href={routes.dashboard.roles}
+          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
+            routes.dashboard.roles
+          )}`}
+        >
+          <Users size={20} /> Roles
+        </Link>
 
         {/* Compras */}
         <div
@@ -170,6 +129,7 @@ const AsideNav = ({
                   transition={{ duration: 0.25 }}
                   className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
                 >
+                  {/* Proveedores */}
                   <Link
                     href={routes.dashboard.suppliers}
                     onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
@@ -177,6 +137,7 @@ const AsideNav = ({
                   >
                     Proveedores
                   </Link>
+                  {/* Ordenes de compras */}
                   <Link
                     href={routes.dashboard.purchasesOrders}
                     onClick={() => setOpenMenu(null)}
@@ -184,6 +145,7 @@ const AsideNav = ({
                   >
                     Órdenes de compras
                   </Link>
+                  {/* Compras */}
                   <Link
                     href={routes.dashboard.purchases}
                     onClick={() => setOpenMenu(null)}
@@ -191,123 +153,13 @@ const AsideNav = ({
                   >
                     Compras
                   </Link>
+                  {/* Graficas de compras */}
                   <Link
                     href={routes.dashboard.purchasesGraph}
                     onClick={() => setOpenMenu(null)}
                     className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
                   >
-                    Listado de compras
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Servicios */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("servicios")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("servicios")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.services, routes.dashboard.technicians]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Wrench size={20} /> Servicios
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "servicios" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {openMenu === "servicios" && (
-            <AnimatePresence>
-              {openMenu === "servicios" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                   <Link
-                    href={routes.dashboard.requestsServices}
-                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Solicitudes
-                  </Link>
-                   <Link
-                    href={routes.dashboard.ordersServices}
-                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Ordenes
-                  </Link>
-                  <Link
-                    href={routes.dashboard.services}
-                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Servicios
-                  </Link>
-                  <Link
-                    href={routes.dashboard.technicians}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Tecnicos
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Clientes */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("clientes")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("clientes")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.clients]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Users size={20} /> Clientes
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "clientes" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {openMenu === "clientes" && (
-            <AnimatePresence>
-              {openMenu === "clientes" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                  <Link
-                    href={routes.dashboard.clients}
-                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Clientes
+                    Graficas compras
                   </Link>
                 </motion.div>
               )}
@@ -347,13 +199,7 @@ const AsideNav = ({
                   transition={{ duration: 0.25 }}
                   className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
                 >
-                  <Link
-                    href={routes.dashboard.products}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Productos
-                  </Link>
+                  {/* Categorias de productos */}
                   <Link
                     href={routes.dashboard.productsCategories}
                     onClick={() => setOpenMenu(null)}
@@ -361,24 +207,152 @@ const AsideNav = ({
                   >
                     Categorias
                   </Link>
+                  {/* Productos */}
+                  <Link
+                    href={routes.dashboard.products}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Productos
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+        </div>
+
+        {/* Servicios */}
+        <div
+          className="relative"
+          onMouseEnter={() => setOpenMenu("servicios")}
+          onMouseLeave={() => setOpenMenu(null)}
+        >
+          <button
+            onClick={() => toggleMenu("servicios")}
+            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
+              [routes.dashboard.services, routes.dashboard.technicians]
+            )}`}
+          >
+            <span className="flex items-center gap-2">
+              <Wrench size={20} /> Servicios
+            </span>
+            <ChevronDown
+              size={18}
+              className={`transition-transform ${
+                openMenu === "servicios" ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {openMenu === "servicios" && (
+            <AnimatePresence>
+              {openMenu === "servicios" && (
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 20, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
+                >
+                  {/* Servicios */}
+                  <Link
+                    href={routes.dashboard.services}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Servicios
+                  </Link>
+                  {/* Tecnicos */}
+                  <Link
+                    href={routes.dashboard.technicians}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Tecnicos
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+        </div>
+
+        {/* Ventas */}
+        <div
+          className="relative"
+          onMouseEnter={() => setOpenMenu("clientes")}
+          onMouseLeave={() => setOpenMenu(null)}
+        >
+          <button
+            onClick={() => toggleMenu("clientes")}
+            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
+              [routes.dashboard.clients]
+            )}`}
+          >
+            <span className="flex items-center gap-2">
+              <Users size={20} /> Ventas
+            </span>
+            <ChevronDown
+              size={18}
+              className={`transition-transform ${
+                openMenu === "clientes" ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {openMenu === "clientes" && (
+            <AnimatePresence>
+              {openMenu === "clientes" && (
+                <motion.div
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 20, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
+                >
+                  {/* Ventas */}
+                  <Link
+                    href={routes.dashboard.sales}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Ventas
+                  </Link>
+                  {/* Clientes */}
+                  <Link
+                    href={routes.dashboard.clients}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Clientes
+                  </Link>
+                  {/* Solicitudes de servicio */}
+                  <Link
+                    href={routes.dashboard.requestsServices}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Solicitudes de servicio
+                  </Link>
+                  {/* Ordenes de servicio */}
+                  <Link
+                    href={routes.dashboard.ordersServices}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Ordenes de servicio
+                  </Link>
+                  {/* Citas */}
+                  <Link
+                    href={routes.dashboard.appointments}
+                    onClick={() => setOpenMenu(null)}
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Citas
+                  </Link>
                 </motion.div>
               )}
             </AnimatePresence>
           )}
         </div>
       </nav>
-
-      {/* Configuración */}
-      <div className="mt-auto border-t border-red-700 p-4">
-        <Link
-          href={routes.dashboard.settings}
-          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
-            routes.dashboard.settings
-          )}`}
-        >
-          <Settings size={20} /> Configuración
-        </Link>
-      </div>
     </motion.aside>
   );
 };
