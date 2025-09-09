@@ -5,6 +5,7 @@ import { UserCircle, LogOut, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
+import { useLoader } from "@/shared/components/loader";
 
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
@@ -38,6 +39,7 @@ const TopNav = ({
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { showLoader, hideLoader } = useLoader();
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -48,24 +50,26 @@ const TopNav = ({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
-  async function handleLogout() {
+  const handleLogout = async () => {
+    setLoading(true);
+    showLoader();
+    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 900));
     try {
-      setLoading(true);
-      logout();
+      await Promise.resolve(logout());
       router.replace(logoutRedirectTo);
-    } finally {
+      router.refresh();
+    } catch {
+      hideLoader();
       setLoading(false);
     }
-  }
+  };
 
   return (
     <header className="bg-white shadow px-8 py-3 flex items-center justify-between relative">
-      {/* Título */}
       <h1 className="text-xl md:text-2xl font-bold text-red-800 truncate">
         {currentTitle}
       </h1>
 
-      {/* Botón hamburguesa en móvil */}
       <button
         onClick={() => setMenuOpen(!menuOpen)}
         className="md:hidden text-gray-700"
@@ -73,13 +77,11 @@ const TopNav = ({
         {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Menú en desktop */}
       <div className="hidden md:flex items-center gap-4">
         <span className="text-gray-700 truncate max-w-[200px]">
           {user?.name ?? fallbackUserName}
         </span>
         <UserCircle className="w-8 h-8 text-gray-600" />
-
         <button
           onClick={handleLogout}
           disabled={loading}
@@ -90,7 +92,6 @@ const TopNav = ({
         </button>
       </div>
 
-      {/* Menú desplegable en móvil */}
       {menuOpen && (
         <div className="absolute right-4 top-full mt-2 w-48 bg-white border rounded-lg shadow-md p-3 flex flex-col gap-3 md:hidden z-50">
           <div className="flex items-center gap-2">
