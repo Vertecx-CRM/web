@@ -1,6 +1,7 @@
-// en: src/shared/components/loader.tsx
 "use client";
+
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 function Loader() {
@@ -20,7 +21,7 @@ function Loader() {
   );
 }
 
-type LoaderContextType = { showLoader: () => void; hideLoader: () => void; };
+type LoaderContextType = { showLoader: () => void; hideLoader: () => void };
 const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
 
 export function LoaderProvider({ children }: { children: ReactNode }) {
@@ -41,18 +42,20 @@ export function useLoader() {
   return ctx;
 }
 
-/** Oculta el loader respetando un mínimo (usando __loader_min_until__) */
 export function LoaderGate() {
   const { hideLoader } = useLoader();
+  const pathname = usePathname();
+
   useEffect(() => {
     const raw = sessionStorage.getItem("__loader_min_until__");
     const minUntil = raw ? Number(raw) : 0;
-    const delay = Math.max(0, minUntil - Date.now());
+    const delay = pathname.startsWith("/auth") ? 0 : Math.max(0, minUntil - Date.now());
     const t = setTimeout(() => {
       hideLoader();
       sessionStorage.removeItem("__loader_min_until__");
     }, delay);
     return () => clearTimeout(t);
-  }, [hideLoader]);
+  }, [hideLoader, pathname]);
+
   return null;
 }

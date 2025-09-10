@@ -66,14 +66,18 @@ const TopNav = ({
     return () => clearInterval(interval);
   }, [currentTitle]);
 
+  useEffect(() => {
+    router.prefetch(logoutRedirectTo);
+  }, [router, logoutRedirectTo]);
+
   const handleLogout = async () => {
     setLoading(true);
     showLoader();
-    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 900));
+    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
     try {
-      await Promise.resolve(logout());
+      logout();
+      await Promise.resolve();
       router.replace(logoutRedirectTo);
-      router.refresh();
     } catch {
       hideLoader();
       setLoading(false);
@@ -82,14 +86,9 @@ const TopNav = ({
 
   return (
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
-      <h1 className="text-xl md:text-2xl font-bold text-red-800 truncate">
-        {displayedText}
-      </h1>
+      <h1 className="text-xl md:text-2xl font-bold text-red-800 truncate">{displayedText}</h1>
 
-      <button
-        onClick={() => setMenuOpen(!menuOpen)}
-        className="md:hidden text-gray-700"
-      >
+      <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-700">
         {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 

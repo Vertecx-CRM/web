@@ -7,7 +7,7 @@ import styles from "@/features/auth/login/auth.module.css";
 import { useAuth } from "@/features/auth/authcontext";
 import Nav from "@/features/landing/layout/Nav";
 import { routes } from "@/shared/routes";
-import { useLoader } from "@/shared/components/loader";
+import { useLoader, LoaderGate } from "@/shared/components/loader";
 
 type FormState = { email: string; password: string; remember: boolean };
 
@@ -36,7 +36,6 @@ export default function LoginPage() {
         return;
       }
       router.replace(next);
-      router.refresh();
     } catch {
       setMsg("Ocurrió un error inesperado");
       hideLoader();
@@ -46,6 +45,7 @@ export default function LoginPage() {
 
   return (
     <div className={styles.root}>
+      <LoaderGate />
       <Nav />
       <div className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-xl shadow-lg lg:grid-cols-2">
@@ -105,7 +105,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="cursor-pointer w-full rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
               >
                 {loading ? "Accediendo..." : "Acceder"}
               </button>
