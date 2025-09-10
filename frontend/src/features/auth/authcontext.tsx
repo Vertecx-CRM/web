@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-type User = { name: string; email: string }; // UI pública
-type StoredUser = User & { password: string } & Record<string, any>; // interno
-
+type User = { name: string; email: string };
+type StoredUser = User & { password: string } & Record<string, any>;
 type AuthResult = { ok: boolean; message?: string };
 
 type AuthContextType = {
@@ -16,19 +15,17 @@ type AuthContextType = {
   register: (input: { name: string; email: string; password: string; [k: string]: any }) => Promise<AuthResult>;
 };
 
-// Usuarios “semilla” para pruebas de login
 const SEEDED_USERS: StoredUser[] = [
-  { email: "admin@sistemaspc.com",  password: "123456",     name: "Administrador" },
+  { email: "admin@sistemaspc.com", password: "123456", name: "Administrador" },
   { email: "ventas@sistemaspc.com", password: "ventas2024", name: "Ventas" },
-  { email: "soporte@sistemaspc.com",password: "soporte2024",name: "Soporte" },
+  { email: "soporte@sistemaspc.com", password: "soporte2024", name: "Soporte" },
 ];
 
-const STORAGE_KEY_USER = "auth.user";        // sesión actual
-const STORAGE_KEY_USERS = "auth.users";      // usuarios creados vía register (solo demo/local)
+const STORAGE_KEY_USER = "auth.user";
+const STORAGE_KEY_USERS = "auth.users";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-/** Helpers de persistencia */
 function loadRegisteredUsers(): StoredUser[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USERS);
@@ -42,14 +39,12 @@ function loadRegisteredUsers(): StoredUser[] {
 function saveRegisteredUsers(list: StoredUser[]) {
   try {
     localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(list));
-  } catch { /* ignore */ }
+  } catch {}
 }
 function getAllUsers(): StoredUser[] {
-  // Merge: primero los registrados en el navegador, luego los “semilla”
-  // Si hay colisión por email, prioriza el registrado (evita duplicados).
   const saved = loadRegisteredUsers();
-  const savedEmails = new Set(saved.map(u => u.email.toLowerCase()));
-  const seededFiltered = SEEDED_USERS.filter(u => !savedEmails.has(u.email.toLowerCase()));
+  const savedEmails = new Set(saved.map((u) => u.email.toLowerCase()));
+  const seededFiltered = SEEDED_USERS.filter((u) => !savedEmails.has(u.email.toLowerCase()));
   return [...saved, ...seededFiltered];
 }
 
@@ -57,68 +52,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
 
-  // Cargar sesión actual
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_USER);
       if (raw) setUser(JSON.parse(raw) as User);
-    } catch { /* ignore */ }
-    finally { setReady(true); }
+    } catch {} finally {
+      setReady(true);
+    }
   }, []);
 
-  // Sincronizar sesión
   useEffect(() => {
     if (!ready) return;
     try {
       if (user) localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
       else localStorage.removeItem(STORAGE_KEY_USER);
-    } catch { /* ignore */ }
+    } catch {}
   }, [user, ready]);
 
   const login: AuthContextType["login"] = async (email, password) => {
     const all = getAllUsers();
-    const found = all.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!found || found.password !== password) {
-      return { ok: false, message: "Credenciales inválidas" };
-    }
+    const found = all.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!found || found.password !== password) return { ok: false, message: "Credenciales inválidas" };
     setUser({ name: found.name, email: found.email });
     return { ok: true };
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_USER);
+    } catch {}
+    setUser(null);
+  };
 
   const register: AuthContextType["register"] = async (input) => {
     const name = (input?.name || "").trim();
     const email = (input?.email || "").trim().toLowerCase();
     const password = String(input?.password || "");
-
-    // Validaciones mínimas (ajusta a tu gusto)
     if (!name || name.length < 3) return { ok: false, message: "Ingresa un nombre válido" };
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, message: "Correo inválido" };
     if (!password || password.length < 6) return { ok: false, message: "La contraseña debe tener al menos 6 caracteres" };
-
     const all = getAllUsers();
-    const exists = all.some(u => u.email.toLowerCase() === email);
+    const exists = all.some((u) => u.email.toLowerCase() === email);
     if (exists) return { ok: false, message: "Este correo ya está registrado" };
-
-    // Crear usuario y guardar en localStorage (DEMO: en claro)
-    const newUser: StoredUser = { ...input, name, email, password,  };
+    const newUser: StoredUser = { ...input, name, email, password };
     const nextList = [newUser, ...loadRegisteredUsers()];
     saveRegisteredUsers(nextList);
-
-    // Inicia sesión de una vez
     setUser({ name, email });
     return { ok: true };
   };
 
-  const value = useMemo<AuthContextType>(() => ({
-    user,
-    isAuthenticated: !!user,
-    ready,
-    login,
-    logout,
-    register,
-  }), [user, ready]);
+  const value = useMemo<AuthContextType>(
+    () => ({ user, isAuthenticated: !!user, ready, login, logout, register }),
+    [user, ready]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
