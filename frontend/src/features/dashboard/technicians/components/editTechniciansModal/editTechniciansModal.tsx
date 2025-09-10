@@ -1,3 +1,4 @@
+// src/features/dashboard/technicians/components/editTechniciansModal/editTechniciansModal.tsx
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
@@ -7,7 +8,7 @@ import {
   Technician,
   DocumentType,
   EditTechnicianData,
-  TechnicianStatus,
+  TechnicianState,
 } from "../../types/typesTechnicians";
 
 interface EditTechnicianModalProps {
@@ -17,15 +18,9 @@ interface EditTechnicianModalProps {
   onUpdate: (data: EditTechnicianData) => void;
 }
 
-const documentTypes: DocumentType[] = [
-  "Cédula de ciudadanía",
-  "Cédula de extranjería",
-  "Tarjeta de identidad",
-  "Pasaporte",
-  "Otro",
-];
+const documentTypes: DocumentType[] = ["CC", "CE", "TI", "Pasaporte", "PPT", "PEP", "Otro"];
 
-const statuses: TechnicianStatus[] = ["Activo", "Inactivo"];
+const states: TechnicianState[] = ["Activo", "Inactivo"];
 
 const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   isOpen,
@@ -45,8 +40,8 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   );
   const [phone, setPhone] = useState(technician.phone);
   const [email, setEmail] = useState(technician.email);
-  const [status, setStatus] = useState<TechnicianStatus>(
-    technician.status ?? "Activo"
+  const [state, setState] = useState<TechnicianState>(
+    technician.state ?? "Activo"
   );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewImage, setPreviewImage] = useState<string | undefined>(
@@ -65,7 +60,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     setDocumentNumber(technician.documentNumber);
     setPhone(technician.phone);
     setEmail(technician.email);
-    setStatus(technician.status ?? "Activo");
+    setState(technician.state ?? "Activo");
     setImageFile(null);
     setPreviewImage(technician.image);
   };
@@ -93,7 +88,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       documentNumber,
       phone,
       email,
-      status,
+      state,
       password: password || undefined,
       confirmPassword: confirmPassword || undefined,
       image: imageFile ? URL.createObjectURL(imageFile) : previewImage,
@@ -321,12 +316,12 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
               Estado
             </label>
             <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as TechnicianStatus)}
+              value={state}
+              onChange={(e) => setState(e.target.value as TechnicianState)}
               className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               style={{ borderColor: Colors.table.lines }}
             >
-              {statuses.map((s) => (
+              {states.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

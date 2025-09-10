@@ -6,11 +6,10 @@ export interface Product {
   stock: number;
   category: string;
   image?: File | string;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo"; // 👈 cambiado
 }
 
 export interface CreateProductData {
-    
   name: string;
   description?: string;
   price: number;
@@ -27,6 +26,5 @@ export interface EditProductData {
   stock: number;
   category: string;
   image?: File | string;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo"; // 👈 cambiado
 }
-

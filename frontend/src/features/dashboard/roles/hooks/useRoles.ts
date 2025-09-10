@@ -1,23 +1,19 @@
-// src/features/dashboard/roles/hooks/useRoles.ts
 import { useState } from "react";
 import { Role, CreateRoleData, EditRoleData } from "../types/typeRoles";
 import { initialRoles } from "../mocks/mockRoles";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
-// =================== VALIDACIONES DE ROLES ===================
 const validateRoleWithNotification = (
   roleData: CreateRoleData | EditRoleData,
   existingRoles: Role[],
   editingId?: number
 ): boolean => {
-  // 1. Nombre no vacío
   if (!roleData.name.trim()) {
     showWarning("El nombre del rol es obligatorio");
     return false;
   }
 
-  // 2. Nombre único
   const isDuplicate = existingRoles.some(
     r => r.name.toLowerCase() === roleData.name.trim().toLowerCase() && r.id !== editingId
   );
@@ -26,7 +22,6 @@ const validateRoleWithNotification = (
     return false;
   }
 
-  // 3. Debe tener al menos un permiso
   if (!roleData.permissions || roleData.permissions.length === 0) {
     showWarning("Debe asignar al menos un permiso al rol");
     return false;
@@ -35,7 +30,6 @@ const validateRoleWithNotification = (
   return true;
 };
 
-// =================== HOOK ===================
 export const useRoles = () => {
   const [roles, setRoles] = useState<Role[]>(initialRoles);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -47,7 +41,6 @@ export const useRoles = () => {
 
   const selectedRole = editingRole ?? viewingRole ?? null;
 
-  // CREATE
   const handleCreateRole = (payload: CreateRoleData) => {
     if (!validateRoleWithNotification(payload, roles)) return;
 
@@ -55,7 +48,7 @@ export const useRoles = () => {
     const newRole: Role = {
       id: nextId,
       name: payload.name.trim(),
-      status: "Activo",
+      state: "Activo",
       permissions: payload.permissions,
     };
     setRoles(prev => [...prev, newRole]);
@@ -63,7 +56,6 @@ export const useRoles = () => {
     showSuccess("Rol creado exitosamente!");
   };
 
-  // EDIT
   const handleEditRole = (id: number, payload: EditRoleData) => {
     if (!validateRoleWithNotification(payload, roles, id)) return;
 
@@ -72,7 +64,6 @@ export const useRoles = () => {
     showSuccess("Rol actualizado exitosamente!");
   };
 
-  // DELETE
   const handleDeleteRole = async (role: Role): Promise<boolean> => {
     return confirmDelete(
       {
@@ -87,7 +78,6 @@ export const useRoles = () => {
     );
   };
 
-  // Helpers
   const handleView = (role: Role) => {
     setViewingRole(role);
   };
@@ -96,7 +86,7 @@ export const useRoles = () => {
     setEditingRole({
       id: role.id,
       name: role.name,
-      status: role.status,
+      state: role.state,
       permissions: role.permissions ?? [],
     });
   };
@@ -132,7 +122,6 @@ export const useRoles = () => {
 
     closeModals,
 
-    // exporto referencias directas
     editingRole,
     viewingRole,
     setEditingRole,

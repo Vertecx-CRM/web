@@ -123,13 +123,13 @@ export function DataTable<T extends { id: number | string }>({
         )}
 
         {(rightActions || onCreate) && (
-          <>
+          <div>
             <div className="hidden md:flex items-center gap-2">
               {rightActions}
               {onCreate && (
                 <button
                   className="cursor-pointer inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm 
-             transition-transform duration-200 transform hover:scale-105 hover:bg-red-600"
+               transition-transform duration-200 transform hover:scale-105 hover:bg-red-600"
                   style={{ background: Colors.buttons.primary }}
                   onClick={onCreate}
                 >
@@ -138,7 +138,6 @@ export function DataTable<T extends { id: number | string }>({
                 </button>
               )}
             </div>
-
             {onCreate && (
               <button
                 className="cursor-pointer fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
@@ -148,7 +147,7 @@ export function DataTable<T extends { id: number | string }>({
                 <PlusIcon className="h-6 w-6" />
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -185,11 +184,7 @@ export function DataTable<T extends { id: number | string }>({
                   </Td>
                 ))}
 
-                {(onView ||
-                  onEdit ||
-                  onDelete ||
-                  onCancel ||
-                  renderActions) && (
+                {(onView || onEdit || onDelete || onCancel || renderActions) && (
                   <Td
                     className="block md:table-cell before:content-['Acciones'] before:font-semibold before:mr-2 md:before:content-none"
                     data-label="Acciones"
@@ -213,7 +208,6 @@ export function DataTable<T extends { id: number | string }>({
                             />
                           </button>
                         )}
-
                         {onEdit && (
                           <button
                             className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
@@ -229,7 +223,6 @@ export function DataTable<T extends { id: number | string }>({
                             />
                           </button>
                         )}
-
                         {onDelete && (
                           <button
                             className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"

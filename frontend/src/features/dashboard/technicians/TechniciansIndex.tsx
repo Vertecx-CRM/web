@@ -7,28 +7,7 @@ import CreateTechnicianModal from "./components/createTechniciansModal/createTec
 import EditTechnicianModal from "./components/editTechniciansModal/editTechniciansModal";
 import { Technician, CreateTechnicianData } from "./types/typesTechnicians";
 import { useTechnicians } from "./hooks/useTechnicians";
-
-// Mocks de 20 técnicos
-const mockTechnicians: Technician[] = Array.from({ length: 20 }, (_, i) => ({
-  id: i + 1,
-  name: `Técnico ${i + 1}`,
-  lastName: `Apellido ${i + 1}`,
-  documentType:
-    i % 5 === 0
-      ? "Cédula de ciudadanía"
-      : i % 5 === 1
-      ? "Cédula de extranjería"
-      : i % 5 === 2
-      ? "Tarjeta de identidad"
-      : i % 5 === 3
-      ? "Pasaporte"
-      : "Otro",
-  documentNumber: `${10000000 + i}`,
-  phone: `30012345${String(i).padStart(2, "0")}`,
-  email: `tecnico${i + 1}@correo.com`,
-  specialty: i % 3 === 0 ? "Electricista" : i % 3 === 1 ? "Mecánico" : "Plomero",
-  status: i % 2 === 0 ? "Activo" : "Inactivo",
-}));
+import { mockTechnicians } from "./mocks/mocksTechnicians";
 
 export default function TechniciansIndex() {
   const {

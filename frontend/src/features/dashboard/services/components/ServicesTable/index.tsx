@@ -29,16 +29,16 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       render: (s) => `$${s.price.toLocaleString("es-CO")}`,
     },
     {
-      key: "status",
+      key: "state",
       header: "Estado",
       render: (s) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color: s.status === "Activo" ? Colors.states.success : Colors.states.inactive,
+            color: s.state === "Activo" ? Colors.states.success : Colors.states.inactive,
           }}
         >
-          {s.status}
+          {s.state}
         </span>
       ),
     },
@@ -49,7 +49,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       data={services}
       columns={columns}
       pageSize={10}
-      searchableKeys={["id", "name", "category", "status"]}
+      searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
