@@ -112,9 +112,6 @@ export function DataTable<T extends { id: number | string }>({
         const value = String(row[key] ?? "").toLowerCase();
         if ((key === "estado" || key === "state") && isEstadoExact)
           return value === term;
-        if ((key === "estado" || key === "state") && isEstadoExact) {
-          return value === term;
-        }
         return value.includes(term);
       })
     );
@@ -143,47 +140,30 @@ export function DataTable<T extends { id: number | string }>({
         )}
 
         {(rightActions || onCreate) && (
-          <>
-            <div className="hidden md:flex items-center gap-2">
-              {rightActions}
-              {onCreate && (
-                <button
-                  className="cursor-pointer inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm 
-             transition-transform duration-200 transform hover:scale-105 hover:bg-red-600"
-                  style={{ background: Colors.buttons.primary }}
-                  onClick={onCreate}
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  {createButtonText || "Crear"}
-                </button>
-              )}
-            </div>
-            <button
-              className="hidden md:inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-              style={{ background: Colors.buttons.primary }}
-              onClick={onCreate}
-            >
-              <PlusIcon className="h-4 w-4" />
-              {createButtonText || "Crear"}
-            </button>
-
+          <div className="hidden md:flex items-center gap-2">
+            {rightActions}
             {onCreate && (
               <button
-                className="cursor-pointer fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
+                className="cursor-pointer inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm 
+             transition-transform duration-200 transform hover:scale-105 hover:bg-red-600"
                 style={{ background: Colors.buttons.primary }}
                 onClick={onCreate}
               >
-                <PlusIcon className="h-6 w-6" />
+                <PlusIcon className="h-4 w-4" />
+                {createButtonText || "Crear"}
               </button>
             )}
-            <button
-              className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
-              style={{ background: Colors.buttons.primary }}
-              onClick={onCreate}
-            >
-              <PlusIcon className="h-6 w-6" />
-            </button>
-          </>
+          </div>
+        )}
+
+        {onCreate && (
+          <button
+            className="cursor-pointer fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
+            style={{ background: Colors.buttons.primary }}
+            onClick={onCreate}
+          >
+            <PlusIcon className="h-6 w-6" />
+          </button>
         )}
       </div>
 
@@ -220,11 +200,7 @@ export function DataTable<T extends { id: number | string }>({
                   </Td>
                 ))}
 
-                {(onView ||
-                  onEdit ||
-                  onDelete ||
-                  onCancel ||
-                  renderActions) && (
+                {(onView || onEdit || onDelete || onCancel || renderActions) && (
                   <Td
                     className="block md:table-cell before:content-['Acciones'] before:font-semibold before:mr-2 md:before:content-none"
                     data-label="Acciones"
@@ -242,7 +218,6 @@ export function DataTable<T extends { id: number | string }>({
                             <img src="/icons/Eye.svg" className="h-4 w-4" />
                           </button>
                         )}
-
                         {onEdit && (
                           <button
                             className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
@@ -252,7 +227,6 @@ export function DataTable<T extends { id: number | string }>({
                             <img src="/icons/Edit.svg" className="h-4 w-4" />
                           </button>
                         )}
-
                         {onDelete && (
                           <button
                             className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
@@ -262,7 +236,6 @@ export function DataTable<T extends { id: number | string }>({
                             <img src="/icons/delete.svg" className="h-4 w-4" />
                           </button>
                         )}
-
                         {onCancel && (
                           <button
                             className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
@@ -285,7 +258,6 @@ export function DataTable<T extends { id: number | string }>({
                             </svg>
                           </button>
                         )}
-
                         {renderExtraActions && renderExtraActions(row)}
                       </div>
                     )}
@@ -365,7 +337,7 @@ function Td({
 }: {
   children: React.ReactNode;
   className?: string;
-  colIndex?: number; // 👈 índice de columna
+  colIndex?: number;
 }) {
   return (
     <motion.td
@@ -397,7 +369,7 @@ function PageBtn({
       style={{
         backgroundColor: active ? "white" : Colors.table.header,
         borderColor: Colors.table.lines,
-        cursor: disabled ? "not-allowed" : "pointer", // 👈 base
+        cursor: disabled ? "not-allowed" : "pointer",
       }}
       className={`
         min-w-8 rounded-md px-2 py-1 text-xs border text-black
