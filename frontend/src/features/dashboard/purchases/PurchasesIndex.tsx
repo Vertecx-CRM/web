@@ -20,7 +20,7 @@ export default function PurchasesIndex() {
     { key: "orderNumber", header: "N° Orden" },
     { key: "invoiceNumber", header: "N° Factura" },
     { key: "supplier", header: "Proveedor" },
-    { key: "registerDate", header: "Fecha Registro" },
+    { key: "registerDate", header: "Fecha de Registro" },
     {
       key: "amount",
       header: "Monto",

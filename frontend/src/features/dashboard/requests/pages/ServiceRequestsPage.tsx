@@ -202,12 +202,6 @@ export default function ServiceRequestsPage() {
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
-        <div className="px-4 pt-6">
-          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-[#CC0000]">
-            Solicitudes
-          </h1>
-        </div>
-
         <div className="px-4 pb-6 pt-4">
           <DataTable<Row>
             data={rows}
