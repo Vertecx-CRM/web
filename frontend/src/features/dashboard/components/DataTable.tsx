@@ -58,7 +58,7 @@ export function DataTable<T extends { id: number | string }>({
   }: {
     children: React.ReactNode;
     className?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   }) {
     return (
       <td {...rest} className={`px-4 py-3 align-top ${className}`}>
@@ -73,9 +73,9 @@ export function DataTable<T extends { id: number | string }>({
     );
   }
 
-  function normalize(value: any): string[] {
+  function normalize(value: unknown): string[] {
     if (value == null) return [];
-    let str = String(value).toLowerCase().trim();
+    const str = String(value).toLowerCase().trim();
     if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
       const num = Number(str.replace(/[\$,]/g, ""));
       return [num.toString(), num.toFixed(0), num.toFixed(2)];
