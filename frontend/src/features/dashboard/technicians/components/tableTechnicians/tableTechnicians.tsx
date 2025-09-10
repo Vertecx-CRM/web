@@ -1,3 +1,4 @@
+// src/features/dashboard/technicians/components/tableTechnicians/tableTechnicians.tsx
 "use client";
 
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
@@ -43,19 +44,19 @@ Documento`,
 Electrónico`,
     },
     {
-      key: "status",
+      key: "state",
       header: "Estado",
       render: (t) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
             color:
-              t.status === "Activo"
+              t.state === "Activo"
                 ? Colors.states.success
                 : Colors.states.inactive,
           }}
         >
-          {t.status}
+          {t.state}
         </span>
       ),
     },
@@ -69,10 +70,11 @@ Electrónico`,
       searchableKeys={[
         "name",
         "lastName",
+        "documentType",
         "documentNumber",
         "phone",
         "email",
-        "status",
+        "state",
       ]}
       onView={onView}
       onEdit={onEdit}

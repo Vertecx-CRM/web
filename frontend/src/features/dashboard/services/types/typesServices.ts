@@ -5,7 +5,7 @@ export interface Service {
   price: number;
   category: string;
   image?: string;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo";
 }
 
 export interface CreateServiceData {
@@ -18,5 +18,5 @@ export interface CreateServiceData {
 
 export interface EditServiceData extends CreateServiceData {
   id: number;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo";
 }

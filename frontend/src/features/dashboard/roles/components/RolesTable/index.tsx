@@ -21,19 +21,19 @@ export const RolesTable: React.FC<RolesTableProps> = ({
     { key: "id", header: "ID" },
     { key: "name", header: "Nombre" },
     {
-      key: "status",
+      key: "state",
       header: "Estado",
       render: (role: Role) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
             color:
-              role.status === "Activo"
+              role.state === "Activo"
                 ? Colors.states.success
                 : Colors.states.inactive
           }}
         >
-          {role.status}
+          {role.state}
         </span>
       )
     }
@@ -44,7 +44,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({
       data={roles}
       columns={columns}
       pageSize={10}
-      searchableKeys={["id", "name", "status"]}
+      searchableKeys={["id", "name", "state"]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}

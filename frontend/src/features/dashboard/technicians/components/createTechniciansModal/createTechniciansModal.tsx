@@ -11,20 +11,15 @@ interface CreateTechnicianModalProps {
   onSave: (data: CreateTechnicianData) => void;
 }
 
-const documentTypes: DocumentType[] = [
-  "Cédula de ciudadanía",
-  "Cédula de extranjería",
-  "Tarjeta de identidad",
-  "Pasaporte",
-  "Otro",
-];
+const documentTypes: DocumentType[] = ["CC", "CE", "TI", "Pasaporte", "PPT", "PEP", "Otro"];
+
 
 const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({ isOpen, onClose, onSave }) => {
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [documentType, setDocumentType] = useState<DocumentType>("Cédula de ciudadanía");
+  const [documentType, setDocumentType] = useState<DocumentType>("CC");
   const [documentNumber, setDocumentNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -39,7 +34,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({ isOpen, o
     setLastName("");
     setPassword("");
     setConfirmPassword("");
-    setDocumentType("Cédula de ciudadanía");
+    setDocumentType("CC");
     setDocumentNumber("");
     setPhone("");
     setEmail("");
@@ -72,7 +67,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({ isOpen, o
       phone,
       email,
       image: imageFile ? URL.createObjectURL(imageFile) : undefined,
-      status: "Activo",
+      state: "Activo",
     });
 
     resetForm();
