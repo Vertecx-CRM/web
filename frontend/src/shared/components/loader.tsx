@@ -1,7 +1,10 @@
   "use client";
 
-  import { createContext, ReactNode, useContext, useState } from "react";
-  import { motion } from "framer-motion";
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
+
+
 
   function Loader() {
     return (
@@ -23,31 +26,41 @@
     );
   }
 
-  type LoaderContextType = {
-    showLoader: () => void;
-    hideLoader: () => void;
-  };
+type LoaderContextType = { showLoader: () => void; hideLoader: () => void };
+const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
 
-  const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
+export function LoaderProvider({ children }: { children: ReactNode }) {
+  const [loading, setLoading] = useState(false);
+  const showLoader = () => setLoading(true);
+  const hideLoader = () => setLoading(false);
+  return (
+    <LoaderContext.Provider value={{ showLoader, hideLoader }}>
+      {children}
+      {loading && <Loader />}
+    </LoaderContext.Provider>
+  );
+}
 
-  export function LoaderProvider({ children }: { children: ReactNode }) {
-    const [loading, setLoading] = useState(false);
+export function useLoader() {
+  const ctx = useContext(LoaderContext);
+  if (!ctx) throw new Error("useLoader debe usarse dentro de LoaderProvider");
+  return ctx;
+}
 
-    const showLoader = () => setLoading(true);
-    const hideLoader = () => setLoading(false);
+export function LoaderGate() {
+  const { hideLoader } = useLoader();
+  const pathname = usePathname();
 
-    return (
-      <LoaderContext.Provider value={{ showLoader, hideLoader }}>
-        {children}
-        {loading && <Loader />}
-      </LoaderContext.Provider>
-    );
-  }
+  useEffect(() => {
+    const raw = sessionStorage.getItem("__loader_min_until__");
+    const minUntil = raw ? Number(raw) : 0;
+    const delay = pathname.startsWith("/auth") ? 0 : Math.max(0, minUntil - Date.now());
+    const t = setTimeout(() => {
+      hideLoader();
+      sessionStorage.removeItem("__loader_min_until__");
+    }, delay);
+    return () => clearTimeout(t);
+  }, [hideLoader, pathname]);
 
-  export function useLoader() {
-    const context = useContext(LoaderContext);
-    if (!context) {
-      throw new Error("useLoader debe usarse dentro de LoaderProvider");
-    }
-    return context;
-  }
+  return null;
+}

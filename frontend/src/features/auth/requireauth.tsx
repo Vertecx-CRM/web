@@ -3,34 +3,30 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/authcontext";
+import { useLoader } from "@/shared/components/loader";
 
 type Props = { children: React.ReactNode; loginPath?: string };
 
 export default function RequireAuth({ children, loginPath = "/auth/login" }: Props) {
   const { isAuthenticated, ready } = useAuth();
+  const { showLoader } = useLoader();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Espera a que cargue desde localStorage
     if (!ready) return;
     if (!isAuthenticated) {
-      // opcional: preservar a dónde quería ir
+      sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
+      showLoader();
       const to = `${loginPath}?next=${encodeURIComponent(pathname)}`;
       router.replace(to);
     }
-  }, [ready, isAuthenticated, router, pathname, loginPath]);
+  }, [ready, isAuthenticated, router, pathname, loginPath, showLoader]);
 
-  // Mientras no esté listo, no renders nada (o muestra un loader estable)
   if (!ready) {
-    return (
-      <div className="w-full h-[40vh] grid place-items-center text-gray-500">
-        Cargando…
-      </div>
-    );
+    return <div className="w-full h-[40vh] grid place-items-center text-gray-500">Cargando…</div>;
   }
 
-  // Ya listo: si no autenticado, no renderizamos la página protegida
   if (!isAuthenticated) return null;
 
   return <>{children}</>;

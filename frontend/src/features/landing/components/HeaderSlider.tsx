@@ -2,7 +2,10 @@ import Image from "next/image";
 import React, { useEffect, useState } from "react";
 
 const HeaderSlider = () => {
-  const images = ["/assets/imgs/HomeSlider1.webp"];
+  const images = [
+    "/assets/imgs/HomeSlider1.webp",
+    "/assets/imgs/HomeSlider2.webp",
+  ];
 
   const [current, setCurrent] = useState(0);
 
@@ -39,7 +42,7 @@ const HeaderSlider = () => {
         onClick={() =>
           setCurrent((prev) => (prev === 0 ? images.length - 1 : prev - 1))
         }
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-white text-9xl font-bold hover:scale-110 transition-transform"
+        className="cursor-pointer absolute left-4 top-1/2 -translate-y-1/2 text-white text-9xl font-bold hover:scale-110 transition-transform"
       >
         ‹
       </button>
@@ -47,7 +50,7 @@ const HeaderSlider = () => {
       {/* Flecha derecha */}
       <button
         onClick={() => setCurrent((prev) => (prev + 1) % images.length)}
-        className="absolute  right-4 top-1/2 -translate-y-1/2 text-white text-9xl font-bold hover:scale-110 transition-transform"
+        className="cursor-pointer absolute  right-4 top-1/2 -translate-y-1/2 text-white text-9xl font-bold hover:scale-110 transition-transform"
       >
         ›
       </button>

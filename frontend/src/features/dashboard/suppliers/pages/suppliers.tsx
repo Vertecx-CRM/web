@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import CreateSuppliersModal, { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 
 type Row = {
   id: number;
@@ -29,8 +30,8 @@ const MOCK: Row[] = [
   { id:10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo" }
 ];
 
-function stars(rating: number) {
-  const n = Math.round(rating);
+function stars(r: number) {
+  const n = Math.round(r);
   return "★".repeat(n).padEnd(5, "☆");
 }
 
@@ -38,6 +39,7 @@ export default function SuppliersPage() {
   const router = useRouter();
   const { logout } = useAuth();
   const [rows, setRows] = useState<Row[]>(MOCK);
+  const [openCreate, setOpenCreate] = useState(false);
 
   const columns: Column<Row>[] = [
     { key: "id", header: "Id" },
@@ -68,27 +70,26 @@ export default function SuppliersPage() {
     }
   };
 
-  function handleLogout() {
-    logout();
-    router.replace("/auth/login");
-  }
-
-  const createButton = (
-    <button
-      className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
-      onClick={() => router.push("/dashboard/suppliers/new")}
-    >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
-        <path strokeWidth="2" d="M12 5v14M5 12h14" />
-      </svg>
-      Crear Proveedor
-    </button>
-  );
+  const handleSaveProvider = async (data: ProviderSubmitPayload) => {
+    setRows((prev) => {
+      const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
+      const newRow: Row = {
+        id: nextId,
+        name: data.name.trim(),
+        nit: data.nit.trim(),
+        rating: Number(data.rating) || 0,
+        contact: (data.contactName ?? "").trim(),
+        category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
+        status: data.status,
+      };
+      return [...prev, newRow];
+    });
+    setOpenCreate(false);
+  };
 
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
-        {/* Ahora el botón va como parámetro al DataTable */}
         <DataTable<Row>
           data={rows}
           columns={columns}
@@ -97,9 +98,13 @@ export default function SuppliersPage() {
           onView={onView}
           onEdit={onEdit}
           onDelete={onDelete}
-          onCreate={() => alert("Abrir modal: crear Proveedor")}
+          onCreate={() => setOpenCreate(true)}
           createButtonText="Crear Proveedor"
-
+        />
+        <CreateSuppliersModal
+          isOpen={openCreate}
+          onClose={() => setOpenCreate(false)}
+          onSave={handleSaveProvider}
         />
       </main>
     </RequireAuth>
