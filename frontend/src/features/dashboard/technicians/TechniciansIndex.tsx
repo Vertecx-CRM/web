@@ -1,91 +1,81 @@
 "use client";
 
-import { useState } from "react";
-import { Column, DataTable } from "@/features/dashboard/components/DataTable";
-import { useLoader } from "@/shared/components/loader";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import TableTechnicians from "./components/tableTechnicians/tableTechnicians";
+import CreateTechnicianModal from "./components/createTechniciansModal/createTechniciansModal";
+import EditTechnicianModal from "./components/editTechniciansModal/editTechniciansModal";
+import { Technician, CreateTechnicianData } from "./types/typesTechnicians";
+import { useTechnicians } from "./hooks/useTechnicians";
 
-type Technician = {
-  id: number;
-  name: string;
-  specialty: string;
-  phone: string;
-  status: "Activo" | "Inactivo";
-};
-
-const mockTechnicians: Technician[] = [
-  {
-    id: 1,
-    name: "Carlos Ramírez",
-    specialty: "Electricista",
-    phone: "3001234567",
-    status: "Activo",
-  },
-  {
-    id: 2,
-    name: "Ana López",
-    specialty: "Redes",
-    phone: "3019876543",
-    status: "Inactivo",
-  },
-  {
-    id: 3,
-    name: "Miguel Torres",
-    specialty: "CCTV",
-    phone: "3024567890",
-    status: "Activo",
-  },
-];
+// Mocks de 20 técnicos
+const mockTechnicians: Technician[] = Array.from({ length: 20 }, (_, i) => ({
+  id: i + 1,
+  name: `Técnico ${i + 1}`,
+  lastName: `Apellido ${i + 1}`,
+  documentType:
+    i % 5 === 0
+      ? "Cédula de ciudadanía"
+      : i % 5 === 1
+      ? "Cédula de extranjería"
+      : i % 5 === 2
+      ? "Tarjeta de identidad"
+      : i % 5 === 3
+      ? "Pasaporte"
+      : "Otro",
+  documentNumber: `${10000000 + i}`,
+  phone: `30012345${String(i).padStart(2, "0")}`,
+  email: `tecnico${i + 1}@correo.com`,
+  specialty: i % 3 === 0 ? "Electricista" : i % 3 === 1 ? "Mecánico" : "Plomero",
+  status: i % 2 === 0 ? "Activo" : "Inactivo",
+}));
 
 export default function TechniciansIndex() {
-  const [technicians, setTechnicians] = useState<Technician[]>(mockTechnicians);
-  const { showLoader, hideLoader } = useLoader();
-
-  const handleDelete = async (row: Technician) => {
-    if (!confirm(`¿Eliminar técnico "${row.name}"?`)) return;
-    showLoader();
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // simula petición
-      setTechnicians((prev) => prev.filter((p) => p.id !== row.id));
-    } finally {
-      hideLoader();
-    }
-  };
-
-  const columns: Column<Technician>[] = [
-    { key: "id", header: "ID" },
-    { key: "name", header: "Nombre" },
-    { key: "specialty", header: "Especialidad" },
-    { key: "phone", header: "Teléfono" },
-    {
-      key: "status",
-      header: "Estado",
-      render: (row) => (
-        <span
-          className={
-            row.status === "Activo"
-              ? "text-green-600 font-medium"
-              : "text-red-600 font-medium"
-          }
-        >
-          {row.status}
-        </span>
-      ),
-    },
-  ];
+  const {
+    technicians,
+    isCreateModalOpen,
+    setIsCreateModalOpen,
+    editingTechnician,
+    setEditingTechnician,
+    handleCreateTechnician,
+    handleEditTechnician,
+    handleDeleteTechnician,
+  } = useTechnicians(mockTechnicians);
 
   return (
-    <div className="flex flex-col gap-4">
-      <DataTable<Technician>
-        data={technicians}
-        columns={columns}
-        searchableKeys={["name", "specialty", "phone", "status"]}
-        pageSize={10}
-        onView={(row) => alert(`Ver técnico "${row.name}"`)}
-        onEdit={(row) => alert(`Editar técnico "${row.name}"`)}
-        onDelete={handleDelete}
-        onCreate={() => alert("Abrir modal: crear técnico")}
-        createButtonText="Crear técnico"
-      />
+    <div className="min-h-screen flex">
+      <ToastContainer position="bottom-right" />
+      <div className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col">
+          <div className="px-6 pt-6">
+            {/* Modal Crear */}
+            <CreateTechnicianModal
+              isOpen={isCreateModalOpen}
+              onClose={() => setIsCreateModalOpen(false)}
+              onSave={handleCreateTechnician as (data: CreateTechnicianData) => void}
+            />
+
+            {/* Modal Editar */}
+            {editingTechnician && (
+              <EditTechnicianModal
+                isOpen={true}
+                technician={editingTechnician}
+                onClose={() => setEditingTechnician(null)}
+                onUpdate={(data) => handleEditTechnician(data.id, data)}
+              />
+            )}
+
+            {/* Tabla de técnicos */}
+            <TableTechnicians
+              technicians={technicians}
+              onView={(t) => alert(`Ver técnico "${t.name} ${t.lastName}"`)}
+              onEdit={(t) => setEditingTechnician(t)}
+              onDelete={handleDeleteTechnician}
+              onCreate={() => setIsCreateModalOpen(true)}
+            />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

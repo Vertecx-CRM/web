@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import Colors from "@/shared/theme/colors";
 
-/** ===== Tipos ===== */
 export type Column<T> = {
   key: keyof T;
   header: string;
@@ -24,7 +23,6 @@ type DataTableProps<T> = {
   createButtonText?: string;
 };
 
-/** ====== Iconos mínimos ====== */
 const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
     <circle cx="11" cy="11" r="7" />
@@ -37,7 +35,6 @@ const PlusIcon = (p: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-/** ====== DataTable ====== */
 export function DataTable<T extends { id: number | string }>({
   data,
   columns,
@@ -53,6 +50,7 @@ export function DataTable<T extends { id: number | string }>({
 }: DataTableProps<T>) {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+
   function Td({
     children,
     className = "",
@@ -69,34 +67,28 @@ export function DataTable<T extends { id: number | string }>({
     );
   }
 
+  function Th({ children }: { children: React.ReactNode }) {
+    return (
+      <th className="px-4 py-3 font-semibold whitespace-pre-line">{children}</th>
+    );
+  }
+
   function normalize(value: any): string[] {
     if (value == null) return [];
-
-    // Convertir a string
     let str = String(value).toLowerCase().trim();
-
-    // ---- Números / montos ----
     if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
       const num = Number(str.replace(/[\$,]/g, ""));
-      return [
-        num.toString(), // "1200.5"
-        num.toFixed(0), // "1200"
-        num.toFixed(2), // "1200.50"
-      ];
+      return [num.toString(), num.toFixed(0), num.toFixed(2)];
     }
-
-    // ---- Fechas ----
     if (!isNaN(Date.parse(str))) {
       const d = new Date(str);
       return [
-        d.toISOString().slice(0, 10), // 2025-08-20
-        d.toLocaleDateString("es-ES"), // 20/8/2025
-        d.getFullYear().toString(), // 2025
-        d.toLocaleDateString("es-ES", { month: "long", year: "numeric" }), // agosto de 2025
+        d.toISOString().slice(0, 10),
+        d.toLocaleDateString("es-ES"),
+        d.getFullYear().toString(),
+        d.toLocaleDateString("es-ES", { month: "long", year: "numeric" }),
       ].map((f) => f.toLowerCase());
     }
-
-    // ---- Texto normal ----
     return [str];
   }
 
@@ -109,13 +101,9 @@ export function DataTable<T extends { id: number | string }>({
     return data.filter((row) =>
       searchableKeys.some((key) => {
         const value = String(row[key] ?? "").toLowerCase();
-
-        // Si la columna es "estado" y se busca exactamente activo/inactivo
-        if (key === "estado" || key === "state" && isEstadoExact) {
-          return value === term; // igualdad estricta
+        if ((key === "estado" || key === "state") && isEstadoExact) {
+          return value === term;
         }
-
-        // Para todo lo demás
         return value.includes(term);
       })
     );
@@ -127,7 +115,6 @@ export function DataTable<T extends { id: number | string }>({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header con buscador y botón crear */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="relative w-full max-w-md">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -144,7 +131,6 @@ export function DataTable<T extends { id: number | string }>({
 
         {onCreate && (
           <>
-            {/* Botón normal (solo visible en escritorio) */}
             <button
               className="hidden md:inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90"
               style={{ background: Colors.buttons.primary }}
@@ -154,7 +140,6 @@ export function DataTable<T extends { id: number | string }>({
               {createButtonText || "Crear"}
             </button>
 
-            {/* Botón flotante circular (solo visible en móviles) */}
             <button
               className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-14 h-14 rounded-full shadow-lg text-white"
               style={{ background: Colors.buttons.primary }}
@@ -166,7 +151,6 @@ export function DataTable<T extends { id: number | string }>({
         )}
       </div>
 
-      {/* Tabla */}
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm flex flex-col">
         <table className="min-w-max w-full text-sm">
           <thead
@@ -185,13 +169,13 @@ export function DataTable<T extends { id: number | string }>({
             {current.map((row) => (
               <tr
                 key={row.id}
-                className="hover:bg-gray-50 block md:table-row" // 👈 en mobile cada fila es un bloque
+                className="hover:bg-gray-50 block md:table-row"
               >
                 {columns.map((c) => (
                   <Td
                     key={String(c.key)}
                     className="block md:table-cell before:content-[attr(data-label)] before:font-semibold before:mr-2 md:before:content-none"
-                    data-label={c.header} // 👈 agrega el header como label en móvil
+                    data-label={c.header}
                   >
                     {c.render ? c.render(row) : String(row[c.key])}
                   </Td>
@@ -273,7 +257,6 @@ export function DataTable<T extends { id: number | string }>({
           </tbody>
         </table>
 
-        {/* Paginación */}
         <div className="border-t border-[#E6E6E6] bg-white px-3 py-2">
           <div className="flex items-center justify-center gap-1">
             <PageBtn onClick={() => goTo(page - 1)} disabled={page === 1}>
@@ -298,11 +281,6 @@ export function DataTable<T extends { id: number | string }>({
       </div>
     </div>
   );
-}
-
-/** ===== Helpers ===== */
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3 font-semibold">{children}</th>;
 }
 
 function Td({
