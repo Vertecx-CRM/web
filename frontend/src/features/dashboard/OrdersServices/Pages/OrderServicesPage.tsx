@@ -38,7 +38,7 @@ const MOCK: Row[] = [
   { id: 12, fechaProgramada: "22/06/2025", tipo: "Instalación",   tecnico: "Elena Mora",    cliente: "Conjunto Altavista",        estado: "Pendiente", monto: 1880000 },
   { id: 13, fechaProgramada: "23/06/2025", tipo: "Calibración",   tecnico: "Hugo Díaz",     cliente: "Laboratorios Vita",         estado: "Aprobada",  monto: 430000 },
   { id: 14, fechaProgramada: "24/06/2025", tipo: "Configuración", tecnico: "Iván Pardo",    cliente: "Municipio de Envigado",     estado: "Anulada",   monto: 0 },
-  { id: 15, fechaProgramada: "25/06/2025", tipo: "Reparación",    tecnico: "Karen León",    cliente: "Panadería La Espiga",       estado: "Pendiente", monto: 710000 },
+  { id: 1515, fechaProgramada: "25/06/2025", tipo: "Reparación",    tecnico: "Karen León",    cliente: "Panadería La Espiga",       estado: "Pendiente", monto: 710000 },
 ];
 
 function EstadoPill({ v }: { v: Row["estado"] }) {
