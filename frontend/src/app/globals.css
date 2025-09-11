@@ -120,3 +120,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ===== Scrollbar Global ===== */
+*::-webkit-scrollbar {
+  width: 8px; /* más delgado que el anterior */
+  height: 8px; /* también para scroll horizontal */
+}
+
+*::-webkit-scrollbar-track {
+  background: #e5e7eb; /* gris claro */
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #dc2626; /* rojo */
+  border-radius: 9999px; /* redondeado */
+  border: 2px solid #e5e7eb; /* margen alrededor */
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #b91c1c; /* rojo oscuro al hover */
+}
+
+/* Para Firefox */
+* {
+  scrollbar-width: thin; /* delgado */
+  scrollbar-color: #dc2626 #e5e7eb; /* thumb color - track color */
+}
