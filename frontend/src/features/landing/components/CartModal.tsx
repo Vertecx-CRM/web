@@ -80,24 +80,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 z-50 max-h-[95vh] overflow-y-auto scroll-smooth"
       >
-        {/* Contenido del modal */}
-        <style jsx>{`
-          div::-webkit-scrollbar {
-            width: 12px; /* ancho del scroll */
-          }
-          div::-webkit-scrollbar-track {
-            background: #e5e7eb; /* gris claro */
-          }
-          div::-webkit-scrollbar-thumb {
-            background-color: #dc2626; /* rojo */
-            border-radius: 9999px; /* redondeado */
-            border: 3px solid #e5e7eb; /* margen alrededor del thumb */
-          }
-          div::-webkit-scrollbar-thumb:hover {
-            background-color: #b91c1c; /* rojo más oscuro al pasar el mouse */
-          }
-        `}</style>
-
         {/* Botón cerrar */}
         <button
           className="cursor-pointer absolute top-4 right-4 text-gray-700 hover:text-black"
@@ -131,9 +113,9 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                   setOpenProducts((prev) => {
                     const newSet = new Set(prev);
                     if (newSet.has(item.id)) {
-                      newSet.delete(item.id); 
+                      newSet.delete(item.id);
                     } else {
-                      newSet.add(item.id); 
+                      newSet.add(item.id);
                     }
                     return newSet;
                   });
