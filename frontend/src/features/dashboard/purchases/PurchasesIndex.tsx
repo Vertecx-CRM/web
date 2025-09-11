@@ -6,8 +6,8 @@ import { Column, DataTable } from "../components/DataTable";
 import Modal from "../components/Modal";
 import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
-import SeeMorePurchase from "./components/SeeMorePurchase";
 import { purchases } from "./mock/purchases.mock";
+import ViewPurchase from "./components/ViewPurchase";
 
 export default function PurchasesIndex() {
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
@@ -20,7 +20,7 @@ export default function PurchasesIndex() {
     { key: "orderNumber", header: "N° Orden" },
     { key: "invoiceNumber", header: "N° Factura" },
     { key: "supplier", header: "Proveedor" },
-    { key: "registerDate", header: "Fecha Registro" },
+    { key: "registerDate", header: "Fecha de Registro" },
     {
       key: "amount",
       header: "Monto",
@@ -104,13 +104,13 @@ export default function PurchasesIndex() {
           footer={
             <button
               onClick={() => setDetailModalOpen(false)}
-              className="px-4 py-2 rounded-lg bg-gray-300 text-black"
+              className="cursor-pointer px-4 py-2 rounded-lg bg-gray-300 text-black"
             >
               Cerrar
             </button>
           }
         >
-          {selectedPurchase && <SeeMorePurchase purchase={selectedPurchase} />}
+          {selectedPurchase && <ViewPurchase purchase={selectedPurchase} />}
         </Modal>
       </div>
     </RequireAuth>

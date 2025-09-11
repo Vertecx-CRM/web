@@ -38,7 +38,7 @@ export default function Modal({
               <h2 className="text-lg font-semibold">{title}</h2>
               <button
                 onClick={onClose}
-                className="text-gray-500 hover:text-black"
+                className="cursor-pointer text-gray-500 hover:text-black"
               >
                 <X size={20} />
               </button>
