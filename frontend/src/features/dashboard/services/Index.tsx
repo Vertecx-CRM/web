@@ -20,7 +20,7 @@ const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => ({
       : i % 3 === 1
       ? "Mantenimiento Correctivo"
       : "Instalación",
-  status: i % 2 === 0 ? "Activo" : "Inactivo",
+  state: i % 2 === 0 ? "Activo" : "Inactivo",
   image: undefined,
 }));
 

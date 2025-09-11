@@ -4,7 +4,6 @@ import { initialProducts } from "../mocks/mockProducts";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
-// =================== VALIDACIONES DE PRODUCTOS ===================
 const validateProductWithNotification = (
   productData: CreateProductData | EditProductData,
   existingProducts: Product[],
@@ -33,7 +32,6 @@ const validateProductWithNotification = (
   return true;
 };
 
-// =================== HOOK ===================
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -45,7 +43,6 @@ export const useProducts = () => {
 
   const selectedProduct = editingProduct ?? viewingProduct ?? null;
 
-  // CREATE
   const handleCreateProduct = (payload: CreateProductData) => {
     if (!validateProductWithNotification(payload, products)) return;
 
@@ -56,7 +53,7 @@ export const useProducts = () => {
       category: payload.category,
       price: payload.price,
       stock: payload.stock,
-      status: "Activo",
+      state: "Activo",
       image: payload.image,
       description: payload.description || "",
     };
@@ -65,20 +62,20 @@ export const useProducts = () => {
     showSuccess("Producto creado exitosamente!");
   };
 
-  // EDIT
   const handleEditProduct = (id: number, payload: EditProductData) => {
     if (!validateProductWithNotification(payload, products, id)) return;
 
-    setProducts(prev => prev.map(p => 
-      p.id === id 
-        ? { ...p, ...payload, name: payload.name.trim() } 
-        : p
-    ));
+    setProducts(prev =>
+      prev.map(p =>
+        p.id === id
+          ? { ...p, ...payload, name: payload.name.trim() }
+          : p
+      )
+    );
     setEditingProduct(null);
     showSuccess("Producto actualizado exitosamente!");
   };
 
-  // DELETE
   const handleDeleteProduct = async (product: Product): Promise<boolean> => {
     return confirmDelete(
       {
@@ -93,8 +90,7 @@ export const useProducts = () => {
     );
   };
 
-  // Helpers
-  const handleViewProduct = (product: Product) => {
+  const handleView = (product: Product) => {
     setViewingProduct(product);
   };
 
@@ -105,7 +101,7 @@ export const useProducts = () => {
       category: product.category,
       price: product.price,
       stock: product.stock,
-      status: product.status,
+      state: product.state,
       image: product.image,
       description: product.description,
     });
@@ -121,30 +117,24 @@ export const useProducts = () => {
     setViewingProduct(null);
   };
 
-// dentro de useProducts, antes del return final
-const handleView = (product: Product) => {
-  setViewingProduct(product);
-};
-
-return {
-  products,
-  isCreateModalOpen,
-  setIsCreateModalOpen,
-  isEditModalOpen,
-  setIsEditModalOpen: (v: boolean) => { if (!v) setEditingProduct(null); },
-  isViewModalOpen,
-  setIsViewModalOpen: (v: boolean) => { if (!v) setViewingProduct(null); },
-  selectedProduct,
-  handleCreateProduct,
-  handleEditProduct,
-  handleView,  // <-- aquí lo agregamos
-  handleEdit,
-  handleDelete,
-  closeModals,
-  editingProduct,
-  viewingProduct,
-  setEditingProduct,
-  setViewingProduct,
-};
-
+  return {
+    products,
+    isCreateModalOpen,
+    setIsCreateModalOpen,
+    isEditModalOpen,
+    setIsEditModalOpen: (v: boolean) => { if (!v) setEditingProduct(null); },
+    isViewModalOpen,
+    setIsViewModalOpen: (v: boolean) => { if (!v) setViewingProduct(null); },
+    selectedProduct,
+    handleCreateProduct,
+    handleEditProduct,
+    handleView,
+    handleEdit,
+    handleDelete,
+    closeModals,
+    editingProduct,
+    viewingProduct,
+    setEditingProduct,
+    setViewingProduct,
+  };
 };

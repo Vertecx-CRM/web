@@ -28,19 +28,19 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     },
     { key: "stock", header: "Stock" },
     {
-      key: "status",
+      key: "state",
       header: "Estado",
       render: (p) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
             color:
-              p.status === "Activo"
+              p.state === "Activo"
                 ? Colors.states.success
                 : Colors.states.inactive,
           }}
         >
-          {p.status}
+          {p.state}
         </span>
       ),
     },
@@ -51,7 +51,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       data={products}
       columns={columns}
       pageSize={10}
-      searchableKeys={["id", "name", "category", "status"]}
+      searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}

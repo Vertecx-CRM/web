@@ -1,22 +1,26 @@
 export type DocumentType =
-  | "Cédula de ciudadanía"
-  | "Cédula de extranjería"
-  | "Tarjeta de identidad"
+  | "CC"
+  | "CE"
+  | "TI"
   | "Pasaporte"
+  | "PPT"
+  | "PEP"
   | "Otro";
 
 export const DOCUMENT_TYPES: DocumentType[] = [
-  "Cédula de ciudadanía",
-  "Cédula de extranjería",
-  "Tarjeta de identidad",
+  "CC",
+  "CE",
+  "TI",
   "Pasaporte",
+  "PPT",
+  "PEP",
   "Otro",
 ];
 
-export type TechnicianStatus = "Activo" | "Inactivo";
+export type TechnicianState = "Activo" | "Inactivo";
 
 export interface Technician {
-  id: number; // obligatorio
+  id: number;
   name: string;
   lastName: string;
   documentType: DocumentType;
@@ -24,7 +28,7 @@ export interface Technician {
   phone: string;
   email: string;
   image?: string;
-  status?: TechnicianStatus;
+  state?: TechnicianState;
 }
 
 export interface CreateTechnicianData {
@@ -37,7 +41,7 @@ export interface CreateTechnicianData {
   phone: string;
   email: string;
   image?: string;
-  status?: TechnicianStatus;
+  state?: TechnicianState;
 }
 
 export interface EditTechnicianData {
@@ -51,5 +55,5 @@ export interface EditTechnicianData {
   phone: string;
   email: string;
   image?: string;
-  status?: TechnicianStatus;
+  state?: TechnicianState;
 }

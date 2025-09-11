@@ -2,7 +2,7 @@
 export type Role = {
   id: number;
   name: string;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo";
   permissions?: string[]; // lista de permisos (ej: "Roles-Crear")
 };
 
@@ -14,13 +14,13 @@ export type CreateRoleData = {
 export type EditRoleData = {
   id: number;
   name: string;
-  status: "Activo" | "Inactivo";
+  state: "Activo" | "Inactivo";
   permissions?: string[];
 };
 
 export type PermissionGroup = {
   title: string;
-  permissions: string[]; // textos de permisos (ej: ["Crear","Editar",...])
+  permissions: string[];
 };
 
 /** Props para los modales */
