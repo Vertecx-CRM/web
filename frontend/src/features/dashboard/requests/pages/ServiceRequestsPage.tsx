@@ -124,13 +124,15 @@ export default function ServiceRequestsPage() {
       key: "descripcion",
       header: "Descripcion",
       render: (r) => (
-        <div className="max-w-[280px] truncate md:max-w-none md:whitespace-normal">
+        <div className="max-w-[280px] line-clamp-3 [text-wrap:balance] break-words [hyphens:auto]">
           {r.descripcion}
         </div>
       ),
     },
-    { key: "tipo", header: "Tipo de servicio" },
-    { key: "fecha", header: "Fecha creacion" },
+    { key: "tipo", header: `Tipo de
+      servicio` },
+    { key: "fecha", header: `Fecha 
+      creacion` },
     {
       key: "estado",
       header: "Estado",
@@ -207,7 +209,7 @@ export default function ServiceRequestsPage() {
             data={rows}
             columns={columns}
             pageSize={5}
-            searchableKeys={["descripcion", "tipo", "estado", "fecha"]}
+            searchableKeys={["id", "descripcion", "tipo", "estado", "fecha"]}
             rightActions={
               <button
                 onClick={downloadReport}
