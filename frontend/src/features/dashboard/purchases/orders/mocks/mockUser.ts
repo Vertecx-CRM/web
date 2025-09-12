@@ -3,47 +3,55 @@ import { purchaseOrder } from "../types/typesPurchaseOrder";
 export const initialPurchaseOrders: purchaseOrder[] = [
   {
     id: 1,
-    numeroOrden: "VEN-001",
+    numeroOrden: "ORD-001",
     proveedor: "Diana Inguia",
     precioUnitario: 310000,
     fecha: "2025-05-02",
     estado: "Completada",
     descripcion: "Instalación de sistema electrónico",
     cantidad: 1,
-    total: 368900, // 310000 * 1 * 1.19 (con IVA)
+    total: 368900,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 2,
-    numeroOrden: "VEN-002",
+    numeroOrden: "ORD-002",
     proveedor: "Juliana Gómez",
     precioUnitario: 2567500,
     fecha: "2025-05-02",
     estado: "Cancelada",
     descripcion: "Compra de equipo industrial cancelada por falta de presupuesto",
     cantidad: 1,
-    total: 3055325, // 2567500 * 1 * 1.19 (con IVA)
+    total: 3055325,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 3,
-    numeroOrden: "VEN-003",
+    numeroOrden: "ORD-003",
     proveedor: "Wayne Perez",
     precioUnitario: 2250,
     fecha: "2025-04-01",
     estado: "Cancelada",
     descripcion: "Servicio de mantenimiento preventivo",
     cantidad: 1,
-    total: 2677.5, // 2250 * 1 * 1.19 (con IVA)
+    total: 2677.5,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 4,
-    numeroOrden: "VEN-004",
+    numeroOrden: "ORD-004",
     proveedor: "Nataly Martinez",
     precioUnitario: 850000,
     fecha: "2025-03-28",
     estado: "Completada",
-    descripción: "Adquisición de componentes electrónicos",
+    descripcion: "Adquisición de componentes electrónicos",
     cantidad: 1,
-    total: 1011500, // 850000 * 1 * 1.19 (con IVA)
+    total: 1011500,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 5,
@@ -54,7 +62,9 @@ export const initialPurchaseOrders: purchaseOrder[] = [
     estado: "Pendiente",
     descripcion: "Equipos de computación para oficinas",
     cantidad: 3,
-    total: 4462500, // 1250000 * 3 * 1.19 (con IVA)
+    total: 4462500,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 6,
@@ -65,7 +75,9 @@ export const initialPurchaseOrders: purchaseOrder[] = [
     estado: "En Proceso",
     descripcion: "Materiales de construcción y herramientas",
     cantidad: 10,
-    total: 892500, // 75000 * 10 * 1.19 (con IVA)
+    total: 892500,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 7,
@@ -76,7 +88,9 @@ export const initialPurchaseOrders: purchaseOrder[] = [
     estado: "Pendiente",
     descripcion: "Servicio de transporte especializado",
     cantidad: 2,
-    total: 1190000, // 500000 * 2 * 1.19 (con IVA)
+    total: 1190000,
+    monto: "",
+    fechaCreacion: undefined
   },
   {
     id: 8,
@@ -87,6 +101,8 @@ export const initialPurchaseOrders: purchaseOrder[] = [
     estado: "Completada",
     descripcion: "Mantenimiento de equipos de seguridad",
     cantidad: 5,
-    total: 1071000, // 180000 * 5 * 1.19 (con IVA)
+    total: 1071000,
+    monto: "",
+    fechaCreacion: undefined
   },
 ];

@@ -1,4 +1,6 @@
 export interface purchaseOrder {
+  monto: string;
+  fechaCreacion: ReactNode;
   id?: number;
   numeroOrden: string;
   proveedor: string;
