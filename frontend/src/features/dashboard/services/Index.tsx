@@ -8,20 +8,20 @@ import EditServiceModal from "./components/EditServicesModal/EditServicesModal";
 import { Service } from "./types/typesServices";
 import { useServices } from "./hooks/useServices";
 
-// Mocks de 20 servicios
+// Mocks de 20 servicios (sin price, con image como string)
 const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => ({
   id: i + 1,
   name: `Servicio ${i + 1}`,
   description: `Descripción del servicio ${i + 1}`,
-  price: 50000 + i * 1000,
   category:
     i % 3 === 0
       ? "Mantenimiento Preventivo"
       : i % 3 === 1
       ? "Mantenimiento Correctivo"
       : "Instalación",
+  // placeholder image (string) para cumplir con el tipo
+  image: `https://via.placeholder.com/400x300?text=Servicio+${i + 1}`,
   state: i % 2 === 0 ? "Activo" : "Inactivo",
-  image: undefined,
 }));
 
 export default function ServiciosIndex() {
@@ -46,7 +46,7 @@ export default function ServiciosIndex() {
             <CreateServiceModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
-              onSave={handleCreateService}
+              onSave={handleCreateService} // ahora tip-compatible
             />
 
             <EditServiceModal
