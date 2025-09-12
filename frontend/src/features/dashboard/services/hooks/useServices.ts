@@ -6,7 +6,13 @@ import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
 // =================== VALIDACIONES DE SERVICIOS ===================
-const validateServiceWithNotification = (serviceData: Omit<Service, "id">): boolean => {
+/**
+ * Ahora validate recibe payload SIN id ni state (lo que envía el modal).
+ * Service sin id/state: Omit<Service, "id" | "state">
+ */
+const validateServiceWithNotification = (
+  serviceData: Omit<Service, "id" | "state">
+): boolean => {
   if (!serviceData.name.trim()) {
     showWarning("El nombre del servicio es obligatorio");
     return false;
@@ -17,8 +23,14 @@ const validateServiceWithNotification = (serviceData: Omit<Service, "id">): bool
     return false;
   }
 
-  if (serviceData.price <= 0) {
-    showWarning("El precio debe ser mayor a cero");
+  // ✅ Validar image según su tipo (string | File | undefined)
+  if (!serviceData.image) {
+    showWarning("Debe agregar una imagen para el servicio");
+    return false;
+  }
+
+  if (typeof serviceData.image === "string" && !serviceData.image.trim()) {
+    showWarning("Debe agregar una imagen para el servicio");
     return false;
   }
 
@@ -36,25 +48,34 @@ export const useServices = (initialServices: Service[]) => {
   const isViewModalOpen = viewingService !== null;
 
   // CREATE
-  const handleCreateService = (payload: Omit<Service, "id">) => {
+  const handleCreateService = (payload: Omit<Service, "id" | "state">) => {
     if (!validateServiceWithNotification(payload)) return;
 
-    const nextId = services.length ? Math.max(...services.map(s => s.id)) + 1 : 1;
-    const newService: Service = { id: nextId, ...payload };
+    const nextId = services.length
+      ? Math.max(...services.map((s) => s.id)) + 1
+      : 1;
 
-    setServices(prev => [...prev, newService]);
+    const newService: Service = { id: nextId, state: "Activo", ...payload };
+
+    setServices((prev) => [...prev, newService]);
     setIsCreateModalOpen(false);
     showSuccess("Servicio creado exitosamente!");
   };
 
   // EDIT
   const handleEditService = (id: number, payload: Service) => {
-    if (!validateServiceWithNotification(payload)) return;
+    if (
+      !validateServiceWithNotification({
+        name: payload.name,
+        category: payload.category,
+        image: payload.image,
+        description: payload.description,
+      })
+    )
+      return;
 
-    setServices(prev =>
-      prev.map(s =>
-        s.id === id ? { ...payload, id } : s
-      )
+    setServices((prev) =>
+      prev.map((s) => (s.id === id ? { ...payload, id } : s))
     );
     setEditingService(null);
     showSuccess("Servicio actualizado exitosamente!");
@@ -70,7 +91,7 @@ export const useServices = (initialServices: Service[]) => {
         errorMessage: "No se pudo eliminar el servicio. Intenta nuevamente.",
       },
       () => {
-        setServices(prev => prev.filter(s => s.id !== service.id));
+        setServices((prev) => prev.filter((s) => s.id !== service.id));
       }
     );
   };
