@@ -17,9 +17,8 @@ const categories = ["Mantenimiento Correctivo", "Mantenimiento Preventivo", "Ins
 const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, onClose, onSave }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>(""); // formato "90.000"
   const [category, setCategory] = useState("");
-  const [image, setImage] = useState<File | string | undefined>(undefined);
+  const [image, setImage] = useState<File | string | null>(null);
   const [status, setStatus] = useState<"Activo" | "Inactivo">("Activo");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,55 +26,48 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, on
     if (isOpen && service) {
       setName(service.name);
       setDescription(service.description || "");
-      setPrice(formatPrice(service.price));
       setCategory(service.category);
-      setImage(service.image ?? undefined);
-      setStatus(service.status);
+
+      // ✅ Manejo seguro: solo asigna imagen si es string no vacío
+      if (typeof service.image === "string" && service.image.trim() !== "") {
+        setImage(service.image);
+      } else {
+        setImage(null);
+      }
+
+      setStatus(service.state);
     }
   }, [isOpen, service]);
 
   const handleCircleClick = () => fileInputRef.current?.click();
 
-  const formatPrice = (num: number | string) => {
-    if (num === "" || num === undefined || num === null) return "";
-    return Number(num).toLocaleString("es-CO", { minimumFractionDigits: 0 });
-  };
-
-  const handlePriceChange = (value: string) => {
-    const numericValue = value.replace(/\./g, "").replace(/[^\d]/g, "");
-    setPrice(formatPrice(numericValue));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!service || !name || !price || !category) {
+    if (!service || !name || !category) {
       alert("Por favor completa todos los campos obligatorios");
       return;
     }
 
-    const numericPrice = Number(price.replace(/\./g, ""));
-
-    // convertir image (File | string | undefined) a string | undefined para el tipo Service
-    let imageUrl: string | undefined = undefined;
-    if (image instanceof File) imageUrl = URL.createObjectURL(image);
-    else if (typeof image === "string") imageUrl = image;
+    let imageUrl = "";
+    if (image instanceof File) {
+      imageUrl = URL.createObjectURL(image);
+    } else if (typeof image === "string" && image.trim() !== "") {
+      imageUrl = image;
+    }
 
     onSave({
       id: service.id,
       name,
       description,
-      price: numericPrice,
       category,
       image: imageUrl,
-      status,
+      state: status,
     });
 
     onClose();
   };
 
   if (!isOpen || !service) return null;
-
-  const imageName = image instanceof File ? image.name : "";
 
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
@@ -89,31 +81,26 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, on
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
-          {/* Imagen centrada arriba */}
+          {/* Imagen */}
           <div className="col-span-2 flex flex-col items-center mb-3">
             <input
               type="file"
               accept="image/*"
               className="hidden"
               ref={fileInputRef}
-              onChange={(e) => setImage(e.target.files?.[0] ?? undefined)}
+              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
             />
             <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1"
+              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
               onClick={handleCircleClick}
               style={{ borderColor: Colors.table.lines }}
             >
               {image ? (
                 <img
                   src={image instanceof File ? URL.createObjectURL(image) : image}
-                  alt="Servicio"
+                  alt="Imagen del servicio"
                   className="w-full h-full object-cover rounded-full"
-                />
-              ) : service.image ? (
-                <img
-                  src={service.image}
-                  alt="Servicio"
-                  className="w-full h-full object-cover rounded-full"
+                  onError={() => setImage(null)}
                 />
               ) : (
                 <svg
@@ -130,30 +117,21 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, on
 
             <div className="text-center">
               <div className="text-xs text-gray-500 mb-1">
-                Haga clic en el círculo para {image || service.image ? "cambiar" : "seleccionar"} la imagen
+                Haga clic en el círculo para {image ? "cambiar" : "seleccionar"} la imagen
               </div>
 
-              {(image || service.image) && (
-                <div className="flex flex-col items-center space-y-1">
-                  {imageName && (
-                    <div className="text-xs text-green-600 font-medium">
-                      {imageName}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setImage(undefined)}
-                    className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                    style={{ borderColor: Colors.states?.nullable }}
-                  >
-                    Eliminar imagen
-                  </button>
-                </div>
+              {image && (
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
+                  style={{ borderColor: Colors.states?.nullable }}
+                >
+                  Eliminar imagen
+                </button>
               )}
 
-              {!image && !service.image && (
-                <div className="text-xs text-gray-500">(Opcional)</div>
-              )}
+              {!image && <div className="text-xs text-gray-500">(Opcional)</div>}
             </div>
           </div>
 
@@ -172,22 +150,7 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, on
             />
           </div>
 
-          {/* Precio */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Precio
-            </label>
-            <input
-              type="text"
-              placeholder="Ingrese precio"
-              value={price}
-              onChange={(e) => handlePriceChange(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-
-          {/* Categoría (select idéntico al crear) */}
+          {/* Categoría */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Categoría
@@ -200,7 +163,9 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({ isOpen, service, on
             >
               <option value="">Seleccione categoría</option>
               {categories.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>

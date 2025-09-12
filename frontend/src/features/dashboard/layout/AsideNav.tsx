@@ -58,7 +58,18 @@ const AsideNav = ({
       </button>
 
       {/* Header */}
-      <h2 className="text-xl font-bold p-4">Dashboard Administrador</h2>
+      <div className="flex items-center gap-2 px-4 py-3 mb-4">
+        {/* Logo o ícono */}
+        <div className="w-8 h-8 flex items-center justify-center bg-red-600 rounded-lg text-white font-bold">
+          V
+        </div>
+
+        {/* Texto */}
+        <div>
+          <h1 className="text-5xl font-bold text-white">Vertecx</h1>
+          <p className="text-xs text-center text-white">Panel de gestión</p>
+        </div>
+      </div>
 
       {/* NAV */}
       <nav className="flex flex-col gap-1 px-2">

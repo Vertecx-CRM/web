@@ -8,7 +8,7 @@ import { Service } from "../../types/typesServices";
 interface CreateServiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Service, "id" | "status">) => void;
+  onSave: (data: Omit<Service, "id" | "state">) => void;
 }
 
 const categories = ["Mantenimiento Correctivo", "Mantenimiento Preventivo", "Instalación"];
@@ -16,7 +16,6 @@ const categories = ["Mantenimiento Correctivo", "Mantenimiento Preventivo", "Ins
 const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ isOpen, onClose, onSave }) => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>("");
   const [category, setCategory] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,29 +25,17 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ isOpen, onClose
   const resetForm = () => {
     setName("");
     setDescription("");
-    setPrice("");
     setCategory("");
     setImageFile(null);
   };
 
-  // Cada vez que se abre el modal, limpiamos el formulario
   useEffect(() => {
     if (isOpen) resetForm();
   }, [isOpen]);
 
-  const formatPrice = (num: string | number) => {
-    if (!num && num !== 0) return "";
-    return Number(num).toLocaleString("es-CO", { minimumFractionDigits: 0 });
-  };
-
-  const handlePriceChange = (value: string) => {
-    const numericValue = value.replace(/\./g, "").replace(/[^\d]/g, "");
-    setPrice(formatPrice(numericValue));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price || !category) {
+    if (!name || !category || !imageFile) {
       alert("Por favor completa todos los campos obligatorios");
       return;
     }
@@ -56,12 +43,11 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ isOpen, onClose
     onSave({
       name,
       description,
-      price: Number(price.replace(/\./g, "")),
       category,
-      image: imageFile ? URL.createObjectURL(imageFile) : undefined,
+      image: URL.createObjectURL(imageFile),
     });
 
-    resetForm(); // limpiamos el formulario después de guardar
+    resetForm();
     onClose();
   };
 
@@ -150,23 +136,8 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({ isOpen, onClose
             />
           </div>
 
-          {/* Precio */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Precio
-            </label>
-            <input
-              type="text"
-              placeholder="Ingrese precio"
-              value={price}
-              onChange={(e) => handlePriceChange(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-
           {/* Categoría */}
-          <div className="col-span-2">
+          <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Categoría
             </label>

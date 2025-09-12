@@ -128,13 +128,16 @@ export function DataTable<T extends { id: number | string }>({
               {rightActions}
               {onCreate && (
                 <button
-                  className="cursor-pointer inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm 
-               transition-transform duration-200 transform hover:scale-105 hover:bg-red-600"
-                  style={{ background: Colors.buttons.primary }}
                   onClick={onCreate}
+                  style={{ background: Colors.buttons.primary }}
+                  className="relative cursor-pointer inline-flex h-9 transition-transform duration-200 hover:scale-105 items-center gap-2 rounded-md px-4 text-sm font-semibold text-white overflow-hidden group"
                 >
-                  <PlusIcon className="h-4 w-4" />
-                  {createButtonText || "Crear"}
+                  <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+
+                  <span className="relative z-10 flex items-center gap-2 group-hover:text-white transition-colors duration-300">
+                    <PlusIcon className="h-4 w-4" />
+                    {createButtonText || "Crear"}
+                  </span>
                 </button>
               )}
             </div>
@@ -151,7 +154,7 @@ export function DataTable<T extends { id: number | string }>({
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm flex flex-col">
+      <div className="overflow-x-auto rounded-xl bg-white drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)] flex flex-col">
         <table className="min-w-max w-full text-sm">
           <thead
             className="bg-gray-50 text-gray-700 sticky top-0 z-10 hidden md:table-header-group"
@@ -184,7 +187,11 @@ export function DataTable<T extends { id: number | string }>({
                   </Td>
                 ))}
 
-                {(onView || onEdit || onDelete || onCancel || renderActions) && (
+                {(onView ||
+                  onEdit ||
+                  onDelete ||
+                  onCancel ||
+                  renderActions) && (
                   <Td
                     className="block md:table-cell before:content-['Acciones'] before:font-semibold before:mr-2 md:before:content-none"
                     data-label="Acciones"
