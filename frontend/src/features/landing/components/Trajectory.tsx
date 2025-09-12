@@ -1,34 +1,52 @@
 import React from "react";
 import Image from "next/image";
+import Colors from "@/shared/theme/colors";
 
 const Trajectory = () => {
   return (
-    <section className="bg-white py-10 px-6 md:px-16 flex flex-col md:flex-row items-center md:items-start gap-8">
-      {/* Texto */}
-      <div className="flex-1">
-        <h2 className="text-3xl md:text-4xl font-extrabold text-red-700 mb-4 leading-tight">
+    <section className="bg-white py-20 px-10 md:px-20 flex flex-col md:flex-row items-center md:items-start gap-12 relative overflow-hidden">
+      {/* Texto con fondo */}
+      <div className="flex-1 relative">
+        <div className="absolute flex justify-center items-center">
+          <Image
+            src="/assets/imgs/startup-rocket.png"
+            alt="Cohete Startup"
+            width={1000}
+            height={1000}
+            className="object-contain opacity-10"
+          />
+        </div>
+
+        <h2 className="text-5xl md:text-6xl font-extrabold text-red-700 mb-8 leading-tight relative">
           ¡Conoce nuestra <br /> Trayectoria!
         </h2>
-        <p className="text-gray-700 mb-6 text-lg leading-relaxed">
+        <p className="text-gray-700 mb-8 text-xl leading-relaxed relative">
           Con más de 10 años de experiencia,{" "}
           <span className="font-semibold">Tech Solutions</span> se ha
           consolidado como líder en soluciones tecnológicas. Hemos ayudado a
           cientos de empresas a crecer y optimizar sus operaciones a través de
           la tecnología.
         </p>
-        <button className="cursor-pointer bg-red-700 text-white px-6 py-2 rounded-md shadow-md hover:bg-red-800 transition">
-          Nosotros
+        <button
+          style={{ backgroundColor: Colors.buttons.primary }}
+          className="relative cursor-pointer inline-flex items-center justify-center px-8 py-3 text-lg font-semibold text-white rounded-md shadow-lg overflow-hidden group transition-transform duration-300 hover:scale-105"
+        >
+          <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+
+          <span className="relative z-10 w-100 transition-colors duration-300 group-hover:text-white">
+            Ver más
+          </span>
         </button>
       </div>
 
-      {/* Imagen */}
+      {/* Imagen principal */}
       <div className="flex-1 flex justify-center">
         <Image
           src="/assets/imgs/camera.png"
           alt="Cámara de seguridad"
-          className="rounded-xl shadow-lg w-full max-w-md object-cover"
-          width={600}
-          height={600}
+          className="rounded-2xl shadow-xl w-full max-w-2xl object-cover"
+          width={700}
+          height={700}
         />
       </div>
     </section>

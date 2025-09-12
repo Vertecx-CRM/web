@@ -13,7 +13,7 @@ const titles: Record<string, string> = {
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
   [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Listado de Compras",
+  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
   [routes.dashboard.services]: "Servicios",
   [routes.dashboard.technicians]: "Técnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
@@ -86,7 +86,7 @@ const TopNav = ({
 
   return (
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
-      <h1 className="text-xl md:text-2xl font-bold text-red-800 truncate">{displayedText}</h1>
+      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5">{displayedText}</h1>
 
       <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-700">
         {menuOpen ? <X size={24} /> : <Menu size={24} />}

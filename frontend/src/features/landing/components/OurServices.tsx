@@ -51,7 +51,7 @@ const OurServices = () => {
             <h3 className="text-lg font-bold mb-4">{service.title}</h3>
 
             {/* Descripción */}
-            <p className="text-sm text-gray-200 leading-relaxed">
+            <p className="text-lg text-gray-200 leading-relaxed">
               {service.description}
             </p>
           </div>
