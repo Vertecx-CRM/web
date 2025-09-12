@@ -27,6 +27,23 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       render: (p) => `$${p.price.toLocaleString("es-CO")}`,
     },
     { key: "stock", header: "Stock" },
+
+    // 👇 Nueva columna para la imagen
+    {
+      key: "image",
+      header: "Imagen",
+      render: (p) =>
+        p.image ? (
+          <img
+            src={p.image instanceof File ? URL.createObjectURL(p.image) : p.image}
+            alt={p.name}
+            className="w-10 h-10 object-cover rounded-md border border-gray-200"
+          />
+        ) : (
+          <span className="text-gray-400 text-xs italic">Sin imagen</span>
+        ),
+    },
+
     {
       key: "state",
       header: "Estado",
