@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createUserData, createUserModalProps, editUser, editUserModalProps, formErrors, formTouched, user } from "../types/typesUser";
 import { initialUsers } from "../mocks/mockUser"
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
-import { EditCategoryData } from "../../CategoryProducts/types/typeCategoryProducts";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import { validateField, validateAllFields, hasErrors, validateSpecificFields, validateFormWithNotification } from "../Validations/UserValidations";
 

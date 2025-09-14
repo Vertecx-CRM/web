@@ -251,6 +251,13 @@ const AsideNav = ({
                     Ordenes
                   </Link>
                   <Link
+                    href={routes.dashboard.appointments}
+                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
+                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                  >
+                    Cita
+                  </Link>
+                  <Link
                     href={routes.dashboard.services}
                     onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
                     className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
