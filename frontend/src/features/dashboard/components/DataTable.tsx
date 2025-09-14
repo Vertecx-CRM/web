@@ -202,7 +202,7 @@ export function DataTable<T extends { id: number | string }>({
                       <div className="flex items-center gap-3 text-gray-600">
                         {onView && (
                           <button
-                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                             title="Ver"
                             onClick={() => onView(row)}
                           >
@@ -217,7 +217,7 @@ export function DataTable<T extends { id: number | string }>({
                         )}
                         {onEdit && (
                           <button
-                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                             title="Editar"
                             onClick={() => onEdit(row)}
                           >
@@ -232,7 +232,7 @@ export function DataTable<T extends { id: number | string }>({
                         )}
                         {onDelete && (
                           <button
-                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                             title="Eliminar"
                             onClick={() => onDelete(row)}
                           >
@@ -247,7 +247,7 @@ export function DataTable<T extends { id: number | string }>({
                         )}
                         {onCancel && (
                           <button
-                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                            className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                             title="Anular"
                             onClick={() => onCancel(row)}
                           >

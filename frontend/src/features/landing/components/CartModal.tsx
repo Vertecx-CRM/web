@@ -164,7 +164,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                             <td className="p-3 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <button
-                                  className="cursor-pointer transition hover:scale-110 hover:bg-orange-100/60 rounded"
+                                  className="cursor-pointer transition hover:scale-110 hover:bg-red-300/60 rounded"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     updateQuantity(item.id, -1);
@@ -191,7 +191,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                 </motion.span>
 
                                 <button
-                                  className="cursor-pointer transition hover:scale-110 hover:bg-orange-100/60 rounded"
+                                  className="cursor-pointer transition hover:scale-110 hover:bg-red-300/60 rounded"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     updateQuantity(item.id, 1);
@@ -219,7 +219,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                   alt="Servicio"
                                   width={25}
                                   height={25}
-                                  className={`cursor-pointer  transition hover:scale-110 hover:bg-orange-100/60 rounded ${
+                                  className={`cursor-pointer  transition hover:scale-110 hover:bg-red-300/60 rounded ${
                                     item.service ? "opacity-100" : "opacity-30"
                                   }`}
                                 />
@@ -244,7 +244,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                   alt="Eliminar"
                                   width={28}
                                   height={28}
-                                  className=" transition hover:scale-110 hover:bg-orange-100/60 rounded"
+                                  className=" transition hover:scale-110 hover:bg-red-300/60 rounded"
                                 />
                               </button>
                             </td>
