@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
 import Link from "next/link";
-import styles from "@/features/auth/login/auth.module.css"; // <-- tu ruta
 import { useAuth } from "@/features/auth/authcontext";
 import Nav from "@/features/landing/layout/Nav";
+import styles from "@/features/auth/login/auth.module.css";
+import React, { useEffect, useRef, useState } from "react";
 
-type DocType = "CC" | "CE" | "TI" | "PPT";
+type DocType = "CC" | "CE" | "TI" | "PP";
+
 type FormState = {
   docType: DocType;
   docNumber: string;
@@ -29,6 +30,11 @@ export default function RegisterPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // --- Modal de términos ---
+  const [showTerms, setShowTerms] = useState(false);
+  const [canAcceptTerms, setCanAcceptTerms] = useState(false);
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<FormState>({
     docType: "CC",
@@ -60,6 +66,49 @@ export default function RegisterPage() {
   function update<K extends keyof FormState>(key: K, val: FormState[K]) {
     setForm((f) => ({ ...f, [key]: val }));
   }
+
+  // Abre el modal cuando intentan marcar la casilla
+  function handleTermsCheckbox(e: React.ChangeEvent<HTMLInputElement>) {
+    const checked = e.target.checked;
+    if (checked && !form.terms) {
+      e.preventDefault();
+      setShowTerms(true);
+    } else {
+      update("terms", false);
+    }
+  }
+
+  // Habilita "Aceptar y continuar" al llegar al final del scroll
+  function onTermsScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+    if (atBottom) setCanAcceptTerms(true);
+  }
+
+  // Bloquea scroll del body cuando el modal está abierto
+  useEffect(() => {
+    if (showTerms) {
+      document.body.style.overflow = "hidden";
+      setCanAcceptTerms(false);
+      requestAnimationFrame(() => {
+        if (scrollBoxRef.current) scrollBoxRef.current.scrollTop = 0;
+      });
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showTerms]);
+
+  // Cerrar modal con Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowTerms(false);
+    }
+    if (showTerms) window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showTerms]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,7 +151,7 @@ export default function RegisterPage() {
             max-h-[calc(100dvh-140px)] overflow-auto
           "
         >
-          {/* Izquierda: branding (compacto) */}
+          {/* Izquierda: branding */}
           <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
             <div className="absolute inset-x-0 bottom-0 h-10 bg-black/10 blur-2xl" />
             <h2 className="mb-2 text-2xl font-extrabold tracking-tight">
@@ -113,18 +162,14 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {/* Derecha: formulario compacto en 2 columnas */}
+          {/* Derecha: formulario */}
           <div className="bg-white p-6">
             <h1 className="mb-4 text-center text-xl font-semibold text-gray-800">
               Crear cuenta
             </h1>
 
-            <form
-              className="grid gap-3 md:grid-cols-2"
-              onSubmit={onSubmit}
-              noValidate
-            >
-              {/* Tipo + Número de documento (full width) */}
+            <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit} noValidate>
+              {/* Tipo + Número de documento */}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-700">
                   Tipo y número de documento
@@ -132,16 +177,13 @@ export default function RegisterPage() {
                 <div className="flex gap-2">
                   <select
                     value={form.docType}
-                    onChange={(e) =>
-                      update("docType", e.target.value as DocType)
-                    }
+                    onChange={(e) => update("docType", e.target.value as DocType)}
                     className="w-28 rounded-md border border-gray-300 bg-gray-100 px-2 h-9 text-sm shadow-sm
                    focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                   >
                     <option value="CC">CC</option>
                     <option value="CE">CE</option>
                     <option value="TI">TI</option>
-                    <option value="NIT">NIT</option>
                     <option value="PP">PP</option>
                   </select>
 
@@ -163,7 +205,7 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Nombre (FULL WIDTH) */}
+              {/* Nombre */}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-700">
                   Nombre completo
@@ -179,7 +221,7 @@ export default function RegisterPage() {
                 />
               </div>
 
-              {/* Correo (FULL WIDTH) */}
+              {/* Correo */}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-700">
                   Correo
@@ -194,13 +236,11 @@ export default function RegisterPage() {
                  focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                 />
                 {!emailOk && form.email.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Correo inválido.
-                  </p>
+                  <p className="mt-1 text-[11px] text-red-600">Correo inválido.</p>
                 )}
               </div>
 
-              {/* Teléfono (full o puedes dejarlo a 1 col si quieres más compacto) */}
+              {/* Teléfono */}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-xs text-gray-700">
                   Teléfono
@@ -211,9 +251,7 @@ export default function RegisterPage() {
                   inputMode="tel"
                   placeholder="Teléfono"
                   value={form.phone}
-                  onChange={(e) =>
-                    update("phone", e.target.value.replace(/[^\d+]/g, ""))
-                  }
+                  onChange={(e) => update("phone", e.target.value.replace(/[^\d+]/g, ""))}
                   className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
                  focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
                 />
@@ -224,11 +262,9 @@ export default function RegisterPage() {
                 )}
               </div>
 
-              {/* Contraseña (col izquierda) */}
+              {/* Contraseña */}
               <div>
-                <label className="mb-1 block text-xs text-gray-700">
-                  Contraseña
-                </label>
+                <label className="mb-1 block text-xs text-gray-700">Contraseña</label>
                 <div className="relative">
                   <input
                     name="password"
@@ -243,28 +279,24 @@ export default function RegisterPage() {
                     type="button"
                     onClick={() => setShowPwd((s) => !s)}
                     className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={
-                      showPwd ? "Ocultar contraseña" : "Mostrar contraseña"
-                    }
-                    title={
-                      showPwd ? "Ocultar contraseña" : "Mostrar contraseña"
-                    }
+                    aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    title={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
                   >
-                    {showPwd ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
+                    {showPwd ? (
+                      <img src="/icons/Eye.svg" className="h-4 w-4" />
+                    ) : (
+                      <img src="/icons/eye-off.svg" className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
                 {!passOk && form.password.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Mínimo 6 caracteres.
-                  </p>
+                  <p className="mt-1 text-[11px] text-red-600">Mínimo 6 caracteres.</p>
                 )}
               </div>
 
-              {/* Confirmar (col derecha) */}
+              {/* Confirmar */}
               <div>
-                <label className="mb-1 block text-xs text-gray-700">
-                  Confirmar contraseña
-                </label>
+                <label className="mb-1 block text-xs text-gray-700">Confirmar contraseña</label>
                 <div className="relative">
                   <input
                     name="confirm"
@@ -279,37 +311,43 @@ export default function RegisterPage() {
                     type="button"
                     onClick={() => setShowConfirm((s) => !s)}
                     className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={
-                      showConfirm
-                        ? "Ocultar confirmación"
-                        : "Mostrar confirmación"
-                    }
-                    title={
-                      showConfirm
-                        ? "Ocultar confirmación"
-                        : "Mostrar confirmación"
-                    }
+                    aria-label={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
+                    title={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
                   >
-                    {showConfirm ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
+                    {showConfirm ? (
+                      <img src="/icons/Eye.svg" className="h-4 w-4" />
+                    ) : (
+                      <img src="/icons/eye-off.svg" className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
                 {!passwordsMatch && form.confirm.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Las contraseñas no coinciden.
-                  </p>
+                  <p className="mt-1 text-[11px] text-red-600">Las contraseñas no coinciden.</p>
                 )}
               </div>
 
               {/* Términos */}
-              <label className="md:col-span-2 flex items-center gap-2 text-xs text-gray-700">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-gray-300 text-[#CC0000] focus:ring-[#CC0000]"
-                  checked={form.terms}
-                  onChange={(e) => update("terms", e.target.checked)}
-                />
-                Acepto términos y condiciones
-              </label>
+              <div className="md:col-span-2 flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="size-4 rounded border-gray-300 text-[#CC0000] focus:ring-[#CC0000]"
+                    checked={form.terms}
+                    onChange={handleTermsCheckbox}
+                  />
+                  Acepto términos y condiciones
+                </label>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTerms(true);
+                  }}
+                  className="text-xs text-[#CC0000] hover:underline"
+                >
+                  Leer términos
+                </button>
+              </div>
 
               {/* Mensajes */}
               {msg && (
@@ -332,10 +370,7 @@ export default function RegisterPage() {
               {/* Enlaces inferiores */}
               <div className="md:col-span-2 mt-1 flex items-center justify-between text-xs">
                 <span className="text-gray-600">¿Ya tienes una cuenta?</span>
-                <Link
-                  href="/auth/login"
-                  className="text-[#CC0000] hover:underline"
-                >
+                <Link href="/auth/login" className="text-[#CC0000] hover:underline">
                   Iniciar sesión
                 </Link>
               </div>
@@ -343,6 +378,113 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+
+      {/* ======= Modal de Términos ======= */}
+      {showTerms && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          aria-labelledby="terms-title"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowTerms(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h2 id="terms-title" className="text-sm font-semibold text-gray-800">
+                Términos y Condiciones de uso
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowTerms(false)}
+                className="rounded p-1 text-gray-500 hover:bg-gray-100"
+                aria-label="Cerrar"
+                title="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              ref={scrollBoxRef}
+              onScroll={onTermsScroll}
+              className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm leading-relaxed text-gray-700"
+            >
+              {/* --- Contenido simulado de términos --- */}
+              <p className="mb-2">
+                Bienvenido/a a <strong>SistemasPc</strong>. Estos Términos y Condiciones regulan
+                el uso de nuestros servicios. Al crear una cuenta, aceptas cumplirlos.
+              </p>
+              <h3 className="mt-3 font-semibold">1. Cuenta y seguridad</h3>
+              <p>
+                Eres responsable de mantener la confidencialidad de tus credenciales y de todas
+                las actividades realizadas desde tu cuenta.
+              </p>
+              <h3 className="mt-3 font-semibold">2. Uso aceptable</h3>
+              <p>
+                Te comprometes a no utilizar la plataforma para fines ilícitos, a respetar los
+                derechos de terceros y a cumplir la normativa aplicable.
+              </p>
+              <h3 className="mt-3 font-semibold">3. Datos personales</h3>
+              <p>
+                Tratamos tus datos conforme a nuestra Política de Privacidad. Puedes ejercer tus
+                derechos de acceso, rectificación y supresión según corresponda.
+              </p>
+              <h3 className="mt-3 font-semibold">4. Disponibilidad del servicio</h3>
+              <p>
+                Hacemos esfuerzos razonables para mantener el servicio disponible; no garantizamos
+                disponibilidad ininterrumpida ni ausencia de errores.
+              </p>
+              <h3 className="mt-3 font-semibold">5. Limitación de responsabilidad</h3>
+              <p>
+                En la medida permitida por la ley, no seremos responsables por pérdidas indirectas
+                o consecuentes derivadas del uso del servicio.
+              </p>
+              <h3 className="mt-3 font-semibold">6. Modificaciones</h3>
+              <p>
+                Podemos actualizar estos términos. Las modificaciones serán comunicadas por los
+                canales habituales y entrarán en vigor desde su publicación.
+              </p>
+              <h3 className="mt-3 font-semibold">7. Contacto</h3>
+              <p className="mb-8">
+                Para dudas sobre estos términos, contáctanos a soporte@sistemaspc.co.
+              </p>
+
+              {/* Indicador para el usuario */}
+              <div className="sticky bottom-0 -mx-4 mt-6 border-t bg-white px-4 py-2 text-[11px] text-gray-500">
+                Desplázate hasta el final para habilitar “Aceptar y continuar”.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  update("terms", false);
+                  setShowTerms(false);
+                }}
+                className="h-9 rounded-md border px-3 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Rechazar
+              </button>
+              <button
+                type="button"
+                disabled={!canAcceptTerms}
+                onClick={() => {
+                  update("terms", true);
+                  setShowTerms(false);
+                }}
+                className={`h-9 rounded-md px-3 text-sm font-semibold text-white shadow-sm
+                  ${canAcceptTerms ? "bg-[#CC0000] hover:bg-[#b30000] focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40" : "bg-gray-300 cursor-not-allowed"}`}
+              >
+                Aceptar y continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
