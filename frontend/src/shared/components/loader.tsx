@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, ReactNode, useContext, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 function Loader() {
@@ -45,9 +52,27 @@ export function LoaderProvider({ children }: { children: ReactNode }) {
 }
 
 export function useLoader() {
-  const context = useContext(LoaderContext);
-  if (!context) {
-    throw new Error("useLoader debe usarse dentro de LoaderProvider");
-  }
-  return context;
+  const ctx = useContext(LoaderContext);
+  if (!ctx) throw new Error("useLoader debe usarse dentro de LoaderProvider");
+  return ctx;
+}
+
+export function LoaderGate() {
+  const { hideLoader } = useLoader();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem("__loader_min_until__");
+    const minUntil = raw ? Number(raw) : 0;
+    const delay = pathname.startsWith("/auth")
+      ? 0
+      : Math.max(0, minUntil - Date.now());
+    const t = setTimeout(() => {
+      hideLoader();
+      sessionStorage.removeItem("__loader_min_until__");
+    }, delay);
+    return () => clearTimeout(t);
+  }, [hideLoader, pathname]);
+
+  return null;
 }

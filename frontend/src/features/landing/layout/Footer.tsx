@@ -8,7 +8,7 @@ const Footer = () => {
       <div className="max-w-7xl mx-auto px-6 py-10 grid md:grid-cols-4 gap-8 text-center md:text-left">
         {/* Columna 1: Derechos de autor */}
         <div className="flex flex-col items-center md:items-start">
-          <p className="mt-4 text-xs text-red-600">
+          <p className="mt-4 text-xl-2 text-red-600">
             © {new Date().getFullYear()} SISTEMAS PC. <br />
             Todos los derechos reservados
           </p>
@@ -23,17 +23,17 @@ const Footer = () => {
             height={60}
             priority
           />
-          <p className="mt-3 text-sm text-gray-600 max-w-[200px]">
+          <p className="mt-3 text-xl-2 text-gray-600 max-w-[200px]">
             Expertos en desarrollo y soluciones a medida.
           </p>
         </div>
 
         {/* Columna 3: Compañía */}
         <div>
-          <h4 className="text-red-700 font-semibold mb-3 uppercase">
+          <h4 className="text-red-700 text-xl-3 font-semibold mb-3 uppercase">
             Compañía
           </h4>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-xl-2">
             {[
               { href: "/services", label: "Servicios" },
               { href: "/products", label: "Productos" },
@@ -51,10 +51,10 @@ const Footer = () => {
 
         {/* Columna 4: Redes Sociales */}
         <div>
-          <h4 className="text-red-700 font-semibold mb-3 uppercase">
+          <h4 className="text-red-700 text-xl-3 font-semibold mb-3 uppercase">
             Redes Sociales
           </h4>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-xl-2">
             {[
               { href: "#", label: "Instagram" },
               { href: "#", label: "Facebook" },

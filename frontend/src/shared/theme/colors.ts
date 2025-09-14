@@ -26,6 +26,9 @@ interface IColors {
     primary: string;
   };
   states: {
+    info: any;
+    error: any;
+    warning: any;
     success: string;
     pending: string;
     inactive: string;

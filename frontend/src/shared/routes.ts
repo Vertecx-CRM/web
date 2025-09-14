@@ -41,10 +41,10 @@ export const routes: IRoutes = {
   path: "/",
   landing: {
     home: "/home",
-    products: "/products",
-    services: "/services",
-    about: "/about",
-    contact: "/contact",
+    products: "/landing/products",
+    services: "/landing/services",
+    about: "/landing/about",
+    contact: "/landing/contact",
     cart: "/cart",
   },
   auth: {
