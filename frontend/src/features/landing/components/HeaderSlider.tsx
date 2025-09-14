@@ -9,6 +9,23 @@ const HeaderSlider = () => {
 
   const [current, setCurrent] = useState(0);
 
+  // Texto animado
+  const fullText = "Bienvenido";
+  const [displayedText, setDisplayedText] = useState("");
+
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      setDisplayedText(fullText.slice(0, index + 1));
+      index++;
+      if (index === fullText.length) {
+        clearInterval(interval);
+      }
+    }, 100); // velocidad de escritura (100ms por letra)
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Cambiar imagen cada 5 segundos
   useEffect(() => {
     const interval = setInterval(() => {
@@ -16,8 +33,9 @@ const HeaderSlider = () => {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
   return (
-    <div className="relative w-full h-[500px] overflow-hidden">
+    <div className="relative w-full h-[900px] overflow-hidden">
       {/* Imagen */}
       <Image
         src={images[current]}
@@ -29,10 +47,11 @@ const HeaderSlider = () => {
 
       {/* Texto encima */}
       <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-4">
-        <h2 className="text-4xl md:text-5xl font-bold text-white drop-shadow-lg">
-          Bienvenido a <span className="block">SISTEMAS PC</span>
+        <h2 className="text-4xl md:text-8xl font-bold text-white drop-shadow-lg animate-fadeIn">
+          {displayedText}
+          <span className="animate-pulse">|</span>
         </h2>
-        <p className="mt-4 text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
+        <p className="mt-4 text-2xl md:text-5xl font-bold text-white drop-shadow-lg animate-fadeIn delay-500">
           Tu aliado tecnológico de confianza.
         </p>
       </div>

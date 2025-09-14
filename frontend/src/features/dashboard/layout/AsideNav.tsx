@@ -52,13 +52,24 @@ const AsideNav = ({
       {/* Botón flecha arriba a la derecha */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="cursor-pointer absolute -right-7 top-4 bg-red-700 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition"
+        className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1  drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)]  hover:bg-red-600 transition"
       >
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
 
       {/* Header */}
-      <h2 className="text-xl font-bold p-4">Dashboard Administrador</h2>
+      <div className="flex items-center gap-2 px-4 py-3 mb-4">
+        {/* Logo o ícono */}
+        <div className="w-8 h-8 flex items-center justify-center bg-red-600 rounded-lg text-white font-bold">
+          V
+        </div>
+
+        {/* Texto */}
+        <div>
+          <h1 className="text-5xl font-bold text-white">Vertecx</h1>
+          <p className="text-xs text-center text-white">Panel de gestión</p>
+        </div>
+      </div>
 
       {/* NAV */}
       <nav className="flex flex-col gap-1 px-2">

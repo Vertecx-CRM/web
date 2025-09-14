@@ -159,6 +159,7 @@ const GraphPurchase: React.FC = () => {
           <CartesianGrid strokeDasharray="3 3" />
           <Tooltip />
           <Area
+            name="Compras"
             type="monotone"
             dataKey="purchases"
             stroke="#ff7171"

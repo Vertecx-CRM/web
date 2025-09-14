@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Colors from "@/shared/theme/colors";
 
 const OurServices = () => {
   const services = [
@@ -51,7 +52,7 @@ const OurServices = () => {
             <h3 className="text-lg font-bold mb-4">{service.title}</h3>
 
             {/* Descripción */}
-            <p className="text-sm text-gray-200 leading-relaxed">
+            <p className="text-lg text-gray-200 leading-relaxed">
               {service.description}
             </p>
           </div>
@@ -59,8 +60,15 @@ const OurServices = () => {
       </div>
 
       {/* Botón único */}
-      <button className="cursor-pointer bg-red-700 text-white px-8 py-3 rounded-md shadow-md hover:bg-red-800 transition">
-        Ver Servicios
+      <button
+        style={{ backgroundColor: Colors.buttons.primary }}
+        className="relative cursor-pointer inline-flex items-center justify-center px-8 py-3 text-lg font-semibold text-white rounded-md shadow-lg overflow-hidden group transition-transform duration-300 hover:scale-105"
+      >
+        <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+
+        <span className="relative z-10 w-100 transition-colors duration-300 group-hover:text-white">
+          Ver mas
+        </span>
       </button>
     </section>
   );

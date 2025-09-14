@@ -24,7 +24,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [stock, setStock] = useState<number | "">("");
   const [category, setCategory] = useState("");
   const [image, setImage] = useState<File | string | undefined>(undefined);
-  const [status] = useState<"Activo" | "Inactivo">("Activo");
+  const [state] = useState<"Activo" | "Inactivo">("Activo"); // 👈 aquí el cambio
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCircleClick = () => fileInputRef.current?.click();
@@ -58,7 +58,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       stock: Number(stock),
       category,
       image,
-      status,
+      state, // 👈 ahora sí coincide con el tipo Product
     });
 
     resetForm();

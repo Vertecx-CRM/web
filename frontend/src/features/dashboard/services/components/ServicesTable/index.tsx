@@ -23,11 +23,43 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     { key: "id", header: "ID" },
     { key: "name", header: "Nombre" },
     { key: "category", header: "Categoría" },
+
     {
-      key: "price",
-      header: "Precio",
-      render: (s) => `$${s.price.toLocaleString("es-CO")}`,
+      key: "image",
+      header: "Imagen",
+      render: (s) => {
+        const image =
+          typeof s.image === "string"
+            ? s.image.trim()
+            : s.image instanceof File
+            ? URL.createObjectURL(s.image)
+            : "";
+
+        if (!image) {
+          return (
+            <span className="text-gray-400 text-xs italic">
+              Sin imagen
+            </span>
+          );
+        }
+
+        return (
+          <img
+            src={image}
+            alt={s.name}
+            className="w-10 h-10 object-cover rounded-md border border-gray-200"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+              e.currentTarget.insertAdjacentHTML(
+                "afterend",
+                `<span class="text-gray-400 text-xs italic">Sin imagen</span>`
+              );
+            }}
+          />
+        );
+      },
     },
+
     {
       key: "state",
       header: "Estado",
@@ -35,7 +67,10 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color: s.state === "Activo" ? Colors.states.success : Colors.states.inactive,
+            color:
+              s.state === "Activo"
+                ? Colors.states.success
+                : Colors.states.inactive,
           }}
         >
           {s.state}
