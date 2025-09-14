@@ -75,10 +75,10 @@ const Colors: IColors = {
     nullable: "#B20000",
   },
   calendar: {
-    primary: "##b20000",
-    secondary: "##ffd6d6",
+    primary: "#b20000",
+    secondary: "#ffd6d6",
     tertiary: "#ffffff",
-    quaternary: "###f4f4f4",
+    quaternary: "#f4f4f4",
   },
 };
 
