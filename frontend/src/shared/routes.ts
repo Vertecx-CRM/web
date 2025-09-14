@@ -29,6 +29,7 @@ interface IRoutes {
     suppliers: string;
     sales: string;
     clients: string;
+    requestsServices: string;
     ordersServices: string;
     quotes: string;
     settings: string;
@@ -40,10 +41,10 @@ export const routes: IRoutes = {
   path: "/",
   landing: {
     home: "/home",
-    products: "/products",
-    services: "/services",
-    about: "/about",
-    contact: "/contact",
+    products: "/landing/products",
+    services: "/landing/services",
+    about: "/landing/about",
+    contact: "/landing/contact",
     cart: "/cart",
   },
   auth: {
@@ -65,6 +66,7 @@ export const routes: IRoutes = {
     suppliers: "/dashboard/suppliers",
     sales: "/dashboard/sales",
     clients: "/dashboard/clients",
+    requestsServices: "/dashboard/requests",
     ordersServices: "/dashboard/orders-services",
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",

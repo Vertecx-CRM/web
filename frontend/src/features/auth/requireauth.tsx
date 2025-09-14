@@ -1,33 +1,33 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/authcontext";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useLoader } from "@/shared/components/loader";
 
-export default function RequireAuth({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { user } = useAuth();
+type Props = { children: React.ReactNode; loginPath?: string };
+
+export default function RequireAuth({ children, loginPath = "/auth/login" }: Props) {
+  const { isAuthenticated, ready } = useAuth();
+  const { showLoader } = useLoader();
   const router = useRouter();
   const pathname = usePathname();
-  const search = useSearchParams();
 
   useEffect(() => {
-    if (!user) {
-      const next = pathname + (search?.toString() ? `?${search}` : "");
-      router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
+    if (!ready) return;
+    if (!isAuthenticated) {
+      sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
+      showLoader();
+      const to = `${loginPath}?next=${encodeURIComponent(pathname)}`;
+      router.replace(to);
     }
-  }, [user, pathname, search, router]);
+  }, [ready, isAuthenticated, router, pathname, loginPath, showLoader]);
 
-  if (!user) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-gray-500">
-        Cargando…
-      </div>
-    );
+  if (!ready) {
+    return <div className="w-full h-[40vh] grid place-items-center text-gray-500">Cargando…</div>;
   }
+
+  if (!isAuthenticated) return null;
 
   return <>{children}</>;
 }

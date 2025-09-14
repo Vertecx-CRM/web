@@ -1,25 +1,51 @@
 "use client";
-
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { useCategories } from './hooks/useCategories';
-import CategoriesTable from './components/CategoriesTable';
-import CreateCategoryModal from './components/CreateCategoryModal';
+import Colors from "@/shared/theme/colors";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { DataTable, Column } from "../components/DataTable";
+import EditCategoryModal from "./components/EditCategoryModal/EditCategory";
+import ViewCategoryModal from "./components/ViewCategoryModal/ViewCategory";
+import CreateCategoryModal from "./components/CreateCategoryModal/CreateCategory";
+import { useCategories } from "./hooks/useCategories";
+import { Category, EditCategoryData } from "./types/typeCategoryProducts";
 
 export default function CategoriesPage() {
   const {
     categories,
     isCreateModalOpen,
     setIsCreateModalOpen,
+    editingCategory,
+    viewingCategory,
     handleCreateCategory,
+    handleEditCategory,
     handleView,
     handleEdit,
-    handleDelete
+    handleDelete,
+    closeModals
   } = useCategories();
+
+  const columns: Column<Category>[] = [
+    { key: "id", header: "ID" },
+    { key: "nombre", header: "Nombre" },
+    { key: "descripcion", header: "Descripción" },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (row: Category) => (
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{
+            color: row.estado === "Activo" ? Colors.states.success : Colors.states.inactive,
+          }}
+        >
+          {row.estado}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="min-h-screen flex">
-      {/* Toast Container para mostrar notificaciones */}
       <ToastContainer
         position="bottom-right"
         autoClose={3000}
@@ -32,26 +58,48 @@ export default function CategoriesPage() {
         pauseOnHover
         theme="light"
       />
-      
-      {/* Contenido principal */}
-      <div className="flex-1 flex flex-col">
 
-        {/* Contenido */}
-        <main className="flex-1 flex flex-col" >
-          {/* Tools + Tabla */}
+      <div className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col">
           <div className="flex-1 px-6 py-6">
+            
+            {/* Modal de Crear Categoría */}
             <CreateCategoryModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateCategory}
             />
 
-            <CategoriesTable
-              categories={categories}
+            {/* Modal de Editar Categoría */}
+            <EditCategoryModal
+              isOpen={!!editingCategory}
+              category={editingCategory}
+              onClose={closeModals}
+              onSave={(categoryData: EditCategoryData) => {
+                if (editingCategory) {
+                  handleEditCategory(editingCategory.id, categoryData);
+                }
+              }}
+            />
+
+            {/* Modal de Ver Categoría */}
+            <ViewCategoryModal
+              isOpen={!!viewingCategory}
+              category={viewingCategory}
+              onClose={closeModals}
+            />
+
+            <DataTable<Category>
+              data={categories}
+              columns={columns}
+              pageSize={10}
+              searchableKeys={["id", "nombre", "descripcion", "estado"]}
+              onCreate={() => setIsCreateModalOpen(true)}
+              createButtonText="Crear Categoría"
+              searchPlaceholder="Buscar categorías..."
               onView={handleView}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onCreate={() => setIsCreateModalOpen(true)}
             />
           </div>
         </main>
