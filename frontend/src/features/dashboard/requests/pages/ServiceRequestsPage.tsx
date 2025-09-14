@@ -129,10 +129,16 @@ export default function ServiceRequestsPage() {
         </div>
       ),
     },
-    { key: "tipo", header: `Tipo de
-      servicio` },
-    { key: "fecha", header: `Fecha 
-      creacion` },
+    {
+      key: "tipo",
+      header: `Tipo de
+      servicio`,
+    },
+    {
+      key: "fecha",
+      header: `Fecha 
+      creacion`,
+    },
     {
       key: "estado",
       header: "Estado",
@@ -225,7 +231,7 @@ export default function ServiceRequestsPage() {
             renderExtraActions={(row) => (
               <>
                 <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                   title="Calendario"
                   onClick={() => setDate(row)}
                 >
@@ -233,7 +239,7 @@ export default function ServiceRequestsPage() {
                 </button>
 
                 <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                   title="Valor"
                   onClick={() => setAmount(row)}
                 >
@@ -241,7 +247,7 @@ export default function ServiceRequestsPage() {
                 </button>
 
                 <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                   title="Anular"
                   onClick={() => cancelRow(row)}
                 >
@@ -252,7 +258,7 @@ export default function ServiceRequestsPage() {
             tailHeader="Imprimir"
             renderTail={() => (
               <button
-                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-orange-100/60"
+                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                 title="Imprimir"
                 onClick={printRow}
               >
