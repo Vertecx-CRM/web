@@ -50,3 +50,5 @@ export interface ViewCategoryModalProps {
   category: Category | null;
   onClose: () => void;
 }
+
+
