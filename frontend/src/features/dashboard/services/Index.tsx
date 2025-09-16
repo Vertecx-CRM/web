@@ -5,10 +5,11 @@ import "react-toastify/dist/ReactToastify.css";
 import ServicesTable from "./components/ServicesTable";
 import CreateServiceModal from "./components/CreateServicesModal/CreateServicesModal";
 import EditServiceModal from "./components/EditServicesModal/EditServicesModal";
+import ViewServiceModal from "./components/ViewServicesModal/ViewServicesModal";
 import { Service } from "./types/typesServices";
 import { useServices } from "./hooks/useServices";
+import { useState } from "react";
 
-// Mocks de 20 servicios (sin price, con image como string)
 const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => ({
   id: i + 1,
   name: `Servicio ${i + 1}`,
@@ -19,7 +20,6 @@ const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => ({
       : i % 3 === 1
       ? "Mantenimiento Correctivo"
       : "Instalación",
-  // placeholder image (string) para cumplir con el tipo
   image: `https://via.placeholder.com/400x300?text=Servicio+${i + 1}`,
   state: i % 2 === 0 ? "Activo" : "Inactivo",
 }));
@@ -37,6 +37,8 @@ export default function ServiciosIndex() {
     handleDeleteService,
   } = useServices(mockServices);
 
+  const [viewingService, setViewingService] = useState<Service | null>(null);
+
   return (
     <div className="min-h-screen flex">
       <ToastContainer position="bottom-right" />
@@ -46,7 +48,8 @@ export default function ServiciosIndex() {
             <CreateServiceModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
-              onSave={handleCreateService} // ahora tip-compatible
+              onSave={handleCreateService}
+              services={services}
             />
 
             <EditServiceModal
@@ -54,11 +57,18 @@ export default function ServiciosIndex() {
               service={editingService}
               onClose={() => setEditingService(null)}
               onSave={(data) => handleEditService(data.id, data)}
+              services={services}
+            />
+
+            <ViewServiceModal
+              isOpen={!!viewingService}
+              onClose={() => setViewingService(null)}
+              service={viewingService}
             />
 
             <ServicesTable
               services={services}
-              onView={(s) => alert(`Ver servicio "${s.name}"`)}
+              onView={(s) => setViewingService(s)}
               onEdit={(s) => setEditingService(s)}
               onDelete={handleDeleteService}
               onCreate={() => setIsCreateModalOpen(true)}
