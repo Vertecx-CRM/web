@@ -19,9 +19,6 @@ const Nav = () => {
             href={routes.path}
             className="relative flex items-center overflow-hidden group rounded-md"
           >
-            {/* Fondo animado */}
-            <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-
             {/* Logo */}
             <Image
               src="/assets/imgs/logo.png"
@@ -29,7 +26,7 @@ const Nav = () => {
               width={220}
               height={60}
               priority
-              className="relative z-10 cursor-pointer transition duration-300 group-hover:brightness-0 group-hover:invert"
+              className="relative z-10 cursor-pointer transition duration-300 group-hover:scale-105"
             />
           </Link>
 

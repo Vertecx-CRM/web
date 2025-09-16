@@ -52,7 +52,7 @@ const AsideNav = ({
       {/* Botón flecha arriba a la derecha */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="cursor-pointer absolute -right-7 top-4 bg-red-700 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition"
+        className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1  drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)]  hover:bg-red-600 transition"
       >
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
