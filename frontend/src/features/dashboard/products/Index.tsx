@@ -26,7 +26,6 @@ export default function Index() {
     closeModals,
   } = useProducts();
 
-  // 👇 estado para abrir/cerrar modal de ver detalle
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   return (
