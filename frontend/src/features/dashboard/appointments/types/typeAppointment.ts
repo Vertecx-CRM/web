@@ -5,6 +5,16 @@ export interface Technician {
   titulo: string;
 }
 
+export interface Order {
+  id: string;
+  tipoServicio: "mantenimiento" | "instalacion";
+  tipoMantenimiento?: "preventivo" | "correctivo"; 
+  monto: number;
+  cliente: string;
+  lugar: string;
+}
+
+
 export interface AppointmentFormData {
   horaInicio: string;
   minutoInicio: string;
@@ -14,7 +24,7 @@ export interface AppointmentFormData {
   mes: string;
   año: string;
   tecnico: string;
-  orden: string;
+  orden?: Order | null;
   observaciones: string;
   motivoCancelacion?: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado";
@@ -27,6 +37,7 @@ export interface Appointment extends AppointmentFormData {
   end: Date;
   title: string;
 }
+
 
 export interface AppointmentEvent {
   id: number;
@@ -41,7 +52,7 @@ export interface AppointmentEvent {
   dia?: string;
   mes?: string;
   año?: string;
-  orden?: string;
+  orden?: Order | null;
   observaciones?: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado";      
   motivoCancelacion?: string;      

@@ -1,4 +1,4 @@
-import { Technician } from "../types/typeAppointment";
+import { Order, Technician } from "../types/typeAppointment";
 
 export const technicians: Technician[] = [
   { id: 1, nombre: "Samuel Corboda", titulo: "Tec. Sistema" },
@@ -6,7 +6,47 @@ export const technicians: Technician[] = [
   { id: 3, nombre: "Darier Alvarez", titulo: "Electricista" }
 ];
 
-export const orders = ["ORD-001", "ORD-002", "ORD-003", "ORD-004", "ORD-005"];
+export const orders: Order[] = [
+  {
+    id: "ORD-001",
+    tipoServicio: "mantenimiento",
+    tipoMantenimiento: "preventivo",
+    monto: 250000,
+    cliente: "Carlos Ramírez",
+    lugar: "Oficina Central - Bogotá"
+  },
+  {
+    id: "ORD-002",
+    tipoServicio: "instalacion",
+    monto: 480000,
+    cliente: "María Gómez",
+    lugar: "Edificio Colpatria - Bogotá"
+  },
+  {
+    id: "ORD-003",
+    tipoServicio: "mantenimiento",
+    tipoMantenimiento: "correctivo",
+    monto: 320000,
+    cliente: "Jorge Hernández",
+    lugar: "Planta Industrial - Medellín"
+  },
+  {
+    id: "ORD-004",
+    tipoServicio: "instalacion",
+    monto: 600000,
+    cliente: "Ana Torres",
+    lugar: "Centro Comercial Viva - Barranquilla"
+  },
+  {
+    id: "ORD-005",
+    tipoServicio: "mantenimiento",
+    tipoMantenimiento: "preventivo",
+    monto: 280000,
+    cliente: "Luis Pérez",
+    lugar: "Sucursal Norte - Cali"
+  }
+];
+
 
 // JSON de meses con número como clave
 export const months: { [key: number]: string } = {

@@ -84,36 +84,44 @@
   position: relative;
 }
 
-/* Contenedor de eventos de RBC - NO MODIFICAR */
-.rbc-events-container {
+
+
+/* Evento de RBC - posición absoluta calculada por la librería */
+.rbc-event {
+  position: relative !important;
+  
+  /* Ajusta el ancho para que quepan varios eventos y se expanda si es necesario */
+  /* Cambiamos 'width' por 'min-width' y 'max-width' */
+  min-width: 90px; /* <--- Ancho mínimo para la visibilidad */
+  max-width: 90% !important; /* <--- No se estira más allá de la columna */
+  flex: 1 1 auto; /* <--- Propiedad Flexbox para distribución de espacio */
+
+  margin: 0 !important;
+  padding: 0 2px !important;
+  box-sizing: border-box !important;
+  z-index: 2;
+}
+
+/* Tu evento personalizado - mayor prioridad */
+.unified-header-calendar .rbc-event {
+  /* Si necesitas algún estilo adicional para tus eventos, agrégalo aquí. */
+  /* Los estilos de ancho y posición serán manejados por las reglas anteriores. */
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+  z-index: 3;
+}
+
+.rbc-day-slot .rbc-events-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 100%;
   margin: 0 !important;
-}
-
-/* Evento de RBC - posición absoluta calculada por la librería */
-.rbc-event {
-  position: absolute !important;
-  margin: 0 !important;
-  padding: 0 2px !important;
-  box-sizing: border-box !important;
-  z-index: 1; /* Menor prioridad que tu evento personalizado */
-}
-
-/* Tu evento personalizado - mayor prioridad */
-.unified-header-calendar .rbc-event {
-  position: absolute !important;
-  border: none !important;
-  border-radius: 6px !important;
-  padding: 0 !important;
-  z-index: 2; /* Mayor que el evento nativo de RBC */
-  left: 0 !important;
-  right: 0 !important;
-  width: calc(100% - 4px) !important; /* Ajuste para padding */
-  margin: 0 2px !important; /* Centrado horizontal */
 }
 
 /* Si quieres ocultar completamente el evento nativo de RBC */
@@ -182,4 +190,33 @@
 .rbc-today {
   background-color: transparent !important;
 }
+
+/* NO tocar el posicionamiento vertical de los eventos */
+.rbc-event {
+  position: absolute !important; /* restauramos lo original */
+  box-sizing: border-box;
+  padding: 0 2px;
+  z-index: 2;
+}
+
+/* Para que los eventos paralelos se repartan ancho */
+.rbc-day-slot .rbc-events-container {
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+}
+
+.rbc-day-slot .rbc-event {
+  flex: 1 1 auto;      /* que se adapten */
+  max-width: 50%;      /* si hay dos eventos */
+  min-width: 90px;     /* ancho mínimo visible */
+}
+
+
+
+
 
