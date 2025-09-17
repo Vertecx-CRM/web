@@ -52,6 +52,7 @@ const DnDCalendar = withDragAndDrop<GroupedEvent>(Calendar);
 
 interface WeeklyCalendarProps {
   selectedDate?: Date;
+  search?: string;
 }
 
 const eventPropGetter = (event: AppointmentEvent) => {
@@ -65,7 +66,7 @@ const eventPropGetter = (event: AppointmentEvent) => {
   return {};
 };
 
-const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
+const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
   const [events, setEvents] = useState<AppointmentEvent[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -94,9 +95,18 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
       setDateRange(getWeekRange(selectedDate));
     }
   }, [selectedDate, getWeekRange]);
-
   useEffect(() => {
-    const sortedEvents = [...events].sort((a, b) => a.start.getTime() - b.start.getTime());
+    // 1. Filtramos por búsqueda
+    const filteredEvents = search
+      ? events.filter(ev =>
+        ev.title?.toLowerCase().includes(search.toLowerCase()) ||
+        ev.orden?.cliente?.toLowerCase().includes(search.toLowerCase()) ||
+        ev.orden?.tipoServicio?.toLowerCase().includes(search.toLowerCase())
+      )
+      : events;
+
+    // 2. Ordenamos
+    const sortedEvents = [...filteredEvents].sort((a, b) => a.start.getTime() - b.start.getTime());
     const newDisplayEvents: GroupedEvent[] = [];
 
     let i = 0;
@@ -126,7 +136,10 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
     }
 
     setDisplayEvents(newDisplayEvents);
-  }, [events]);
+  }, [events, search]); // ✅ agregamos search aquí
+
+
+
 
   const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
     if (isDragging) return;
@@ -148,6 +161,8 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
 
     setIsCreateModalOpen(true);
   };
+
+
 
   // En WeeklyCalendar.tsx
   const handleSelectEvent = (event: GroupedEvent) => {
@@ -252,12 +267,23 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
   };
 
   const handleUpdateAppointment = (updated: AppointmentEvent) => {
+    const fixedEvent: AppointmentEvent = {
+      ...updated,
+      start: updated.start instanceof Date ? updated.start : new Date(updated.start),
+      end: updated.end instanceof Date ? updated.end : new Date(updated.end),
+      title: updated.orden
+        ? `Orden: ${typeof updated.orden === "object" ? updated.orden.id : updated.orden}`
+        : "Sin orden",
+    };
+
     setEvents(prev =>
-      prev.map(ev => (ev.id === updated.id ? updated : ev))
+      prev.map(ev => (ev.id === updated.id ? fixedEvent : ev))
     );
+
     setIsEditModalOpen(false);
     setEditingAppointment(null);
   };
+
 
   const handleViewAppointment = (appointment: AppointmentEvent) => {
     setViewingAppointment(appointment);
@@ -291,6 +317,97 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
       setIsDetailsModalOpen(false);
     });
   };
+
+
+  useEffect(() => {
+    // 1. Filtramos por búsqueda (más completo)
+    let filteredEvents = events.map((ev) => ({
+      ...ev,
+      start: ev.start instanceof Date ? ev.start : new Date(ev.start),
+      end: ev.end instanceof Date ? ev.end : new Date(ev.end),
+    }));
+
+    if (search && search.trim() !== "") {
+      const lowerSearch = search.toLowerCase();
+
+      filteredEvents = filteredEvents.filter((event) => {
+        const cliente = (event.orden?.cliente ?? "").toLowerCase();
+        const lugar = (event.orden?.lugar ?? "").toLowerCase();
+        const idOrden = (event.orden?.id ?? "").toString().toLowerCase();
+        const tipoServicio = (event.orden?.tipoServicio ?? "").toLowerCase();
+        const tecnicos = (event.tecnicos ?? [])
+          .map((t) => (t.nombre ?? "").toLowerCase())
+          .join(" ");
+        const titulo = (event.title ?? "").toLowerCase();
+
+        // 🔹 Generamos las horas en formato "HH:mm" para buscar
+        const horaInicioStr =
+          event.horaInicio && event.minutoInicio
+            ? `${event.horaInicio.padStart(2, "0")}:${event.minutoInicio.padStart(2, "0")}`
+            : event.start.toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+        const horaFinStr =
+          event.horaFin && event.minutoFin
+            ? `${event.horaFin.padStart(2, "0")}:${event.minutoFin.padStart(2, "0")}`
+            : event.end.toLocaleTimeString("es-CO", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+        return (
+          cliente.includes(lowerSearch) ||
+          lugar.includes(lowerSearch) ||
+          idOrden.includes(lowerSearch) ||
+          tipoServicio.includes(lowerSearch) ||
+          tecnicos.includes(lowerSearch) ||
+          titulo.includes(lowerSearch) ||
+          horaInicioStr.includes(lowerSearch) ||
+          horaFinStr.includes(lowerSearch)
+        );
+      });
+    }
+
+    // 2. Ordenamos
+    const sortedEvents = [...filteredEvents].sort(
+      (a, b) => a.start.getTime() - b.start.getTime()
+    );
+
+    const newDisplayEvents: GroupedEvent[] = [];
+
+    let i = 0;
+    while (i < sortedEvents.length) {
+      const currentEvent = sortedEvents[i];
+      const overlappingEvents = [currentEvent];
+      let j = i + 1;
+
+      while (
+        j < sortedEvents.length &&
+        sortedEvents[j].start.getTime() < currentEvent.end.getTime()
+      ) {
+        overlappingEvents.push(sortedEvents[j]);
+        j++;
+      }
+
+      if (overlappingEvents.length > 1) {
+        newDisplayEvents.push({
+          ...currentEvent,
+          isGrouped: true,
+          count: overlappingEvents.length,
+          groupedEvents: overlappingEvents,
+          title: `${overlappingEvents.length} Citas`,
+        });
+        i = j;
+      } else {
+        newDisplayEvents.push(currentEvent);
+        i++;
+      }
+    }
+
+    setDisplayEvents(newDisplayEvents);
+  }, [events, search]);
 
 
   useEffect(() => {
@@ -359,6 +476,8 @@ const WeeklyCalendar = ({ selectedDate }: WeeklyCalendarProps) => {
     const interval = setInterval(updateIndicator, 60000);
     return () => clearInterval(interval);
   }, []);
+
+
 
   const CustomHeader = ({ label }: { label: string }) => (
     <div className="custom-header">

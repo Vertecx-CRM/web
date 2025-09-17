@@ -134,3 +134,9 @@ export interface UseEditAppointmentFormProps {
   onSave: (appointment: AppointmentEvent) => void;
   onClose: () => void;
 }
+
+type WeeklyCalendarProps = {
+  selectedDate: Date;
+  search?: string; // 🔎 agregamos el buscador
+};
+

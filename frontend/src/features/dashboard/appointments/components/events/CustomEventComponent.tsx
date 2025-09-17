@@ -1,6 +1,7 @@
 // components/events/CustomEventComponent.tsx
 
-import { AppointmentEvent } from "../../types/typeAppointment";
+import { AppointmentEvent, Order } from "../../types/typeAppointment";
+import { orders } from "../../mocks/mockAppointment";
 
 // Define un tipo para el evento de grupo, que extiende al evento normal
 interface GroupedEvent extends AppointmentEvent {
@@ -25,7 +26,7 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
     );
   }
 
-  // Lógica de renderizado para eventos individuales (tu código actual)
+  // Lógica de renderizado para eventos individuales
   const start = event.start instanceof Date ? event.start : new Date(event.start);
   const end = event.end instanceof Date ? event.end : new Date(event.end);
   const startTime = `${start.getHours().toString().padStart(2, "0")}:${start
@@ -40,12 +41,21 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
   const isShortEvent = durationMinutes <= 30;
 
   const technicians = event.tecnicos || [];
-  const orderNumber = event.orden?.tipoServicio || "Sin tipo de servicio";
+
+  // 🔹 Usamos la misma lógica de AppointmentDetailsModal
+  let currentOrder: Order | null = null;
+  if (typeof event.orden === "string") {
+    currentOrder = orders.find((o) => o.id === event.orden) || null;
+  } else {
+    currentOrder = event.orden || null;
+  }
+
+  const tipoServicio = currentOrder?.tipoServicio || "Sin tipo de servicio";
 
   if (isShortEvent) {
     return (
       <div className="event-content bg-[#B20000] text-white rounded-md w-full h-full overflow-hidden p-1 flex flex-col justify-center text-[10px] sm:text-xs">
-        <div className="text-center font-bold truncate">{orderNumber}</div>
+        <div className="text-center font-bold truncate">{tipoServicio}</div>
         <div className="text-center">{startTime}</div>
       </div>
     );
@@ -59,7 +69,7 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
       style={{ backgroundColor: bgColor }}
     >
       <div className="font-bold truncate text-center text-sm sm:text-base md:text-lg">
-        {orderNumber} {event.estado === "Cancelado" && "(Cancelada)"}
+        {tipoServicio} {event.estado === "Cancelado" && "(Cancelada)"}
       </div>
       {technicians.length > 0 && (
         <div className="truncate text-[10px] sm:text-sm text-center mt-1">

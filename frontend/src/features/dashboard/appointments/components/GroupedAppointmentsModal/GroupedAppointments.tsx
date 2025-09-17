@@ -1,8 +1,11 @@
-
+// components/appointments/components/GroupedAppointmentsModal/groupedAppointmentsModal.tsx
 import React from 'react';
 import { createPortal } from 'react-dom';
 import Colors from '@/shared/theme/colors';
-import { AppointmentEvent } from '../../types/typeAppointment';
+import { AppointmentEvent, Order } from '../../types/typeAppointment';
+
+// Importa los datos de las órdenes desde tu mock
+import { orders } from '../../mocks/mockAppointment';
 
 interface GroupedAppointmentsModalProps {
   isOpen: boolean;
@@ -61,6 +64,17 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
             const estado = appointment.estado as keyof typeof estadoColores;
             const colores = estadoColores[estado];
 
+            // 🔹 Lógica corregida para obtener el tipo de servicio
+            let tipoServicio = 'N/A';
+            if (typeof appointment.orden === 'string') {
+              // Si la orden es un ID, la buscamos en el array de órdenes
+              const orderObj = orders.find((o) => o.id === appointment.orden);
+              tipoServicio = orderObj?.tipoServicio || 'N/A';
+            } else if (appointment.orden) {
+              // Si ya es un objeto, usamos su propiedad
+              tipoServicio = appointment.orden.tipoServicio || 'N/A';
+            }
+
             return (
               <div
                 key={appointment.id}
@@ -76,7 +90,7 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
               >
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-lg" style={{ color: Colors.texts.primary }}>
-                    {appointment.orden?.tipoServicio}
+                    {tipoServicio}
                   </span>
                   <span className="text-sm" style={{ color: Colors.texts.secondary }}>
                     {new Date(appointment.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(appointment.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
