@@ -1,4 +1,3 @@
-// components/calendars/CreateAppointmentModal.tsx
 import React from "react";
 import { createPortal } from "react-dom";
 import { CreateAppointmentModalProps } from "../../types/typeAppointment";
@@ -14,7 +13,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     onSave,
     selectedDateTime
 }) => {
-    // Usar el hook de formulario de creación de citas
     const {
         formData,
         selectedTechnicians,
@@ -288,9 +286,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                                 name="tecnico"
                                 value={formData.tecnico}
                                 onChange={handleTechnicianSelect}
-                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                                    technicianError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-[#CC0000]'
-                                }`}
+                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${technicianError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-[#CC0000]'
+                                    }`}
                                 style={{
                                     borderColor: technicianError ? Colors.states.inactive : Colors.table.lines,
                                     backgroundColor: 'white'
@@ -311,9 +308,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                         </div>
 
                         {/* Tabla de técnicos seleccionados (Componente separado) */}
-                        <TechniciansTable 
-                          technicians={selectedTechnicians} 
-                          onRemoveTechnician={removeTechnician} 
+                        <TechniciansTable
+                            technicians={selectedTechnicians}
+                            onRemoveTechnician={removeTechnician}
                         />
 
                         <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] my-6" style={{ outlineColor: Colors.table.lines }}></div>
@@ -325,27 +322,38 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                             </label>
                             <select
                                 name="orden"
-                                value={formData.orden}
-                                onChange={handleInputChange}
+                                value={formData.orden ? formData.orden.id : ""}
+                                onChange={(e) => {
+                                    const selectedOrder = orders.find(order => order.id === e.target.value) || null;
+                                    handleInputChange({
+                                        target: {
+                                            name: "orden",
+                                            value: selectedOrder
+                                        }
+                                    } as any);
+                                }}
                                 onBlur={handleBlur}
                                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${touched.orden && errors.orden
-                                    ? 'border-red-500 focus:ring-red-500'
-                                    : 'border-gray-300 focus:ring-[#CC0000]'
+                                        ? "border-red-500 focus:ring-red-500"
+                                        : "border-gray-300 focus:ring-[#CC0000]"
                                     }`}
                                 style={{
                                     borderColor: touched.orden && errors.orden
                                         ? Colors.states.inactive
                                         : Colors.table.lines,
-                                    backgroundColor: 'white'
+                                    backgroundColor: "white"
                                 }}
                             >
                                 <option value="">Seleccionar orden</option>
                                 {orders.map(order => (
-                                    <option key={order} value={order}>
-                                        {order}
+                                    <option key={order.id} value={order.id}>
+                                        {order.id} - {order.cliente}
                                     </option>
                                 ))}
                             </select>
+
+
+
                             {touched.orden && errors.orden && (
                                 <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
                                     {errors.orden}
@@ -376,7 +384,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                 </div>
 
                 {/* Botones fijos en la parte inferior */}
-                <div className="p-4 border-t" style={{ borderColor: Colors.table.lines, backgroundColor: Colors.table.primary }}>
+                < div className="p-4 border-t" style={{ borderColor: Colors.table.lines, backgroundColor: Colors.table.primary }}>
                     <div className="flex justify-end space-x-3">
                         <button
                             type="button"
@@ -401,11 +409,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                             Guardar
                         </button>
                     </div>
-                </div>
+                </div >
 
                 <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px]" style={{ outlineColor: Colors.texts.primary }}></div>
-            </div>
-        </div>,
+            </div >
+        </div >,
         document.body
     );
 };

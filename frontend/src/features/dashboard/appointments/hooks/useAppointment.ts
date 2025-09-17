@@ -1,5 +1,4 @@
-// hooks/useAppointments.ts
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent, useCallback } from 'react';
 import {
     Appointment,
     AppointmentFormData,
@@ -10,9 +9,10 @@ import {
     FormTouched,
     EditAppointmentModalProps,
     AppointmentEvent,
-    UseEditAppointmentFormProps
+    UseEditAppointmentFormProps,
+    Order
 } from '../types/typeAppointment';
-import { technicians } from '../mocks/mockAppointment';
+import { orders, technicians } from '../mocks/mockAppointment';
 import { showSuccess, showError, showInfo, showWarning } from '@/shared/utils/notifications';
 import {
     validateAppointmentField,
@@ -103,7 +103,7 @@ export const useCreateAppointmentForm = ({
         mes: selectedDateTime.mes || '',
         año: selectedDateTime.año || '',
         tecnico: "",
-        orden: "",
+        orden: null,
         observaciones: "",
         estado: "Pendiente",
     });
@@ -124,9 +124,9 @@ export const useCreateAppointmentForm = ({
                 mes: selectedDateTime.mes || '',
                 año: selectedDateTime.año || '',
                 tecnico: "",
-                orden: "",
+                orden: null,
                 observaciones: "",
-                estado: "Pendiente"         
+                estado: "Pendiente"
             });
             setSelectedTechnicians([]);
             setErrors({});
@@ -141,11 +141,9 @@ export const useCreateAppointmentForm = ({
         let startHour = parseInt(horaInicio);
         let startMinute = parseInt(minutoInicio);
 
-        // Calcular hora final (duración de 2 horas)
         let endHour = startHour + 2;
         let endMinute = startMinute;
 
-        // Ajustar si pasa de medianoche
         if (endHour >= 24) {
             endHour = endHour % 24;
         }
@@ -319,11 +317,21 @@ export const useCreateAppointmentForm = ({
         onSave({
             id: Date.now(),
             ...finalFormData,
+            horaInicio: finalFormData.horaInicio.padStart(2, '0'),
+            minutoInicio: finalFormData.minutoInicio.padStart(2, '0'),
+            horaFin: finalFormData.horaFin.padStart(2, '0'),
+            minutoFin: finalFormData.minutoFin.padStart(2, '0'),
+            orden: finalFormData.orden && typeof finalFormData.orden === 'object'
+                ? finalFormData.orden
+                : null,
             tecnicos: selectedTechnicians,
-            start: new Date(startDate),
-            end: new Date(endDate),
-            title: `Orden: ${finalFormData.orden}`
+            start: startDate,
+            end: endDate,
+            title: finalFormData.orden
+                ? `Orden: ${typeof finalFormData.orden === 'object' ? finalFormData.orden.id : finalFormData.orden}`
+                : "Sin orden"
         });
+
 
         showSuccess('Cita guardada exitosamente');
         onClose();
@@ -344,13 +352,26 @@ export const useCreateAppointmentForm = ({
     };
 };
 
+
+const buildTitle = (orden: string | Order | null | undefined): string => {
+    if (orden) {
+        if (typeof orden === 'string') {
+            return `Orden: ${orden}`;
+        }
+        // Si es un objeto, usa su ID
+        if (typeof orden === 'object' && orden.id) {
+            return `Orden: ${orden.id}`;
+        }
+    }
+    // En cualquier otro caso
+    return "Sin orden asignada";
+};
+
 export const useEditAppointmentForm = ({
-    isOpen,
     onClose,
     onSave,
     appointment,
-}: EditAppointmentModalProps) => {
-    // Estado del formulario
+}: UseEditAppointmentFormProps) => {
     const [formData, setFormData] = useState<AppointmentEvent>({
         id: 0,
         title: "",
@@ -364,7 +385,7 @@ export const useEditAppointmentForm = ({
         dia: "",
         mes: "",
         año: "",
-        orden: "",
+        orden: null,
         observaciones: "",
         motivoCancelacion: "",
         estado: "Pendiente",
@@ -379,10 +400,69 @@ export const useEditAppointmentForm = ({
     const [evidencia, setEvidencia] = useState<File | null>(null);
     const [estado, setEstado] = useState<"Pendiente" | "Finalizado" | "Cancelado">("Pendiente");
 
-    // Inicializar datos si hay appointment
+    const updateDateTime = useCallback(() => {
+        if (
+            formData.dia &&
+            formData.mes &&
+            formData.año &&
+            formData.horaInicio &&
+            formData.minutoInicio &&
+            formData.horaFin &&
+            formData.minutoFin
+        ) {
+            try {
+                const newStart = new Date(
+                    parseInt(formData.año),
+                    parseInt(formData.mes) - 1,
+                    parseInt(formData.dia),
+                    parseInt(formData.horaInicio),
+                    parseInt(formData.minutoInicio)
+                );
+
+                const newEnd = new Date(
+                    parseInt(formData.año),
+                    parseInt(formData.mes) - 1,
+                    parseInt(formData.dia),
+                    parseInt(formData.horaFin),
+                    parseInt(formData.minutoFin)
+                );
+
+                if (!isNaN(newStart.getTime()) && !isNaN(newEnd.getTime())) {
+                    setFormData((prev) => ({
+                        ...prev,
+                        start: newStart,
+                        end: newEnd,
+                        title: buildTitle(prev.orden),
+                    }));
+                }
+            } catch (error) {
+                console.error("Error updating date time:", error);
+            }
+        }
+    }, [
+        formData.dia,
+        formData.mes,
+        formData.año,
+        formData.horaInicio,
+        formData.minutoInicio,
+        formData.horaFin,
+        formData.minutoFin,
+    ]);
+
+    useEffect(() => {
+        updateDateTime();
+    }, [updateDateTime]);
+
     useEffect(() => {
         if (appointment) {
-            setFormData({
+            const orderId = typeof appointment.orden === 'object' && appointment.orden !== null
+                ? appointment.orden.id
+                : appointment.orden;
+
+            const resolvedOrden = orderId ? orders.find((o) => o.id === orderId) || null : null;
+            console.log(resolvedOrden)
+
+            const initialFormData: AppointmentEvent = {
                 ...appointment,
                 horaInicio: appointment.horaInicio || "",
                 minutoInicio: appointment.minutoInicio || "",
@@ -391,29 +471,42 @@ export const useEditAppointmentForm = ({
                 dia: appointment.dia || "",
                 mes: appointment.mes || "",
                 año: appointment.año || "",
-                orden: appointment.orden || "",
+                orden: resolvedOrden,
                 observaciones: appointment.observaciones || "",
                 motivoCancelacion: appointment.motivoCancelacion || "",
                 estado: appointment.estado || "Pendiente",
                 evidencia: appointment.evidencia || null,
                 horaCancelacion: appointment.horaCancelacion || null,
-            });
+                title: buildTitle(resolvedOrden),
+            };
+
+            setFormData(initialFormData);
             setSelectedTechnicians(appointment.tecnicos || []);
             setEvidencia(appointment.evidencia || null);
             setEstado(appointment.estado || "Pendiente");
-        }
-    }, [appointment, isOpen]);
 
-    // Manejo de cambios en inputs
+            setErrors({});
+            setTechnicianError(null);
+            setTouched({});
+        }
+    }, [appointment]);
+
     const handleInputChange = (
         e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
     ) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+        setTouched((prev) => ({ ...prev, [name]: true }));
 
-        // Si se cambia estado a algo distinto de Cancelado, limpiar motivoCancelacion
+        const fieldError = validateAppointmentField(name, value);
+        setErrors((prev) => ({ ...prev, [name]: fieldError }));
+
         if (name === "estado" && value !== "Cancelado") {
-            setFormData((prev) => ({ ...prev, motivoCancelacion: "", horaCancelacion: null }));
+            setFormData((prev) => ({
+                ...prev,
+                motivoCancelacion: "",
+                horaCancelacion: null,
+            }));
             setErrors((prev) => ({ ...prev, motivoCancelacion: undefined }));
         }
     };
@@ -423,17 +516,37 @@ export const useEditAppointmentForm = ({
     };
 
     const handleTechnicianSelect = (e: ChangeEvent<HTMLSelectElement>) => {
-        const techId = parseInt(e.target.value);
-        if (!selectedTechnicians.find((t) => t.id === techId)) {
-            setSelectedTechnicians((prev) => [
-                ...prev,
-                { id: techId, nombre: e.target.selectedOptions[0].text, titulo: "" },
-            ]);
+        const selectedId = parseInt(e.target.value);
+        if (!selectedId) return;
+
+        const selectedTech = technicians.find((tech) => tech.id === selectedId);
+        if (!selectedTech) return;
+
+        if (selectedTechnicians.some((t) => t.id === selectedId)) {
+            showWarning("Este técnico ya fue seleccionado");
+            return;
         }
+
+        setSelectedTechnicians((prev) => [...prev, selectedTech]);
+        setTechnicianError(null);
+        showInfo(`Técnico ${selectedTech.nombre} agregado`);
     };
 
     const removeTechnician = (id: number) => {
-        setSelectedTechnicians((prev) => prev.filter((t) => t.id !== id));
+        const technician = selectedTechnicians.find((t) => t.id === id);
+        setSelectedTechnicians((prev) => {
+            const next = prev.filter((t) => t.id !== id);
+            if (next.length === 0) {
+                setTechnicianError("Debe seleccionar al menos un técnico");
+            } else {
+                setTechnicianError(null);
+            }
+            return next;
+        });
+
+        if (technician) {
+            showWarning(`Técnico ${technician.nombre} removido`);
+        }
     };
 
     const handleEvidenciaChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -449,11 +562,9 @@ export const useEditAppointmentForm = ({
     ) => {
         const { name, value } = e.target;
         setTouched((prev) => ({ ...prev, [name]: true }));
-
         const fieldError = validateAppointmentField(name, value);
         setErrors((prev) => ({ ...prev, [name]: fieldError }));
     };
-
 
     const handleEstadoChange = (e: ChangeEvent<HTMLSelectElement>) => {
         const newEstado = e.target.value as "Pendiente" | "Finalizado" | "Cancelado";
@@ -462,53 +573,110 @@ export const useEditAppointmentForm = ({
         setFormData((prev) => ({
             ...prev,
             estado: newEstado,
+            motivoCancelacion: newEstado === "Cancelado" ? prev.motivoCancelacion : "",
             horaCancelacion: newEstado === "Cancelado" ? new Date() : null,
         }));
+
+        if (newEstado === "Cancelado" && !formData.motivoCancelacion?.trim()) {
+            setErrors((prev) => ({
+                ...prev,
+                motivoCancelacion: "Debe indicar el motivo de la cancelación",
+            }));
+            showError("Debe indicar el motivo de la cancelación");
+        } else if (newEstado !== "Cancelado") {
+            setErrors((prev) => ({ ...prev, motivoCancelacion: undefined }));
+        }
     };
 
-    // Submit
+    const handleChange = (
+        e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    ) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
     const handleSubmit = (e?: FormEvent) => {
         if (e) e.preventDefault();
 
         const formErrors: AppointmentErrors = validateAppointmentForm(formData);
-
-        // Validar técnicos
         const techError = validateTechnicians(selectedTechnicians);
 
-        // Validar rango de tiempo
+        if (techError) {
+            setTechnicianError(techError);
+            showError(techError);
+        }
+
         const timeRangeError = validateTimeRange(
             formData.horaInicio || "",
             formData.minutoInicio || "",
             formData.horaFin || "",
             formData.minutoFin || ""
         );
-        if (timeRangeError) formErrors.timeRange = timeRangeError;
 
-        // Validar motivoCancelacion si estado es Cancelado
-        if (formData.estado === "Cancelado" && !formData.motivoCancelacion?.trim()) {
+        if (timeRangeError) {
+            formErrors.timeRange = timeRangeError;
+            showError(timeRangeError);
+        }
+
+        if (
+            formData.estado === "Cancelado" &&
+            !formData.motivoCancelacion?.trim()
+        ) {
             formErrors.motivoCancelacion = "Debe indicar el motivo de la cancelación";
+            showError("Debe indicar el motivo de la cancelación");
         }
 
         setErrors(formErrors);
-        setTechnicianError(techError);
-
-        const isValid = !hasValidationErrors(formErrors) && !techError && !timeRangeError;
-
+        const isValid =
+            !hasValidationErrors(formErrors) && !techError && !timeRangeError;
         if (!isValid) return;
 
-        // Construir objeto final
+        let resolvedOrden = null;
+        if (formData.orden) {
+            if (typeof formData.orden === "object" && formData.orden !== null) {
+                resolvedOrden = formData.orden;
+            } else {
+                const orderId = formData.orden as string | number;
+                resolvedOrden = orders.find((o) => o.id === orderId) || null;
+            }
+        }
+
+
         const updatedAppointment: AppointmentEvent = {
             ...formData,
             tecnicos: selectedTechnicians,
-            evidencia: evidencia,
+            evidencia,
             estado,
-            horaCancelacion:
-                estado === "Cancelado"
-                    ? formData.horaCancelacion || new Date()
-                    : null,
+            horaCancelacion: estado === "Cancelado" ? new Date() : null,
+            title: buildTitle(resolvedOrden),
+
+            // Normalizamos siempre fechas y horas
+            start:
+                formData.start instanceof Date
+                    ? formData.start
+                    : new Date(formData.start),
+            end:
+                formData.end instanceof Date ? formData.end : new Date(formData.end),
+
+            horaInicio:
+                formData.horaInicio?.padStart(2, "0") ||
+                formData.start.getHours().toString().padStart(2, "0"),
+            minutoInicio:
+                formData.minutoInicio?.padStart(2, "0") ||
+                formData.start.getMinutes().toString().padStart(2, "0"),
+
+            horaFin:
+                formData.horaFin?.padStart(2, "0") ||
+                formData.end.getHours().toString().padStart(2, "0"),
+            minutoFin:
+                formData.minutoFin?.padStart(2, "0") ||
+                formData.end.getMinutes().toString().padStart(2, "0"),
+
+            orden: resolvedOrden,
         };
 
         onSave(updatedAppointment);
+        showSuccess("Cita actualizada exitosamente");
         onClose();
     };
 
@@ -530,4 +698,5 @@ export const useEditAppointmentForm = ({
         estado,
         handleEstadoChange,
     };
+
 };

@@ -20,7 +20,7 @@ const CalendarMonth = ({ onDateSelect, selectedDate }: CalendarMonthProps) => {
     }
 
     const selectedMoment = moment(selectedDate);
-    const weekStart = selectedMoment.clone().startOf('isoWeek'); // lunes
+    const weekStart = selectedMoment.clone().startOf('isoWeek'); 
     const weekDays = [];
 
     for (let i = 0; i < 7; i++) {
@@ -45,11 +45,11 @@ const CalendarMonth = ({ onDateSelect, selectedDate }: CalendarMonthProps) => {
     onDateSelect(date.toDate());
   };
 
-  // Obtener información del mes actual (ajustado a lunes como inicio de semana)
+  // Obtener información del mes actual 
   const monthStart = moment(currentDate).startOf('month');
   const monthEnd = moment(currentDate).endOf('month');
-  const startDate = moment(monthStart).startOf('isoWeek'); // lunes
-  const endDate = moment(monthEnd).endOf('isoWeek');       // domingo
+  const startDate = moment(monthStart).startOf('isoWeek');
+  const endDate = moment(monthEnd).endOf('isoWeek');      
 
   // Función para determinar el estilo de cada día
   const getDayStyle = (day: moment.Moment) => {

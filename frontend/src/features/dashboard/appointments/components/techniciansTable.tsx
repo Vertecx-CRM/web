@@ -1,4 +1,3 @@
-// components/calendars/TechniciansTable.tsx
 import React from "react";
 import Colors from "@/shared/theme/colors";
 import { Technician } from "../types/typeAppointment";
