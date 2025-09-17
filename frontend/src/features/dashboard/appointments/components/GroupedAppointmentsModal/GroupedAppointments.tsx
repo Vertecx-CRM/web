@@ -1,10 +1,7 @@
-// components/appointments/components/GroupedAppointmentsModal/groupedAppointmentsModal.tsx
 import React from 'react';
 import { createPortal } from 'react-dom';
 import Colors from '@/shared/theme/colors';
 import { AppointmentEvent, Order } from '../../types/typeAppointment';
-
-// Importa los datos de las órdenes desde tu mock
 import { orders } from '../../mocks/mockAppointment';
 
 interface GroupedAppointmentsModalProps {
@@ -14,7 +11,7 @@ interface GroupedAppointmentsModalProps {
   onSelectAppointment: (appointment: AppointmentEvent) => void;
 }
 
-// Mapeo de estados a colores de botón y texto
+
 const estadoColores = {
   Finalizado: {
     backgroundColor: '#D2F5D3',
@@ -64,14 +61,11 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
             const estado = appointment.estado as keyof typeof estadoColores;
             const colores = estadoColores[estado];
 
-            // 🔹 Lógica corregida para obtener el tipo de servicio
             let tipoServicio = 'N/A';
             if (typeof appointment.orden === 'string') {
-              // Si la orden es un ID, la buscamos en el array de órdenes
               const orderObj = orders.find((o) => o.id === appointment.orden);
               tipoServicio = orderObj?.tipoServicio || 'N/A';
             } else if (appointment.orden) {
-              // Si ya es un objeto, usamos su propiedad
               tipoServicio = appointment.orden.tipoServicio || 'N/A';
             }
 

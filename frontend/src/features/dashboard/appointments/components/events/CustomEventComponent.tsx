@@ -1,5 +1,3 @@
-// components/events/CustomEventComponent.tsx
-
 import { AppointmentEvent, Order } from "../../types/typeAppointment";
 import { orders } from "../../mocks/mockAppointment";
 
@@ -42,7 +40,6 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
 
   const technicians = event.tecnicos || [];
 
-  // 🔹 Usamos la misma lógica de AppointmentDetailsModal
   let currentOrder: Order | null = null;
   if (typeof event.orden === "string") {
     currentOrder = orders.find((o) => o.id === event.orden) || null;

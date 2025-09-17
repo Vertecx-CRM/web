@@ -1,4 +1,3 @@
-// types/typeAppointment.ts
 export interface Technician {
   id: number;
   nombre: string;
@@ -77,7 +76,7 @@ export interface CreateAppointmentModalProps {
   onClose: () => void;
   onSave: (appointment: Appointment) => void;
   selectedDateTime: SlotDateTime;
-  editingAppointment?: AppointmentEvent | null; // 🔹 Nuevo
+  editingAppointment?: AppointmentEvent | null; 
 }
 
 
@@ -108,7 +107,7 @@ export interface AppointmentErrors {
   año?: string;
   orden?: string;
   tecnico?: string;
-  motivoCancelacion?: string; // 🔹 agregamos error de motivoCancelacion
+  motivoCancelacion?: string; 
 }
 
 export interface FormTouched {
@@ -137,6 +136,6 @@ export interface UseEditAppointmentFormProps {
 
 type WeeklyCalendarProps = {
   selectedDate: Date;
-  search?: string; // 🔎 agregamos el buscador
+  search?: string; 
 };
 

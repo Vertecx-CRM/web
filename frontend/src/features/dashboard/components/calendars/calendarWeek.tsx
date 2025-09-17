@@ -136,7 +136,7 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
     }
 
     setDisplayEvents(newDisplayEvents);
-  }, [events, search]); // ✅ agregamos search aquí
+  }, [events, search]); 
 
 
 
@@ -340,7 +340,7 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
           .join(" ");
         const titulo = (event.title ?? "").toLowerCase();
 
-        // 🔹 Generamos las horas en formato "HH:mm" para buscar
+        // Generamos las horas en formato "HH:mm" para buscar
         const horaInicioStr =
           event.horaInicio && event.minutoInicio
             ? `${event.horaInicio.padStart(2, "0")}:${event.minutoInicio.padStart(2, "0")}`

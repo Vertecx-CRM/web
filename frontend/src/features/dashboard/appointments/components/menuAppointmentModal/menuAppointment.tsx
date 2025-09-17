@@ -1,12 +1,9 @@
-// components/appointments/components/AppointmentDetailsModal/AppointmentDetailsModal.tsx
 import React from 'react';
 import { createPortal } from 'react-dom';
 import Colors from '@/shared/theme/colors';
 import { AppointmentDetailsModalProps, Order } from '../../types/typeAppointment';
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
-
-// Asegúrate de que `orders` esté importado aquí desde tu archivo de mocks
 import { orders } from '../../mocks/mockAppointment';
 
 export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
@@ -29,7 +26,6 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
 
   let currentOrder: Order | null = null;
   if (typeof appointment.orden === 'string') {
-    // 🔹 LÍNEA CORREGIDA: Eliminado el punto extra
     currentOrder = orders.find((o) => o.id === appointment.orden) || null;
   } else {
     currentOrder = appointment.orden || null;

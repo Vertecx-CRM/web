@@ -1,4 +1,3 @@
-// components/calendars/EditAppointmentModal.tsx
 import Colors from "@/shared/theme/colors";
 import React from "react";
 import { createPortal } from "react-dom";
@@ -13,7 +12,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     onSave,
     appointment
 }) => {
-    // Hook de edición
     const {
         formData,
         selectedTechnicians,

@@ -1,4 +1,3 @@
-// validations/validationAppointment.ts
 import { months } from "../mocks/mockAppointment";
 import { AppointmentErrors, AppointmentEvent, AppointmentFormData } from "../types/typeAppointment";
 
@@ -82,7 +81,7 @@ export const hasValidationErrors = (errors: AppointmentErrors): boolean => {
   return Object.keys(errors).length > 0;
 };
 
-// Nueva función para validar técnicos
+// función para validar técnicos
 export const validateTechnicians = (technicians: any[]): string | null => {
   if (technicians.length === 0) {
     return 'Debe seleccionar al menos un técnico';
@@ -90,12 +89,12 @@ export const validateTechnicians = (technicians: any[]): string | null => {
   return null;
 };
 
-// Nueva función para obtener mensajes de error
+// función para obtener mensajes de error
 export const getErrorMessages = (errors: AppointmentErrors): string[] => {
   return Object.values(errors).filter(msg => msg) as string[];
 };
 
-// Nueva función para validar el rango de tiempo
+// función para validar el rango de tiempo
 export const validateTimeRange = (
   horaInicio: string, 
   minutoInicio: string, 
@@ -134,7 +133,6 @@ export const validateCompleteAppointment = (
     errors.timeRange = timeRangeError;
   }
 
-  // Validación adicional: motivoCancelacion obligatorio si estado es Cancelado
   if (formData.estado === "Cancelado" && (!formData.motivoCancelacion || formData.motivoCancelacion.trim() === "")) {
     errors.motivoCancelacion = "Debes indicar el motivo de la cancelación";
   }

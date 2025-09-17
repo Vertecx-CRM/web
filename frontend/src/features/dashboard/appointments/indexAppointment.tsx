@@ -6,7 +6,7 @@ import WeeklyCalendar from "../components/calendars/calendarWeek";
 import { Filtro } from "./filtro/filtro";
 import { ToastContainer } from "react-toastify";
 
-// Reutilizamos el SearchIcon de DataTable
+
 const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
     <circle cx="11" cy="11" r="7" />
@@ -16,8 +16,7 @@ const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
 
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [search, setSearch] = useState(""); // 🔎 estado para el buscador
-
+  const [search, setSearch] = useState(""); 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
   };
@@ -48,7 +47,6 @@ export default function Appointments() {
       {/* Columna derecha - Calendario semanal */}
       <div className="flex-1 w-full lg:w-3/4 flex flex-col">
         <div className="flex-none h-[0px]" />
-        {/* ✅ Ahora WeeklyCalendar recibe la prop search */}
         <WeeklyCalendar selectedDate={selectedDate} search={search} />
       </div>
     </div>

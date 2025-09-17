@@ -1,4 +1,3 @@
-// hooks/useAppointments.ts
 import { useState, useEffect, ChangeEvent, FormEvent, useCallback } from 'react';
 import {
     Appointment,
@@ -142,11 +141,9 @@ export const useCreateAppointmentForm = ({
         let startHour = parseInt(horaInicio);
         let startMinute = parseInt(minutoInicio);
 
-        // Calcular hora final (duración de 2 horas)
         let endHour = startHour + 2;
         let endMinute = startMinute;
 
-        // Ajustar si pasa de medianoche
         if (endHour >= 24) {
             endHour = endHour % 24;
         }
@@ -458,7 +455,6 @@ export const useEditAppointmentForm = ({
 
     useEffect(() => {
         if (appointment) {
-            // Lógica corregida para manejar el tipo de `appointment.orden`
             const orderId = typeof appointment.orden === 'object' && appointment.orden !== null
                 ? appointment.orden.id
                 : appointment.orden;
@@ -635,8 +631,6 @@ export const useEditAppointmentForm = ({
             !hasValidationErrors(formErrors) && !techError && !timeRangeError;
         if (!isValid) return;
 
-        // 🔹 Aseguramos que la orden siempre sea un objeto completo
-        // 🔹 Aseguramos que la orden siempre sea un objeto completo
         let resolvedOrden = null;
         if (formData.orden) {
             if (typeof formData.orden === "object" && formData.orden !== null) {
@@ -656,7 +650,7 @@ export const useEditAppointmentForm = ({
             horaCancelacion: estado === "Cancelado" ? new Date() : null,
             title: buildTitle(resolvedOrden),
 
-            // 🔹 Normalizamos siempre fechas y horas
+            // Normalizamos siempre fechas y horas
             start:
                 formData.start instanceof Date
                     ? formData.start

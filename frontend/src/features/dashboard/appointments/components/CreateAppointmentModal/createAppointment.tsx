@@ -1,4 +1,3 @@
-// components/calendars/CreateAppointmentModal.tsx
 import React from "react";
 import { createPortal } from "react-dom";
 import { CreateAppointmentModalProps } from "../../types/typeAppointment";
@@ -14,7 +13,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     onSave,
     selectedDateTime
 }) => {
-    // Usar el hook de formulario de creación de citas
     const {
         formData,
         selectedTechnicians,

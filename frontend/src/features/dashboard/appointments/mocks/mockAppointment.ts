@@ -47,8 +47,6 @@ export const orders: Order[] = [
   }
 ];
 
-
-// JSON de meses con número como clave
 export const months: { [key: number]: string } = {
   1: "Enero",
   2: "Febrero",
