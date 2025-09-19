@@ -11,7 +11,11 @@ interface ViewRoleModalProps {
   role: Role | null;
 }
 
-export default function ViewRoleModal({ open, onClose, role }: ViewRoleModalProps) {
+export default function ViewRoleModal({
+  open,
+  onClose,
+  role,
+}: ViewRoleModalProps) {
   if (!role) return null;
 
   // Agrupamos permisos por módulo (misma lógica original)
@@ -83,20 +87,28 @@ export default function ViewRoleModal({ open, onClose, role }: ViewRoleModalProp
             "Cotización de Servicio",
             "Orden de Servicio",
             "Dashboard",
-          ].map((module) => (
-            <PermissionCard
-              key={module}
-              module={module}
-              selected={groupedPermissions[module] || []}
-            />
-          ))}
+          ]
+            .filter((module) => (groupedPermissions[module] || []).length > 0) // <-- filtramos solo módulos con permisos
+            .map((module) => (
+              <PermissionCard
+                key={module}
+                module={module}
+                selected={groupedPermissions[module] || []}
+              />
+            ))}
         </div>
       </div>
     </Modal>
   );
 }
 
-function PermissionCard({ module, selected }: { module: string; selected: string[] }) {
+function PermissionCard({
+  module,
+  selected,
+}: {
+  module: string;
+  selected: string[];
+}) {
   const options = ["Editar", "Crear", "Eliminar", "Ver"];
   return (
     <div
