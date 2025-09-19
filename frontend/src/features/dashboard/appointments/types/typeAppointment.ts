@@ -1,9 +1,18 @@
-// types/typeAppointment.ts
 export interface Technician {
   id: number;
   nombre: string;
   titulo: string;
 }
+
+export interface Order {
+  id: string;
+  tipoServicio: "mantenimiento" | "instalacion";
+  tipoMantenimiento?: "preventivo" | "correctivo"; 
+  monto: number;
+  cliente: string;
+  lugar: string;
+}
+
 
 export interface AppointmentFormData {
   horaInicio: string;
@@ -14,7 +23,7 @@ export interface AppointmentFormData {
   mes: string;
   año: string;
   tecnico: string;
-  orden: string;
+  orden?: Order | null;
   observaciones: string;
   motivoCancelacion?: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado";
@@ -27,6 +36,7 @@ export interface Appointment extends AppointmentFormData {
   end: Date;
   title: string;
 }
+
 
 export interface AppointmentEvent {
   id: number;
@@ -41,7 +51,7 @@ export interface AppointmentEvent {
   dia?: string;
   mes?: string;
   año?: string;
-  orden?: string;
+  orden?: Order | null;
   observaciones?: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado";      
   motivoCancelacion?: string;      
@@ -66,7 +76,7 @@ export interface CreateAppointmentModalProps {
   onClose: () => void;
   onSave: (appointment: Appointment) => void;
   selectedDateTime: SlotDateTime;
-  editingAppointment?: AppointmentEvent | null; // 🔹 Nuevo
+  editingAppointment?: AppointmentEvent | null; 
 }
 
 
@@ -97,7 +107,7 @@ export interface AppointmentErrors {
   año?: string;
   orden?: string;
   tecnico?: string;
-  motivoCancelacion?: string; // 🔹 agregamos error de motivoCancelacion
+  motivoCancelacion?: string; 
 }
 
 export interface FormTouched {
@@ -123,3 +133,9 @@ export interface UseEditAppointmentFormProps {
   onSave: (appointment: AppointmentEvent) => void;
   onClose: () => void;
 }
+
+type WeeklyCalendarProps = {
+  selectedDate: Date;
+  search?: string; 
+};
+

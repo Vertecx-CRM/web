@@ -2,8 +2,11 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import Colors from "@/shared/theme/colors";
-import { ViewAppointmentModalProps } from "../../types/typeAppointment";
+import { ViewAppointmentModalProps, Order } from "../../types/typeAppointment";
 import { TechniciansTable } from "../techniciansTable";
+
+// Asegúrate de importar la lista de órdenes desde tu mock
+import { orders } from '../../mocks/mockAppointment';
 
 export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
     isOpen,
@@ -12,10 +15,25 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
 }) => {
     if (!isOpen || !appointment) return null;
 
+    // 🔹 Lógica corregida para resolver la orden
+    let currentOrder: Order | null = null;
+    if (typeof appointment.orden === 'string') {
+        currentOrder = orders.find((o) => o.id === appointment.orden) || null;
+    } else {
+        currentOrder = appointment.orden || null;
+    }
+
+    // Define las variables para los datos de la orden
+    const cliente = currentOrder?.cliente || "N/A";
+    const lugar = currentOrder?.lugar || "N/A";
+    const tipoServicio = currentOrder?.tipoServicio || "N/A";
+    const tipoMantenimiento = currentOrder?.tipoMantenimiento || "";
+    const monto = currentOrder?.monto?.toLocaleString("es-CO") || "0";
+
     return createPortal(
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
             <div
-                className="p-4 rounded-lg shadow-lg w-full max-w-4xl relative z-50 mx-auto max-h-[100vh] flex flex-col"
+                className="p-4 rounded-lg shadow-lg w-full max-w-5xl relative z-50 mx-auto max-h-[100vh] flex flex-col"
                 style={{ backgroundColor: Colors.table.primary }}
             >
                 {/* Botón cerrar */}
@@ -31,7 +49,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                     className="px-4 py-3 rounded-t-lg font-semibold text-2xl mb-4"
                     style={{ color: Colors.texts.primary }}
                 >
-                    Detalles de la cita
+                    Detalles de la cita y orden
                 </div>
 
                 <div
@@ -48,12 +66,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                             <div className="flex space-x-4">
                                 {/* Inicio */}
                                 <div className="flex-1">
-                                    <label
-                                        className="block text-sm font-medium mb-2"
-                                        style={{ color: Colors.texts.primary }}
-                                    >
-                                        Hora de inicio
-                                    </label>
+                                    <label className="block text-sm font-medium mb-2">Hora de inicio</label>
                                     <div className="flex items-center space-x-2">
                                         <div className="w-16 px-3 py-2 border rounded-md text-center" style={{ borderColor: Colors.table.lines }}>
                                             {appointment.horaInicio}
@@ -67,12 +80,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
 
                                 {/* Fin */}
                                 <div className="flex-1">
-                                    <label
-                                        className="block text-sm font-medium mb-2"
-                                        style={{ color: Colors.texts.primary }}
-                                    >
-                                        Hora final
-                                    </label>
+                                    <label className="block text-sm font-medium mb-2">Hora final</label>
                                     <div className="flex items-center space-x-2">
                                         <div className="w-16 px-3 py-2 border rounded-md text-center " style={{ borderColor: Colors.table.lines }}>
                                             {appointment.horaFin}
@@ -88,101 +96,145 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                             {/* Fecha */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div>
-                                    <label
-                                        className="block text-sm font-medium mb-2"
-                                        style={{ color: Colors.texts.primary }}
-                                    >
-                                        Día
-                                    </label>
-                                    <div className="w-full px-3 py-2 border rounded-md text-center" style={{ borderColor: Colors.table.lines }}>
-                                        {appointment.dia}
-                                    </div>
+                                    <label className="block text-sm font-medium mb-2">Día</label>
+                                    <div className="w-full px-3 py-2 border rounded-md text-center">{appointment.dia}</div>
                                 </div>
                                 <div>
-                                    <label
-                                        className="block text-sm font-medium mb-2"
-                                        style={{ color: Colors.texts.primary }}
-                                    >
-                                        Mes
-                                    </label>
-                                    <div className="w-full px-3 py-2 border rounded-md text-center " style={{ borderColor: Colors.table.lines }}>
-                                        {appointment.mes}
-                                    </div>
+                                    <label className="block text-sm font-medium mb-2">Mes</label>
+                                    <div className="w-full px-3 py-2 border rounded-md text-center ">{appointment.mes}</div>
                                 </div>
                                 <div>
-                                    <label
-                                        className="block text-sm font-medium mb-2"
-                                        style={{ color: Colors.texts.primary }}
-                                    >
-                                        Año
-                                    </label>
-                                    <div className="w-full px-3 py-2 border rounded-md text-center " style={{ borderColor: Colors.table.lines }}>
-                                        {appointment.año}
-                                    </div>
+                                    <label className="block text-sm font-medium mb-2">Año</label>
+                                    <div className="w-full px-3 py-2 border rounded-md text-center ">{appointment.año}</div>
                                 </div>
                             </div>
-
-                            {/* Nro Orden */}
+                            
+                            {/* Observación de la cita */}
                             <div>
-                                <label
-                                    className="block text-sm font-medium mb-2"
-                                    style={{ color: Colors.texts.primary }}
-                                >
-                                    Nro. Orden
-                                </label>
-                                <div className="w-full px-3 py-2 border rounded-md " style={{ borderColor: Colors.table.lines }}>
-                                    {appointment.orden}
-                                </div>
-                            </div>
-
-                            {/* Observaciones - TEXTO CORREGIDO */}
-                            <div>
-                                <label
-                                    className="block text-sm font-medium mb-2"
-                                    style={{ color: Colors.texts.primary }}
-                                >
-                                    Observación
-                                </label>
-                                <div
-                                    className="w-full px-3 py-2 border rounded-md min-h-[80px] overflow-y-auto break-words"
-                                    style={{
-                                        borderColor: Colors.table.lines,
-                                        maxHeight: '120px'
-                                    }}
-                                >
+                                <label className="block text-sm font-medium mb-2">Observación</label>
+                                <div className="w-full px-3 py-2 border rounded-md min-h-[80px] overflow-y-auto break-words max-h-[120px]">
                                     {appointment.observaciones || "N/A"}
                                 </div>
                             </div>
 
-                            {/* Evidencia */}
-                            {"evidencia" in appointment && (appointment as any).evidencia && (
+                            {/* Estado de la cita */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Estado</label>
+                                <div className="w-full px-3 py-2 border rounded-md">{appointment.estado || "Sin estado"}</div>
+
+                                {/* Si está cancelado → mostrar motivo y hora */}
+                                {appointment.estado === "Cancelado" && (
+                                    <div className="mt-2 space-y-2">
+                                        {appointment.motivoCancelacion && (
+                                            <div className="px-3 py-2 border rounded-md text-sm italic">
+                                                Motivo: {appointment.motivoCancelacion}
+                                            </div>
+                                        )}
+
+                                        {appointment.horaCancelacion && (
+                                            <div className="px-3 py-2 border rounded-md text-sm">
+                                                Hora cancelación:{" "}
+                                                {new Date(appointment.horaCancelacion).toLocaleTimeString("es-CO", {
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Columna derecha → datos de la orden */}
+                        <div className="space-y-4 text-sm" style={{ color: Colors.texts.primary }}>
+                            {/* Cliente */}
+                            <div>
+                                <label
+                                    className="block text-sm font-medium mb-2"
+                                    style={{ color: Colors.texts.primary }}
+                                >
+                                    Cliente
+                                </label>
+                                <div className="w-full px-3 py-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
+                                    {cliente}
+                                </div>
+                            </div>
+
+                            {/* Dirección */}
+                            <div>
+                                <label
+                                    className="block text-sm font-medium mb-2"
+                                    style={{ color: Colors.texts.primary }}
+                                >
+                                    Dirección
+                                </label>
+                                <div className="w-full px-3 py-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
+                                    {lugar}
+                                </div>
+                            </div>
+
+                            {/* Tipo de servicio */}
+                            <div>
+                                <label
+                                    className="block text-sm font-medium mb-2"
+                                    style={{ color: Colors.texts.primary }}
+                                >
+                                    Tipo de servicio
+                                </label>
+                                <div className="w-full px-3 py-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
+                                    {tipoServicio}
+                                </div>
+                            </div>
+                            
+                            {/* Tipo de mantenimiento (solo si existe y es "mantenimiento") */}
+                            {currentOrder?.tipoServicio === "mantenimiento" && (
                                 <div>
-                                    <label className="block text-sm font-medium mb-2" style={{ color: Colors.texts.primary }}>
-                                        Evidencia
+                                    <label
+                                        className="block text-sm font-medium mb-2"
+                                        style={{ color: Colors.texts.primary }}
+                                    >
+                                        Tipo de mantenimiento
                                     </label>
+                                    <div className="w-full px-3 py-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
+                                        {tipoMantenimiento}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Monto */}
+                            <div>
+                                <label
+                                    className="block text-sm font-medium mb-2"
+                                    style={{ color: Colors.texts.primary }}
+                                >
+                                    Monto
+                                </label>
+                                <div className="w-full px-3 py-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
+                                    ${monto}
+                                </div>
+                            </div>
+
+                            {/* Evidencia */}
+                            {appointment.evidencia && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">Evidencia</label>
                                     <div className="mt-2">
-                                        {(appointment as any).evidencia.type?.startsWith('image/') ? (
+                                        {appointment.evidencia.type?.startsWith("image/") ? (
                                             <img
-                                                src={URL.createObjectURL((appointment as any).evidencia)}
+                                                src={URL.createObjectURL(appointment.evidencia)}
                                                 alt="Evidencia"
                                                 className="max-w-full h-auto max-h-40 rounded-md border"
-                                                style={{ borderColor: Colors.table.lines }}
                                             />
-                                        ) : (appointment as any).evidencia.type?.startsWith('video/') ? (
-                                            <video
-                                                controls
-                                                className="max-w-full h-auto max-h-40 rounded-md border"
-                                                style={{ borderColor: Colors.table.lines }}
-                                            >
-                                                <source src={URL.createObjectURL((appointment as any).evidencia)} />
-                                                Tu navegador no soporta el elemento de video.
+                                        ) : appointment.evidencia.type?.startsWith("video/") ? (
+                                            <video controls className="max-w-full h-auto max-h-40 rounded-md border">
+                                                <source src={URL.createObjectURL(appointment.evidencia)} />
                                             </video>
                                         ) : (
-                                            <div className="flex items-center space-x-2 p-2 border rounded-md" style={{ borderColor: Colors.table.lines }}>
-                                                <span className="text-sm">{(appointment as any).evidencia.name}</span>
+                                            <div className="flex items-center space-x-2 p-2 border rounded-md">
+                                                <span className="text-sm">{appointment.evidencia.name}</span>
                                                 <a
-                                                    href={URL.createObjectURL((appointment as any).evidencia)}
-                                                    download={(appointment as any).evidencia.name}
+                                                    href={URL.createObjectURL(appointment.evidencia)}
+                                                    download={appointment.evidencia.name}
                                                     className="px-2 py-1 text-xs rounded text-white"
                                                     style={{ backgroundColor: Colors.buttons.quaternary }}
                                                 >
@@ -194,74 +246,17 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                                 </div>
                             )}
 
-                            {/* Estado */}
-                            {/* Estado */}
+                            {/* Técnicos asignados */}
                             <div>
-                                <label
-                                    className="block text-sm font-medium mb-2"
-                                    style={{ color: Colors.texts.primary }}
-                                >
-                                    Estado
-                                </label>
-                                <div
-                                    className="w-full px-3 py-2 border rounded-md"
-                                    style={{ borderColor: Colors.table.lines }}
-                                >
-                                    {(appointment as any).estado || "Sin estado"}
-                                </div>
-
-                                {/* Si está cancelado → mostrar motivo y hora */}
-                                {(appointment as any).estado === "Cancelado" && (
-                                    <div className="mt-2 space-y-2">
-                                        {(appointment as any).motivoCancelacion && (
-                                            <div
-                                                className="px-3 py-2 border rounded-md text-sm italic"
-                                                style={{ borderColor: Colors.table.lines }}
-                                            >
-                                                Motivo: {(appointment as any).motivoCancelacion}
-                                            </div>
-                                        )}
-
-                                        {(appointment as any).horaCancelacion && (
-                                            <div
-                                                className="px-3 py-2 border rounded-md text-sm"
-                                                style={{ borderColor: Colors.table.lines }}
-                                            >
-                                                Hora cancelación:{" "}
-                                                {new Date((appointment as any).horaCancelacion).toLocaleTimeString(
-                                                    "es-CO",
-                                                    {
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    }
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                <label className="block text-sm font-medium mb-2">Técnicos asignados</label>
+                                <TechniciansTable technicians={appointment.tecnicos || []} onRemoveTechnician={() => { }} />
                             </div>
-                        </div>
-
-                        {/* Columna derecha → tabla de técnicos */}
-                        <div>
-                            <label
-                                className="block text-sm font-medium mb-2"
-                                style={{ color: Colors.texts.primary }}
-                            >
-                                Técnicos asignados
-                            </label>
-                            <TechniciansTable
-                                technicians={appointment.tecnicos || []}
-                                onRemoveTechnician={() => { }} // Solo visualización
-                            />
                         </div>
                     </div>
                 </div>
 
                 {/* Botones */}
-                <div
-                    className="p-4 flex justify-end"
-                >
+                <div className="p-4 flex justify-end">
                     <button
                         type="button"
                         onClick={onClose}

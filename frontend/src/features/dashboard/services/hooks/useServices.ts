@@ -74,8 +74,25 @@ export const useServices = (initialServices: Service[]) => {
     )
       return;
 
+      if (!validateServiceWithNotification(payload)) {
+        return;
+    }
+
+    let updatedServiceImage = payload.image;
+    if (updatedServiceImage instanceof File) {
+        updatedServiceImage = URL.createObjectURL(updatedServiceImage);
+    }
+
     setServices((prev) =>
-      prev.map((s) => (s.id === id ? { ...payload, id } : s))
+        prev.map((s) =>
+            s.id === id
+                ? {
+                    ...payload,
+                    id,
+                    image: updatedServiceImage,
+                  }
+                : s
+        )
     );
     setEditingService(null);
     showSuccess("Servicio actualizado exitosamente!");

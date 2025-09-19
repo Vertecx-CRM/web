@@ -46,7 +46,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       setPrice(formatPrice(product.price));
       setStock(product.stock);
       setCategory(product.category);
-      setImage(product.image ?? undefined);
+      // CORRECCIÓN: Se asegura de que image sea una string si existe, de acuerdo con el state.
+      setImage(product.image ? (product.image as string) : undefined);
       setState(product.state ?? "Activo");
       setIsImageDeleted(false);
       setErrors({});
@@ -65,7 +66,11 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
     setPrice(formatPrice(Number(numericValue)));
   };
 
-  const validateField = (field: keyof Omit<Product, "id" | "state">, value: any) => {
+  // CORRECCIÓN: El valor `value` ya no es `any`, ahora está fuertemente tipado
+  const validateField = (
+    field: keyof Omit<Product, "id" | "state">,
+    value: string | number | File | undefined
+  ) => {
     let filteredProducts = products;
     if (product && field === "name") {
       filteredProducts = products.filter((p) => p.id !== product.id);
@@ -73,8 +78,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
     const error = validateProductField(field, value, filteredProducts);
     setErrors((prev) => {
       const newErrors = { ...prev };
-      if (error) newErrors[field] = error;
-      else delete (newErrors as any)[field];
+      if (error) {
+        newErrors[field] = error;
+      } else {
+        // CORRECCIÓN: Se elimina la propiedad del objeto sin necesidad de 'as any'
+        delete newErrors[field];
+      }
       return newErrors;
     });
   };
@@ -94,12 +103,14 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       price: Number(price.replace(/\./g, "")),
       stock: Number(stock),
       category,
-      image: isImageDeleted ? undefined : (image as unknown as string),
+      // CORRECCIÓN: Se elimina el 'as unknown as string' ya que image puede ser File o string.
+      image: isImageDeleted ? undefined : image,
       state,
     };
 
     const filteredProducts = products.filter((p) => p.id !== product.id);
-    const formErrors = validateProductForm(payload as any, filteredProducts);
+    // CORRECCIÓN: Se elimina el 'as any'. La función `validateProductForm` ahora recibe el tipo correcto.
+    const formErrors = validateProductForm(payload, filteredProducts);
     setErrors(formErrors);
 
     if (Object.keys(formErrors).length > 0) {
@@ -176,7 +187,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                   image
                     ? image instanceof File
                       ? URL.createObjectURL(image)
-                      : image
+                      : (image as string)
                     : (product?.image as string)
                 }
                 alt="Producto"
@@ -190,7 +201,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
               </svg>
             )}
           </div>
@@ -200,13 +216,16 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
               Haga clic en el círculo para{" "}
               {!isImageDeleted && (image || product?.image)
                 ? "cambiar"
-                : "seleccionar"} la imagen
+                : "seleccionar"}{" "}
+              la imagen
             </div>
 
             {!isImageDeleted && (image || product?.image) && (
               <div className="flex flex-col items-center space-y-1">
                 {imageName && (
-                  <div className="text-xs text-green-600 font-medium">{imageName}</div>
+                  <div className="text-xs text-green-600 font-medium">
+                    {imageName}
+                  </div>
                 )}
                 <button
                   type="button"
@@ -222,13 +241,18 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 </button>
               </div>
             )}
-            {errors.image && <span className="text-xs text-red-500 mt-1">{errors.image}</span>}
+            {errors.image && (
+              <span className="text-xs text-red-500 mt-1">{errors.image}</span>
+            )}
           </div>
         </div>
 
         {/* Nombre */}
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Nombre <span className="text-red-500">*</span>
           </label>
           <input
@@ -241,12 +265,17 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="w-full px-2 py-1 border rounded-md"
             style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
           />
-          {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
+          {errors.name && (
+            <span className="text-xs text-red-500">{errors.name}</span>
+          )}
         </div>
 
         {/* Precio */}
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Precio <span className="text-red-500">*</span>
           </label>
           <input
@@ -258,12 +287,17 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="w-full px-2 py-1 border rounded-md"
             style={{ borderColor: errors.price ? "red" : Colors.table.lines }}
           />
-          {errors.price && <span className="text-xs text-red-500">{errors.price}</span>}
+          {errors.price && (
+            <span className="text-xs text-red-500">{errors.price}</span>
+          )}
         </div>
 
         {/* Stock */}
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Cantidad
           </label>
           <input
@@ -277,7 +311,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 
         {/* Categoría */}
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Categoría <span className="text-red-500">*</span>
           </label>
           <select
@@ -288,7 +325,9 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             }}
             onBlur={() => validateField("category", category)}
             className="w-full px-2 py-1 border rounded-md"
-            style={{ borderColor: errors.category ? "red" : Colors.table.lines }}
+            style={{
+              borderColor: errors.category ? "red" : Colors.table.lines,
+            }}
           >
             <option value="">Seleccione categoría</option>
             {categories.map((c) => (
@@ -297,12 +336,17 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
               </option>
             ))}
           </select>
-          {errors.category && <span className="text-xs text-red-500">{errors.category}</span>}
+          {errors.category && (
+            <span className="text-xs text-red-500">{errors.category}</span>
+          )}
         </div>
 
         {/* Estado */}
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Estado
           </label>
           <select
@@ -318,7 +362,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 
         {/* Descripción */}
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
             Descripción
           </label>
           <textarea

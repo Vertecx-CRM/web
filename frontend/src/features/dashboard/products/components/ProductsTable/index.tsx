@@ -75,7 +75,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       createButtonText="Crear Producto"
       rightActions={
         <DownloadXLSXButton
-          data={products}
+          data={products as unknown as Record<string, unknown>[]}
           fileName="reporte_productos.xlsx"
         />
       }
