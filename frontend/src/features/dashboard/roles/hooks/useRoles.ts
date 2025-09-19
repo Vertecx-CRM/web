@@ -3,32 +3,7 @@ import { Role, CreateRoleData, EditRoleData } from "../types/typeRoles";
 import { initialRoles } from "../mocks/mockRoles";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-
-const validateRoleWithNotification = (
-  roleData: CreateRoleData | EditRoleData,
-  existingRoles: Role[],
-  editingId?: number
-): boolean => {
-  if (!roleData.name.trim()) {
-    showWarning("El nombre del rol es obligatorio");
-    return false;
-  }
-
-  const isDuplicate = existingRoles.some(
-    r => r.name.toLowerCase() === roleData.name.trim().toLowerCase() && r.id !== editingId
-  );
-  if (isDuplicate) {
-    showWarning("Ya existe un rol con ese nombre");
-    return false;
-  }
-
-  if (!roleData.permissions || roleData.permissions.length === 0) {
-    showWarning("Debe asignar al menos un permiso al rol");
-    return false;
-  }
-
-  return true;
-};
+import { validateRoleForm } from "../validations/rolesValidations";
 
 export const useRoles = () => {
   const [roles, setRoles] = useState<Role[]>(initialRoles);
@@ -42,7 +17,9 @@ export const useRoles = () => {
   const selectedRole = editingRole ?? viewingRole ?? null;
 
   const handleCreateRole = (payload: CreateRoleData) => {
-    if (!validateRoleWithNotification(payload, roles)) return;
+    const errors = validateRoleForm(payload, roles);
+    if (errors.name) return showWarning(errors.name);
+    if (errors.permissions) return showWarning(errors.permissions);
 
     const nextId = roles.length ? Math.max(...roles.map(r => r.id)) + 1 : 1;
     const newRole: Role = {
@@ -57,7 +34,9 @@ export const useRoles = () => {
   };
 
   const handleEditRole = (id: number, payload: EditRoleData) => {
-    if (!validateRoleWithNotification(payload, roles, id)) return;
+    const errors = validateRoleForm(payload, roles, id);
+    if (errors.name) return showWarning(errors.name);
+    if (errors.permissions) return showWarning(errors.permissions);
 
     setRoles(prev => prev.map(r => (r.id === id ? { ...r, ...payload, name: payload.name.trim() } : r)));
     setEditingRole(null);

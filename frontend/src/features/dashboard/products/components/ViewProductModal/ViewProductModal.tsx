@@ -3,31 +3,30 @@
 import React from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
-import { Technician } from "../../types/typesTechnicians";
+import { Product } from "@/features/dashboard/products/types/typesProducts";
 
-interface ViewTechnicianModalProps {
+interface ViewProductModalProps {
   isOpen: boolean;
-  technician: Technician | null;
+  product: Product | null;
   onClose: () => void;
 }
 
-const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
+const ViewProductModal: React.FC<ViewProductModalProps> = ({
   isOpen,
-  technician,
+  product,
   onClose,
 }) => {
-  if (!technician) return null;
+  if (!product) return null;
 
-  // 🔥 Generamos iniciales si no hay imagen
-  const getInitials = (name: string, lastName: string) => {
-    const firstInitial = name?.charAt(0)?.toUpperCase() ?? "";
-    const lastInitial = lastName?.charAt(0)?.toUpperCase() ?? "";
-    return `${firstInitial}${lastInitial}`;
-  };
+  // 👇 Resolver la imagen (string o File)
+  const imageSrc =
+    product.image instanceof File
+      ? URL.createObjectURL(product.image)
+      : product.image;
 
   return (
     <Modal
-      title="Detalle del Técnico"
+      title="Detalle del Producto"
       isOpen={isOpen}
       onClose={onClose}
       footer={
@@ -49,16 +48,28 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
       <div className="grid grid-cols-2 gap-3 p-1">
         {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
-          <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-bold text-lg"
-            style={{ backgroundColor: technician.image ? "transparent" : "#f3f4f6" }}>
-            {technician.image ? (
+          <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden">
+            {imageSrc ? (
               <img
-                src={technician.image}
-                alt={`${technician.name} ${technician.lastName}`}
+                src={imageSrc}
+                alt={product.name}
                 className="w-full h-full object-cover rounded-full"
               />
             ) : (
-              getInitials(technician.name, technician.lastName)
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
+              </svg>
             )}
           </div>
         </div>
@@ -72,72 +83,46 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
             Nombre
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.name}
+            {product.name}
           </div>
         </div>
 
-        {/* Apellido */}
+        {/* Precio */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Apellido
+            Precio
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.lastName}
+            {Number(product.price).toLocaleString("es-CO")}
           </div>
         </div>
 
-        {/* Tipo de Documento */}
+        {/* Stock */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Tipo de Documento
+            Cantidad
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.documentType}
+            {product.stock}
           </div>
         </div>
 
-        {/* Número de Documento */}
+        {/* Categoría */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Número de Documento
+            Categoría
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.documentNumber}
-          </div>
-        </div>
-
-        {/* Teléfono */}
-        <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Teléfono
-          </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.phone}
-          </div>
-        </div>
-
-        {/* Correo */}
-        <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Correo Electrónico
-          </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.email}
+            {product.category}
           </div>
         </div>
 
@@ -150,7 +135,20 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
             Estado
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.state}
+            {product.state}
+          </div>
+        </div>
+
+        {/* Descripción */}
+        <div className="col-span-2">
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Descripción
+          </label>
+          <div className="px-2 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-line">
+            {product.description || "Sin descripción"}
           </div>
         </div>
       </div>
@@ -158,4 +156,4 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
   );
 };
 
-export default ViewTechnicianModal;
+export default ViewProductModal;

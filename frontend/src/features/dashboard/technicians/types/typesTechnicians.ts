@@ -57,3 +57,17 @@ export interface EditTechnicianData {
   image?: string;
   state?: TechnicianState;
 }
+
+// 👇 Nuevo type para evitar el error de "image no existe en TechnicianErrors"
+export type TechnicianErrors = {
+  name?: string;
+  lastName?: string;
+  password?: string;
+  confirmPassword?: string;
+  documentType?: string;
+  documentNumber?: string;
+  phone?: string;
+  email?: string;
+  image?: string;
+  state?: string;
+};
