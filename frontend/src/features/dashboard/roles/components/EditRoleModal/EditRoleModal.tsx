@@ -1,8 +1,10 @@
-// src/features/dashboard/roles/components/EditRoleModal/EditRole.tsx
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
-import { EditRoleData, PermissionGroup } from "../../types/typeRoles";
+import { EditRoleData, PermissionGroup, Role } from "../../types/typeRoles";
+import { showWarning } from "@/shared/utils/notifications";
 
 const permissionGroups: PermissionGroup[] = [
   { title: "Roles", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
@@ -23,145 +25,176 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Dashboard", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
 ];
 
-
 interface EditRoleModalProps {
   isOpen: boolean;
   role: EditRoleData | null;
   onClose: () => void;
   onSave: (id: number, data: EditRoleData) => void;
+  existingRoles: Role[];
 }
 
-export const EditRoleModal: React.FC<EditRoleModalProps> = ({
+export default function EditRoleModal({
   isOpen,
   role,
   onClose,
   onSave,
-}) => {
+  existingRoles,
+}: EditRoleModalProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"Activo" | "Inactivo">("Activo");
   const [permissions, setPermissions] = useState<string[]>([]);
-useEffect(() => {
-  if (role) {
-    setName(role.name);
-    setStatus(role.status as "Activo" | "Inactivo");
+  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
-    const rolePerms = Array.isArray(role.permissions) ? role.permissions : [];
-
-    const rolePermissionsWithGroup: string[] = [];
-
-    permissionGroups.forEach((group) => {
-      group.permissions.forEach((perm) => {
-        const key = `${group.title}-${perm}`;
-        if (rolePerms.includes(key)) {
-          rolePermissionsWithGroup.push(key);
-        }
+  useEffect(() => {
+    if (role) {
+      setName(role.name);
+      setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
+      setErrors({});
+      const rolePerms = Array.isArray(role.permissions) ? role.permissions : [];
+      const mapped: string[] = [];
+      permissionGroups.forEach((group) => {
+        group.permissions.forEach((perm) => {
+          const key = `${group.title}-${perm}`;
+          if (rolePerms.includes(key)) mapped.push(key);
+        });
       });
-    });
-
-    setPermissions(rolePermissionsWithGroup);
-  }
-}, [role]);
-
-
-
+      setPermissions(mapped);
+    }
+  }, [role]);
 
   if (!isOpen || !role) return null;
 
-  const handleTogglePermission = (key: string) => {
-    setPermissions(prev =>
-      prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-    );
+  const validateForm = (nameVal?: string, permsVal?: string[]) => {
+    const newErrors: { name?: string; permissions?: string } = {};
+    const nameToCheck = (nameVal ?? name).trim();
+    const permsToCheck = permsVal ?? permissions;
+
+    if (!nameToCheck) {
+      newErrors.name = "El nombre del rol es obligatorio";
+    } else {
+      const isDuplicate = existingRoles.some(
+        (r) => r.name.toLowerCase() === nameToCheck.toLowerCase() && r.id !== role.id
+      );
+      if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
+    }
+
+    if (!permsToCheck || permsToCheck.length === 0) {
+      newErrors.permissions = "Debe asignar al menos un permiso al rol";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onSave(role.id, { id: role.id, name: name.trim(), status, permissions });
+  const handleTogglePermission = (key: string) => {
+    const updated = permissions.includes(key)
+      ? permissions.filter((p) => p !== key)
+      : [...permissions, key];
+    setPermissions(updated);
+    validateForm(undefined, updated);
+  };
+
+  const handleSubmit = () => {
+    if (!validateForm()) {
+      showWarning("Por favor completa los campos obligatorios correctamente");
+      return;
+    }
+    onSave(role.id, { id: role.id, name: name.trim(), state: status, permissions });
     onClose();
   };
 
-  return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl relative mx-auto flex flex-col max-h-[90vh]">
-        <button onClick={onClose} className="absolute top-3 right-3 z-10">
-          <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
-        </button>
-
-        <div className="px-6 pt-6 pb-4 font-semibold text-2xl" style={{ color: Colors.texts.primary }}>
-          Editar Rol
+  return (
+    <Modal
+      title="Editar Rol"
+      isOpen={isOpen}
+      onClose={onClose}
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md font-medium text-sm transition-colors"
+            style={{
+              backgroundColor: Colors.buttons.tertiary,
+              color: Colors.texts.quaternary,
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 rounded-md font-medium text-sm text-white"
+            style={{
+              backgroundColor: Colors.buttons.quaternary,
+              color: Colors.texts.quaternary,
+            }}
+          >
+            Actualizar
+          </button>
+        </>
+      }
+    >
+      <div className="overflow-y-auto max-h-[60vh] space-y-6">
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            Nombre del rol <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              validateForm(e.target.value, permissions);
+            }}
+            onBlur={() => validateForm()}
+            placeholder="Ingrese nombre del rol"
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
+            style={{
+              borderColor: errors.name ? "red" : Colors.table.lines,
+              outlineColor: Colors.buttons.quaternary,
+            }}
+          />
+          {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
         </div>
 
-        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto" style={{ outlineColor: Colors.table.lines }} />
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            Estado
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
+            style={{
+              borderColor: Colors.table.lines,
+              outlineColor: Colors.buttons.quaternary,
+            }}
+          >
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+          </select>
+        </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto px-6 py-4 space-y-6">
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Nombre del rol
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ingrese nombre del rol"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-              style={{ borderColor: Colors.table.lines, outlineColor: Colors.buttons.quaternary }}
+        <h3 className="text-center font-semibold" style={{ color: Colors.texts.primary }}>
+          Permisos Asignados <span className="text-red-500">*</span>
+        </h3>
+        {errors.permissions && (
+          <p className="text-center text-xs text-red-500">{errors.permissions}</p>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {permissionGroups.map((group) => (
+            <PermissionCard
+              key={group.title}
+              group={group}
+              selected={permissions}
+              onToggle={handleTogglePermission}
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Estado
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-              style={{ borderColor: Colors.table.lines, outlineColor: Colors.buttons.quaternary }}
-            >
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
-          </div>
-
-          <h3 className="text-center font-semibold" style={{ color: Colors.texts.primary }}>
-            Permisos Asignados
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {permissionGroups.map((group) => (
-              <PermissionCard
-                key={group.title}
-                group={group}
-                selected={permissions}
-                onToggle={handleTogglePermission}
-              />
-            ))}
-          </div>
-
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto" style={{ outlineColor: Colors.table.lines }} />
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-md font-medium text-sm transition-colors"
-              style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md font-medium text-sm text-white"
-              style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
-            >
-              Actualizar
-            </button>
-          </div>
-        </form>
+          ))}
+        </div>
       </div>
-    </div>,
-    document.body
+    </Modal>
   );
-};
+}
 
 function PermissionCard({
   group,
@@ -173,7 +206,13 @@ function PermissionCard({
   onToggle: (key: string) => void;
 }) {
   return (
-    <div className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow" style={{ border: `1px solid ${Colors.table.lines}`, backgroundColor: Colors.background.tertiary }}>
+    <div
+      className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+      style={{
+        border: `1px solid ${Colors.table.lines}`,
+        backgroundColor: Colors.background.tertiary,
+      }}
+    >
       <span className="block font-medium mb-3" style={{ color: Colors.texts.primary }}>
         {group.title}
       </span>
@@ -182,14 +221,35 @@ function PermissionCard({
           const key = `${group.title}-${perm}`;
           const isChecked = selected.includes(key);
           return (
-            <label key={key} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: Colors.texts.primary }}>
+            <label
+              key={key}
+              className="flex items-center gap-2 text-sm cursor-pointer"
+              style={{ color: Colors.texts.primary }}
+            >
               <span
                 onClick={() => onToggle(key)}
-                className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""}`}
-                style={{ backgroundColor: isChecked ? Colors.buttons.quaternary : Colors.background.primary, borderColor: isChecked ? Colors.buttons.quaternary : Colors.table.lines }}
+                className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
+                  isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
+                }`}
+                style={{
+                  backgroundColor: isChecked
+                    ? Colors.buttons.quaternary
+                    : Colors.background.primary,
+                  borderColor: isChecked
+                    ? Colors.buttons.quaternary
+                    : Colors.table.lines,
+                }}
               >
                 {isChecked && (
-                  <svg className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    className="h-3 w-3 text-white"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 )}
@@ -202,5 +262,3 @@ function PermissionCard({
     </div>
   );
 }
-
-export default EditRoleModal;
