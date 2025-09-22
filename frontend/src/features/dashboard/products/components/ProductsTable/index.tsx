@@ -1,6 +1,7 @@
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Product } from "@/features/dashboard/products/types/typesProducts";
+import DownloadXLSXButton from "../../../components/DownloadXLSXButton"; // <-- importamos el botón
 
 interface ProductsTableProps {
   products: Product[];
@@ -27,8 +28,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       render: (p) => `$${p.price.toLocaleString("es-CO")}`,
     },
     { key: "stock", header: "Stock" },
-
-    // 👇 Nueva columna para la imagen
     {
       key: "image",
       header: "Imagen",
@@ -43,7 +42,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
           <span className="text-gray-400 text-xs italic">Sin imagen</span>
         ),
     },
-
     {
       key: "state",
       header: "Estado",
@@ -75,6 +73,12 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       onCreate={onCreate}
       searchPlaceholder="Buscar productos..."
       createButtonText="Crear Producto"
+      rightActions={
+        <DownloadXLSXButton
+          data={products}
+          fileName="reporte_productos.xlsx"
+        />
+      }
     />
   );
 };

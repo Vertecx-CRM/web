@@ -26,9 +26,9 @@ interface IColors {
     primary: string;
   };
   states: {
-    info: any;
-    error: any;
-    warning: any;
+    info?: any;
+    error?: any;
+    warning?: any;
     success: string;
     pending: string;
     inactive: string;
@@ -40,6 +40,20 @@ interface IColors {
     tertiary: string;
     quaternary: string;
   };
+  graphic: {
+    linePrimary: string;
+    lineSecondary: string;
+    lineThird: string;
+    lineMax: string;
+    circle: {
+      primary?: string;
+      secondary?: string;
+      tertiary?: string;
+      quaternary?: string;
+      quinary?: string;
+      scenery?: string;
+    }
+  }
 }
 const Colors: IColors = {
   buttons: {
@@ -75,10 +89,24 @@ const Colors: IColors = {
     nullable: "#B20000",
   },
   calendar: {
-    primary: "##b20000",
-    secondary: "##ffd6d6",
+    primary: "#b20000",
+    secondary: "#ffd6d6",
     tertiary: "#ffffff",
-    quaternary: "###f4f4f4",
+    quaternary: "#f4f4f4",
+  },
+  graphic: {
+    linePrimary: "#B20000",
+    lineSecondary: "#E9E9E9",
+    lineThird: "#CC0000",
+    lineMax: "#CC0000",
+    circle: {
+      primary: "#E60000",
+      secondary: "#D00000",
+      tertiary: "#B20000",
+      quaternary: "#990000",
+      quinary: "#800000",
+      scenery: "#660000"
+    }
   },
 };
 
