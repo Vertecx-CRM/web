@@ -1,155 +1,93 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
+import { showWarning } from "@/shared/utils/notifications";
+import { Role } from "../../types/typeRoles";
+
+interface CreateRoleModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: { name: string; permissions: string[] }) => void;
+  existingRoles: Role[];
+}
 
 export default function CreateRoleModal({
   open,
   onClose,
   onSubmit,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (data: any) => void;
-}) {
+  existingRoles,
+}: CreateRoleModalProps) {
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
+  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
-  // 🔑 Resetea datos cada vez que el modal se abre
   useEffect(() => {
     if (open) {
       setRoleName("");
       setPermissions({});
+      setErrors({});
     }
   }, [open]);
 
   const togglePermission = (module: string, permission: string) => {
     setPermissions((prev) => {
       const current = prev[module] || [];
-      return {
-        ...prev,
-        [module]: current.includes(permission)
-          ? current.filter((p) => p !== permission)
-          : [...current, permission],
-      };
+      const updated = current.includes(permission)
+        ? current.filter((p) => p !== permission)
+        : [...current, permission];
+      return { ...prev, [module]: updated };
     });
+    setTimeout(validateForm, 0); // mantiene validación en tiempo real
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: { name?: string; permissions?: string } = {};
+    if (!roleName.trim()) {
+      newErrors.name = "El nombre del rol es obligatorio";
+    } else if (
+      existingRoles.some((r) => r.name.toLowerCase() === roleName.trim().toLowerCase())
+    ) {
+      newErrors.name = "Ya existe un rol con ese nombre";
+    }
+
+    const selectedCount = Object.values(permissions).reduce(
+      (acc, arr) => acc + arr.length,
+      0
+    );
+    if (selectedCount === 0) {
+      newErrors.permissions = "Debe asignar al menos un permiso";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = () => {
-  const formattedPermissions: string[] = [];
+    if (!validateForm()) {
+      showWarning("Por favor completa los campos obligatorios correctamente");
+      return;
+    }
 
-  Object.entries(permissions).forEach(([module, perms]) => {
-    perms.forEach((perm) => {
-      formattedPermissions.push(`${module}-${perm}`);
+    const formattedPermissions: string[] = [];
+    Object.entries(permissions).forEach(([module, perms]) => {
+      perms.forEach((perm) => {
+        formattedPermissions.push(`${module}-${perm}`);
+      });
     });
-  });
 
-  onSubmit({ name: roleName, permissions: formattedPermissions });
-  onClose();
-};
+    onSubmit({ name: roleName.trim(), permissions: formattedPermissions });
+    onClose();
+  };
 
-
-  if (!open) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl relative mx-auto flex flex-col max-h-[90vh]">
-        {/* Botón cerrar */}
-        <button onClick={onClose} className="absolute top-3 right-3 z-10">
-          <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
-        </button>
-
-        {/* HEADER */}
-        <div
-          className="px-6 pt-6 pb-4 font-semibold text-2xl"
-          style={{ color: Colors.texts.primary }}
-        >
-          Crear Rol
-        </div>
-
-        {/* DIVIDER */}
-        <div
-          className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto"
-          style={{ outlineColor: Colors.table.lines }}
-        />
-
-        {/* BODY */}
-        <div className="overflow-y-auto px-6 py-4 space-y-6">
-          {/* Nombre del Rol */}
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Nombre del rol
-            </label>
-            <input
-              type="text"
-              value={roleName}
-              onChange={(e) => setRoleName(e.target.value)}
-              placeholder="Ingrese nombre de rol"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-              style={{
-                borderColor: Colors.table.lines,
-                outlineColor: Colors.buttons.quaternary,
-              }}
-            />
-          </div>
-
-          {/* Permisos */}
-          <h3
-            className="text-center font-semibold"
-            style={{ color: Colors.texts.primary }}
-          >
-            Permisos Asignados
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {[
-              "Roles",
-              "Usuarios",
-              "Categoría de Productos",
-              "Productos",
-              "Proveedores",
-              "Órdenes de Compra",
-              "Compras",
-              "Servicios",
-              "Técnicos",
-            ].map((module) => (
-              <PermissionCard
-                key={module}
-                module={module}
-                selected={permissions[module] || []}
-                onToggle={togglePermission}
-              />
-            ))}
-            {[
-              "Órdenes de compras",
-              "Técnicos",
-              "Horarios de los técnicos",
-              "Clientes",
-              "Solicitud de Servicio",
-              "Citas",
-              "Cotización de Servicio",
-              "Orden de Servicio",
-              "Dashboard",
-            ].map((module) => (
-              <PermissionCard
-                key={module}
-                module={module}
-                selected={permissions[module] || []}
-                onToggle={togglePermission}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* DIVIDER */}
-        <div
-          className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto"
-          style={{ outlineColor: Colors.table.lines }}
-        />
-
-        {/* FOOTER */}
-        <div className="flex justify-end space-x-3 p-4">
+  return (
+    <Modal
+      title="Crear Rol"
+      isOpen={open}
+      onClose={onClose}
+      footer={
+        <>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-md font-medium text-sm transition-colors"
@@ -170,10 +108,71 @@ export default function CreateRoleModal({
           >
             Guardar
           </button>
+        </>
+      }
+    >
+      <div className="overflow-y-auto max-h-[60vh] space-y-6">
+        <div>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Nombre del rol <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={roleName}
+            onChange={(e) => setRoleName(e.target.value)}
+            placeholder="Ingrese nombre de rol"
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
+            style={{
+              borderColor: errors.name ? "red" : Colors.table.lines,
+              outlineColor: Colors.buttons.quaternary,
+            }}
+            onBlur={validateForm}
+          />
+          {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
+        </div>
+
+        <h3
+          className="text-center font-semibold"
+          style={{ color: Colors.texts.primary }}
+        >
+          Permisos Asignados <span className="text-red-500">*</span>
+        </h3>
+        {errors.permissions && (
+          <p className="text-center text-xs text-red-500">{errors.permissions}</p>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {[
+            "Roles",
+            "Usuarios",
+            "Categoría de Productos",
+            "Productos",
+            "Proveedores",
+            "Órdenes de Compra",
+            "Compras",
+            "Servicios",
+            "Técnicos",
+            "Horarios de los técnicos",
+            "Clientes",
+            "Solicitud de Servicio",
+            "Citas",
+            "Cotización de Servicio",
+            "Orden de Servicio",
+            "Dashboard",
+          ].map((module) => (
+            <PermissionCard
+              key={module}
+              module={module}
+              selected={permissions[module] || []}
+              onToggle={togglePermission}
+            />
+          ))}
         </div>
       </div>
-    </div>,
-    document.body
+    </Modal>
   );
 }
 
@@ -187,13 +186,12 @@ function PermissionCard({
   onToggle: (module: string, permission: string) => void;
 }) {
   const options = ["Editar", "Crear", "Eliminar", "Ver"];
-
   return (
     <div
       className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
       style={{
         border: `1px solid ${Colors.table.lines}`,
-        backgroundColor: Colors.background.tertiary, // 🌸 más clarito
+        backgroundColor: Colors.background.tertiary,
       }}
     >
       <span

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -8,6 +8,7 @@ import { useProducts } from "./hooks/useProducts";
 import ProductsTable from "./components/ProductsTable";
 import CreateProductModal from "./components/CreateProductModal/CreateProductModal";
 import EditProductModal from "./components/EditProductModal/EditProductModal";
+import ViewProductModal from "./components/ViewProductModal/ViewProductModal";
 
 export default function Index() {
   const {
@@ -25,6 +26,8 @@ export default function Index() {
     closeModals,
   } = useProducts();
 
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
   return (
     <div className="min-h-screen flex">
       <ToastContainer position="bottom-right" />
@@ -36,6 +39,7 @@ export default function Index() {
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={(data) => handleCreateProduct(data)}
+              products={products}
             />
 
             <EditProductModal
@@ -43,13 +47,27 @@ export default function Index() {
               product={selectedProduct}
               onClose={() => setIsEditModalOpen(false)}
               onSave={(data) => handleEditProduct(data.id, data)}
+              products={products}
+            />
+
+            {/* Modal de Ver */}
+            <ViewProductModal
+              isOpen={isViewModalOpen}
+              product={selectedProduct}
+              onClose={() => setIsViewModalOpen(false)}
             />
 
             {/* Tabla */}
             <ProductsTable
               products={products}
-              onView={(p) => handleView(p)}
-              onEdit={(p) => { handleEdit(p); setIsEditModalOpen(true); }}
+              onView={(p) => {
+                handleView(p);
+                setIsViewModalOpen(true);
+              }}
+              onEdit={(p) => {
+                handleEdit(p);
+                setIsEditModalOpen(true);
+              }}
               onDelete={handleDelete}
               onCreate={() => setIsCreateModalOpen(true)}
             />

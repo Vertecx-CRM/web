@@ -3,6 +3,7 @@
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
+import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
 
 interface ServicesTableProps {
   services: Service[];
@@ -23,7 +24,6 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     { key: "id", header: "ID" },
     { key: "name", header: "Nombre" },
     { key: "category", header: "Categoría" },
-
     {
       key: "image",
       header: "Imagen",
@@ -59,7 +59,6 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
         );
       },
     },
-
     {
       key: "state",
       header: "Estado",
@@ -91,6 +90,12 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       onCreate={onCreate}
       searchPlaceholder="Buscar servicios..."
       createButtonText="Crear Servicio"
+      rightActions={
+        <DownloadXLSXButton
+          data={services}
+          fileName="reporte_servicios.xlsx"
+        />
+      }
     />
   );
 };

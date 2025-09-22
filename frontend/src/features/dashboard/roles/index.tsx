@@ -9,7 +9,7 @@ import { useRoles } from "./hooks/useRoles";
 import RolesTable from "./components/RolesTable";
 import CreateRoleModal from "./components/CreateRoleModal/CreateRoleModal";
 import EditRoleModal from "./components/EditRoleModal/EditRoleModal";
-// import ViewRoleModal from "./components/ViewRoleModal";
+import ViewRoleModal from "./components/ViewRoleModal/ViewRole"; // ✅ Import corregido
 
 export default function Index() {
   const {
@@ -20,6 +20,7 @@ export default function Index() {
     setIsEditModalOpen,
     isViewModalOpen,
     setIsViewModalOpen,
+    viewingRole, // ✅ uso directo del role que se está viendo
     selectedRole,
     handleCreateRole,
     handleEditRole,
@@ -40,6 +41,7 @@ export default function Index() {
               open={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSubmit={(data) => handleCreateRole(data)}
+              existingRoles={roles}
             />
 
             <EditRoleModal
@@ -47,13 +49,14 @@ export default function Index() {
               role={selectedRole}
               onClose={() => setIsEditModalOpen(false)}
               onSave={(id, data) => handleEditRole(id, data)}
+              existingRoles={roles}
             />
 
-            {/* <ViewRoleModal
-              isOpen={isViewModalOpen}
-              role={selectedRole}
+            <ViewRoleModal
+              open={isViewModalOpen}
+              role={viewingRole} // ✅ Aquí usamos viewingRole para que muestre el correcto
               onClose={() => setIsViewModalOpen(false)}
-            /> */}
+            />
 
             {/* Tabla */}
             <RolesTable
