@@ -8,6 +8,7 @@ import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
 import { purchases as mockPurchases } from "./mock/purchases.mock";
 import ViewPurchase from "./components/ViewPurchase";
+import { ToastContainer } from "react-toastify";
 
 export default function PurchasesIndex() {
   const [purchasesData, setPurchasesData] =
@@ -60,6 +61,7 @@ export default function PurchasesIndex() {
   return (
     <RequireAuth>
       <div className="p-6">
+        <ToastContainer position="bottom-right" />
         <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
         <DataTable
@@ -91,7 +93,10 @@ export default function PurchasesIndex() {
           onClose={() => setRegisterModalOpen(false)}
           footer={null}
         >
-          <RegisterPurchaseForm onSave={handleAddPurchase} purchases={purchasesData}/>
+          <RegisterPurchaseForm
+            onSave={handleAddPurchase}
+            purchases={purchasesData}
+          />
         </Modal>
 
         {/* Modal Ver Detalle */}
