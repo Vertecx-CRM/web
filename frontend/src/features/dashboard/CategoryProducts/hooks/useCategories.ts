@@ -12,35 +12,116 @@ import {
 } from "../validations/categoryValidations";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
+// Clave para el localStorage
+const CATEGORIES_STORAGE_KEY = 'categories';
+
+// Función para convertir File a Base64 (COLOCAR AL INICIO DEL ARCHIVO)
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
+// Función para cargar categorías con manejo de iconos Base64 (COLOCAR DESPUÉS DE fileToBase64)
+const loadCategoriesFromStorage = (): Category[] => {
+  if (typeof window === 'undefined') return initialCategories;
+  
+  try {
+    const stored = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(initialCategories));
+    return initialCategories;
+  } catch (error) {
+    console.error('Error loading categories from localStorage:', error);
+    return initialCategories;
+  }
+};
+
+// Función para guardar categorías en el localStorage (COLOCAR DESPUÉS DE loadCategoriesFromStorage)
+const saveCategoriesToStorage = (categories: Category[]) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+  } catch (error) {
+    console.error('Error saving categories to localStorage:', error);
+  }
+};
+
 export const useCategories = () => {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  // Cargar categorías desde localStorage al inicializar
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<EditCategoryData | null>(null);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
 
-  const handleCreateCategory = (categoryData: CreateCategoryData) => {
+  // Cargar categorías del localStorage cuando el componente se monta
+  useEffect(() => {
+    const loadedCategories = loadCategoriesFromStorage();
+    setCategories(loadedCategories);
+  }, []);
+
+  // Función para actualizar el estado y el localStorage simultáneamente (DENTRO DEL HOOK)
+  const updateCategories = (newCategories: Category[]) => {
+    setCategories(newCategories);
+    saveCategoriesToStorage(newCategories);
+  };
+
+  // En handleCreateCategory, convertir icono a Base64 si existe (REEMPLAZAR LA FUNCIÓN EXISTENTE)
+  const handleCreateCategory = async (categoryData: CreateCategoryData) => {
+    let iconoBase64 = null;
+    
+    if (categoryData.icono instanceof File) {
+      try {
+        iconoBase64 = await fileToBase64(categoryData.icono);
+      } catch (error) {
+        console.error('Error converting icon to Base64:', error);
+      }
+    }
+
     const newCategory: Category = {
-      id: Math.max(...categories.map(c => c.id)) + 1,
+      id: Math.max(0, ...categories.map(c => c.id)) + 1,
       nombre: categoryData.nombre,
       descripcion: categoryData.descripcion,
       estado: "Activo",
-      icono: categoryData.icono
+      icono: iconoBase64 || categoryData.icono
     };
 
-    setCategories(prev => [...prev, newCategory]);
+    const updatedCategories = [...categories, newCategory];
+    updateCategories(updatedCategories);
     setIsCreateModalOpen(false);
 
     showSuccess('Categoría de producto creada exitosamente!');
   };
 
-  const handleEditCategory = (id: number, categoryData: EditCategoryData) => {
-    setCategories(prev =>
-      prev.map(category =>
-        category.id === id
-          ? { ...category, ...categoryData }
-          : category
-      )
+  // También necesitas actualizar handleEditCategory para manejar Base64
+  const handleEditCategory = async (id: number, categoryData: EditCategoryData) => {
+    let iconoBase64 = null;
+    
+    if (categoryData.icono instanceof File) {
+      try {
+        iconoBase64 = await fileToBase64(categoryData.icono);
+      } catch (error) {
+        console.error('Error converting icon to Base64:', error);
+      }
+    }
+
+    const updatedCategories = categories.map(category =>
+      category.id === id
+        ? { 
+            ...category, 
+            ...categoryData,
+            icono: iconoBase64 || categoryData.icono || category.icono
+          }
+        : category
     );
+    
+    updateCategories(updatedCategories);
     setEditingCategory(null);
 
     showSuccess('Categoría de producto actualizada exitosamente!');
@@ -55,7 +136,8 @@ export const useCategories = () => {
         errorMessage: 'No se pudo eliminar la categoría. Por favor, intenta nuevamente.',
       },
       () => {
-        setCategories(prev => prev.filter(c => c.id !== category.id));
+        const updatedCategories = categories.filter(c => c.id !== category.id);
+        updateCategories(updatedCategories);
       }
     );
   };
@@ -78,6 +160,11 @@ export const useCategories = () => {
     setIsCreateModalOpen(false);
   };
 
+  // Función para resetear las categorías a las iniciales (útil para testing)
+  const resetCategories = () => {
+    updateCategories(initialCategories);
+  };
+
   return {
     categories,
     isCreateModalOpen,
@@ -92,7 +179,8 @@ export const useCategories = () => {
     handleDelete,
     closeModals,
     setEditingCategory,
-    setViewingCategory
+    setViewingCategory,
+    resetCategories // Opcional: para debugging
   };
 };
 
@@ -317,7 +405,7 @@ export const useEditCategoryForm = ({
 
 // Hook para el formulario de Ver 
 export const useViewCategory = (category: Category | null) => {
-  const [currentIcon, setCurrentIcon] = useState<File | null>(null);
+  const [currentIcon, setCurrentIcon] = useState<File | string | null>(null); 
 
   useEffect(() => {
     if (category) {

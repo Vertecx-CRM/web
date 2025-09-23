@@ -115,6 +115,38 @@ export const useCreateAppointmentForm = ({
     const [technicianError, setTechnicianError] = useState<string | null>(null);
     const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
 
+    const updateDateTime = useCallback(() => {
+        if (formData.dia && formData.mes && formData.año) {
+            try {
+                const fecha = new Date(
+                    parseInt(formData.año),
+                    parseInt(formData.mes) - 1,
+                    parseInt(formData.dia)
+                );
+
+                if (fecha.getDay() === 0) {
+                    setErrors(prev => ({
+                        ...prev,
+                        dia: "No se permiten citas en domingo"
+                    }));
+                    showError("No se permiten citas en domingo"); 
+                } else if (errors.dia === "No se permiten citas en domingo") {
+                    setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.dia;
+                        return newErrors;
+                    });
+                }
+            } catch (error) {
+                console.error("Error validando fecha:", error);
+            }
+        }
+    }, [formData.dia, formData.mes, formData.año]);
+
+    useEffect(() => {
+        updateDateTime();
+    }, [updateDateTime]);
+
 
     useEffect(() => {
         if (isOpen) {
@@ -276,6 +308,30 @@ export const useCreateAppointmentForm = ({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validar domingo antes de cualquier otra validación
+        if (formData.dia && formData.mes && formData.año) {
+            const fecha = new Date(
+                parseInt(formData.año),
+                parseInt(formData.mes) - 1,
+                parseInt(formData.dia)
+            );
+
+            if (fecha.getDay() === 0) {
+                setErrors(prev => ({
+                    ...prev,
+                    dia: "No se permiten citas en domingo"
+                }));
+                setTouched(prev => ({
+                    ...prev,
+                    dia: true,
+                    mes: true,
+                    año: true
+                }));
+                showError("No se permiten citas en domingo"); // Asegurar que esta línea se ejecute
+                return; // Esto es importante para detener el proceso
+            }
+        }
+
         let finalFormData = { ...formData };
         if (!finalFormData.horaFin || !finalFormData.minutoFin) {
             const { horaFin, minutoFin } = calculateEndTime(
@@ -307,6 +363,7 @@ export const useCreateAppointmentForm = ({
             return;
         }
 
+        // Validación final de domingo (por si acaso)
         const startDate = new Date(
             parseInt(finalFormData.año),
             parseInt(finalFormData.mes) - 1,
@@ -314,6 +371,15 @@ export const useCreateAppointmentForm = ({
             parseInt(finalFormData.horaInicio),
             parseInt(finalFormData.minutoInicio)
         );
+
+        if (startDate.getDay() === 0) {
+            setErrors(prev => ({
+                ...prev,
+                dia: "No se permiten citas en domingo"
+            }));
+            showError("No se permiten citas en domingo");
+            return;
+        }
 
         const endDate = new Date(
             parseInt(finalFormData.año),
@@ -340,7 +406,6 @@ export const useCreateAppointmentForm = ({
                 ? `Orden: ${typeof finalFormData.orden === 'object' ? finalFormData.orden.id : finalFormData.orden}`
                 : "Sin orden"
         });
-
 
         showSuccess('Cita guardada exitosamente');
         onClose();
@@ -763,7 +828,7 @@ export const useOrderSearch = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const [touched, setTouched] = useState(false);
-    const [localError, setLocalError] = useState<string | undefined>(); 
+    const [localError, setLocalError] = useState<string | undefined>();
 
     // Filtrar órdenes
     const filteredOrders = orders.filter(order =>
@@ -842,7 +907,7 @@ export const useOrderSearch = ({
             case 'Tab':
                 setIsOpen(false);
                 setHighlightedIndex(-1);
-                handleBlur(); 
+                handleBlur();
                 break;
         }
     };
@@ -864,7 +929,7 @@ export const useOrderSearch = ({
         touched,
         filteredOrders,
         displayValue,
-        localError, 
+        localError,
 
         setIsOpen,
         setHighlightedIndex,
