@@ -5,6 +5,7 @@ import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
 import { showWarning } from "@/shared/utils/notifications";
+import Image from "next/image";
 
 interface EditServiceModalProps {
   isOpen: boolean;
@@ -73,7 +74,8 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
         newErrors.nombre = "El nombre es obligatorio";
       } else if (
         services.some(
-          (s) => s.name.toLowerCase() === value.toLowerCase() && s.id !== service?.id
+          (s) =>
+            s.name.toLowerCase() === value.toLowerCase() && s.id !== service?.id
         )
       ) {
         newErrors.nombre = "Ya existe un servicio con este nombre";
@@ -108,7 +110,7 @@ if (field === "imagen") {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     validateNombre(nombre);
     validateField("categoria", categoria);
@@ -136,7 +138,20 @@ if (field === "imagen") {
 
     if (!service) return;
 
-// No need to assign imagenUrl since it's not used
+    let imagenUrl = "";
+
+    if (imagen instanceof File) {
+      // Convertir File a Base64
+      try {
+        imagenUrl = await fileToBase64(imagen);
+      } catch (error) {
+        console.error("Error converting image to base64:", error);
+        showWarning("Error al procesar la imagen");
+        return;
+      }
+    } else if (typeof imagen === "string" && !isImagenEliminada) {
+      imagenUrl = imagen;
+    }
 
     onSave({
       id: service.id,
@@ -148,6 +163,16 @@ if (field === "imagen") {
     });
 
     onClose();
+  };
+
+  // Función auxiliar para convertir File a Base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   const nombreImagen = imagen instanceof File ? imagen.name : "";
@@ -174,16 +199,21 @@ if (field === "imagen") {
             }}
           />
           <div
-            className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
+            className="relative w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
             onClick={handleCircleClick}
             style={{ borderColor: errors.imagen ? "red" : Colors.table.lines }}
           >
             {!isImagenEliminada && imagen ? (
-              <img
-                src={imagen instanceof File ? URL.createObjectURL(imagen) : imagen}
+              <Image
+                src={
+                  imagen instanceof File ? URL.createObjectURL(imagen) : imagen
+                }
                 alt="Servicio"
-                className="w-full h-full object-cover rounded-full"
+                className="rounded-full object-cover"
                 onError={() => setImagen(null)}
+                fill
+                sizes="80px" // Tamaño específico para el círculo
+                unoptimized
               />
             ) : (
               <svg
@@ -203,6 +233,7 @@ if (field === "imagen") {
             )}
           </div>
 
+          {/* Resto del código se mantiene igual */}
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">
               Haga clic en el círculo para{" "}
@@ -237,7 +268,6 @@ if (field === "imagen") {
             )}
           </div>
         </div>
-
         {/* Nombre */}
         <div>
           <label
@@ -279,7 +309,9 @@ if (field === "imagen") {
             }}
             onBlur={() => validateField("categoria", categoria)}
             className="w-full px-2 py-1 border rounded-md"
-            style={{ borderColor: errors.categoria ? "red" : Colors.table.lines }}
+            style={{
+              borderColor: errors.categoria ? "red" : Colors.table.lines,
+            }}
           >
             <option value="">Seleccione categoría</option>
             {categories.map((c) => (
