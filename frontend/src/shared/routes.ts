@@ -9,6 +9,7 @@ interface IRoutes {
     cart: string;
   };
   auth: {
+    access: string; 
     login: string;
     register: string;
   };
@@ -48,6 +49,7 @@ export const routes: IRoutes = {
     cart: "/cart",
   },
   auth: {
+    access: "/auth/access",
     login: "/auth/login",
     register: "/auth/register",
   },

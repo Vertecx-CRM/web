@@ -34,7 +34,7 @@ type TopNavProps = {
 };
 
 export default function TopNav({
-  logoutRedirectTo = "/auth/login",
+  logoutRedirectTo = "/auth/access",
   fallbackUserName = "Usuario",
 }: TopNavProps) {
   const pathname = usePathname();
@@ -60,15 +60,15 @@ export default function TopNav({
   useEffect(() => {
     setDisplayedText("");
     let i = 0;
-    const interval = setInterval(() => {
+    const id = setInterval(() => {
       if (i < currentTitle.length) {
         setDisplayedText(currentTitle.slice(0, i + 1));
         i++;
       } else {
-        clearInterval(interval);
+        clearInterval(id);
       }
     }, 80);
-    return () => clearInterval(interval);
+    return () => clearInterval(id);
   }, [currentTitle]);
 
   useEffect(() => {
@@ -94,18 +94,21 @@ export default function TopNav({
     };
   }, [menuProfileOpen]);
 
+  useEffect(() => {
+    hideLoader();
+  }, [pathname, hideLoader]);
+
   const handleLogout = async () => {
     setMenuProfileOpen(false);
     setLoading(true);
     showLoader();
-    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
     try {
-      logout();
-      await Promise.resolve();
+      await logout();
       router.replace(logoutRedirectTo);
-    } catch {
-      hideLoader();
+    } finally {
       setLoading(false);
+      hideLoader();
+      setTimeout(hideLoader, 250);
     }
   };
 
@@ -120,21 +123,18 @@ export default function TopNav({
         {displayedText}
       </h1>
 
-      {/* Botón avatar (abre dropdown) */}
       <div className="relative">
         <button
           ref={btnRef}
           onClick={() => setMenuProfileOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={menuProfileOpen}
-          className="flex items-center gap-3 rounded-full focus:outline-none focus:ring-2 focus:ring-red-700/40"
+          className="flex items-center gap-3 rounded-full px-3 py-1 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 hover:bg-gray-100/70 transition"
         >
           <span className="hidden md:block text-gray-700 max-w-[180px] truncate">
             {user?.name ?? fallbackUserName}
           </span>
-
           {user?.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatar}
               alt="avatar"
@@ -145,7 +145,6 @@ export default function TopNav({
           )}
         </button>
 
-        {/* Dropdown perfil */}
         {menuProfileOpen && (
           <div
             ref={menuRef}
@@ -181,7 +180,6 @@ export default function TopNav({
         )}
       </div>
 
-      {/* Modal de perfil */}
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );

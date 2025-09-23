@@ -7,7 +7,7 @@ import { useLoader } from "@/shared/components/loader";
 
 type Props = { children: React.ReactNode; loginPath?: string };
 
-export default function RequireAuth({ children, loginPath = "/auth/login" }: Props) {
+export default function RequireAuth({ children, loginPath = "/auth/access" }: Props) {
   const { isAuthenticated, ready } = useAuth();
   const { showLoader } = useLoader();
   const router = useRouter();
