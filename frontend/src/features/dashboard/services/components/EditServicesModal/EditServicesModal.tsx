@@ -11,7 +11,7 @@ interface EditServiceModalProps {
   isOpen: boolean;
   service: Service | null;
   onClose: () => void;
-  onSave: (data: Service) => void;
+  onSave: (updatedService: Service) => void;
   services: Service[];
 }
 
@@ -26,6 +26,8 @@ interface ServiceErrors {
   categoria?: string;
   imagen?: string;
 }
+
+type ServiceFieldValue = string | File | null;
 
 const EditServiceModal: React.FC<EditServiceModalProps> = ({
   isOpen,
@@ -84,19 +86,26 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
     });
   };
 
-  const validateField = (field: keyof ServiceErrors, value: any) => {
+  const validateField = (field: keyof ServiceErrors, value: ServiceFieldValue) => {
     setErrors((prev) => {
       const newErrors = { ...prev };
       if (field === "categoria") {
-        if (!value || value.trim() === "")
-          newErrors.categoria = "La categoría es obligatoria";
-        else delete newErrors.categoria;
-      }
-      if (field === "imagen") {
-        if (!value && !isImagenEliminada)
-          newErrors.imagen = "La imagen es obligatoria";
-        else delete newErrors.imagen;
-      }
+  if (!value || (typeof value === "string" && value.trim() === "")) {
+    newErrors.categoria = "La categoría es obligatoria";
+  } else {
+    delete newErrors.categoria;
+  }
+}
+
+if (field === "imagen") {
+  if (!value && !isImagenEliminada) {
+    newErrors.imagen = "La imagen es obligatoria";
+  } else {
+    delete newErrors.imagen;
+  }
+}
+
+    
       return newErrors;
     });
   };
@@ -105,7 +114,14 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
     e.preventDefault();
     validateNombre(nombre);
     validateField("categoria", categoria);
-    validateField("imagen", imagen && !isImagenEliminada ? imagen : null);
+    validateField(
+      "imagen",
+      imagen && !isImagenEliminada
+        ? typeof imagen === "string"
+          ? imagen
+          : ""
+        : null
+    );
 
     if (
       !nombre ||
@@ -142,7 +158,7 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
       name: nombre,
       description: descripcion,
       category: categoria,
-      image: imagenUrl,
+        image: isImagenEliminada ? null : imagen,
       state: estado,
     });
 
@@ -179,7 +195,7 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
             onChange={(e) => {
               setImagen(e.target.files?.[0] ?? null);
               setIsImagenEliminada(false);
-              validateField("imagen", e.target.files?.[0]);
+              validateField("imagen", e.target.files?.[0] ? "" : null);
             }}
           />
           <div

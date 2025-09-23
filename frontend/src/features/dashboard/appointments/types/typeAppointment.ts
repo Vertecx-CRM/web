@@ -22,7 +22,7 @@ export interface AppointmentFormData {
   dia: string;
   mes: string;
   año: string;
-  tecnico: string;
+  tecnicos: Technician[];
   orden?: Order | null;
   observaciones: string;
   motivoCancelacion?: string;
@@ -44,15 +44,15 @@ export interface AppointmentEvent {
   start: Date;
   end: Date;
   tecnicos: Technician[];
-  horaInicio?: string;
-  minutoInicio?: string;
-  horaFin?: string;
-  minutoFin?: string;
-  dia?: string;
-  mes?: string;
-  año?: string;
+  horaInicio: string;
+  minutoInicio: string;
+  horaFin: string;
+  minutoFin: string;
+  dia: string;
+  mes: string;
+  año: string;
   orden?: Order | null;
-  observaciones?: string;
+  observaciones: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado";      
   motivoCancelacion?: string;      
   evidencia?: File | null;
@@ -96,19 +96,20 @@ export interface UseAppointmentFormProps {
 }
 
 
-export interface AppointmentErrors {
-  horaInicio?: string;
-  minutoInicio?: string;
-  horaFin?: string;
-  minutoFin?: string;
-  timeRange?: string;
-  dia?: string;
-  mes?: string;
-  año?: string;
-  orden?: string;
-  tecnico?: string;
-  motivoCancelacion?: string; 
-}
+export type AppointmentErrors = {
+  horaInicio?: string | undefined;
+  horaFin?: string | undefined;
+  minutoInicio?: string | undefined;
+  minutoFin?: string | undefined;
+  dia?: string | undefined;
+  mes?: string | undefined;
+  año?: string | undefined;
+  orden?: string | undefined;
+  tecnicos?: string | undefined;
+  motivoCancelacion?: string | undefined;
+  date?: string | undefined;
+  timeRange?: string | undefined;
+};
 
 export interface FormTouched {
   [key: string]: boolean;
@@ -127,7 +128,6 @@ export interface ViewAppointmentModalProps {
   appointment: AppointmentEvent | null;
 }
 
-// types/typeAppointment.ts
 export interface UseEditAppointmentFormProps {
   appointment: AppointmentEvent | null;
   onSave: (appointment: AppointmentEvent) => void;
@@ -138,4 +138,24 @@ type WeeklyCalendarProps = {
   selectedDate: Date;
   search?: string; 
 };
+
+
+export interface UseOrderSearchProps {
+  orders: Order[];
+  selectedOrder: Order | null;
+  onOrderSelect: (order: Order | null) => void;
+  onOrderBlur?: () => void;
+  validateOrder?: (order: Order | null) => string | undefined;
+}
+
+export interface OrderSearchComboboxProps {
+  orders: Order[];
+  selectedOrder: Order | null;
+  onOrderSelect: (order: Order | null) => void;
+  onBlur?: () => void;
+  error?: string;
+  touched?: boolean;
+  label?: string;
+  validateOrder?: (order: Order | null) => string | undefined; 
+}
 

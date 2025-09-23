@@ -23,6 +23,25 @@ export default function CreateRoleModal({
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
   const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
+  const allModulePermissions: Record<string, string[]> = {
+    "Roles": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Usuarios": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Categoría de Productos": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Productos": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Proveedores": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Órdenes de Compra": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Compras": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Servicios": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Técnicos": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Horarios de los técnicos": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Clientes": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Solicitud de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Citas": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
+    "Dashboard": ["Ver"],
+  };
+
   useEffect(() => {
     if (open) {
       setRoleName("");
@@ -38,6 +57,19 @@ export default function CreateRoleModal({
         ? current.filter((p) => p !== permission)
         : [...current, permission];
       return { ...prev, [module]: updated };
+    });
+    setTimeout(validateForm, 0); // mantiene validación en tiempo real
+  };
+  
+  const toggleAllPermissions = (module: string, isChecked: boolean) => {
+    setPermissions((prev) => {
+      const updatedPermissions = { ...prev };
+      if (isChecked) {
+        updatedPermissions[module] = allModulePermissions[module];
+      } else {
+        updatedPermissions[module] = [];
+      }
+      return updatedPermissions;
     });
     setTimeout(validateForm, 0); // mantiene validación en tiempo real
   };
@@ -80,6 +112,110 @@ export default function CreateRoleModal({
     onSubmit({ name: roleName.trim(), permissions: formattedPermissions });
     onClose();
   };
+
+  // Componente anidado con la funcionalidad "Seleccionar todos"
+  function PermissionCard({
+    module,
+    selected,
+    onToggle,
+    onToggleAll,
+  }: {
+    module: string;
+    selected: string[];
+    onToggle: (module: string, permission: string) => void;
+    onToggleAll: (module: string, isChecked: boolean) => void;
+  }) {
+    const options = allModulePermissions[module];
+    const isAllSelected = selected.length === options.length;
+
+    return (
+      <div
+        className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+        style={{
+          border: `1px solid ${Colors.table.lines}`,
+          backgroundColor: Colors.background.tertiary,
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          {/* Checkbox "Seleccionar Todos" a la izquierda */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: Colors.texts.primary }}>
+            <span
+              onClick={() => onToggleAll(module, !isAllSelected)}
+              className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${isAllSelected ? "animate-[scaleIn_0.2s_ease-in-out]" : ""}`}
+              style={{
+                backgroundColor: isAllSelected ? Colors.buttons.quaternary : Colors.background.primary,
+                borderColor: isAllSelected ? Colors.buttons.quaternary : Colors.table.lines,
+              }}
+            >
+              {isAllSelected && (
+                <svg
+                  className="h-3 w-3 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </span>
+          </label>
+          <span
+            className="font-medium"
+            style={{ color: Colors.texts.primary }}
+          >
+            {module}
+          </span>
+        </div>
+        {/* Línea difuminada separadora */}
+        <div className="h-[1px] my-3" style={{ backgroundColor: "rgba(0, 0, 0, 0.1)" }}></div>
+        <div className="flex flex-wrap gap-3">
+          {options.map((opt) => {
+            const isChecked = selected.includes(opt);
+            return (
+              <label
+                key={opt}
+                className="flex items-center gap-2 text-sm cursor-pointer"
+                style={{ color: Colors.texts.primary }}
+              >
+                <span
+                  onClick={() => onToggle(module, opt)}
+                  className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
+                    isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isChecked
+                      ? Colors.buttons.quaternary
+                      : Colors.background.primary,
+                    borderColor: isChecked
+                      ? Colors.buttons.quaternary
+                      : Colors.table.lines,
+                  }}
+                >
+                  {isChecked && (
+                    <svg
+                      className="h-3 w-3 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </span>
+                {opt}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Modal
@@ -133,7 +269,6 @@ export default function CreateRoleModal({
           />
           {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
         </div>
-
         <h3
           className="text-center font-semibold"
           style={{ color: Colors.texts.primary }}
@@ -143,105 +278,18 @@ export default function CreateRoleModal({
         {errors.permissions && (
           <p className="text-center text-xs text-red-500">{errors.permissions}</p>
         )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {[
-            "Roles",
-            "Usuarios",
-            "Categoría de Productos",
-            "Productos",
-            "Proveedores",
-            "Órdenes de Compra",
-            "Compras",
-            "Servicios",
-            "Técnicos",
-            "Horarios de los técnicos",
-            "Clientes",
-            "Solicitud de Servicio",
-            "Citas",
-            "Cotización de Servicio",
-            "Orden de Servicio",
-            "Dashboard",
-          ].map((module) => (
+          {Object.keys(allModulePermissions).map((module) => (
             <PermissionCard
               key={module}
               module={module}
               selected={permissions[module] || []}
               onToggle={togglePermission}
+              onToggleAll={toggleAllPermissions}
             />
           ))}
         </div>
       </div>
     </Modal>
-  );
-}
-
-function PermissionCard({
-  module,
-  selected,
-  onToggle,
-}: {
-  module: string;
-  selected: string[];
-  onToggle: (module: string, permission: string) => void;
-}) {
-  const options = ["Editar", "Crear", "Eliminar", "Ver"];
-  return (
-    <div
-      className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
-      style={{
-        border: `1px solid ${Colors.table.lines}`,
-        backgroundColor: Colors.background.tertiary,
-      }}
-    >
-      <span
-        className="block font-medium mb-3"
-        style={{ color: Colors.texts.primary }}
-      >
-        {module}
-      </span>
-      <div className="flex flex-wrap gap-3">
-        {options.map((opt) => {
-          const isChecked = selected.includes(opt);
-          return (
-            <label
-              key={opt}
-              className="flex items-center gap-2 text-sm cursor-pointer"
-              style={{ color: Colors.texts.primary }}
-            >
-              <span
-                onClick={() => onToggle(module, opt)}
-                className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
-                  isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
-                }`}
-                style={{
-                  backgroundColor: isChecked
-                    ? Colors.buttons.quaternary
-                    : Colors.background.primary,
-                  borderColor: isChecked
-                    ? Colors.buttons.quaternary
-                    : Colors.table.lines,
-                }}
-              >
-                {isChecked && (
-                  <svg
-                    className="h-3 w-3 text-white"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-              {opt}
-            </label>
-          );
-        })}
-      </div>
-    </div>
   );
 }
