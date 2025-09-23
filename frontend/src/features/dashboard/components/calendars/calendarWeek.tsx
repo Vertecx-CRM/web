@@ -29,6 +29,7 @@ import { GroupedAppointmentsModal } from '../../appointments/components/GroupedA
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from "react-toastify";
+import CustomWeek from './costumWeek';
 
 
 const locales = { es };
@@ -136,7 +137,7 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
     }
 
     setDisplayEvents(newDisplayEvents);
-  }, [events, search]); 
+  }, [events, search]);
 
 
 
@@ -505,7 +506,17 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
             startAccessor="start"
             endAccessor="end"
             defaultView="week"
-            views={['week']}
+            views={["week"]}
+            dayPropGetter={(date) => {
+              if (date.getDay() === 0) { // 0 = domingo
+                return {
+                  style: {
+                    display: "none", // 👈 oculta la columna del domingo
+                  },
+                };
+              }
+              return {};
+            }}
             date={dateRange.start}
             culture="es"
             selectable
@@ -531,6 +542,9 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
               noEventsInRange: 'No hay eventos en este rango.',
             }}
             className="rounded-xl unified-header-calendar h-full"
+
+            min={new Date(1970, 1, 1, 7, 0)}
+            max={new Date(1970, 1, 1, 18, 0)}
           />
         </div>
       </div>
