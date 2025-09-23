@@ -29,7 +29,6 @@ import { GroupedAppointmentsModal } from '../../appointments/components/GroupedA
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from "react-toastify";
-import CustomWeek from './costumWeek';
 
 
 const locales = { es };
