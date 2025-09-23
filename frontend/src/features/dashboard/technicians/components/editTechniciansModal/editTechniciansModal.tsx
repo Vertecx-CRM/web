@@ -16,6 +16,16 @@ import {
 } from "@/features/dashboard/technicians/validations/techniciansValidations";
 import { showWarning } from "@/shared/utils/notifications";
 
+type TechnicianField =
+  | "name"
+  | "lastName"
+  | "password"
+  | "confirmPassword"
+  | "documentType"
+  | "documentNumber"
+  | "phone"
+  | "email";
+
 interface EditTechnicianModalProps {
   isOpen: boolean;
   technician: Technician;
@@ -73,7 +83,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     if (isOpen) resetForm();
   }, [isOpen, technician]);
 
-  const handleFieldChange = (field: keyof TechnicianErrors, rawValue: string) => {
+  const handleFieldChange = (field: TechnicianField, rawValue: string) => {
     let value = rawValue;
     const hasDigits = /\d/.test(rawValue);
 
@@ -84,6 +94,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
         value = rawValue.replace(/[^a-zA-Z0-9]/g, "");
       else value = rawValue.replace(/\D/g, "");
     }
+
     if (field === "documentType") {
       const dt = rawValue as DocumentType;
       setDocumentType(dt);
@@ -114,13 +125,23 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       case "email": setEmail(value); break;
     }
 
-    const extra = { password: field === "password" ? value : password, documentType, excludeId: technician.id };
-    let fieldError = validateTechnicianField(field as any, value, technicians, extra);
+    const extra = {
+      password: field === "password" ? value : password,
+      documentType,
+      excludeId: technician.id,
+    };
+
+    const fieldError = validateTechnicianField(field, value, technicians, extra);
 
     if ((field === "name" || field === "lastName") && hasDigits) {
-      fieldError = field === "name"
-        ? "El nombre no puede contener números"
-        : "El apellido no puede contener números";
+      setErrors((prev) => ({
+        ...prev,
+        [field]:
+          field === "name"
+            ? "El nombre no puede contener números"
+            : "El apellido no puede contener números",
+      }));
+      return;
     }
 
     setErrors((prev) => ({ ...prev, [field]: fieldError }));
@@ -181,131 +202,138 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       }}
       footer={null}
     >
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
-        {/* Imagen */}
-        <div className="col-span-2 flex flex-col items-center mb-3">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-          />
-          <div
-            className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
-            onClick={handleCircleClick}
-            style={{ borderColor: Colors.table.lines }}
-          >
-            {previewImage ? (
-              <img src={previewImage} alt="Técnico" className="w-full h-full object-cover rounded-full" />
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            )}
-          </div>
-          {previewImage && (
-            <div className="flex flex-col items-center space-y-1">
-              <div className="text-xs text-green-600 font-medium">{imageFile?.name ?? "Imagen actual"}</div>
-              <button
-                type="button"
-                onClick={() => handleFileChange(null)}
-                className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                style={{ borderColor: Colors.states.nullable }}
-              >
-                Eliminar imagen
-              </button>
-            </div>
-          )}
-          <div className="text-center text-xs text-gray-500 mt-1">
-            Haga clic en el círculo para {previewImage ? "cambiar" : "seleccionar"} la imagen
-          </div>
-        </div>
-
-        {/* Campos */}
-        {(["name","lastName","password","confirmPassword","documentType","documentNumber","phone","email"] as (keyof TechnicianErrors)[]).map((field) => {
-          const valueMap: Record<string, string> = {
-            name, lastName, password, confirmPassword, documentType, documentNumber, phone, email,
-          };
-          const typeMap: Record<string, string> = {
-            name: "text",
-            lastName: "text",
-            password: mostrarContraseña ? "text" : "password",
-            confirmPassword: mostrarConfirmarContraseña ? "text" : "password",
-            documentType: "select",
-            documentNumber: "text",
-            phone: "text",
-            email: "email",
-          };
-          const labelMap: Record<string, string> = {
-            name: "Nombre", lastName: "Apellido", password: "Contraseña", confirmPassword: "Confirmar Contraseña",
-            documentType: "Tipo de Documento", documentNumber: "Número de Documento", phone: "Teléfono", email: "Correo electrónico",
-          };
-
-          return (
-            <div key={field} className="relative">
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                {labelMap[field]} <span className="text-red-500">*</span>
-              </label>
-              {field === "documentType" ? (
-                <select
-                  value={documentType}
-                  onChange={(e) => handleFieldChange("documentType", e.target.value)}
-                  onBlur={() => handleFieldChange("documentType", documentType)}
-                  className="w-full px-2 py-1 border rounded-md"
-                  style={{ borderColor: errors.documentType ? "red" : Colors.table.lines }}
-                >
-                  {documentTypes.map((doc) => <option key={doc} value={doc}>{doc}</option>)}
-                </select>
+      <form onSubmit={handleSubmit} className="flex flex-col h-full">
+        <div className="flex-1 grid grid-cols-2 gap-3 p-1 overflow-y-auto max-h-[calc(100vh-250px)]">
+          {/* Imagen */}
+          <div className="col-span-2 flex flex-col items-center mb-3">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+            />
+            <div
+              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
+              onClick={handleCircleClick}
+              style={{ borderColor: Colors.table.lines }}
+            >
+              {previewImage ? (
+                <img src={previewImage} alt="Técnico" className="w-full h-full object-cover rounded-full" />
               ) : (
-                <input
-                  type={typeMap[field]}
-                  value={valueMap[field]}
-                  onChange={(e) => handleFieldChange(field, e.target.value)}
-                  onBlur={() => handleFieldChange(field, valueMap[field])}
-                  className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 pr-10"
-                  style={{ borderColor: errors[field] ? "red" : Colors.table.lines }}
-                />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
               )}
-              {(field === "password" || field === "confirmPassword") && (
+            </div>
+            {previewImage && (
+              <div className="flex flex-col items-center space-y-1">
+                <div className="text-xs text-green-600 font-medium">{imageFile?.name ?? "Imagen actual"}</div>
                 <button
                   type="button"
-                  onClick={() => field === "password"
-                    ? setMostrarContraseña((s) => !s)
-                    : setMostrarConfirmarContraseña((s) => !s)}
-                  className="absolute inset-y-0 right-2 my-auto h-8 w-8 rounded-md text-gray-500 hover:bg-gray-200"
+                  onClick={() => handleFileChange(null)}
+                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
+                  style={{ borderColor: Colors.states.nullable }}
                 >
-                  {field === "password"
-                    ? mostrarContraseña
-                      ? <img src="/icons/Eye.svg" className="h-4 w-4" />
-                      : <img src="/icons/eye-off.svg" className="h-4 w-4" />
-                    : mostrarConfirmarContraseña
-                      ? <img src="/icons/Eye.svg" className="h-4 w-4" />
-                      : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
+                  Eliminar imagen
                 </button>
-              )}
-              {errors[field] && <span className="text-xs text-red-500">{errors[field]}</span>}
+              </div>
+            )}
+            <div className="text-center text-xs text-gray-500 mt-1">
+              Haga clic en el círculo para {previewImage ? "cambiar" : "seleccionar"} la imagen
             </div>
-          );
-        })}
+          </div>
 
-        {/* Estado */}
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-            Estado <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={state}
-            onChange={(e) => setState(e.target.value as TechnicianState)}
-            className="w-full px-2 py-1 border rounded-md"
-            style={{ borderColor: Colors.table.lines }}
-          >
-            {states.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          {/* Campos */}
+          {(["name","lastName","password","confirmPassword","documentType","documentNumber","phone","email"] as TechnicianField[]).map((field) => {
+            const valueMap: Record<TechnicianField, string> = {
+              name, lastName, password, confirmPassword,
+              documentType, documentNumber, phone, email,
+            };
+            const typeMap: Record<TechnicianField, string> = {
+              name: "text",
+              lastName: "text",
+              password: mostrarContraseña ? "text" : "password",
+              confirmPassword: mostrarConfirmarContraseña ? "text" : "password",
+              documentType: "select",
+              documentNumber: "text",
+              phone: "text",
+              email: "email",
+            };
+            const labelMap: Record<TechnicianField, string> = {
+              name: "Nombre", lastName: "Apellido", password: "Contraseña", confirmPassword: "Confirmar Contraseña",
+              documentType: "Tipo de Documento", documentNumber: "Número de Documento", phone: "Teléfono", email: "Correo electrónico",
+            };
+
+            return (
+              <div key={field} className="relative">
+                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                  {labelMap[field]} <span className="text-red-500">*</span>
+                </label>
+                {field === "documentType" ? (
+                  <select
+                    value={documentType}
+                    onChange={(e) => handleFieldChange("documentType", e.target.value)}
+                    onBlur={() => handleFieldChange("documentType", documentType)}
+                    className="w-full px-2 py-1 border rounded-md"
+                    style={{ borderColor: errors.documentType ? "red" : Colors.table.lines }}
+                  >
+                    {documentTypes.map((doc) => <option key={doc} value={doc}>{doc}</option>)}
+                  </select>
+                ) : (
+                  <div className="relative w-full">
+                    <input
+                      type={typeMap[field]}
+                      value={valueMap[field]}
+                      onChange={(e) => handleFieldChange(field, e.target.value)}
+                      onBlur={() => handleFieldChange(field, valueMap[field])}
+                      className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 pr-10"
+                      style={{ borderColor: errors[field] ? "red" : Colors.table.lines }}
+                    />
+                    {(field === "password" || field === "confirmPassword") && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          field === "password"
+                            ? setMostrarContraseña((s) => !s)
+                            : setMostrarConfirmarContraseña((s) => !s)
+                        }
+                        className="absolute inset-y-0 right-2 my-auto flex items-center text-gray-500 hover:bg-gray-200 p-1 rounded-md"
+                      >
+                        {field === "password"
+                          ? mostrarContraseña
+                            ? <img src="/icons/Eye.svg" alt="Ocultar contraseña" className="h-4 w-4" />
+                            : <img src="/icons/eye-off.svg" alt="Mostrar contraseña" className="h-4 w-4" />
+                          : mostrarConfirmarContraseña
+                            ? <img src="/icons/Eye.svg" alt="Ocultar confirmación" className="h-4 w-4" />
+                            : <img src="/icons/eye-off.svg" alt="Mostrar confirmación" className="h-4 w-4" />}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {errors[field] && <span className="text-xs text-red-500">{errors[field]}</span>}
+              </div>
+            );
+          })}
+
+          {/* Estado */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Estado <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={state}
+              onChange={(e) => setState(e.target.value as TechnicianState)}
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: Colors.table.lines }}
+            >
+              {states.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* Botones */}
-        <div className="col-span-2 flex justify-end space-x-2 pt-2">
+        <div className="col-span-2 flex justify-end space-x-2 pt-2 sticky bottom-0 bg-white">
           <button
             type="button"
             onClick={() => { resetForm(); onClose(); }}

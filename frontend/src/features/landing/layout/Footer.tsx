@@ -1,10 +1,12 @@
+// components/layout/Footer.jsx
+
 "use client";
 import Image from "next/image";
 import Link from "next/link";
 
 const Footer = () => {
   return (
-    <footer className="bg-white text-gray-800 mt-12 border-t border-gray-300">
+    <footer className="bg-white text-gray-800 border-t border-gray-300">
       <div className="max-w-7xl mx-auto px-6 py-10 grid md:grid-cols-4 gap-8 text-center md:text-left">
         {/* Columna 1: Derechos de autor */}
         <div className="flex flex-col items-center md:items-start">
