@@ -23,7 +23,6 @@ export default function Index() {
     handleView,
     handleEdit,
     handleDelete,
-    closeModals,
   } = useProducts();
 
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -34,11 +33,10 @@ export default function Index() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
-            {/* Modales */}
             <CreateProductModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
-              onSave={(data) => handleCreateProduct(data)}
+              onSave={handleCreateProduct}
               products={products}
             />
 
@@ -50,16 +48,14 @@ export default function Index() {
               products={products}
             />
 
-            {/* Modal de Ver */}
             <ViewProductModal
               isOpen={isViewModalOpen}
               product={selectedProduct}
               onClose={() => setIsViewModalOpen(false)}
             />
 
-            {/* Tabla */}
             <ProductsTable
-              products={products}
+              products={products} // ✅ ahora sí usa el estado de productos del padre
               onView={(p) => {
                 handleView(p);
                 setIsViewModalOpen(true);

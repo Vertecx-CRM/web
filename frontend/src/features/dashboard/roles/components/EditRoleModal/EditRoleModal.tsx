@@ -22,7 +22,7 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Dashboard", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
+  { title: "Dashboard", permissions: ["Ver"] },
 ];
 
 interface EditRoleModalProps {
@@ -42,7 +42,7 @@ export default function EditRoleModal({
 }: EditRoleModalProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"Activo" | "Inactivo">("Activo");
-  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<Record<string, string[]>>({});
   const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
   useEffect(() => {
@@ -50,21 +50,25 @@ export default function EditRoleModal({
       setName(role.name);
       setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
       setErrors({});
-      const rolePerms = Array.isArray(role.permissions) ? role.permissions : [];
-      const mapped: string[] = [];
+      // Mapea los permisos del rol al formato Record<string, string[]>
+      const mappedPermissions: Record<string, string[]> = {};
+      const rolePerms = role.permissions ?? []; // Agregamos la verificación aquí
       permissionGroups.forEach((group) => {
+        const groupPerms: string[] = [];
         group.permissions.forEach((perm) => {
-          const key = `${group.title}-${perm}`;
-          if (rolePerms.includes(key)) mapped.push(key);
+          if (rolePerms.includes(`${group.title}-${perm}`)) {
+            groupPerms.push(perm);
+          }
         });
+        mappedPermissions[group.title] = groupPerms;
       });
-      setPermissions(mapped);
+      setPermissions(mappedPermissions);
     }
   }, [role]);
 
   if (!isOpen || !role) return null;
 
-  const validateForm = (nameVal?: string, permsVal?: string[]) => {
+  const validateForm = (nameVal?: string, permsVal?: Record<string, string[]>) => {
     const newErrors: { name?: string; permissions?: string } = {};
     const nameToCheck = (nameVal ?? name).trim();
     const permsToCheck = permsVal ?? permissions;
@@ -78,7 +82,11 @@ export default function EditRoleModal({
       if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
     }
 
-    if (!permsToCheck || permsToCheck.length === 0) {
+    const selectedCount = Object.values(permsToCheck).reduce(
+      (acc, arr) => acc + arr.length,
+      0
+    );
+    if (selectedCount === 0) {
       newErrors.permissions = "Debe asignar al menos un permiso al rol";
     }
 
@@ -86,22 +94,152 @@ export default function EditRoleModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleTogglePermission = (key: string) => {
-    const updated = permissions.includes(key)
-      ? permissions.filter((p) => p !== key)
-      : [...permissions, key];
-    setPermissions(updated);
-    validateForm(undefined, updated);
+  const handleTogglePermission = (module: string, permission: string) => {
+    setPermissions((prev) => {
+      const current = prev[module] || [];
+      const updated = current.includes(permission)
+        ? current.filter((p) => p !== permission)
+        : [...current, permission];
+      const newPermissions = { ...prev, [module]: updated };
+      validateForm(undefined, newPermissions);
+      return newPermissions;
+    });
+  };
+
+  const handleToggleAllPermissions = (module: string, isChecked: boolean) => {
+    setPermissions((prev) => {
+      const updatedPermissions = { ...prev };
+      const moduleGroup = permissionGroups.find(g => g.title === module);
+      if (isChecked && moduleGroup) {
+        updatedPermissions[module] = moduleGroup.permissions;
+      } else {
+        updatedPermissions[module] = [];
+      }
+      validateForm(undefined, updatedPermissions);
+      return updatedPermissions;
+    });
   };
 
   const handleSubmit = () => {
-    if (!validateForm()) {
+    const formattedPermissions: string[] = [];
+    Object.entries(permissions).forEach(([module, perms]) => {
+      perms.forEach((perm) => {
+        formattedPermissions.push(`${module}-${perm}`);
+      });
+    });
+
+    if (!validateForm(name, permissions)) {
       showWarning("Por favor completa los campos obligatorios correctamente");
       return;
     }
-    onSave(role.id, { id: role.id, name: name.trim(), state: status, permissions });
+
+    onSave(role.id, { id: role.id, name: name.trim(), state: status, permissions: formattedPermissions });
     onClose();
   };
+
+  function PermissionCard({
+    module,
+    selected,
+    allPermissions,
+    onToggle,
+    onToggleAll,
+  }: {
+    module: string;
+    selected: string[];
+    allPermissions: string[];
+    onToggle: (module: string, permission: string) => void;
+    onToggleAll: (module: string, isChecked: boolean) => void;
+  }) {
+    const isAllSelected = selected.length === allPermissions.length;
+
+    return (
+      <div
+        className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+        style={{
+          border: `1px solid ${Colors.table.lines}`,
+          backgroundColor: Colors.background.tertiary,
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          {/* Checkbox "Seleccionar Todos" a la izquierda */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: Colors.texts.primary }}>
+            <span
+              onClick={() => onToggleAll(module, !isAllSelected)}
+              className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${isAllSelected ? "animate-[scaleIn_0.2s_ease-in-out]" : ""}`}
+              style={{
+                backgroundColor: isAllSelected ? Colors.buttons.quaternary : Colors.background.primary,
+                borderColor: isAllSelected ? Colors.buttons.quaternary : Colors.table.lines,
+              }}
+            >
+              {isAllSelected && (
+                <svg
+                  className="h-3 w-3 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </span>
+          </label>
+          <span
+            className="font-medium"
+            style={{ color: Colors.texts.primary }}
+          >
+            {module}
+          </span>
+        </div>
+        {/* Línea difuminada separadora */}
+        <div className="h-[1px] my-3" style={{ backgroundColor: "rgba(0, 0, 0, 0.1)" }}></div>
+        <div className="flex flex-wrap gap-3">
+          {allPermissions.map((perm) => {
+            const isChecked = selected.includes(perm);
+            return (
+              <label
+                key={perm}
+                className="flex items-center gap-2 text-sm cursor-pointer"
+                style={{ color: Colors.texts.primary }}
+              >
+                <span
+                  onClick={() => onToggle(module, perm)}
+                  className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
+                    isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
+                  }`}
+                  style={{
+                    backgroundColor: isChecked
+                      ? Colors.buttons.quaternary
+                      : Colors.background.primary,
+                    borderColor: isChecked
+                      ? Colors.buttons.quaternary
+                      : Colors.table.lines,
+                  }}
+                >
+                  {isChecked && (
+                    <svg
+                      className="h-3 w-3 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </span>
+                {perm}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Modal
@@ -185,80 +323,15 @@ export default function EditRoleModal({
           {permissionGroups.map((group) => (
             <PermissionCard
               key={group.title}
-              group={group}
-              selected={permissions}
+              module={group.title}
+              selected={permissions[group.title] || []}
+              allPermissions={group.permissions}
               onToggle={handleTogglePermission}
+              onToggleAll={handleToggleAllPermissions}
             />
           ))}
         </div>
       </div>
     </Modal>
-  );
-}
-
-function PermissionCard({
-  group,
-  selected,
-  onToggle,
-}: {
-  group: PermissionGroup;
-  selected: string[];
-  onToggle: (key: string) => void;
-}) {
-  return (
-    <div
-      className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
-      style={{
-        border: `1px solid ${Colors.table.lines}`,
-        backgroundColor: Colors.background.tertiary,
-      }}
-    >
-      <span className="block font-medium mb-3" style={{ color: Colors.texts.primary }}>
-        {group.title}
-      </span>
-      <div className="flex flex-wrap gap-3">
-        {group.permissions.map((perm) => {
-          const key = `${group.title}-${perm}`;
-          const isChecked = selected.includes(key);
-          return (
-            <label
-              key={key}
-              className="flex items-center gap-2 text-sm cursor-pointer"
-              style={{ color: Colors.texts.primary }}
-            >
-              <span
-                onClick={() => onToggle(key)}
-                className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
-                  isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
-                }`}
-                style={{
-                  backgroundColor: isChecked
-                    ? Colors.buttons.quaternary
-                    : Colors.background.primary,
-                  borderColor: isChecked
-                    ? Colors.buttons.quaternary
-                    : Colors.table.lines,
-                }}
-              >
-                {isChecked && (
-                  <svg
-                    className="h-3 w-3 text-white"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-              {perm}
-            </label>
-          );
-        })}
-      </div>
-    </div>
   );
 }

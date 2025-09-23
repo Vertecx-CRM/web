@@ -74,9 +74,12 @@ export const useServices = (initialServices: Service[]) => {
     )
       return;
 
-    setServices((prev) =>
-      prev.map((s) => (s.id === id ? { ...payload, id } : s))
-    );
+    setServices((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...payload, id } : s));
+      console.log("Servicios actualizados:", updated);
+      return updated;
+    });
+
     setEditingService(null);
     showSuccess("Servicio actualizado exitosamente!");
   };

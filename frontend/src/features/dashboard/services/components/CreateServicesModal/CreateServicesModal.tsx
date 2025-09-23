@@ -51,9 +51,12 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     if (isOpen) resetForm();
   }, [isOpen]);
 
+  // 🚀 Cambié solo el tipo de value para eliminar el any
+  type ServiceFieldValue = string | File | undefined;
+
   const validateField = (
     field: keyof Omit<Service, "id" | "state">,
-    value: any
+    value: ServiceFieldValue
   ) => {
     const error = validateServiceField(field, value, services);
     setErrors((prev) => ({ ...prev, [field]: error }));
@@ -92,7 +95,7 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         resetForm();
         onClose();
       }}
-      footer={null} // No necesitamos footer genérico, usamos nuestros botones personalizados
+      footer={null}
     >
       <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
         {/* Imagen */}
@@ -145,16 +148,14 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
 
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">
-              Haga clic en el círculo para{" "}
-              {image ? "cambiar" : "seleccionar"} la imagen
+              Haga clic en el círculo para {image ? "cambiar" : "seleccionar"} la
+              imagen
             </div>
 
             {image && (
               <div className="flex flex-col items-center space-y-1">
                 {imageName && (
-                  <div className="text-xs text-green-600 font-medium">
-                    {imageName}
-                  </div>
+                  <div className="text-xs text-green-600 font-medium">{imageName}</div>
                 )}
                 <button
                   type="button"
@@ -171,9 +172,7 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             )}
 
             {errors.image && (
-              <span className="text-xs text-red-500 mt-1">
-                {errors.image}
-              </span>
+              <span className="text-xs text-red-500 mt-1">{errors.image}</span>
             )}
           </div>
         </div>

@@ -10,19 +10,31 @@ import { Service } from "./types/typesServices";
 import { useServices } from "./hooks/useServices";
 import { useState } from "react";
 
-const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => ({
-  id: i + 1,
-  name: `Servicio ${i + 1}`,
-  description: `Descripción del servicio ${i + 1}`,
-  category:
+const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => {
+  const category =
     i % 3 === 0
       ? "Mantenimiento Preventivo"
       : i % 3 === 1
       ? "Mantenimiento Correctivo"
-      : "Instalación",
-  image: `https://via.placeholder.com/400x300?text=Servicio+${i + 1}`,
-  state: i % 2 === 0 ? "Activo" : "Inactivo",
-}));
+      : "Instalación";
+
+  const image =
+    category === "Mantenimiento Preventivo"
+      ? "/assets/imgs/services/preventive.png"
+      : category === "Mantenimiento Correctivo"
+      ? "/assets/imgs/services/corrective.png"
+      : "/assets/imgs/services/installation.png";
+
+  return {
+    id: i + 1,
+    name: `Servicio ${i + 1}`,
+    description: `Descripción del servicio ${i + 1}`,
+    category,
+    image,
+    state: i % 2 === 0 ? "Activo" : "Inactivo",
+  };
+});
+
 
 export default function ServiciosIndex() {
   const {
