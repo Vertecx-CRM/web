@@ -31,27 +31,13 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<string>("");
-  const [stock, setStock] = useState<number | "">("");
+  const [stock, setStock] = useState<string>("");
   const [category, setCategory] = useState("");
   const [image, setImage] = useState<File | string | undefined>(undefined);
   const [state, setState] = useState<"Activo" | "Inactivo">("Activo");
   const [isImageDeleted, setIsImageDeleted] = useState(false);
   const [errors, setErrors] = useState<ProductErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen && product) {
-      setName(product.name);
-      setDescription(product.description || "");
-      setPrice(formatPrice(product.price));
-      setStock(product.stock);
-      setCategory(product.category);
-      setImage(product.image ?? undefined);
-      setState(product.state ?? "Activo");
-      setIsImageDeleted(false);
-      setErrors({});
-    }
-  }, [isOpen, product]);
 
   const handleCircleClick = () => fileInputRef.current?.click();
 
@@ -61,11 +47,14 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   };
 
   const handlePriceChange = (value: string) => {
-    const numericValue = value.replace(/\./g, "").replace(/[^\d]/g, "");
+    const numericValue = value.replace(/\D/g, "");
     setPrice(formatPrice(Number(numericValue)));
   };
 
-  const validateField = (field: keyof Omit<Product, "id" | "state">, value: any) => {
+  const validateField = (
+    field: keyof Omit<Product, "id" | "state">,
+    value: string | number | File | undefined
+  ) => {
     let filteredProducts = products;
     if (product && field === "name") {
       filteredProducts = products.filter((p) => p.id !== product.id);
@@ -74,18 +63,50 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
     setErrors((prev) => {
       const newErrors = { ...prev };
       if (error) newErrors[field] = error;
-      else delete (newErrors as any)[field];
+      else delete newErrors[field];
       return newErrors;
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+
+  useEffect(() => {
+    if (isOpen && product) {
+      const stored = localStorage.getItem(`product-${product.id}`);
+      const data: Product = stored ? JSON.parse(stored) : product;
+
+      setName(data.name);
+      setDescription(data.description || "");
+      setPrice(formatPrice(data.price));
+      setStock(data.stock.toString());
+      setCategory(data.category);
+      setImage(typeof data.image === "string" ? data.image : undefined);
+      setState(data.state ?? "Activo");
+      setIsImageDeleted(false);
+      setErrors({});
+    }
+  }, [isOpen, product]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !price || !category) {
-      showWarning("Por favor completa todos los campos obligatorios");
+      showWarning("Por favor completa los campos obligatorios");
       return;
     }
     if (!product) return;
+
+    let imageString = "";
+    if (image instanceof File) {
+      imageString = await fileToBase64(image);
+    } else if (typeof image === "string") {
+      imageString = image;
+    }
 
     const payload: Product = {
       id: product.id,
@@ -94,12 +115,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       price: Number(price.replace(/\./g, "")),
       stock: Number(stock),
       category,
-      image: isImageDeleted ? undefined : (image as unknown as string),
+      image: isImageDeleted ? undefined : imageString,
       state,
     };
 
     const filteredProducts = products.filter((p) => p.id !== product.id);
-    const formErrors = validateProductForm(payload as any, filteredProducts);
+    const formErrors = validateProductForm(payload, filteredProducts);
     setErrors(formErrors);
 
     if (Object.keys(formErrors).length > 0) {
@@ -107,6 +128,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       return;
     }
 
+    localStorage.setItem(`product-${payload.id}`, JSON.stringify(payload));
     onSave(payload);
     onClose();
   };
@@ -160,25 +182,20 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="hidden"
             ref={fileInputRef}
             onChange={(e) => {
-              setImage(e.target.files?.[0] ?? undefined);
+              const file = e.target.files?.[0];
+              setImage(file ?? undefined);
               setIsImageDeleted(false);
-              validateField("image", e.target.files?.[0]);
+              validateField("image", file);
             }}
           />
           <div
-            className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1"
+            className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
             onClick={handleCircleClick}
             style={{ borderColor: errors.image ? "red" : Colors.table.lines }}
           >
-            {!isImageDeleted && (image || product?.image) ? (
+            {image ? (
               <img
-                src={
-                  image
-                    ? image instanceof File
-                      ? URL.createObjectURL(image)
-                      : image
-                    : (product?.image as string)
-                }
+                src={image instanceof File ? URL.createObjectURL(image) : image}
                 alt="Producto"
                 className="w-full h-full object-cover rounded-full"
               />
@@ -190,20 +207,21 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                />
               </svg>
             )}
           </div>
-
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">
               Haga clic en el círculo para{" "}
-              {!isImageDeleted && (image || product?.image)
-                ? "cambiar"
-                : "seleccionar"} la imagen
+              {!isImageDeleted && image ? "cambiar" : "seleccionar"} la imagen
             </div>
-
-            {!isImageDeleted && (image || product?.image) && (
+            {!isImageDeleted && image && (
               <div className="flex flex-col items-center space-y-1">
                 {imageName && (
                   <div className="text-xs text-green-600 font-medium">{imageName}</div>
@@ -222,7 +240,9 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 </button>
               </div>
             )}
-            {errors.image && <span className="text-xs text-red-500 mt-1">{errors.image}</span>}
+            {errors.image && (
+              <span className="text-xs text-red-500 mt-1">{errors.image}</span>
+            )}
           </div>
         </div>
 

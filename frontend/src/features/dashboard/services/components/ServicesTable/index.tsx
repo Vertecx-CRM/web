@@ -4,6 +4,7 @@ import { DataTable, Column } from "@/features/dashboard/components/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
+import Image from "next/image";
 
 interface ServicesTableProps {
   services: Service[];
@@ -35,16 +36,21 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
             ? URL.createObjectURL(s.image)
             : "";
 
+        const isBase64 =
+          typeof image === "string" && image.startsWith("data:image");
+
+          console.log(`-----------------------------------
+            Renderizando imagen para servicio
+            -----------------------------------------`, s, "URL:", image);
+          
         if (!image) {
           return (
-            <span className="text-gray-400 text-xs italic">
-              Sin imagen
-            </span>
+            <span className="text-gray-400 text-xs italic">Sin imagen</span>
           );
         }
 
         return (
-          <img
+          <Image
             src={image}
             alt={s.name}
             className="w-10 h-10 object-cover rounded-md border border-gray-200"
@@ -55,6 +61,9 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
                 `<span class="text-gray-400 text-xs italic">Sin imagen</span>`
               );
             }}
+            width={100}
+            height={100}
+            unoptimized={isBase64}
           />
         );
       },
@@ -91,10 +100,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       searchPlaceholder="Buscar servicios..."
       createButtonText="Crear Servicio"
       rightActions={
-        <DownloadXLSXButton
-          data={services}
-          fileName="reporte_servicios.xlsx"
-        />
+        <DownloadXLSXButton data={services} fileName="reporte_servicios.xlsx" />
       }
     />
   );
