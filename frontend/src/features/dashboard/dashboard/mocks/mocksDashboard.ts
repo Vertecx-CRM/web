@@ -139,22 +139,22 @@ export const OrderServiceData: OrderService[] = [
   {
     state: 'Completados',
     value: 4000,
-    total: 1000, // Por ejemplo, un total de 5000
+    total: 1000, 
   },
   {
     state: 'Pendintes',
     value: 3000,
-    total: 2000, // Un total de 5000
+    total: 2000, 
   },
   {
     state: 'En progreso',
     value: 2000,
-    total: 3000, // Un total de 5000
+    total: 3000, 
   },
   {
     state: 'Anulada',
     value: 2780,
-    total: 2220, // Un total de 5000
+    total: 2220, 
   },
 ];
 
