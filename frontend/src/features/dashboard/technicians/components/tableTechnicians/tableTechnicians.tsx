@@ -1,7 +1,10 @@
 // src/features/dashboard/technicians/components/tableTechnicians/tableTechnicians.tsx
 "use client";
 
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Technician } from "../../types/typesTechnicians";
 

@@ -1,5 +1,7 @@
-
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 import { Category } from "../../types/typeCategoryProducts";
 import Colors from "@/shared/theme/colors";
 
@@ -16,28 +18,29 @@ export const CategoriesTable: React.FC<CategoriesTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onCreate
+  onCreate,
 }) => {
   // Definición de columnas para el DataTable
   const columns: Column<Category>[] = [
     { key: "id", header: "ID" },
     { key: "nombre", header: "Nombre" },
     { key: "descripcion", header: "Descripción" },
-    { 
-      key: "estado", 
+    {
+      key: "estado",
       header: "Estado",
       render: (category: Category) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color: category.estado === "Activo" 
-              ? Colors.states.success 
-              : Colors.states.inactive
+            color:
+              category.estado === "Activo"
+                ? Colors.states.success
+                : Colors.states.inactive,
           }}
         >
           {category.estado}
         </span>
-      )
+      ),
     },
   ];
 
