@@ -236,10 +236,12 @@ export function DataTable<T extends { id: number | string }>({
           <div className="flex items-center gap-2 justify-end">
             {rightActions}
             {onCreate && (
-              <CreateButton
-                onCreate={onCreate}
-                createButtonText={createButtonText}
-              />
+              <div className="hidden md:block">
+                <CreateButton
+                  onCreate={onCreate}
+                  createButtonText={createButtonText}
+                />
+              </div>
             )}
           </div>
         )}
