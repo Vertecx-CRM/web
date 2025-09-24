@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { routes } from "@/shared/routes";
@@ -16,6 +16,119 @@ import {
 } from "lucide-react";
 import Colors from "@/shared/theme/colors";
 import { motion, AnimatePresence } from "framer-motion";
+import React from "react";
+
+/* ========= SUBCOMPONENTES ========= */
+
+const MenuItem = React.memo(
+  ({
+    href,
+    icon: Icon,
+    label,
+    isActive,
+    onClick,
+  }: {
+    href: string;
+    icon: React.ElementType;
+    label: string;
+    isActive: boolean;
+    onClick?: () => void;
+  }) => (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-3 rounded-md text-base transition transform duration-200 ${
+        isActive
+          ? "bg-red-800 text-white hover:scale-105"
+          : "hover:bg-red-600 hover:scale-105"
+      }`}
+    >
+      <Icon size={20} /> {label}
+    </Link>
+  )
+);
+
+MenuItem.displayName = "MenuItem";
+
+const SubMenu = React.memo(
+  ({
+    parent,
+    icon: Icon,
+    label,
+    childrenRoutes,
+    pathname,
+    openMenu,
+    toggleMenu,
+    items,
+    setOpenMenu,
+  }: {
+    parent: string;
+    icon: React.ElementType;
+    label: string;
+    childrenRoutes: string[];
+    pathname: string;
+    openMenu: string | null;
+    toggleMenu: (menu: string) => void;
+    items: { href: string; label: string }[];
+    setOpenMenu: (menu: string | null) => void;
+  }) => {
+    const isActive = childrenRoutes.some((child) => pathname.startsWith(child));
+
+    return (
+      <div
+        className="relative"
+        onMouseEnter={() => setOpenMenu(parent)}
+        onMouseLeave={() => setOpenMenu(null)}
+      >
+        <button
+          onClick={() => toggleMenu(parent)}
+          className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base transition transform duration-200 ${
+            isActive
+              ? "bg-red-800 text-white hover:scale-105"
+              : "hover:bg-red-600 hover:scale-105"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Icon size={20} /> {label}
+          </span>
+          <ChevronDown
+            size={18}
+            className={`transition-transform ${
+              openMenu === parent ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        <AnimatePresence>
+          {openMenu === parent && (
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 20, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
+            >
+              {items.map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setOpenMenu(null)}
+                  className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
+                >
+                  {label}
+                </Link>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+);
+
+SubMenu.displayName = "SubMenu";
+
+/* ========= COMPONENTE PRINCIPAL ========= */
 
 const AsideNav = ({
   isCollapsed,
@@ -27,19 +140,100 @@ const AsideNav = ({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
 
-  const toggleMenu = (menu: string) => {
-    setOpenMenu(openMenu === menu ? null : menu);
-  };
+  const toggleMenu = useCallback(
+    (menu: string) => {
+      setOpenMenu(openMenu === menu ? null : menu);
+    },
+    [openMenu]
+  );
 
-  const isParentActive = (children: string[]) =>
-    children.some((child) => pathname.startsWith(child))
-      ? "bg-red-800 text-white hover:scale-105 transition transform duration-200"
-      : "hover:bg-red-600 hover:scale-105 transition transform duration-200";
-
-  const isActive = (path: string) =>
-    pathname === path
-      ? "bg-red-800 text-white hover:scale-105 transition transform duration-200"
-      : "hover:bg-red-600 hover:scale-105 transition transform duration-200";
+  // Memoizamos items del menú para no recrearlos siempre
+  const menuConfig = useMemo(
+    () => [
+      {
+        type: "link",
+        href: routes.dashboard.main,
+        icon: Home,
+        label: "Dashboard",
+      },
+      {
+        type: "link",
+        href: routes.dashboard.users,
+        icon: Users,
+        label: "Usuarios",
+      },
+      {
+        type: "link",
+        href: routes.dashboard.roles,
+        icon: Users,
+        label: "Roles",
+      },
+      {
+        type: "submenu",
+        parent: "compras",
+        icon: Truck,
+        label: "Compras",
+        childrenRoutes: [
+          routes.dashboard.suppliers,
+          routes.dashboard.purchasesOrders,
+          routes.dashboard.purchases,
+          routes.dashboard.purchasesGraph,
+        ],
+        items: [
+          { href: routes.dashboard.suppliers, label: "Proveedores" },
+          {
+            href: routes.dashboard.purchasesOrders,
+            label: "Órdenes de compras",
+          },
+          { href: routes.dashboard.purchases, label: "Compras" },
+          { href: routes.dashboard.purchasesGraph, label: "Gráficas compras" },
+        ],
+      },
+      {
+        type: "submenu",
+        parent: "productos",
+        icon: Box,
+        label: "Productos",
+        childrenRoutes: [
+          routes.dashboard.products,
+          routes.dashboard.productsCategories,
+        ],
+        items: [
+          { href: routes.dashboard.productsCategories, label: "Categorías" },
+          { href: routes.dashboard.products, label: "Productos" },
+        ],
+      },
+      {
+        type: "submenu",
+        parent: "servicios",
+        icon: Wrench,
+        label: "Servicios",
+        childrenRoutes: [
+          routes.dashboard.services,
+          routes.dashboard.technicians,
+        ],
+        items: [
+          { href: routes.dashboard.services, label: "Servicios" },
+          { href: routes.dashboard.technicians, label: "Técnicos" },
+        ],
+      },
+      {
+        type: "submenu",
+        parent: "clientes",
+        icon: Users,
+        label: "Ventas",
+        childrenRoutes: [routes.dashboard.clients],
+        items: [
+          { href: routes.dashboard.sales, label: "Ventas" },
+          { href: routes.dashboard.clients, label: "Clientes" },
+          { href: routes.dashboard.requestsServices, label: "Solicitudes" },
+          { href: routes.dashboard.ordersServices, label: "Órdenes" },
+          { href: routes.dashboard.appointments, label: "Citas" },
+        ],
+      },
+    ],
+    []
+  );
 
   return (
     <motion.aside
@@ -49,22 +243,19 @@ const AsideNav = ({
       className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.25)]"
       style={{ backgroundColor: Colors.asideNavBackground.primary }}
     >
-      {/* Botón flecha arriba a la derecha */}
+      {/* Botón flecha */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1  drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)]  hover:bg-red-600 transition"
+        className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1 drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)] hover:bg-red-600 transition"
       >
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
 
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 mb-4">
-        {/* Logo o ícono */}
         <div className="w-8 h-8 flex items-center justify-center bg-red-600 rounded-lg text-white font-bold">
           V
         </div>
-
-        {/* Texto */}
         <div>
           <h1 className="text-5xl font-bold text-white">Vertecx</h1>
           <p className="text-xs text-center text-white">Panel de gestión</p>
@@ -73,296 +264,30 @@ const AsideNav = ({
 
       {/* NAV */}
       <nav className="flex flex-col gap-1 px-2">
-        {/* Dashboard */}
-        <Link
-          href={routes.dashboard.main}
-          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
-            routes.dashboard.main
-          )}`}
-        >
-          <Home size={20} /> Dashboard
-        </Link>
-
-        {/* Usuarios */}
-        <Link
-          href={routes.dashboard.users}
-          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
-            routes.dashboard.users
-          )}`}
-        >
-          <Users size={20} /> Usuarios
-        </Link>
-
-        {/* Roles */}
-        <Link
-          href={routes.dashboard.roles}
-          className={`flex items-center gap-2 px-4 py-3 rounded-md text-base ${isActive(
-            routes.dashboard.roles
-          )}`}
-        >
-          <Users size={20} /> Roles
-        </Link>
-
-        {/* Compras */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("compras")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("compras")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [
-                routes.dashboard.suppliers,
-                routes.dashboard.purchasesOrders,
-                routes.dashboard.purchases,
-                routes.dashboard.purchasesGraph,
-              ]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Truck size={20} /> Compras
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "compras" ? "rotate-180" : ""
-              }`}
+        {menuConfig.map((item) =>
+          item.type === "link" ? (
+            <MenuItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href}
             />
-          </button>
-          {openMenu === "compras" && (
-            <AnimatePresence>
-              {openMenu === "compras" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                  {/* Proveedores */}
-                  <Link
-                    href={routes.dashboard.suppliers}
-                    onClick={() => setOpenMenu(null)} // 👈 se cierra al hacer click
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Proveedores
-                  </Link>
-                  {/* Ordenes de compras */}
-                  <Link
-                    href={routes.dashboard.purchasesOrders}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Órdenes de compras
-                  </Link>
-                  {/* Compras */}
-                  <Link
-                    href={routes.dashboard.purchases}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Compras
-                  </Link>
-                  {/* Graficas de compras */}
-                  <Link
-                    href={routes.dashboard.purchasesGraph}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Graficas compras
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Productos */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("productos")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("productos")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.products, routes.dashboard.productsCategories]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Box size={20} /> Productos
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "productos" ? "rotate-180" : ""
-              }`}
+          ) : (
+            <SubMenu
+              key={item.parent}
+              parent={item.parent}
+              icon={item.icon}
+              label={item.label}
+              childrenRoutes={item.childrenRoutes}
+              pathname={pathname}
+              openMenu={openMenu}
+              toggleMenu={toggleMenu}
+              items={item.items}
+              setOpenMenu={setOpenMenu}
             />
-          </button>
-          {openMenu === "productos" && (
-            <AnimatePresence>
-              {openMenu === "productos" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                  {/* Categorias de productos */}
-                  <Link
-                    href={routes.dashboard.productsCategories}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Categorias
-                  </Link>
-                  {/* Productos */}
-                  <Link
-                    href={routes.dashboard.products}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Productos
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Servicios */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("servicios")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("servicios")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.services, routes.dashboard.technicians]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Wrench size={20} /> Servicios
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "servicios" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {openMenu === "servicios" && (
-            <AnimatePresence>
-              {openMenu === "servicios" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                  {/* Servicios */}
-                  <Link
-                    href={routes.dashboard.services}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Servicios
-                  </Link>
-                  {/* Tecnicos */}
-                  <Link
-                    href={routes.dashboard.technicians}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Tecnicos
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Ventas */}
-        <div
-          className="relative"
-          onMouseEnter={() => setOpenMenu("clientes")}
-          onMouseLeave={() => setOpenMenu(null)}
-        >
-          <button
-            onClick={() => toggleMenu("clientes")}
-            className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base ${isParentActive(
-              [routes.dashboard.clients]
-            )}`}
-          >
-            <span className="flex items-center gap-2">
-              <Users size={20} /> Ventas
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${
-                openMenu === "clientes" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {openMenu === "clientes" && (
-            <AnimatePresence>
-              {openMenu === "clientes" && (
-                <motion.div
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  exit={{ x: 20, opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
-                >
-                  {/* Ventas */}
-                  <Link
-                    href={routes.dashboard.sales}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Ventas
-                  </Link>
-                  {/* Clientes */}
-                  <Link
-                    href={routes.dashboard.clients}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Clientes
-                  </Link>
-                  {/* Solicitudes de servicio */}
-                  <Link
-                    href={routes.dashboard.requestsServices}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Solicitudes de servicio
-                  </Link>
-                  {/* Ordenes de servicio */}
-                  <Link
-                    href={routes.dashboard.ordersServices}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Ordenes de servicio
-                  </Link>
-                  {/* Citas */}
-                  <Link
-                    href={routes.dashboard.appointments}
-                    onClick={() => setOpenMenu(null)}
-                    className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                  >
-                    Citas
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          )}
-        </div>
+          )
+        )}
       </nav>
     </motion.aside>
   );
