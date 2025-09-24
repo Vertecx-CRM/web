@@ -73,7 +73,8 @@ export function DataTable<T extends { id: number | string }>(
   } = props;
 
   const [q, setQ] = useState("");
-  const [pageSize, setPageSize] = useState<string | number>("");
+  const [pageSizeOption, setPageSizeOption] = useState<string | number>("");
+  const [pageSize, setPageSize] = useState<number>(5);
   const [page, setPage] = useState(1);
   const [scrollTop, setScrollTop] = useState(0);
 
@@ -124,16 +125,12 @@ export function DataTable<T extends { id: number | string }>(
   }, [q, data, searchableKeys, normalize]);
 
   const totalPages = useMemo(() => {
-    if (pageSize === "" || pageSize === 0) return 1; // "Mostrar" => una sola página
-    return Math.max(1, Math.ceil(filtered.length / Number(pageSize)));
+    return Math.max(1, Math.ceil(filtered.length / pageSize));
   }, [filtered.length, pageSize]);
 
+  // calcular registros visibles
   const current = useMemo(() => {
-    if (pageSize === "" || pageSize === 0) return filtered; // "Mostrar" => todos
-    return filtered.slice(
-      (page - 1) * Number(pageSize),
-      page * Number(pageSize)
-    );
+    return filtered.slice((page - 1) * pageSize, page * pageSize);
   }, [filtered, page, pageSize]);
 
   const goTo = useCallback(
@@ -249,22 +246,25 @@ export function DataTable<T extends { id: number | string }>(
             {/* Page size select */}
             <div className="flex items-center gap-2">
               <select
-                value={pageSize}
+                value={pageSizeOption}
                 onChange={(e) => {
                   const value = e.target.value;
                   if (value === "") {
-                    setPageSize("");
+                    setPageSizeOption("");
+                    setPageSize(5);
                   } else {
-                    setPageSize(Number(value));
-                    setPage(1);
+                    const num = Number(value);
+                    setPageSizeOption(num);
+                    setPageSize(num);
                   }
+                  setPage(1);
                 }}
                 className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-red-400"
               >
                 <option value="">Mostrar</option>
-                <option value={5}>5</option>
                 <option value={8}>8</option>
                 <option value={10}>10</option>
+                <option value={15}>15</option>
                 <option value={20}>20</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
