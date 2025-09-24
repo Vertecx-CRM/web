@@ -102,7 +102,7 @@ const TopNav = ({
   return (
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
       {/* Título animado */}
-      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5">
+      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5 pb-2">
         {displayedText}
       </h1>
 
