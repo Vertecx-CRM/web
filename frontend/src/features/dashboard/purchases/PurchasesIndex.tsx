@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import RequireAuth from "../../auth/requireauth";
-import { Column, DataTable } from "../components/DataTable";
+import { Column, DataTable } from "../components/datatable/DataTable";
 import Modal from "../components/Modal";
 import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
@@ -75,7 +75,7 @@ export default function PurchasesIndex() {
             "amount",
             "status",
           ]}
-          pageSize={5}
+          pageSize={8}
           onCancel={(row) => console.log("Anular →", row)}
           onCreate={() => setRegisterModalOpen(true)}
           onView={(row) => {

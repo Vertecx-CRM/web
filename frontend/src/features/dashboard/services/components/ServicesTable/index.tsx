@@ -1,6 +1,9 @@
 "use client";
 
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
@@ -39,10 +42,15 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
         const isBase64 =
           typeof image === "string" && image.startsWith("data:image");
 
-          console.log(`-----------------------------------
+        console.log(
+          `-----------------------------------
             Renderizando imagen para servicio
-            -----------------------------------------`, s, "URL:", image);
-          
+            -----------------------------------------`,
+          s,
+          "URL:",
+          image
+        );
+
         if (!image) {
           return (
             <span className="text-gray-400 text-xs italic">Sin imagen</span>

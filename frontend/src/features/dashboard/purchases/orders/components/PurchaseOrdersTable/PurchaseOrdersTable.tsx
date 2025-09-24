@@ -1,5 +1,13 @@
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import { editPurchaseOrder, purchaseOrder, purchaseOrderForTable, PurchaseOrdersTableProps } from "../../types/typesPurchaseOrder";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
+import {
+  editPurchaseOrder,
+  purchaseOrder,
+  purchaseOrderForTable,
+  PurchaseOrdersTableProps,
+} from "../../types/typesPurchaseOrder";
 import Colors from "@/shared/theme/colors";
 
 export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
@@ -7,24 +15,25 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onCreate
+  onCreate,
 }) => {
-
   // Convertir órdenes de compra para la tabla asegurando que tengan ID
-  const purchaseOrdersForTable: purchaseOrderForTable[] = purchaseOrders.map((order, index) => ({
-    ...order,
-    id: order.id || index + 1 // Usar index + 1 como fallback
-  }));
+  const purchaseOrdersForTable: purchaseOrderForTable[] = purchaseOrders.map(
+    (order, index) => ({
+      ...order,
+      id: order.id || index + 1, // Usar index + 1 como fallback
+    })
+  );
 
   // Definición de columnas para el DataTable
   const columns: Column<purchaseOrderForTable>[] = [
     { key: "id", header: "#" },
     { key: "numeroOrden", header: "N° Orden" },
     { key: "proveedor", header: "Proveedor" },
-    { 
-      key: "precioUnitario", 
+    {
+      key: "precioUnitario",
       header: "Precio Unitario",
-      render: (order) => `$${order.precioUnitario.toLocaleString("es-CO")}`
+      render: (order) => `$${order.precioUnitario.toLocaleString("es-CO")}`,
     },
     { key: "fecha", header: "Fecha" },
     {
@@ -68,12 +77,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
       data={purchaseOrdersForTable}
       columns={columns}
       pageSize={10}
-      searchableKeys={[
-        "numeroOrden",
-        "proveedor",
-        "estado",
-        "fecha",
-      ]}
+      searchableKeys={["numeroOrden", "proveedor", "estado", "fecha"]}
       onView={handleView}
       onEdit={handleEdit}
       onDelete={handleDelete}

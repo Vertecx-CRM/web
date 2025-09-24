@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",

@@ -1,5 +1,13 @@
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import { editUser, user, userForTable, UsersTableProps } from "../../types/typesUser";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
+import {
+  editUser,
+  user,
+  userForTable,
+  UsersTableProps,
+} from "../../types/typesUser";
 import Colors from "@/shared/theme/colors";
 
 export const UsersTable: React.FC<UsersTableProps> = ({
@@ -7,13 +15,12 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onCreate
+  onCreate,
 }) => {
-
   // Convertir usuarios para la tabla asegurando que tengan ID
   const usersForTable: userForTable[] = users.map((user, index) => ({
     ...user,
-    id: user.id || index + 1 // Usar index + 1 como fallback
+    id: user.id || index + 1, // Usar index + 1 como fallback
   }));
 
   // Definición de columnas para el DataTable

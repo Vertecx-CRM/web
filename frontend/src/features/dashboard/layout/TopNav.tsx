@@ -7,13 +7,14 @@ import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 import { useLoader } from "@/shared/components/loader";
 
+// 🔹 Tipado de rutas con títulos
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
   [routes.dashboard.users]: "Usuarios",
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
   [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
+  [routes.dashboard.purchasesGraph]: "Gráficas de Compras",
   [routes.dashboard.services]: "Servicios",
   [routes.dashboard.technicians]: "Técnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
@@ -24,7 +25,7 @@ const titles: Record<string, string> = {
   [routes.dashboard.productsCategories]: "Categorías de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
   [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
-  [routes.dashboard.ordersServices]: "Ordenes de Servicio",
+  [routes.dashboard.ordersServices]: "Órdenes de Servicio",
   [routes.dashboard.appointments]: "Citas",
 };
 
@@ -33,17 +34,27 @@ type TopNavProps = {
   fallbackUserName?: string;
 };
 
+// 🔹 Opcional: tipar al usuario de tu contexto (ajústalo si en tu auth tienes otros campos)
+interface AuthUser {
+  name?: string;
+}
+
 const TopNav = ({
   logoutRedirectTo = "/auth/login",
   fallbackUserName = "Usuario",
 }: TopNavProps) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth() as {
+    user: AuthUser | null;
+    logout: () => void;
+  };
   const { showLoader, hideLoader } = useLoader();
+
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // 🔹 Detectar título actual por ruta
   const currentTitle =
     titles[pathname] ||
     Object.entries(titles)
@@ -51,6 +62,7 @@ const TopNav = ({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
+  // 🔹 Efecto para animación de escritura
   const [displayedText, setDisplayedText] = useState("");
 
   useEffect(() => {
@@ -67,10 +79,12 @@ const TopNav = ({
     return () => clearInterval(interval);
   }, [currentTitle]);
 
+  // 🔹 Prefetch para que el logout sea más rápido
   useEffect(() => {
     router.prefetch(logoutRedirectTo);
   }, [router, logoutRedirectTo]);
 
+  // 🔹 Logout con loader
   const handleLogout = async () => {
     setLoading(true);
     showLoader();
@@ -87,12 +101,20 @@ const TopNav = ({
 
   return (
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
-      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5">{displayedText}</h1>
+      {/* Título animado */}
+      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5">
+        {displayedText}
+      </h1>
 
-      <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-700">
+      {/* Botón de menú en móvil */}
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="md:hidden text-gray-700"
+      >
         {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
+      {/* Opciones en escritorio */}
       <div className="hidden md:flex items-center gap-4">
         <span className="text-gray-700 truncate max-w-[200px]">
           {user?.name ?? fallbackUserName}
@@ -108,6 +130,7 @@ const TopNav = ({
         </button>
       </div>
 
+      {/* Menú en móvil */}
       {menuOpen && (
         <div className="absolute right-4 top-full mt-2 w-48 bg-white border rounded-lg shadow-md p-3 flex flex-col gap-3 md:hidden z-50">
           <div className="flex items-center gap-2">

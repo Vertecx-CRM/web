@@ -2,12 +2,13 @@
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { DataTable, Column } from "../components/DataTable";
+import { DataTable } from "../components/datatable/DataTable";
 import EditCategoryModal from "./components/EditCategoryModal/EditCategory";
 import ViewCategoryModal from "./components/ViewCategoryModal/ViewCategory";
 import CreateCategoryModal from "./components/CreateCategoryModal/CreateCategory";
 import { useCategories } from "./hooks/useCategories";
 import { Category, EditCategoryData } from "./types/typeCategoryProducts";
+import { Column } from "../components/datatable/types/column.types";
 
 export default function CategoriesPage() {
   const {
@@ -21,7 +22,7 @@ export default function CategoriesPage() {
     handleView,
     handleEdit,
     handleDelete,
-    closeModals
+    closeModals,
   } = useCategories();
 
   const columns: Column<Category>[] = [
@@ -35,7 +36,10 @@ export default function CategoriesPage() {
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color: row.estado === "Activo" ? Colors.states.success : Colors.states.inactive,
+            color:
+              row.estado === "Activo"
+                ? Colors.states.success
+                : Colors.states.inactive,
           }}
         >
           {row.estado}
@@ -62,7 +66,6 @@ export default function CategoriesPage() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="flex-1 px-6 py-6">
-            
             {/* Modal de Crear Categoría */}
             <CreateCategoryModal
               isOpen={isCreateModalOpen}
