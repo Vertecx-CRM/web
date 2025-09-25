@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { UserCircle, LogOut, Pencil } from "lucide-react";
+import { UserCircle, LogOut, Pencil, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 import { useLoader } from "@/shared/components/loader";
 import ProfileModal from "@/features/auth/porfile/porfilemodal";
 
-// 🔹 Tipado de rutas con títulos
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
   [routes.dashboard.users]: "Usuarios",
@@ -35,9 +34,10 @@ type TopNavProps = {
   fallbackUserName?: string;
 };
 
-// 🔹 Opcional: tipar al usuario de tu contexto (ajústalo si en tu auth tienes otros campos)
 interface AuthUser {
   name?: string;
+  email?: string;
+  avatar?: string;
 }
 
 export default function TopNav({
@@ -48,20 +48,19 @@ export default function TopNav({
   const router = useRouter();
   const { user, logout } = useAuth() as {
     user: AuthUser | null;
-    logout: () => void;
+    logout: () => Promise<void> | void;
   };
   const { showLoader, hideLoader } = useLoader();
-
 
   const [loading, setLoading] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuProfileOpen, setMenuProfileOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // 🔹 Detectar título actual por ruta
   const currentTitle =
     titles[pathname] ||
     Object.entries(titles)
@@ -69,7 +68,6 @@ export default function TopNav({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
-  // 🔹 Efecto para animación de escritura
   useEffect(() => {
     setDisplayedText("");
     let i = 0;
@@ -84,15 +82,14 @@ export default function TopNav({
     return () => clearInterval(id);
   }, [currentTitle]);
 
-  // 🔹 Prefetch para que el logout sea más rápido
   useEffect(() => {
     router.prefetch(logoutRedirectTo);
   }, [router, logoutRedirectTo]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node;
       if (!menuProfileOpen) return;
+      const t = e.target as Node;
       if (menuRef.current?.contains(t)) return;
       if (btnRef.current?.contains(t)) return;
       setMenuProfileOpen(false);
@@ -112,13 +109,12 @@ export default function TopNav({
     hideLoader();
   }, [pathname, hideLoader]);
 
-  // 🔹 Logout con loader
   const handleLogout = async () => {
     setMenuProfileOpen(false);
     setLoading(true);
     showLoader();
     try {
-      await logout();
+      await Promise.resolve(logout());
       router.replace(logoutRedirectTo);
     } finally {
       setLoading(false);
@@ -133,25 +129,17 @@ export default function TopNav({
   };
 
   return (
-    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
-      {/* Título animado */}
-      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5 pb-2">
-        {displayedText}
-      </h1>
-
-      {/* Botón de menú en móvil */}
-      <button
-        onClick={() => setMenuOpen(!menuOpen)}
-        className="md:hidden text-gray-700"
-      >
-        {menuOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-4 md:px-8 py-3 flex items-center justify-between relative">
       <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-2 md:pl-5">
         {displayedText}
       </h1>
-
-      {/* Opciones en escritorio */}
+      <button
+        onClick={() => setMenuOpen((v) => !v)}
+        className="md:hidden text-gray-700 mr-2"
+        aria-label="Abrir menú"
+      >
+        {menuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
       <div className="relative">
         <button
           ref={btnRef}
@@ -173,7 +161,6 @@ export default function TopNav({
             <UserCircle className="w-9 h-9 md:w-10 md:h-10 text-gray-600" />
           )}
         </button>
-
         {menuProfileOpen && (
           <div
             ref={menuRef}
@@ -184,10 +171,10 @@ export default function TopNav({
               <p className="text-sm font-medium truncate">
                 {user?.name ?? fallbackUserName}
               </p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              {user?.email && (
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              )}
             </div>
-
-      {/* Menú en móvil */}
             <button
               onClick={handleOpenProfile}
               role="menuitem"
@@ -196,7 +183,6 @@ export default function TopNav({
               <Pencil size={16} />
               Editar perfil
             </button>
-
             <button
               onClick={handleLogout}
               disabled={loading}
@@ -209,7 +195,6 @@ export default function TopNav({
           </div>
         )}
       </div>
-
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );
