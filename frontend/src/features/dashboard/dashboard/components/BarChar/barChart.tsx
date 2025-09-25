@@ -7,6 +7,7 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
 
 interface BarConfig {
@@ -22,6 +23,21 @@ interface CustomBarChartProps {
   width?: number;
   height?: number;
 }
+
+// Componente personalizado para el Tooltip
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
+        <p className="font-bold text-gray-800 mb-2">{`Estado: ${label}`}</p>
+        <p className="text-sm" style={{ color: payload[0].color }}>
+          {`Total: ${payload[0].value}`}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
 export const CustomBarChart: React.FC<CustomBarChartProps> = ({
   data,
@@ -53,11 +69,15 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({
           tick={{ fontSize: 11, fontWeight: "bold" }}
         />
         <YAxis hide={true} />
+        
+        {/* Tooltip personalizado */}
+        <Tooltip content={<CustomTooltip />} />
 
         {bars.map((bar, index) => (
           <Bar
             key={index}
             dataKey={bar.dataKey}
+            name="Total" // Nombre fijo para que aparezca como "Total"
             radius={bar.radius || [0, 0, 0, 0]}
             stackId="a"
             fill={bar.color}

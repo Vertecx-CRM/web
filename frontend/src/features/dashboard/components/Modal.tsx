@@ -40,44 +40,44 @@ export default function Modal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-[1000]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
-            onClick={onClose}
-          />
-          <div className="absolute inset-0 p-4 overflow-y-auto">
-            <motion.div
-              className={`relative mx-auto w-full ${widthClass} w-[min(100vw-2rem,1100px)] rounded-2xl bg-white shadow-2xl`}
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center px-4 py-3 border-b">
-                <h2 className="text-lg font-semibold">{title}</h2>
-                <button
-                  onClick={onClose}
-                  className="cursor-pointer text-gray-500 hover:text-black"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+          <motion.div
+            className="
+              bg-white rounded-2xl shadow-lg 
+              w-full sm:w-[90%] md:max-w-lg 
+              max-h-[90vh] flex flex-col
+            "
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
+                {title}
+              </h2>
+              <button
+                onClick={onClose}
+                className="cursor-pointer text-gray-500 hover:text-black"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-              <div className="p-4 max-h-[calc(100dvh-9rem)] overflow-y-auto">
-                {children}
-              </div>
+            {/* Content con scroll si se desborda */}
+            <div className="p-4 overflow-y-auto flex-1">{children}</div>
 
-              {footer && (
-                <div className="flex justify-end gap-3 px-4 py-3 border-t">
-                  {footer}
-                </div>
-              )}
-            </motion.div>
-          </div>
+            {/* Footer */}
+            {footer && (
+              <div className="flex flex-col sm:flex-row justify-end gap-3 p-4 border-t">
+                {footer}
+              </div>
+            )}
+          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>,

@@ -21,24 +21,23 @@ export const months = [
   "Diciembre",
 ];
 
-// Precios + stock de productos
-const products: Record<string, Product> = {
-  "Cámara Hivision": { price: 500000, stock: 5 },
-  "Disco Duro 1TB": { price: 250000, stock: 10 },
-  "Router Mikrotik": { price: 400000, stock: 3 },
-  "Switch TP-Link 24p": { price: 350000, stock: 4 },
-  "Cable UTP Cat6": { price: 500, stock: 100 },
-  "Laptop Dell XPS": { price: 1200, stock: 2 },
-};
 export const suppliers = ["Proveedor A", "Proveedor B", "Proveedor C"];
 
 export function usePurchases(
   purchases: IPurchase[],
   onSave: (p: IPurchase) => void
 ) {
+  const [products, setProducts] = useState<Record<string, Product>>({
+    "Cámara Hivision": { price: 500000, stock: 5 },
+    "Disco Duro 1TB": { price: 250000, stock: 10 },
+    "Router Mikrotik": { price: 400000, stock: 3 },
+    "Switch TP-Link 24p": { price: 350000, stock: 4 },
+    "Cable UTP Cat6": { price: 500, stock: 100 },
+    "Laptop Dell XPS": { price: 1200, stock: 2 },
+  });
+
   const currentYear = new Date().getFullYear();
 
-  // 🧾 Generar número de orden secuencial
   const generateNextOrderNumber = () => {
     const year = currentYear;
     const currentYearOrders = purchases
@@ -116,6 +115,7 @@ export function usePurchases(
 
   const handleAddProduct = () => {
     if (!selectedProduct || quantity <= 0) return;
+
     setCart((prev) => {
       const existing = prev.find((p) => p.name === selectedProduct);
       if (existing) {
@@ -132,6 +132,15 @@ export function usePurchases(
         },
       ];
     });
+
+    setProducts((prev) => ({
+      ...prev,
+      [selectedProduct]: {
+        ...prev[selectedProduct],
+        stock: prev[selectedProduct].stock + quantity,
+      },
+    }));
+
     setQuantity(1);
   };
 

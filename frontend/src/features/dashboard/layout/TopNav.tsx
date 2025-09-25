@@ -8,13 +8,14 @@ import { useAuth } from "@/features/auth/authcontext";
 import { useLoader } from "@/shared/components/loader";
 import ProfileModal from "@/features/auth/porfile/porfilemodal";
 
+// 🔹 Tipado de rutas con títulos
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
   [routes.dashboard.users]: "Usuarios",
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
   [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
+  [routes.dashboard.purchasesGraph]: "Gráficas de Compras",
   [routes.dashboard.services]: "Servicios",
   [routes.dashboard.technicians]: "Técnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
@@ -25,7 +26,8 @@ const titles: Record<string, string> = {
   [routes.dashboard.productsCategories]: "Categorías de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
   [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
-  [routes.dashboard.ordersServices]: "Ordenes de Servicio",
+  [routes.dashboard.ordersServices]: "Órdenes de Servicio",
+  [routes.dashboard.appointments]: "Citas",
 };
 
 type TopNavProps = {
@@ -33,14 +35,23 @@ type TopNavProps = {
   fallbackUserName?: string;
 };
 
+// 🔹 Opcional: tipar al usuario de tu contexto (ajústalo si en tu auth tienes otros campos)
+interface AuthUser {
+  name?: string;
+}
+
 export default function TopNav({
   logoutRedirectTo = "/auth/access",
   fallbackUserName = "Usuario",
 }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth() as {
+    user: AuthUser | null;
+    logout: () => void;
+  };
   const { showLoader, hideLoader } = useLoader();
+
 
   const [loading, setLoading] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
@@ -50,6 +61,7 @@ export default function TopNav({
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
+  // 🔹 Detectar título actual por ruta
   const currentTitle =
     titles[pathname] ||
     Object.entries(titles)
@@ -57,6 +69,7 @@ export default function TopNav({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
+  // 🔹 Efecto para animación de escritura
   useEffect(() => {
     setDisplayedText("");
     let i = 0;
@@ -71,6 +84,7 @@ export default function TopNav({
     return () => clearInterval(id);
   }, [currentTitle]);
 
+  // 🔹 Prefetch para que el logout sea más rápido
   useEffect(() => {
     router.prefetch(logoutRedirectTo);
   }, [router, logoutRedirectTo]);
@@ -98,6 +112,7 @@ export default function TopNav({
     hideLoader();
   }, [pathname, hideLoader]);
 
+  // 🔹 Logout con loader
   const handleLogout = async () => {
     setMenuProfileOpen(false);
     setLoading(true);
@@ -118,11 +133,25 @@ export default function TopNav({
   };
 
   return (
+    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
+      {/* Título animado */}
+      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5 pb-2">
+        {displayedText}
+      </h1>
+
+      {/* Botón de menú en móvil */}
+      <button
+        onClick={() => setMenuOpen(!menuOpen)}
+        className="md:hidden text-gray-700"
+      >
+        {menuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
     <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-4 md:px-8 py-3 flex items-center justify-between relative">
       <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-2 md:pl-5">
         {displayedText}
       </h1>
 
+      {/* Opciones en escritorio */}
       <div className="relative">
         <button
           ref={btnRef}
@@ -158,6 +187,7 @@ export default function TopNav({
               <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
 
+      {/* Menú en móvil */}
             <button
               onClick={handleOpenProfile}
               role="menuitem"

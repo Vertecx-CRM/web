@@ -3,7 +3,7 @@ export interface Category {
   nombre: string;
   descripcion: string;
   estado: "Activo" | "Inactivo";
-  icono?: File | null;
+  icono?: File | string | null;
 }
 
 // Tipo base para reusar en create y edit

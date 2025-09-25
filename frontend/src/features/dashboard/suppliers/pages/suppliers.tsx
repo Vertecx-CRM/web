@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import CreateSuppliersModal, { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
-import EditSupplierModal from "@/features/dashboard/suppliers/components/EditSupplierModal";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
+import CreateSuppliersModal, {
+  ProviderSubmitPayload,
+} from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 
 type Row = {
   id: number;

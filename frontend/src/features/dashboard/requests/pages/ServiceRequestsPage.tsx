@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import Modal from "@/features/dashboard/components/Modal";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
