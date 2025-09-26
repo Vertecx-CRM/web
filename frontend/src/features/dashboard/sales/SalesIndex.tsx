@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Column, DataTable } from "@/features/dashboard/components/DataTable";
+import {
+  Column,
+  DataTable,
+} from "@/features/dashboard/components/datatable/DataTable";
 import { useLoader } from "@/shared/components/loader";
 
 type Sale = {
@@ -14,37 +17,37 @@ type Sale = {
 };
 
 const mockSales: Sale[] = [
-  { 
-    id: 1, 
-    codigo: "VEN-001", 
-    cliente: "Diana Inguia", 
-    fecha: "02/05/2025", 
-    total: 310000, 
-    estado: "Finalizada" 
+  {
+    id: 1,
+    codigo: "VEN-001",
+    cliente: "Diana Inguia",
+    fecha: "02/05/2025",
+    total: 310000,
+    estado: "Finalizada",
   },
-  { 
-    id: 2, 
-    codigo: "VEN-002", 
-    cliente: "Juliana Gómez", 
-    fecha: "02/05/2025", 
-    total: 2567500, 
-    estado: "Anulada" 
+  {
+    id: 2,
+    codigo: "VEN-002",
+    cliente: "Juliana Gómez",
+    fecha: "02/05/2025",
+    total: 2567500,
+    estado: "Anulada",
   },
-  { 
-    id: 3, 
-    codigo: "VEN-003", 
-    cliente: "Wayne Perez", 
-    fecha: "01/04/2025", 
-    total: 2250.00, 
-    estado: "Anulada" 
+  {
+    id: 3,
+    codigo: "VEN-003",
+    cliente: "Wayne Perez",
+    fecha: "01/04/2025",
+    total: 2250.0,
+    estado: "Anulada",
   },
-  { 
-    id: 4, 
-    codigo: "VEN-004", 
-    cliente: "Nataly Martinez", 
-    fecha: "28/03/2025", 
-    total: 850000, 
-    estado: "Finalizada" 
+  {
+    id: 4,
+    codigo: "VEN-004",
+    cliente: "Nataly Martinez",
+    fecha: "28/03/2025",
+    total: 850000,
+    estado: "Finalizada",
   },
 ];
 
@@ -54,7 +57,7 @@ export default function SalesIndex() {
 
   const handleDelete = async (row: Sale) => {
     if (!confirm(`¿Eliminar venta "${row.codigo}"?`)) return;
-    showLoader(); 
+    showLoader();
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500)); // simula petición
       setSales((prev) => prev.filter((s) => s.id !== row.id));
@@ -64,22 +67,22 @@ export default function SalesIndex() {
   };
 
   const columns: Column<Sale>[] = [
-    { 
-      key: "id", 
+    {
+      key: "id",
       header: "#",
-      render: (row) => row.id.toString()
+      render: (row) => row.id.toString(),
     },
-    { 
-      key: "codigo", 
-      header: "Código Venta" 
+    {
+      key: "codigo",
+      header: "Código Venta",
     },
-    { 
-      key: "cliente", 
-      header: "Cliente" 
+    {
+      key: "cliente",
+      header: "Cliente",
     },
-    { 
-      key: "fecha", 
-      header: "Fecha" 
+    {
+      key: "fecha",
+      header: "Fecha",
     },
     {
       key: "total",

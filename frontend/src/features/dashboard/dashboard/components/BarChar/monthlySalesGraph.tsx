@@ -19,18 +19,18 @@ function generateDailyData(year: number, month: number) {
   for (let day = 1; day <= currentDay; day++) {
     data.push({
       day,
-      uv: Math.floor(Math.random() * 1000) + 200,
+      total: Math.floor(Math.random() * 1000) + 200,
     });
   }
   return data;
 }
 
 interface MonthlyGraphProps {
-  title: string;                
-  month: string;                
+  title: string;
+  month: string;
   data: { month: string; total: number }[];
   onBack: () => void;
-  isCurrency?: boolean; 
+  isCurrency?: boolean;
 }
 
 export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: MonthlyGraphProps) => {
@@ -43,6 +43,22 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
   const total = monthData ? monthData.total : 0;
 
   const dailyData = generateDailyData(2025, monthIndex);
+
+  // Función para formatear los valores del eje Y
+  const formatYAxisTick = (value: number) => {
+    if (isCurrency) {
+      return `$${value}`;
+    }
+    return value.toString();
+  };
+
+  // Función para formatear el tooltip
+  const formatTooltipValue = (value: number) => {
+    if (isCurrency) {
+      return `$${value}`;
+    }
+    return value;
+  };
 
   return (
     <div className="w-full h-full flex flex-col items-center">
@@ -68,12 +84,27 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
       {/* Gráfico */}
       <ResponsiveContainer className="mt-6">
         <LineChart data={dailyData}>
-          <XAxis dataKey="day" />
-          <YAxis />
-          <Tooltip />
+          <XAxis
+            dataKey="day"
+            tick={{ fill: Colors.texts.primary }}
+            label={{
+              value: 'Días del Mes',
+              position: 'insideBottom',
+              offset: -5,
+              fill: Colors.texts.primary
+            }}
+          />
+          <YAxis 
+            tickFormatter={formatYAxisTick} 
+            tick={{ fill: Colors.texts.primary }}
+          />
+          <Tooltip 
+            formatter={(value) => [formatTooltipValue(Number(value)), 'Total']}
+            labelFormatter={(label) => `Día ${label}`}
+          />
           <Line
             type="monotone"
-            dataKey="uv"
+            dataKey="total"
             stroke={Colors.graphic.linePrimary}
             strokeWidth={3}
             dot

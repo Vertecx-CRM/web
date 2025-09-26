@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, FormEvent, useCallback } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent, useCallback, KeyboardEvent, RefObject } from 'react';
 import {
     Appointment,
     AppointmentFormData,
@@ -10,7 +10,8 @@ import {
     EditAppointmentModalProps,
     AppointmentEvent,
     UseEditAppointmentFormProps,
-    Order
+    Order,
+    UseOrderSearchProps
 } from '../types/typeAppointment';
 import { orders, technicians } from '../mocks/mockAppointment';
 import { showSuccess, showError, showInfo, showWarning } from '@/shared/utils/notifications';
@@ -23,6 +24,7 @@ import {
     validateTechnicians,
     hasValidationErrors
 } from '../validations/validationAppointment';
+
 
 export const useAppointments = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -102,7 +104,7 @@ export const useCreateAppointmentForm = ({
         dia: selectedDateTime.dia || '',
         mes: selectedDateTime.mes || '',
         año: selectedDateTime.año || '',
-        tecnico: "",
+        tecnicos: [],
         orden: null,
         observaciones: "",
         estado: "Pendiente",
@@ -112,6 +114,39 @@ export const useCreateAppointmentForm = ({
     const [errors, setErrors] = useState<AppointmentErrors>({});
     const [technicianError, setTechnicianError] = useState<string | null>(null);
     const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
+
+    const updateDateTime = useCallback(() => {
+        if (formData.dia && formData.mes && formData.año) {
+            try {
+                const fecha = new Date(
+                    parseInt(formData.año),
+                    parseInt(formData.mes) - 1,
+                    parseInt(formData.dia)
+                );
+
+                if (fecha.getDay() === 0) {
+                    setErrors(prev => ({
+                        ...prev,
+                        dia: "No se permiten citas en domingo"
+                    }));
+                    showError("No se permiten citas en domingo"); 
+                } else if (errors.dia === "No se permiten citas en domingo") {
+                    setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.dia;
+                        return newErrors;
+                    });
+                }
+            } catch (error) {
+                console.error("Error validando fecha:", error);
+            }
+        }
+    }, [formData.dia, formData.mes, formData.año]);
+
+    useEffect(() => {
+        updateDateTime();
+    }, [updateDateTime]);
+
 
     useEffect(() => {
         if (isOpen) {
@@ -123,7 +158,7 @@ export const useCreateAppointmentForm = ({
                 dia: selectedDateTime.dia || '',
                 mes: selectedDateTime.mes || '',
                 año: selectedDateTime.año || '',
-                tecnico: "",
+                tecnicos: [],
                 orden: null,
                 observaciones: "",
                 estado: "Pendiente"
@@ -175,20 +210,24 @@ export const useCreateAppointmentForm = ({
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        setTouched(prev => ({ ...prev, [name]: true }));
 
-        const error = validateAppointmentField(name, value);
-        setErrors(prev => ({ ...prev, [name]: error }));
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, value);
+            setErrors(prev => ({ ...prev, [name]: error }));
+        }
     };
 
     const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
 
         setFormData(prev => ({ ...prev, [name]: value }));
-        setTouched(prev => ({ ...prev, [name]: true }));
 
-        const error = validateAppointmentField(name, value);
-        setErrors(prev => ({ ...prev, [name]: error }));
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, value);
+            setErrors(prev => ({ ...prev, [name]: error }));
+        }
 
         const newFormData = { ...formData, [name]: value };
         const timeRangeError = validateTimeRange(
@@ -221,7 +260,7 @@ export const useCreateAppointmentForm = ({
                 showWarning('Este técnico ya fue seleccionado');
             }
         }
-        setFormData(prev => ({ ...prev, tecnico: "" }));
+        setFormData(prev => ({ ...prev, tecnico: [] }));
     };
 
     const removeTechnician = (id: number) => {
@@ -254,18 +293,44 @@ export const useCreateAppointmentForm = ({
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name } = e.target;
-        setTouched(prev => ({ ...prev, [name]: true }));
 
-        const error = validateAppointmentField(name, formData[name as keyof AppointmentFormData] as string);
-        setErrors(prev => ({ ...prev, [name]: error }));
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, formData[name as keyof AppointmentFormData] as string);
+            setErrors(prev => ({ ...prev, [name]: error }));
 
-        if (error) {
-            showError(error);
+            if (error) {
+                showError(error);
+            }
         }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validar domingo antes de cualquier otra validación
+        if (formData.dia && formData.mes && formData.año) {
+            const fecha = new Date(
+                parseInt(formData.año),
+                parseInt(formData.mes) - 1,
+                parseInt(formData.dia)
+            );
+
+            if (fecha.getDay() === 0) {
+                setErrors(prev => ({
+                    ...prev,
+                    dia: "No se permiten citas en domingo"
+                }));
+                setTouched(prev => ({
+                    ...prev,
+                    dia: true,
+                    mes: true,
+                    año: true
+                }));
+                showError("No se permiten citas en domingo"); // Asegurar que esta línea se ejecute
+                return; // Esto es importante para detener el proceso
+            }
+        }
 
         let finalFormData = { ...formData };
         if (!finalFormData.horaFin || !finalFormData.minutoFin) {
@@ -298,6 +363,7 @@ export const useCreateAppointmentForm = ({
             return;
         }
 
+        // Validación final de domingo (por si acaso)
         const startDate = new Date(
             parseInt(finalFormData.año),
             parseInt(finalFormData.mes) - 1,
@@ -305,6 +371,15 @@ export const useCreateAppointmentForm = ({
             parseInt(finalFormData.horaInicio),
             parseInt(finalFormData.minutoInicio)
         );
+
+        if (startDate.getDay() === 0) {
+            setErrors(prev => ({
+                ...prev,
+                dia: "No se permiten citas en domingo"
+            }));
+            showError("No se permiten citas en domingo");
+            return;
+        }
 
         const endDate = new Date(
             parseInt(finalFormData.año),
@@ -331,7 +406,6 @@ export const useCreateAppointmentForm = ({
                 ? `Orden: ${typeof finalFormData.orden === 'object' ? finalFormData.orden.id : finalFormData.orden}`
                 : "Sin orden"
         });
-
 
         showSuccess('Cita guardada exitosamente');
         onClose();
@@ -367,6 +441,7 @@ const buildTitle = (orden: string | Order | null | undefined): string => {
     return "Sin orden asignada";
 };
 
+// Hook para el formulario de editar
 export const useEditAppointmentForm = ({
     onClose,
     onSave,
@@ -427,27 +502,42 @@ export const useEditAppointmentForm = ({
                     parseInt(formData.minutoFin)
                 );
 
-                if (!isNaN(newStart.getTime()) && !isNaN(newEnd.getTime())) {
-                    setFormData((prev) => ({
+                // validación de fecha inválida
+                if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) {
+                    setErrors((prev) => ({
                         ...prev,
-                        start: newStart,
-                        end: newEnd,
-                        title: buildTitle(prev.orden),
+                        date: "La fecha seleccionada no es válida",
+                    }));
+                    return;
+                }
+
+                // validación de domingo
+                if (newStart.getDay() === 0) {
+                    setErrors((prev) => ({
+                        ...prev,
+                        date: "No se permiten citas en domingo",
+                    }));
+                    showError("No se permiten citas el domingo");
+                    return;
+                } else {
+                    setErrors((prev) => ({
+                        ...prev,
+                        date: undefined,
                     }));
                 }
+
+                setFormData((prev) => ({
+                    ...prev,
+                    start: newStart,
+                    end: newEnd,
+                    title: buildTitle(prev.orden),
+                }));
             } catch (error) {
                 console.error("Error updating date time:", error);
             }
         }
-    }, [
-        formData.dia,
-        formData.mes,
-        formData.año,
-        formData.horaInicio,
-        formData.minutoInicio,
-        formData.horaFin,
-        formData.minutoFin,
-    ]);
+    }, [formData.dia, formData.mes, formData.año, formData.horaInicio, formData.minutoInicio, formData.horaFin, formData.minutoFin]);
+
 
     useEffect(() => {
         updateDateTime();
@@ -491,29 +581,49 @@ export const useEditAppointmentForm = ({
         }
     }, [appointment]);
 
-    const handleInputChange = (
-        e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-    ) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
-        setTouched((prev) => ({ ...prev, [name]: true }));
+        setFormData(prev => ({ ...prev, [name]: value }));
 
-        const fieldError = validateAppointmentField(name, value);
-        setErrors((prev) => ({ ...prev, [name]: fieldError }));
-
-        if (name === "estado" && value !== "Cancelado") {
-            setFormData((prev) => ({
-                ...prev,
-                motivoCancelacion: "",
-                horaCancelacion: null,
-            }));
-            setErrors((prev) => ({ ...prev, motivoCancelacion: undefined }));
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, value);
+            setErrors(prev => ({ ...prev, [name]: error }));
         }
     };
 
-    const handleTimeChange = (e: ChangeEvent<HTMLInputElement>) => {
-        handleInputChange(e);
+
+
+    const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+
+        setFormData(prev => ({ ...prev, [name]: value }));
+
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, value);
+            setErrors(prev => ({ ...prev, [name]: error }));
+        }
+
+        const newFormData = { ...formData, [name]: value };
+        const timeRangeError = validateTimeRange(
+            newFormData.horaInicio,
+            newFormData.minutoInicio,
+            newFormData.horaFin,
+            newFormData.minutoFin
+        );
+
+        if (timeRangeError) {
+            setErrors(prev => ({ ...prev, timeRange: timeRangeError }));
+        } else {
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.timeRange;
+                return newErrors;
+            });
+        }
     };
+
 
     const handleTechnicianSelect = (e: ChangeEvent<HTMLSelectElement>) => {
         const selectedId = parseInt(e.target.value);
@@ -557,13 +667,18 @@ export const useEditAppointmentForm = ({
 
     const removeEvidencia = () => setEvidencia(null);
 
-    const handleBlur = (
-        e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-    ) => {
-        const { name, value } = e.target;
-        setTouched((prev) => ({ ...prev, [name]: true }));
-        const fieldError = validateAppointmentField(name, value);
-        setErrors((prev) => ({ ...prev, [name]: fieldError }));
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name } = e.target;
+
+        if (name !== 'orden') {
+            setTouched(prev => ({ ...prev, [name]: true }));
+            const error = validateAppointmentField(name, formData[name as keyof AppointmentFormData] as string);
+            setErrors(prev => ({ ...prev, [name]: error }));
+
+            if (error) {
+                showError(error);
+            }
+        }
     };
 
     const handleEstadoChange = (e: ChangeEvent<HTMLSelectElement>) => {
@@ -699,4 +814,152 @@ export const useEditAppointmentForm = ({
         handleEstadoChange,
     };
 
+};
+
+// Busqueda 
+export const useOrderSearch = ({
+    orders,
+    selectedOrder,
+    onOrderSelect,
+    onOrderBlur,
+    validateOrder
+}: UseOrderSearchProps) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const [touched, setTouched] = useState(false);
+    const [localError, setLocalError] = useState<string | undefined>();
+
+    // Filtrar órdenes
+    const filteredOrders = orders.filter(order =>
+        `${order.id} - ${order.cliente}`.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Valor a mostrar en el input
+    const displayValue = selectedOrder
+        ? `${selectedOrder.id} - ${selectedOrder.cliente}`
+        : searchTerm;
+
+    useEffect(() => {
+        if (validateOrder && touched) {
+            const error = validateOrder(selectedOrder);
+            setLocalError(error);
+        }
+    }, [selectedOrder, touched, validateOrder]);
+
+    // Manejar selección de orden
+    const handleSelectOrder = (order: Order | null) => {
+        onOrderSelect(order);
+
+        if (order) {
+            setSearchTerm(`${order.id} - ${order.cliente}`);
+        } else {
+            setSearchTerm('');
+        }
+
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+
+        if (order !== null) {
+            setTouched(true);
+        }
+    };
+
+    // Manejar cambio en el input de búsqueda
+    const handleInputChange = (value: string) => {
+        setSearchTerm(value);
+        setIsOpen(true);
+        setHighlightedIndex(0);
+
+        if (value === '') {
+            onOrderSelect(null);
+            setTouched(true);
+        }
+    };
+
+    // Manejar teclado
+    const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (!isOpen) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setHighlightedIndex(prev =>
+                    prev < filteredOrders.length - 1 ? prev + 1 : 0
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setHighlightedIndex(prev =>
+                    prev > 0 ? prev - 1 : filteredOrders.length - 1
+                );
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (filteredOrders[highlightedIndex]) {
+                    handleSelectOrder(filteredOrders[highlightedIndex]);
+                }
+                break;
+            case 'Escape':
+                setIsOpen(false);
+                setHighlightedIndex(-1);
+                break;
+            case 'Tab':
+                setIsOpen(false);
+                setHighlightedIndex(-1);
+                handleBlur();
+                break;
+        }
+    };
+
+    const handleBlur = () => {
+        setTouched(true);
+        onOrderBlur?.();
+
+        if (validateOrder) {
+            const error = validateOrder(selectedOrder);
+            setLocalError(error);
+        }
+    };
+
+    return {
+        isOpen,
+        searchTerm,
+        highlightedIndex,
+        touched,
+        filteredOrders,
+        displayValue,
+        localError,
+
+        setIsOpen,
+        setHighlightedIndex,
+        handleSelectOrder,
+        handleInputChange,
+        handleKeyDown,
+        handleBlur,
+        setTouched,
+    };
+};
+
+// Click
+export const useClickOutside = (
+    ref: RefObject<HTMLElement | null>,
+    callback: () => void,
+    isActive: boolean = true
+) => {
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (ref.current && !ref.current.contains(event.target as Node)) {
+                callback();
+            }
+        };
+
+        if (isActive) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [ref, callback, isActive]);
 };

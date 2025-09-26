@@ -1,7 +1,12 @@
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+"use client";
+
+import {
+  DataTable,
+} from "@/features/dashboard/components/datatable/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Product } from "@/features/dashboard/products/types/typesProducts";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 interface ProductsTableProps {
   products: Product[];
@@ -65,7 +70,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     <DataTable<Product>
       data={products}
       columns={columns}
-      pageSize={10}
+      pageSize={6}
       searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}
@@ -77,7 +82,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         <DownloadXLSXButton
           data={products as unknown as Record<string, unknown>[]}
           fileName="reporte_productos.xlsx"
-          headers={["ID", "Nombre", "Categoría", "Precio", "Stock", "Estado"]}
         />
       }
     />

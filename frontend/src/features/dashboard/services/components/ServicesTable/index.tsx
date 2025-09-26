@@ -1,6 +1,7 @@
 "use client";
 
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
@@ -28,7 +29,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "image",
       header: "Imagen",
-      render: (s) => {
+      render: (s: Service) => {
         const image =
           typeof s.image === "string"
             ? s.image.trim()
@@ -38,15 +39,6 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
 
         const isBase64 =
           typeof image === "string" && image.startsWith("data:image");
-
-        console.log(
-          `-----------------------------------
-            Renderizando imagen para servicio
-            -----------------------------------------`,
-          s,
-          "URL:",
-          image
-        );
 
         if (!image) {
           return (
@@ -76,7 +68,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "state",
       header: "Estado",
-      render: (s) => (
+      render: (s: Service) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
@@ -96,7 +88,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     <DataTable<Service>
       data={services}
       columns={columns}
-      pageSize={10}
+      pageSize={6}
       searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}

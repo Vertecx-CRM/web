@@ -1,42 +1,85 @@
 import { months } from "../mocks/mockAppointment";
 import { AppointmentErrors, AppointmentEvent, AppointmentFormData } from "../types/typeAppointment";
 
-export const validateAppointmentField = (name: string, value: string): string => {
+export const validateAppointmentField = (
+  name: string,
+  value: string,
+  formData?: AppointmentFormData
+): string | undefined  => {
+  const intVal = parseInt(value);
+
   switch (name) {
-    case 'horaInicio':
-    case 'horaFin':
-      if (!value || parseInt(value) < 0 || parseInt(value) > 23) {
-        return 'Hora debe estar entre 0 y 23';
+    case "horaInicio":
+      if (!value || intVal < 7 || intVal > 18) {
+        return "Hora inicio debe estar entre 7 y 18";
+      }
+      if (formData?.horaFin) {
+        const endHour = parseInt(formData.horaFin);
+        if (endHour < intVal) {
+          return "Hora inicio no puede ser mayor que hora fin";
+        }
+        if (endHour === intVal && formData.minutoFin && formData.minutoInicio) {
+          const startMin = parseInt(formData.minutoInicio);
+          const endMin = parseInt(formData.minutoFin);
+          if (startMin >= endMin) {
+            return "Los minutos de inicio deben ser menores que los de fin";
+          }
+        }
       }
       break;
-    case 'minutoInicio':
-    case 'minutoFin':
-      if (!value || parseInt(value) < 0 || parseInt(value) > 59) {
-        return 'Minutos deben estar entre 0 y 59';
+
+    case "horaFin":
+      if (!value || intVal < 7 || intVal > 18) {
+        return "Hora fin debe estar entre 7 y 18";
+      }
+      if (formData?.horaInicio) {
+        const startHour = parseInt(formData.horaInicio);
+        if (intVal < startHour) {
+          return "Hora fin debe ser mayor que hora inicio";
+        }
+        if (intVal === startHour && formData.minutoFin && formData.minutoInicio) {
+          const startMin = parseInt(formData.minutoInicio);
+          const endMin = parseInt(formData.minutoFin);
+          if (endMin <= startMin) {
+            return "La hora final debe ser posterior a la hora de inicio";
+          }
+        }
       }
       break;
-    case 'dia':
-      if (!value || parseInt(value) < 1 || parseInt(value) > 31) {
-        return 'Día debe estar entre 1 y 31';
+
+    case "minutoInicio":
+    case "minutoFin":
+      if (!value || intVal < 0 || intVal > 59) {
+        return "Minutos deben estar entre 0 y 59";
       }
       break;
-    case 'año':
-      if (!value || parseInt(value) < 2023 || parseInt(value) > 2030) {
-        return 'Año debe estar entre 2023 y 2030';
+
+    case "dia":
+      if (!value || intVal < 1 || intVal > 31) {
+        return "Día debe estar entre 1 y 31";
       }
       break;
-    case 'orden':
+
+    case "año":
+      if (!value || intVal < 2023 || intVal > 2030) {
+        return "Año debe estar entre 2023 y 2030";
+      }
+      break;
+
+    case "orden":
       if (!value) {
-        return 'Selecciona un número de orden';
+        return "Selecciona un número de orden";
       }
       break;
-    case 'mes':
-      if (!value || !months[parseInt(value)]) {
-        return 'Selecciona un mes válido';
+
+    case "mes":
+      if (!value || !months[intVal]) {
+        return "Selecciona un mes válido";
       }
       break;
   }
-  return '';
+
+  return undefined;
 };
 
 export const validateAppointmentForm = (formData: AppointmentFormData | AppointmentEvent): AppointmentErrors => {
@@ -44,6 +87,22 @@ export const validateAppointmentForm = (formData: AppointmentFormData | Appointm
 
   if (!formData.horaInicio || parseInt(formData.horaInicio) < 0 || parseInt(formData.horaInicio) > 23) {
     errors.horaInicio = 'Hora inicio debe estar entre 0 y 23';
+  }
+
+  if (
+    !formData.horaInicio ||
+    parseInt(formData.horaInicio) < 7 ||
+    parseInt(formData.horaInicio) > 18
+  ) {
+    errors.horaInicio = "Hora inicio debe estar entre 7 y 18";
+  }
+
+  if (
+    !formData.horaFin ||
+    parseInt(formData.horaFin) < 7 ||
+    parseInt(formData.horaFin) > 18
+  ) {
+    errors.horaFin = "Hora fin debe estar entre 7 y 18";
   }
 
   if (!formData.minutoInicio || parseInt(formData.minutoInicio) < 0 || parseInt(formData.minutoInicio) > 59) {
@@ -72,6 +131,17 @@ export const validateAppointmentForm = (formData: AppointmentFormData | Appointm
 
   if (!formData.orden) {
     errors.orden = 'Selecciona un número de orden';
+  }
+
+  if (formData.dia && formData.mes && formData.año) {
+    const dia = parseInt(formData.dia);
+    const mes = parseInt(formData.mes); 
+    const año = parseInt(formData.año);
+
+    const fecha = new Date(año, mes - 1, dia);
+    if (fecha.getDay() === 0) {
+      errors.dia = "No se permiten citas en domingo";
+    }
   }
 
   return errors;
@@ -105,6 +175,14 @@ export const validateTimeRange = (
   const startMinute = parseInt(minutoInicio);
   const endHour = parseInt(horaFin);
   const endMinute = parseInt(minutoFin);
+
+  if (startHour < 7 || startHour > 18 || endHour < 7 || endHour > 18) {
+    return "Las horas deben estar entre 7 AM y 6 PM";
+  }
+
+  if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {
+    return "La hora final debe ser posterior a la hora de inicio";
+  }
 
   // Validar que la hora de inicio sea antes que la hora de fin
   if (endHour < startHour || (endHour === startHour && endMinute <= startMinute)) {

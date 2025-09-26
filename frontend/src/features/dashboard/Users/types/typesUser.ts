@@ -8,7 +8,7 @@ export interface user {
   email: string;
   rol: string;
   estado: "Activo" | "Inactivo";
-  imagen?: File | null;
+  imagen?: File | string | null;
   password?: string;
   confirmPassword?: string;
 }

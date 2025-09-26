@@ -1,6 +1,6 @@
 import Colors from '@/shared/theme/colors';
 import React from 'react';
-import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CategoryAndProducts } from '../../mocks/mocksDashboard';
 
 export const PieChartCategoryAndProducts = () => {
@@ -13,6 +13,7 @@ export const PieChartCategoryAndProducts = () => {
         Colors.graphic.circle.quinary,
         Colors.graphic.circle.scenery,
     ];
+    
     const renderCustomizedLabel = ({
         cx, cy, midAngle, outerRadius, percent
     }: any) => {
@@ -36,6 +37,20 @@ export const PieChartCategoryAndProducts = () => {
         );
     };
 
+    // Custom Tooltip
+    const CustomTooltip = ({ active, payload }: any) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
+                    <p className="font-bold text-gray-800">{`Categoría: ${data.category}`}</p>
+                    <p className="text-gray-600">{`Cantidad: ${data.value}`}</p>
+                    <p className="text-gray-600">{`Porcentaje: ${((data.value / CategoryAndProducts.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%`}</p>
+                </div>
+            );
+        }
+        return null;
+    };
 
     // Dividimos la leyenda en dos columnas
     const leftColumn = CategoryAndProducts.slice(0, 3);
@@ -44,32 +59,32 @@ export const PieChartCategoryAndProducts = () => {
     return (
         <div className="flex flex-col items-center w-full h-full">
             {/* Gráfico */}
-                <ResponsiveContainer>
-                    <PieChart>
-                        <Pie
-                            data={CategoryAndProducts}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={{ 
-                                strokeWidth: 3,     
-                                strokeOpacity: 0.8 
-                            }}
-                            label={renderCustomizedLabel}
-                            outerRadius={80}
-                            dataKey="value"
-                        >
-                            {CategoryAndProducts.map((entry, index) => (
-                                <Cell
-                                    key={`cell-${entry.category}`}
-                                    fill={COLORS[index % COLORS.length]}
-                                    stroke="none"
-                                />
-                            ))}
-                        </Pie>
-                    </PieChart>
-                </ResponsiveContainer>
-
-
+            <ResponsiveContainer>
+                <PieChart>
+                    <Pie
+                        data={CategoryAndProducts}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={{ 
+                            strokeWidth: 3,     
+                            strokeOpacity: 0.8 
+                        }}
+                        label={renderCustomizedLabel}
+                        outerRadius={90}
+                        dataKey="value"
+                    >
+                        {CategoryAndProducts.map((entry, index) => (
+                            <Cell
+                                key={`cell-${entry.category}`}
+                                fill={COLORS[index % COLORS.length]}
+                                stroke="none"
+                            />
+                        ))}
+                    </Pie>
+                    {/* Agregar Tooltip aquí */}
+                    <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+            </ResponsiveContainer>
 
             <h2 className="text-lg font-bold text-center mt-6 mb-4">
                 Categoría de productos

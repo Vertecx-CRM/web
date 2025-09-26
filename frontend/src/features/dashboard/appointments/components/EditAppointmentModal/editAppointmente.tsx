@@ -5,6 +5,8 @@ import { appointmentStates, months, orders, technicians } from "../../mocks/mock
 import { TechniciansTable } from "../techniciansTable";
 import { useEditAppointmentForm } from "../../hooks/useAppointment";
 import { EditAppointmentModalProps } from "../../types/typeAppointment";
+import { OrderSearchCombobox } from "../search/OrderSearchCombobox";
+
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     isOpen,
@@ -28,7 +30,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
         handleSubmit,
         removeEvidencia,
         estado,
-        handleEstadoChange
+        handleEstadoChange,
     } = useEditAppointmentForm({
         onClose,
         onSave,
@@ -245,32 +247,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                             />
 
                             {/* Nro Orden */}
-                            <div>
-                                <label
-                                    className="block text-sm font-medium mb-2"
-                                    style={{ color: Colors.texts.primary }}
-                                >
-                                    Nro. Orden
-                                </label>
-                                <select
-                                    name="orden"
-                                    value={formData.orden ? formData.orden.id : ""}
-                                    onChange={handleInputChange}
-                                    onBlur={handleBlur}
-                                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                                    style={{ borderColor: Colors.table.lines }}
-                                >
-                                    <option value="">Seleccionar orden</option>
-                                    {orders.map((orders) => (
-                                        <option key={orders.id} value={orders.id}>
-                                            {orders.id}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            <OrderSearchCombobox
+                                orders={orders}
+                                selectedOrder={formData.orden || null}
+                                onOrderSelect={(order) => handleInputChange({
+                                    target: { name: "orden", value: order }
+                                } as any)}
+                                onBlur={() => handleBlur({ target: { name: "orden" } } as any)}
+                                error={errors.orden}
+                                touched={touched.orden}
+                                label="Nro. Orden"
+                            />
                         </div>
 
-                        {/* Columna derecha */}
+                        {/* Columna derecha (igual que antes) */}
                         <div className="space-y-4">
                             {/* Observaciones */}
                             <div>
@@ -412,10 +402,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 </div>
 
                 {/* Botones */}
-                <div
-                    className="p-4"
-                    
-                >
+                <div className="p-4">
                     <div className="flex justify-end space-x-3">
                         <button
                             type="button"
