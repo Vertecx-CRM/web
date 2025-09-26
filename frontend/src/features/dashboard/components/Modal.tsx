@@ -22,20 +22,26 @@ export default function Modal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-white rounded-2xl shadow-lg w-full max-w-lg relative"
+            className="
+              bg-white rounded-2xl shadow-lg 
+              w-full sm:w-[90%] md:max-w-lg 
+              max-h-[90vh] flex flex-col
+            "
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-lg font-semibold">{title}</h2>
+              <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
+                {title}
+              </h2>
               <button
                 onClick={onClose}
                 className="cursor-pointer text-gray-500 hover:text-black"
@@ -44,12 +50,12 @@ export default function Modal({
               </button>
             </div>
 
-            {/* Content */}
-            <div className="p-4">{children}</div>
+            {/* Content con scroll si se desborda */}
+            <div className="p-4 overflow-y-auto flex-1">{children}</div>
 
             {/* Footer */}
             {footer && (
-              <div className="flex justify-end gap-3 p-4 border-t">
+              <div className="flex flex-col sm:flex-row justify-end gap-3 p-4 border-t">
                 {footer}
               </div>
             )}

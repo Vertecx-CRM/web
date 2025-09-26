@@ -1,7 +1,8 @@
 // src/features/dashboard/technicians/components/tableTechnicians/tableTechnicians.tsx
 "use client";
 
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Colors from "@/shared/theme/colors";
 import { Technician } from "../../types/typesTechnicians";
 
@@ -25,28 +26,25 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
     {
       key: "name",
       header: "Nombre",
-      render: (t) => `${t.name} ${t.lastName}`,
+      render: (t: Technician) => `${t.name} ${t.lastName}`,
     },
     {
       key: "documentType",
-      header: `Tipo
-Documento`,
+      header: `Tipo\nDocumento`,
     },
     {
       key: "documentNumber",
-      header: `Número
-Documento`,
+      header: `Número\nDocumento`,
     },
     { key: "phone", header: "Teléfono" },
     {
       key: "email",
-      header: `Correo
-Electrónico`,
+      header: `Correo\nElectrónico`,
     },
     {
       key: "state",
       header: "Estado",
-      render: (t) => (
+      render: (t: Technician) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
@@ -66,7 +64,7 @@ Electrónico`,
     <DataTable<Technician>
       data={technicians}
       columns={columns}
-      pageSize={10}
+      pageSize={6}
       searchableKeys={[
         "name",
         "lastName",

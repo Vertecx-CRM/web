@@ -10,7 +10,7 @@ export interface ServiceErrors {
 
 export const validateServiceField = (
   field: keyof Omit<Service, "id" | "state">,
-  value: any,
+  value: Service[keyof Omit<Service, "id" | "state">],
   services: Service[],
   currentId?: number
 ): string | undefined => {
@@ -37,7 +37,7 @@ export const validateServiceField = (
       return;
 
     case "description":
-      // descripción NO lleva validación
+      // descripción NO lleva validación obligatoria
       return;
 
     default:
@@ -60,12 +60,8 @@ export const validateServiceForm = (
   ];
 
   fields.forEach((field) => {
-    const error = validateServiceField(
-      field,
-      (data as any)[field],
-      services,
-      currentId
-    );
+    const value = data[field]; // ✅ TypeScript infiere el tipo correcto
+    const error = validateServiceField(field, value, services, currentId);
     if (error) errors[field] = error;
   });
 

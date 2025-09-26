@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 import CreateSuppliersModal, {
   ProviderSubmitPayload,
 } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";

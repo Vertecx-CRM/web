@@ -38,13 +38,13 @@ export default function ServicesLanding({ className = "" }: ServicesProps) {
     { 
       title: "Mantenimiento y soporte Técnico", 
       description: "Soporte técnico 24/7 y presencial. Solucionamos fallos, optimizamos equipos y garantizamos contunuidad",
-      image: "/assets/imgs/services/imgprovicionales/img4.jpg",
+      image: "/assets/imgs/services/imgprovicionales/img5.jpg",
       category: "Mantenimiento Preventivo"
     },
     { 
       title: "Servidores y Sistemas", 
       description: "Configuración y administración de servidores Linux y Windows. Instalación, puesta en marcha y soporte ",
-      image: "/assets/imgs/services/imgprovicionales/img5.jpg",
+      image: "/assets/imgs/services/imgprovicionales/img6.jpg",
       category: "Instalación"
     }
   ];

@@ -2,7 +2,7 @@
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { DataTable, Column } from "../../dashboard/components/DataTable";
+import { DataTable, Column } from "../components/datatable/DataTable";
 import EditClientModal from "./components/EditClientsModal/EditClients";
 import ViewClientModal from "./components/ViewClientsModal/ViewClients";
 import CreateClientModal from "./components/CreateClientsModal/CreateClients";
@@ -21,7 +21,7 @@ export default function Clients() {
     handleView,
     handleEdit,
     handleDelete,
-    closeModals
+    closeModals,
   } = useClients();
 
   const columns: Column<Client>[] = [
@@ -40,7 +40,10 @@ export default function Clients() {
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
             backgroundColor: row.estado === "Activo" ? "#e8f5e8" : "#f5e8e8",
-            color: row.estado === "Activo" ? Colors.states.success : Colors.states.inactive,
+            color:
+              row.estado === "Activo"
+                ? Colors.states.success
+                : Colors.states.inactive,
           }}
         >
           {row.estado}
@@ -50,7 +53,7 @@ export default function Clients() {
   ];
 
   return (
-    <div className="min-h-screen" >
+    <div className="min-h-screen">
       <ToastContainer
         position="bottom-right"
         autoClose={3000}
@@ -63,50 +66,59 @@ export default function Clients() {
         pauseOnHover
         theme="light"
       />
-   
+
       {/* Main Content */}
 
-        {/* Content */}
-        <main className="p-6">
-          <div className=" rounded-lg shadow-sm">
-            {/* Modales */}
-            <CreateClientModal
-              isOpen={isCreateModalOpen}
-              onClose={() => setIsCreateModalOpen(false)}
-              onSave={handleCreateClient}
-            />
-            
-            <EditClientModal
-              isOpen={!!editingClient}
-              client={editingClient}
-              onClose={closeModals}
-              onSave={(clientData: EditClientData) => {
-                if (editingClient) {
-                  handleEditClient(editingClient.id, clientData);
-                }
-              }}
-            />
-            
-            <ViewClientModal
-              isOpen={!!viewingClient}
-              client={viewingClient}
-              onClose={closeModals}
-            />
+      {/* Content */}
+      <main className="p-6">
+        <div className=" rounded-lg shadow-sm">
+          {/* Modales */}
+          <CreateClientModal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSave={handleCreateClient}
+          />
 
-            <DataTable<Client>
-              data={clients}
-              columns={columns}
-              pageSize={10}
-              searchableKeys={["id", "tipo", "documento", "nombre", "telefono", "correoElectronico", "rol", "estado"]}
-              onCreate={() => setIsCreateModalOpen(true)}
-              createButtonText="Crear Cliente"
-              searchPlaceholder="Buscar clientes..."
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          </div>
-        </main>
+          <EditClientModal
+            isOpen={!!editingClient}
+            client={editingClient}
+            onClose={closeModals}
+            onSave={(clientData: EditClientData) => {
+              if (editingClient) {
+                handleEditClient(editingClient.id, clientData);
+              }
+            }}
+          />
+
+          <ViewClientModal
+            isOpen={!!viewingClient}
+            client={viewingClient}
+            onClose={closeModals}
+          />
+
+          <DataTable<Client>
+            data={clients}
+            columns={columns}
+            pageSize={10}
+            searchableKeys={[
+              "id",
+              "tipo",
+              "documento",
+              "nombre",
+              "telefono",
+              "correoElectronico",
+              "rol",
+              "estado",
+            ]}
+            onCreate={() => setIsCreateModalOpen(true)}
+            createButtonText="Crear Cliente"
+            searchPlaceholder="Buscar clientes..."
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        </div>
+      </main>
     </div>
   );
 }

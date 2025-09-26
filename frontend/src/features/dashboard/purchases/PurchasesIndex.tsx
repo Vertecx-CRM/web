@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import RequireAuth from "../../auth/requireauth";
-import { Column, DataTable } from "../components/DataTable";
+import { DataTable } from "../components/datatable/DataTable";
 import Modal from "../components/Modal";
 import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
 import { purchases as mockPurchases } from "./mock/purchases.mock";
 import ViewPurchase from "./components/ViewPurchase";
+import { ToastContainer } from "react-toastify";
+import { Column } from "../components/datatable/types/column.types";
 
 export default function PurchasesIndex() {
   const [purchasesData, setPurchasesData] =
@@ -60,6 +62,7 @@ export default function PurchasesIndex() {
   return (
     <RequireAuth>
       <div className="p-6">
+        <ToastContainer position="bottom-right" />
         <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
         <DataTable
@@ -73,7 +76,7 @@ export default function PurchasesIndex() {
             "amount",
             "status",
           ]}
-          pageSize={5}
+          pageSize={8}
           onCancel={(row) => console.log("Anular →", row)}
           onCreate={() => setRegisterModalOpen(true)}
           onView={(row) => {
@@ -91,7 +94,10 @@ export default function PurchasesIndex() {
           onClose={() => setRegisterModalOpen(false)}
           footer={null}
         >
-          <RegisterPurchaseForm onSave={handleAddPurchase} purchases={purchasesData}/>
+          <RegisterPurchaseForm
+            onSave={handleAddPurchase}
+            purchases={purchasesData}
+          />
         </Modal>
 
         {/* Modal Ver Detalle */}

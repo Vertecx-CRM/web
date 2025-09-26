@@ -215,11 +215,10 @@
   min-width: 90px;     /* ancho mínimo visible */
 }
 
-
-.rbc-label{
-      width: 50% !important;
-    min-width: 14.234% !important;
-    max-width: 10% !important;
+.rbc-timeslot-group {
+  min-height: 3vw !important;
+  height: 3vh !important;
 }
+
 
 

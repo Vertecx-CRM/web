@@ -11,6 +11,7 @@ import {
   ProductErrors,
 } from "@/features/dashboard/products/validations/productsValidations";
 import { showWarning } from "@/shared/utils/notifications";
+import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -68,14 +69,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
     });
   };
 
-  const fileToBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-
   useEffect(() => {
     if (isOpen && product) {
       const stored = localStorage.getItem(`product-${product.id}`);
@@ -102,8 +95,9 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
     if (!product) return;
 
     let imageString = "";
+
     if (image instanceof File) {
-      imageString = await fileToBase64(image);
+      imageString = await uploadImageToCloudinary(image);
     } else if (typeof image === "string") {
       imageString = image;
     }
@@ -284,7 +278,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         {/* Stock */}
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-            Cantidad
+            Stock
           </label>
           <input
             type="number"
