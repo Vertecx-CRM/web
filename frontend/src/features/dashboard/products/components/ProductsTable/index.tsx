@@ -1,10 +1,12 @@
+"use client";
+
 import {
   DataTable,
-  Column,
 } from "@/features/dashboard/components/datatable/DataTable";
 import Colors from "@/shared/theme/colors";
 import { Product } from "@/features/dashboard/products/types/typesProducts";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 interface ProductsTableProps {
   products: Product[];
@@ -68,7 +70,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     <DataTable<Product>
       data={products}
       columns={columns}
-      pageSize={8}
+      pageSize={6}
       searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}

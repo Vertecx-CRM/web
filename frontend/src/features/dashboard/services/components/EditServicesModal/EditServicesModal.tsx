@@ -158,7 +158,7 @@ if (field === "imagen") {
       name: nombre,
       description: descripcion,
       category: categoria,
-        image: isImagenEliminada ? null : imagen,
+      image: isImagenEliminada ? null : imagen,
       state: estado,
     });
 

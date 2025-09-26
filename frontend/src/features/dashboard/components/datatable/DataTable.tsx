@@ -26,7 +26,7 @@ function Th({
 }) {
   return (
     <th
-      className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-nowrap ${className}`}
+      className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-pre-line break-words text-center align-middle ${className}`}
       style={{ width }}
     >
       {children}
@@ -145,11 +145,10 @@ export function DataTable<T extends { id: number | string }>(
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  // Filtrar columnas visibles en mobile según prioridad
   const visibleColumns = useMemo(() => {
     return columns.filter(
       (col) =>
-        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3) // Por defecto, mostrar las primeras 3
+        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
     );
   }, [columns]);
 
@@ -171,7 +170,7 @@ export function DataTable<T extends { id: number | string }>(
               colIndex={colIndex}
               header={c.header}
               width={c.width}
-              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm "
+              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
             >
               <div className="truncate" title={String(row[c.key])}>
                 {c.render ? c.render(row) : String(row[c.key])}
@@ -224,7 +223,6 @@ export function DataTable<T extends { id: number | string }>(
 
   return (
     <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0">
-      {/* Header con búsqueda y acciones */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* 🔍 Search + PageSize juntos */}
         {searchableKeys && searchableKeys.length > 0 && (
@@ -289,9 +287,7 @@ export function DataTable<T extends { id: number | string }>(
         )}
       </div>
 
-      {/* Contenido principal */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Vista de tarjetas en mobile */}
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
@@ -319,7 +315,6 @@ export function DataTable<T extends { id: number | string }>(
           </div>
         )}
 
-        {/* Vista de tabla en desktop */}
         <div
           className={`${
             mobileCardView ? "hidden md:block" : "block"
@@ -371,13 +366,11 @@ export function DataTable<T extends { id: number | string }>(
           </div>
         </div>
 
-        {/* Paginación */}
         {totalPages > 1 && (
           <Pagination page={page} totalPages={totalPages} goTo={goTo} />
         )}
       </div>
 
-      {/* Botón flotante para crear en mobile */}
       {onCreate && (
         <button
           className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
