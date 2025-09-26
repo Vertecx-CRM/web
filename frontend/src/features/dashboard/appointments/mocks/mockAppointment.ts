@@ -21,7 +21,7 @@ export const materiales: Material[] = [
 ];
 
 // Mock de solicitudes de orden
-export const solicitudesOrden: SolicitAudOrden[] = [
+export const solicitudesOrden: SolicitudOrden[] = [
   {
     id: "SOL-001",
     cliente: "Carlos Ramírez",

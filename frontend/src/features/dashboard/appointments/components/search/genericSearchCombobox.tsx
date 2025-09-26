@@ -1,25 +1,6 @@
 // genericSearchCombobox.tsx
-import React, { useState, useRef, useEffect } from 'react';
-import { SolicitudOrden, OrdenServicio, Material } from '../../types/typeAppointment';
-
-// Tipos más específicos para cada caso
-interface BaseSearchableItem {
-  id: string;
-  cliente: string;
-  servicio: string;
-}
-
-interface SolicitudSearchableItem extends BaseSearchableItem {
-  tipoServicio: "mantenimiento" | "instalacion";
-  tipoMantenimiento?: "preventivo" | "correctivo";
-  direccion: string;
-  monto: number;
-  descripcion?: string;
-}
-
-interface OrdenServicioSearchableItem extends SolicitudSearchableItem {
-  materiales: Material[];
-}
+import React, { useState, useRef, useEffect } from "react";
+import { SolicitudOrden, OrdenServicio } from "../../types/typeAppointment";
 
 // Props específicas para cada tipo
 interface BaseSearchComboboxProps {
@@ -56,7 +37,7 @@ interface GenericSearchComboboxProps {
   label?: string;
   resetTrigger?: number;
   placeholder?: string;
-  searchType: 'solicitud' | 'orden-servicio';
+  searchType: "solicitud" | "orden-servicio";
 }
 
 export const GenericSearchCombobox: React.FC<GenericSearchComboboxProps> = ({
@@ -69,71 +50,73 @@ export const GenericSearchCombobox: React.FC<GenericSearchComboboxProps> = ({
   label,
   resetTrigger,
   placeholder,
-  searchType
+  searchType,
 }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Labels por defecto según el tipo de búsqueda
   const defaultLabels = {
-    'solicitud': {
-      label: 'Buscar Solicitud de Orden',
-      placeholder: 'Buscar por ID, cliente o servicio...'
+    solicitud: {
+      label: "Buscar Solicitud de Orden",
+      placeholder: "Buscar por ID, cliente o servicio...",
     },
-    'orden-servicio': {
-      label: 'Buscar Orden de Servicio',
-      placeholder: 'Buscar por ID, cliente, servicio o dirección...'
-    }
+    "orden-servicio": {
+      label: "Buscar Orden de Servicio",
+      placeholder: "Buscar por ID, cliente, servicio o dirección...",
+    },
   };
 
   const currentConfig = defaultLabels[searchType];
 
-  // Efecto para reset cuando cambia resetTrigger
-  useEffect(() => {
-    if (resetTrigger) {
-      setQuery("");
-      setIsOpen(false);
-    }
-  }, [resetTrigger]);
-
   // Efecto para cargar el item seleccionado
   useEffect(() => {
-      if (selectedItem) {
-          setQuery(`${selectedItem.id} - ${selectedItem.cliente}`);
-    } else {
-      setQuery('');
+    if (selectedItem) {
+      if (searchType === "orden-servicio" && "direccion" in selectedItem) {
+        setQuery(
+          `${selectedItem.id} - ${selectedItem.cliente} - ${selectedItem.direccion}`
+        );
+      } else {
+        setQuery(`${selectedItem.id} - ${selectedItem.cliente}`);
+      }
     }
-  }, [selectedItem]);
+
+    if (selectedItem) {
+      setQuery(`${selectedItem.id} - ${selectedItem.cliente}`);
+    }
+  }, [selectedItem, resetTrigger, searchType]);
 
   // Función de filtrado genérica
-  const filteredItems = query === '' 
-    ? items 
-    : items.filter(item =>
-        item.cliente.toLowerCase().includes(query.toLowerCase()) ||
-        item.id.toLowerCase().includes(query.toLowerCase()) ||
-        item.servicio.toLowerCase().includes(query.toLowerCase()) ||
-        (searchType === 'orden-servicio' && 
-         'direccion' in item && 
-         item.direccion.toLowerCase().includes(query.toLowerCase()))
-      );
+  const filteredItems =
+    query === ""
+      ? items
+      : items.filter(
+          (item) =>
+            item.cliente.toLowerCase().includes(query.toLowerCase()) ||
+            item.id.toLowerCase().includes(query.toLowerCase()) ||
+            item.servicio.toLowerCase().includes(query.toLowerCase()) ||
+            (searchType === "orden-servicio" &&
+              "direccion" in item &&
+              item.direccion.toLowerCase().includes(query.toLowerCase()))
+        );
 
   // Función para renderizar la información adicional según el tipo
   const renderAdditionalInfo = (item: SearchableItem) => {
-    if (searchType === 'orden-servicio' && 'materiales' in item) {
+    if (searchType === "orden-servicio" && "materiales" in item) {
       const orden = item as OrdenServicio;
       return (
         <>
           <div className="text-sm text-gray-400">{orden.direccion}</div>
           {orden.materiales && orden.materiales.length > 0 && (
             <div className="text-xs text-gray-400 mt-1">
-              Materiales: {orden.materiales.map(m => m.nombre).join(', ')}
+              Materiales: {orden.materiales.map((m) => m.nombre).join(", ")}
             </div>
           )}
         </>
       );
     }
-    
+
     // Para solicitudes, no mostramos información adicional
     return null;
   };
@@ -162,8 +145,8 @@ export const GenericSearchCombobox: React.FC<GenericSearchComboboxProps> = ({
           }}
           className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
             error && touched
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:ring-blue-500'
+              ? "border-red-500 focus:ring-red-500"
+              : "border-gray-300 focus:ring-blue-500"
           }`}
           placeholder={placeholder || currentConfig.placeholder}
         />
@@ -189,15 +172,15 @@ export const GenericSearchCombobox: React.FC<GenericSearchComboboxProps> = ({
           </div>
         )}
       </div>
-      {error && touched && (
-        <p className="text-xs text-red-500 mt-1">{error}</p>
-      )}
+      {error && touched && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 };
 
 // Componentes específicos con tipos correctos usando type assertion
-export const SolicitudSearchCombobox: React.FC<SolicitudSearchComboboxProps> = (props) => {
+export const SolicitudSearchCombobox: React.FC<SolicitudSearchComboboxProps> = (
+  props
+) => {
   // Convertimos la función específica a la firma genérica
   const handleItemSelect = (item: SearchableItem | null) => {
     props.onItemSelect(item as SolicitudOrden | null);
@@ -219,7 +202,9 @@ export const SolicitudSearchCombobox: React.FC<SolicitudSearchComboboxProps> = (
   );
 };
 
-export const OrdenServicioSearchCombobox: React.FC<OrdenServicioSearchComboboxProps> = (props) => {
+export const OrdenServicioSearchCombobox: React.FC<
+  OrdenServicioSearchComboboxProps
+> = (props) => {
   // Convertimos la función específica a la firma genérica
   const handleItemSelect = (item: SearchableItem | null) => {
     props.onItemSelect(item as OrdenServicio | null);
