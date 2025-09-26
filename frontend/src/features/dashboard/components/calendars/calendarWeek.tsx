@@ -508,10 +508,10 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
             defaultView="week"
             views={["week"]}
             dayPropGetter={(date) => {
-              if (date.getDay() === 0) { // 0 = domingo
+              if (date.getDay() === 0) {
                 return {
                   style: {
-                    display: "none", // 👈 oculta la columna del domingo
+                    display: "none",
                   },
                 };
               }
@@ -593,6 +593,10 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
         onClose={() => setIsGroupedModalOpen(false)}
         appointments={groupedAppointments}
         onSelectAppointment={handleSelectGroupedAppointment}
+        onCreateAppointment={() => {
+          setIsGroupedModalOpen(false);
+          setIsCreateModalOpen(true);
+        }}
       />
       <ToastContainer />
     </DndProvider>

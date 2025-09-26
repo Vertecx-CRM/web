@@ -1,12 +1,11 @@
 import Colors from "@/shared/theme/colors";
 import React from "react";
 import { createPortal } from "react-dom";
-import { appointmentStates, months, orders, technicians } from "../../mocks/mockAppointment";
+import { appointmentStates, months, technicians, tiposCita, solicitudesOrden, ordenesServicio } from "../../mocks/mockAppointment";
 import { TechniciansTable } from "../techniciansTable";
 import { useEditAppointmentForm } from "../../hooks/useAppointment";
 import { EditAppointmentModalProps } from "../../types/typeAppointment";
-import { OrderSearchCombobox } from "../search/OrderSearchCombobox";
-
+import { GenericSearchCombobox, SolicitudSearchCombobox, OrdenServicioSearchCombobox } from "../search/genericSearchCombobox";
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     isOpen,
@@ -17,7 +16,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     const {
         formData,
         selectedTechnicians,
+        selectedSolicitud,
+        selectedOrdenServicio,
         evidencia,
+        comprobantePago,
         errors,
         technicianError,
         touched,
@@ -25,10 +27,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
         handleTimeChange,
         handleTechnicianSelect,
         removeTechnician,
+        handleSolicitudSelect,
+        handleOrdenServicioSelect,
         handleEvidenciaChange,
+        handleComprobantePagoChange,
         handleBlur,
         handleSubmit,
         removeEvidencia,
+        removeComprobantePago,
         estado,
         handleEstadoChange,
     } = useEditAppointmentForm({
@@ -38,6 +44,220 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
     });
 
     if (!isOpen) return null;
+
+    const renderFilePreview = (file: File | string | null, tipo: 'evidencia' | 'comprobante') => {
+        if (!file) return null;
+
+        const isImage = (fileName: string) => /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(fileName);
+        const isPDF = (fileName: string) => /\.pdf$/i.test(fileName);
+
+        if (file instanceof File) {
+            if (isImage(file.name)) {
+                return (
+                    <img
+                        src={URL.createObjectURL(file)}
+                        alt={`Nueva ${tipo}`}
+                        className="h-20 w-20 object-cover rounded"
+                    />
+                );
+            } else if (isPDF(file.name)) {
+                return (
+                    <div className="h-20 w-20 bg-red-100 rounded flex items-center justify-center">
+                        <span className="text-red-600 font-medium">PDF</span>
+                    </div>
+                );
+            }
+        } else {
+            // Es string (URL/base64)
+            if (isImage(file) || file.startsWith('data:image')) {
+                return (
+                    <img
+                        src={file}
+                        alt={`${tipo} existente`}
+                        className="h-20 w-20 object-cover rounded"
+                    />
+                );
+            } else if (isPDF(file) || file.includes('pdf')) {
+                return (
+                    <div className="h-20 w-20 bg-red-100 rounded flex items-center justify-center">
+                        <span className="text-red-600 font-medium">PDF</span>
+                    </div>
+                );
+            }
+        }
+
+        return (
+            <div className="h-20 w-20 bg-gray-100 rounded flex items-center justify-center">
+                <span className="text-gray-600 font-medium">Archivo</span>
+            </div>
+        );
+    };
+
+    // Renderizar contenido según el tipo de cita seleccionado
+    const renderTipoCitaContent = () => {
+        switch (formData.tipoCita) {
+            case "solicitud":
+                return (
+                    <div className="space-y-4">
+                        {/* Selector de Solicitud de Orden usando el componente genérico específico */}
+                        <SolicitudSearchCombobox
+                            solicitudes={solicitudesOrden}
+                            selectedItem={selectedSolicitud}
+                            onItemSelect={handleSolicitudSelect} // ✅ Esto debería funcionar ahora
+                            onBlur={() => handleBlur({ target: { name: "solicitud" } } as any)}
+                            error={errors.nombreCliente}
+                            touched={touched.nombreCliente}
+                            resetTrigger={appointment?.id}
+                            label="Buscar Solicitud de Orden"
+                        />
+
+                        {/* Información de costo - SIEMPRE VISIBLE */}
+                        <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
+                            <div className="flex items-center">
+                                <div className="flex-shrink-0">
+                                    <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div className="ml-3">
+                                    <h3 className="text-sm font-medium text-blue-800">
+                                        Costo de la cita: $100,000 COP
+                                    </h3>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        {selectedSolicitud
+                                            ? "Solicitud seleccionada. Puede subir el comprobante de pago si es necesario."
+                                            : "Seleccione una solicitud existente o suba el comprobante de pago."
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Comprobante de pago - SIEMPRE VISIBLE */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2" style={{ color: Colors.texts.primary }}>
+                                Comprobante de Pago {!selectedSolicitud && "(Opcional)"}
+                            </label>
+
+                            {/* Mostrar comprobante existente */}
+                            {comprobantePago && (
+                                <div className="mb-3 p-3 border rounded bg-gray-50">
+                                    <p className="text-sm font-medium mb-2">Comprobante actual:</p>
+                                    <div className="flex items-center space-x-4">
+                                        {renderFilePreview(comprobantePago, 'comprobante')}
+                                        <button
+                                            type="button"
+                                            onClick={removeComprobantePago}
+                                            className="text-red-600 hover:text-red-800 text-sm"
+                                        >
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                                <div className="space-y-1 text-center">
+                                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    <div className="flex text-sm text-gray-600">
+                                        <label htmlFor="comprobantePago" className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
+                                            <span>Subir archivo</span>
+                                            <input
+                                                id="comprobantePago"
+                                                name="comprobantePago"
+                                                type="file"
+                                                className="sr-only"
+                                                onChange={handleComprobantePagoChange}
+                                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                            />
+                                        </label>
+                                        <p className="pl-1">o arrastrar y soltar</p>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        PDF, JPG, PNG, DOC hasta 10MB
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mostrar información de la solicitud seleccionada */}
+                        {selectedSolicitud && (
+                            <div className="p-4 rounded-md bg-gray-50 border border-gray-200">
+                                <h4 className="font-medium text-gray-900 mb-2">Información de la Solicitud Seleccionada:</h4>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                        <span className="font-medium">Cliente:</span> {selectedSolicitud.cliente}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Servicio:</span> {selectedSolicitud.servicio}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Dirección:</span> {selectedSolicitud.direccion}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Monto:</span> ${selectedSolicitud.monto.toLocaleString()} COP
+                                    </div>
+                                    {selectedSolicitud.descripcion && (
+                                        <div className="col-span-2">
+                                            <span className="font-medium">Descripción:</span> {selectedSolicitud.descripcion}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+
+            case "ejecucion":
+            case "garantia":
+                return (
+                    <div className="space-y-4">
+                        {/* Selector de Orden de Servicio usando el componente genérico específico */}
+                        <OrdenServicioSearchCombobox
+                            ordenesServicio={ordenesServicio}
+                            selectedItem={selectedOrdenServicio}
+                            onItemSelect={handleOrdenServicioSelect} 
+                            onBlur={() => handleBlur({ target: { name: "orden" } } as any)}
+                            error={errors.orden}
+                            touched={touched.orden}
+                            resetTrigger={appointment?.id}
+                            label={`Buscar Orden de Servicio ${formData.tipoCita === "garantia" ? "(Garantía)" : "(Ejecución)"}`}
+                        />
+                        {/* Información de la orden seleccionada */}
+                        {selectedOrdenServicio && (
+                            <div className="p-4 rounded-md bg-gray-50 border border-gray-200">
+                                <h4 className="font-medium text-gray-900 mb-2">Información de la Orden:</h4>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                        <span className="font-medium">Cliente:</span> {selectedOrdenServicio.cliente}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Servicio:</span> {selectedOrdenServicio.servicio}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Dirección:</span> {selectedOrdenServicio.direccion}
+                                    </div>
+                                    <div>
+                                        <span className="font-medium">Monto:</span> ${selectedOrdenServicio.monto.toLocaleString()} COP
+                                    </div>
+                                    {selectedOrdenServicio.materiales.length > 0 && (
+                                        <div className="col-span-2">
+                                            <span className="font-medium">Materiales:</span>
+                                            {selectedOrdenServicio.materiales.map(m => `${m.nombre} (${m.cantidad})`).join(', ')}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+
+            default:
+                return null;
+        }
+    };
 
     return createPortal(
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
@@ -74,7 +294,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         className="block text-sm font-medium mb-2 "
                                         style={{ color: Colors.texts.primary }}
                                     >
-                                        Hora de inicio
+                                        Hora de inicio *
                                     </label>
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -85,11 +305,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                             onBlur={handleBlur}
                                             min="0"
                                             max="23"
-                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000] ${touched.horaInicio && errors.horaInicio
-                                                ? "border-red-500"
-                                                : "border-gray-300"
+                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.horaInicio && errors.horaInicio
+                                                ? "border-red-500 focus:ring-red-500"
+                                                : "border-gray-300 focus:ring-[#CC0000]"
                                                 }`}
-                                            style={{ borderColor: Colors.table.lines }}
+                                            style={{
+                                                borderColor: touched.horaInicio && errors.horaInicio
+                                                    ? Colors.states.inactive
+                                                    : Colors.table.lines
+                                            }}
                                         />
                                         <span style={{ color: Colors.texts.primary }}>:</span>
                                         <input
@@ -100,13 +324,27 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                             onBlur={handleBlur}
                                             min="0"
                                             max="59"
-                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000] ${touched.minutoInicio && errors.minutoInicio
-                                                ? "border-red-500"
-                                                : "border-gray-300"
+                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.minutoInicio && errors.minutoInicio
+                                                ? "border-red-500 focus:ring-red-500"
+                                                : "border-gray-300 focus:ring-[#CC0000]"
                                                 }`}
-                                            style={{ borderColor: Colors.table.lines }}
+                                            style={{
+                                                borderColor: touched.minutoInicio && errors.minutoInicio
+                                                    ? Colors.states.inactive
+                                                    : Colors.table.lines
+                                            }}
                                         />
                                     </div>
+                                    {touched.horaInicio && errors.horaInicio && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.horaInicio}
+                                        </p>
+                                    )}
+                                    {touched.minutoInicio && errors.minutoInicio && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.minutoInicio}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Fin */}
@@ -115,7 +353,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         className="block text-sm font-medium mb-2"
                                         style={{ color: Colors.texts.primary }}
                                     >
-                                        Hora final
+                                        Hora final *
                                     </label>
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -126,11 +364,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                             onBlur={handleBlur}
                                             min="0"
                                             max="23"
-                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000] ${touched.horaFin && errors.horaFin
-                                                ? "border-red-500"
-                                                : "border-gray-300"
+                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.horaFin && errors.horaFin
+                                                ? "border-red-500 focus:ring-red-500"
+                                                : "border-gray-300 focus:ring-[#CC0000]"
                                                 }`}
-                                            style={{ borderColor: Colors.table.lines }}
+                                            style={{
+                                                borderColor: touched.horaFin && errors.horaFin
+                                                    ? Colors.states.inactive
+                                                    : Colors.table.lines
+                                            }}
                                         />
                                         <span style={{ color: Colors.texts.primary }}>:</span>
                                         <input
@@ -141,13 +383,27 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                             onBlur={handleBlur}
                                             min="0"
                                             max="59"
-                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000] ${touched.minutoFin && errors.minutoFin
-                                                ? "border-red-500"
-                                                : "border-gray-300"
+                                            className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.minutoFin && errors.minutoFin
+                                                ? "border-red-500 focus:ring-red-500"
+                                                : "border-gray-300 focus:ring-[#CC0000]"
                                                 }`}
-                                            style={{ borderColor: Colors.table.lines }}
+                                            style={{
+                                                borderColor: touched.minutoFin && errors.minutoFin
+                                                    ? Colors.states.inactive
+                                                    : Colors.table.lines
+                                            }}
                                         />
                                     </div>
+                                    {touched.horaFin && errors.horaFin && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.horaFin}
+                                        </p>
+                                    )}
+                                    {touched.minutoFin && errors.minutoFin && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.minutoFin}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -158,7 +414,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         className="block text-sm font-medium mb-2"
                                         style={{ color: Colors.texts.primary }}
                                     >
-                                        Día
+                                        Día *
                                     </label>
                                     <input
                                         type="number"
@@ -168,24 +424,43 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         onBlur={handleBlur}
                                         min="1"
                                         max="31"
-                                        className="w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                                        style={{ borderColor: Colors.table.lines }}
+                                        className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.dia && errors.dia
+                                            ? "border-red-500 focus:ring-red-500"
+                                            : "border-gray-300 focus:ring-[#CC0000]"
+                                            }`}
+                                        style={{
+                                            borderColor: touched.dia && errors.dia
+                                                ? Colors.states.inactive
+                                                : Colors.table.lines
+                                        }}
                                     />
+                                    {touched.dia && errors.dia && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.dia}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label
                                         className="block text-sm font-medium mb-2"
                                         style={{ color: Colors.texts.primary }}
                                     >
-                                        Mes
+                                        Mes *
                                     </label>
                                     <select
                                         name="mes"
                                         value={formData.mes}
                                         onChange={handleInputChange}
                                         onBlur={handleBlur}
-                                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                                        style={{ borderColor: Colors.table.lines }}
+                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${touched.mes && errors.mes
+                                            ? "border-red-500 focus:ring-red-500"
+                                            : "border-gray-300 focus:ring-[#CC0000]"
+                                            }`}
+                                        style={{
+                                            borderColor: touched.mes && errors.mes
+                                                ? Colors.states.inactive
+                                                : Colors.table.lines
+                                        }}
                                     >
                                         <option value="">Seleccionar mes</option>
                                         {Object.entries(months).map(([numero, nombre]) => (
@@ -194,13 +469,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                             </option>
                                         ))}
                                     </select>
+                                    {touched.mes && errors.mes && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.mes}
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label
                                         className="block text-sm font-medium mb-2"
                                         style={{ color: Colors.texts.primary }}
                                     >
-                                        Año
+                                        Año *
                                     </label>
                                     <input
                                         type="number"
@@ -210,26 +490,90 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         onBlur={handleBlur}
                                         min="2023"
                                         max="2030"
-                                        className="w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                                        style={{ borderColor: Colors.table.lines }}
+                                        className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.año && errors.año
+                                            ? "border-red-500 focus:ring-red-500"
+                                            : "border-gray-300 focus:ring-[#CC0000]"
+                                            }`}
+                                        style={{
+                                            borderColor: touched.año && errors.año
+                                                ? Colors.states.inactive
+                                                : Colors.table.lines
+                                        }}
                                     />
+                                    {touched.año && errors.año && (
+                                        <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                            {errors.año}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
+                            <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] my-4" style={{ outlineColor: Colors.table.lines }}></div>
+
+                            {/* Tipo de Cita */}
+                            <div>
+                                <label
+                                    className="block text-sm font-medium mb-2"
+                                    style={{ color: Colors.texts.primary }}
+                                >
+                                    Tipo de Cita *
+                                </label>
+                                <select
+                                    name="tipoCita"
+                                    value={formData.tipoCita}
+                                    onChange={handleInputChange}
+                                    onBlur={handleBlur}
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${touched.tipoCita && errors.tipoCita
+                                        ? "border-red-500 focus:ring-red-500"
+                                        : "border-gray-300 focus:ring-[#CC0000]"
+                                        }`}
+                                    style={{
+                                        borderColor: touched.tipoCita && errors.tipoCita
+                                            ? Colors.states.inactive
+                                            : Colors.table.lines
+                                    }}
+                                >
+                                    <option value="">Seleccionar tipo de cita</option>
+                                    {tiposCita.map((tipo) => (
+                                        <option key={tipo.value} value={tipo.value}>
+                                            {tipo.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                {touched.tipoCita && errors.tipoCita && (
+                                    <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                        {errors.tipoCita}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Contenido dinámico según tipo de cita */}
+                            {formData.tipoCita && renderTipoCitaContent()}
+                        </div>
+
+                        {/* Columna derecha */}
+                        <div className="space-y-4">
                             {/* Técnico */}
                             <div>
                                 <label
                                     className="block text-sm font-medium mb-2"
                                     style={{ color: Colors.texts.primary }}
                                 >
-                                    Selecciona el técnico
+                                    Selecciona el técnico *
                                 </label>
                                 <select
                                     name="tecnico"
                                     value=""
                                     onChange={handleTechnicianSelect}
-                                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                                    style={{ borderColor: Colors.table.lines }}
+                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${technicianError
+                                        ? "border-red-500 focus:ring-red-500"
+                                        : "border-gray-300 focus:ring-[#CC0000]"
+                                        }`}
+                                    style={{
+                                        borderColor: technicianError
+                                            ? Colors.states.inactive
+                                            : Colors.table.lines
+                                    }}
                                 >
                                     <option value="">Seleccionar técnico</option>
                                     {technicians.map((tech) => (
@@ -238,6 +582,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                         </option>
                                     ))}
                                 </select>
+                                {technicianError && (
+                                    <p className="text-xs mt-1" style={{ color: Colors.states.inactive }}>
+                                        {technicianError}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Tabla técnicos seleccionados */}
@@ -246,22 +595,57 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                 onRemoveTechnician={removeTechnician}
                             />
 
-                            {/* Nro Orden */}
-                            <OrderSearchCombobox
-                                orders={orders}
-                                selectedOrder={formData.orden || null}
-                                onOrderSelect={(order) => handleInputChange({
-                                    target: { name: "orden", value: order }
-                                } as any)}
-                                onBlur={() => handleBlur({ target: { name: "orden" } } as any)}
-                                error={errors.orden}
-                                touched={touched.orden}
-                                label="Nro. Orden"
-                            />
-                        </div>
+                            <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] my-4" style={{ outlineColor: Colors.table.lines }}></div>
 
-                        {/* Columna derecha (igual que antes) */}
-                        <div className="space-y-4">
+                            {/* Evidencia del Trabajo (para todos los tipos de cita) */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2" style={{ color: Colors.texts.primary }}>
+                                    Evidencia del Trabajo
+                                </label>
+
+                                {/* Mostrar evidencia existente */}
+                                {evidencia && (
+                                    <div className="mb-3 p-3 border rounded bg-gray-50">
+                                        <p className="text-sm font-medium mb-2">Evidencia actual:</p>
+                                        <div className="flex items-center space-x-4">
+                                            {renderFilePreview(evidencia, 'evidencia')}
+                                            <button
+                                                type="button"
+                                                onClick={removeEvidencia}
+                                                className="text-red-600 hover:text-red-800 text-sm"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md">
+                                    <div className="space-y-1 text-center">
+                                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                        <div className="flex text-sm text-gray-600">
+                                            <label htmlFor="evidencia" className="relative cursor-pointer rounded-md font-medium text-green-600 hover:text-green-500">
+                                                <span>Subir evidencia</span>
+                                                <input
+                                                    id="evidencia"
+                                                    name="evidencia"
+                                                    type="file"
+                                                    className="sr-only"
+                                                    onChange={handleEvidenciaChange}
+                                                    accept="image/*,video/*,.pdf,.doc,.docx"
+                                                />
+                                            </label>
+                                            <p className="pl-1">o arrastrar y soltar</p>
+                                        </div>
+                                        <p className="text-xs text-gray-500">
+                                            Imágenes, videos, PDF hasta 10MB
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Observaciones */}
                             <div>
                                 <label
@@ -276,89 +660,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                                     value={formData.observaciones}
                                     onChange={handleInputChange}
                                     onBlur={handleBlur}
-                                    rows={3}
+                                    rows={5}
                                     className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
                                     style={{ borderColor: Colors.table.lines }}
                                 />
-                            </div>
-
-                            {/* Evidencia */}
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Evidencia (imagen o vídeo)
-                                </label>
-
-                                <div className="flex items-center justify-center w-full">
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                                                <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
-                                            </svg>
-                                            <p className="mb-2 text-sm text-gray-500">
-                                                <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                PNG, JPG, MP4 o AVI (MAX. 10MB)
-                                            </p>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*,video/*"
-                                            onChange={handleEvidenciaChange}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                </div>
-
-                                {evidencia && (
-                                    <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center space-x-3">
-                                                {/* Icono según tipo de archivo */}
-                                                {evidencia.type.startsWith('image/') ? (
-                                                    <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                                    </svg>
-                                                ) : (
-                                                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                                    </svg>
-                                                )}
-
-                                                <div>
-                                                    <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                                                        {evidencia.name}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {(evidencia.size / 1024 / 1024).toFixed(2)} MB
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={removeEvidencia}
-                                                className="text-red-500 hover:text-red-700 transition-colors"
-                                                title="Quitar archivo"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                                </svg>
-                                            </button>
-                                        </div>
-
-                                        {/* Vista previa para imágenes */}
-                                        {evidencia.type.startsWith('image/') && (
-                                            <div className="mt-3">
-                                                <img
-                                                    src={URL.createObjectURL(evidencia)}
-                                                    alt="Vista previa"
-                                                    className="h-40 object-contain rounded border border-gray-200"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Estado */}
@@ -382,15 +687,22 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                             {/* Motivo de cancelación (solo si está Cancelado) */}
                             {estado === "Cancelado" && (
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Motivo de cancelación</label>
+                                    <label className="block text-sm font-medium mb-2">Motivo de cancelación *</label>
                                     <textarea
                                         name="motivoCancelacion"
                                         value={formData.motivoCancelacion}
                                         onChange={handleInputChange}
                                         onBlur={handleBlur}
                                         rows={3}
-                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000] ${errors.motivoCancelacion ? "border-red-500" : "border-gray-300"}`}
-                                        style={{ borderColor: Colors.table.lines }}
+                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${errors.motivoCancelacion
+                                            ? "border-red-500 focus:ring-red-500"
+                                            : "border-gray-300 focus:ring-[#CC0000]"
+                                            }`}
+                                        style={{
+                                            borderColor: errors.motivoCancelacion
+                                                ? Colors.states.inactive
+                                                : Colors.table.lines
+                                        }}
                                     />
                                     {errors.motivoCancelacion && (
                                         <p className="text-red-500 text-sm mt-1">{errors.motivoCancelacion}</p>
@@ -402,7 +714,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                 </div>
 
                 {/* Botones */}
-                <div className="p-4">
+                <div className="p-4 border-t" style={{ borderColor: Colors.table.lines, backgroundColor: Colors.table.primary }}>
                     <div className="flex justify-end space-x-3">
                         <button
                             type="button"
@@ -427,8 +739,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                             Guardar cambios
                         </button>
                     </div>
-                    
                 </div>
+
                 <div
                     className="w-full h-0 outline outline-1 outline-offset-[-0.5px]"
                     style={{ outlineColor: Colors.texts.primary }}

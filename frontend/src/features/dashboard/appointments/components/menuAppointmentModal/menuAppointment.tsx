@@ -4,7 +4,7 @@ import Colors from '@/shared/theme/colors';
 import { AppointmentDetailsModalProps, Order } from '../../types/typeAppointment';
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
-import { orders } from '../../mocks/mockAppointment';
+
 
 export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
   isOpen,

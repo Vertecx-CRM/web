@@ -1,16 +1,17 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import Colors from '@/shared/theme/colors';
 import { AppointmentEvent, Order } from '../../types/typeAppointment';
-import { orders } from '../../mocks/mockAppointment';
+
 
 interface GroupedAppointmentsModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointments: AppointmentEvent[];
   onSelectAppointment: (appointment: AppointmentEvent) => void;
+  onCreateAppointment?: () => void;
 }
-
 
 const estadoColores = {
   Finalizado: {
@@ -32,6 +33,7 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
   onClose,
   appointments,
   onSelectAppointment,
+  onCreateAppointment,
 }) => {
   if (!isOpen) return null;
 
@@ -42,17 +44,33 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
         style={{ backgroundColor: Colors.table.primary }}
       >
         <div className="flex justify-between items-center px-4 py-3 rounded-t-lg mb-4">
-          <div className="font-semibold text-xl" style={{ color: Colors.texts.primary }}>
-            Citas Superpuestas ({appointments.length})
+          <div className="flex items-center gap-3">
+            <div className="font-semibold text-xl" style={{ color: Colors.texts.primary }}>
+              Citas Superpuestas ({appointments.length})
+            </div>
+            {onCreateAppointment && (
+              <button
+                onClick={onCreateAppointment}
+                className="p-2 rounded-full transition-colors"
+                style={{ backgroundColor: '#CC0000' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#B20000')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#CC0000')}
+                title="Crear nueva cita"
+              >
+                <Image src="/icons/Plus.svg" alt="Crear cita" width={20} height={20} className="h-5 w-5" style={{ filter: 'brightness(0) invert(1)' }} />
+              </button>
+            )}
           </div>
+
           <button
             onClick={onClose}
             className="p-1 hover:opacity-70 transition-opacity"
             title="Cerrar"
           >
-            <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
+            <Image src="/icons/X.svg" alt="Cerrar" width={20} height={20} className="h-5 w-5" />
           </button>
         </div>
+
 
         <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px]" style={{ outlineColor: Colors.texts.primary }}></div>
 
