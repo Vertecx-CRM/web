@@ -9,6 +9,7 @@ interface DownloadXLSXButtonProps<T extends Record<string, unknown>> {
   fileName?: string;
   headers?: string[]; // nombres visibles en español
   excludeKeys?: (keyof T)[]; // claves que no deben mostrarse
+  id?: string; // nuevo para poder disparar desde el botón flotante
 }
 
 export default function DownloadXLSXButton<T extends Record<string, unknown>>({
@@ -16,6 +17,7 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
   fileName = "reporte.xlsx",
   headers,
   excludeKeys = ["image"] as (keyof T)[], // por defecto quitamos imagen
+  id,
 }: DownloadXLSXButtonProps<T>) {
   const downloadExcel = async (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -24,12 +26,10 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Reporte");
 
-    // Obtenemos solo las keys que no están en excludeKeys
     const keys = (Object.keys(data[0]) as (keyof T)[]).filter(
       (k) => !excludeKeys.includes(k)
     );
 
-    // Si hay headers, los usamos; si no, usamos las keys filtradas
     const headerRow = headers ?? keys.map(String);
     worksheet.addRow(headerRow);
 
@@ -40,10 +40,7 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
         pattern: "solid",
         fgColor: { argb: "FFDC2626" },
       };
-      cell.font = {
-        color: { argb: "FFFFFFFF" },
-        bold: true,
-      };
+      cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
       cell.alignment = { horizontal: "center" };
       cell.border = {
         bottom: { style: "thin", color: { argb: "FF000000" } },
@@ -54,12 +51,9 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
     });
 
     data.forEach((row, index) => {
-      const rowData = keys.map((k) => {
-        if (k === "price") {
-          return `$${(row[k] as number).toLocaleString("es-CO")}`;
-        }
-        return row[k] ?? "";
-      });
+      const rowData = keys.map((k) =>
+        k === "price" ? `$${(row[k] as number).toLocaleString("es-CO")}` : row[k] ?? ""
+      );
 
       const newRow = worksheet.addRow(rowData);
 
@@ -101,6 +95,7 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
 
   return (
     <button
+      id={id}
       onClick={downloadExcel}
       className="relative cursor-pointer inline-flex h-9 items-center gap-2 overflow-hidden rounded-md px-4 text-sm font-semibold text-white transition-transform duration-200 hover:scale-105 group"
       style={{ background: Colors.buttons.primary }}
