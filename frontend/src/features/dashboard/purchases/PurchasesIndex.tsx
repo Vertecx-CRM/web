@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import RequireAuth from "../../auth/requireauth";
-import { Column, DataTable } from "../components/datatable/DataTable";
+import { DataTable } from "../components/datatable/DataTable";
 import Modal from "../components/Modal";
 import RegisterPurchaseForm from "./components/RegisterPurchase";
 import { IPurchase } from "./Types/Purchase.type";
 import { purchases as mockPurchases } from "./mock/purchases.mock";
 import ViewPurchase from "./components/ViewPurchase";
 import { ToastContainer } from "react-toastify";
+import { Column } from "../components/datatable/types/column.types";
 
 export default function PurchasesIndex() {
   const [purchasesData, setPurchasesData] =
