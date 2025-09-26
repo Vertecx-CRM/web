@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Modal from "@/features/dashboard/components/Modal";
+import { XMarkIcon, CheckIcon } from "@heroicons/react/24/solid";
+import { motion, AnimatePresence } from "framer-motion";
 import Colors from "@/shared/theme/colors";
 import { EditRoleData, PermissionGroup, Role } from "../../types/typeRoles";
 import { showWarning } from "@/shared/utils/notifications";
@@ -22,7 +23,7 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Dashboard", permissions: ["Ver"] },
+  { title: "Dashboard", permissions: ["Ver"] }, // solo ver
 ];
 
 interface EditRoleModalProps {
@@ -49,20 +50,15 @@ export default function EditRoleModal({
     if (role) {
       setName(role.name);
       setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
-      setErrors({});
-      // Mapea los permisos del rol al formato Record<string, string[]>
       const mappedPermissions: Record<string, string[]> = {};
-      const rolePerms = role.permissions ?? []; // Agregamos la verificación aquí
+      const rolePerms = role.permissions ?? [];
       permissionGroups.forEach((group) => {
-        const groupPerms: string[] = [];
-        group.permissions.forEach((perm) => {
-          if (rolePerms.includes(`${group.title}-${perm}`)) {
-            groupPerms.push(perm);
-          }
-        });
-        mappedPermissions[group.title] = groupPerms;
+        mappedPermissions[group.title] = group.permissions.filter((perm) =>
+          rolePerms.includes(`${group.title}-${perm}`)
+        );
       });
       setPermissions(mappedPermissions);
+      setErrors({});
     }
   }, [role]);
 
@@ -82,13 +78,8 @@ export default function EditRoleModal({
       if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
     }
 
-    const selectedCount = Object.values(permsToCheck).reduce(
-      (acc, arr) => acc + arr.length,
-      0
-    );
-    if (selectedCount === 0) {
-      newErrors.permissions = "Debe asignar al menos un permiso al rol";
-    }
+    const selectedCount = Object.values(permsToCheck).reduce((acc, arr) => acc + arr.length, 0);
+    if (selectedCount === 0) newErrors.permissions = "Debe asignar al menos un permiso al rol";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -106,27 +97,40 @@ export default function EditRoleModal({
     });
   };
 
-  const handleToggleAllPermissions = (module: string, isChecked: boolean) => {
+  const handleToggleModuleAll = (module: string) => {
+    if (module === "Dashboard") return; // evita el toggle "Todo" en Dashboard
     setPermissions((prev) => {
-      const updatedPermissions = { ...prev };
-      const moduleGroup = permissionGroups.find(g => g.title === module);
-      if (isChecked && moduleGroup) {
-        updatedPermissions[module] = moduleGroup.permissions;
-      } else {
-        updatedPermissions[module] = [];
-      }
-      validateForm(undefined, updatedPermissions);
-      return updatedPermissions;
+      const current = prev[module] || [];
+      const allSelected = current.length === permissionGroups.find((g) => g.title === module)?.permissions.length;
+      const updated = allSelected ? [] : [...(permissionGroups.find((g) => g.title === module)?.permissions || [])];
+      const newPermissions = { ...prev, [module]: updated };
+      validateForm(undefined, newPermissions);
+      return newPermissions;
     });
+  };
+
+  const handleToggleAllPermissions = () => {
+    const allSelected =
+      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
+      permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
+
+    if (allSelected) {
+      setPermissions({});
+    } else {
+      const fullSelection: Record<string, string[]> = {};
+      permissionGroups.forEach((group) => {
+        fullSelection[group.title] = [...group.permissions];
+      });
+      setPermissions(fullSelection);
+    }
+    validateForm(undefined, permissions);
   };
 
   const handleSubmit = () => {
     const formattedPermissions: string[] = [];
-    Object.entries(permissions).forEach(([module, perms]) => {
-      perms.forEach((perm) => {
-        formattedPermissions.push(`${module}-${perm}`);
-      });
-    });
+    Object.entries(permissions).forEach(([module, perms]) =>
+      perms.forEach((perm) => formattedPermissions.push(`${module}-${perm}`))
+    );
 
     if (!validateForm(name, permissions)) {
       showWarning("Por favor completa los campos obligatorios correctamente");
@@ -137,201 +141,162 @@ export default function EditRoleModal({
     onClose();
   };
 
-  function PermissionCard({
-    module,
-    selected,
-    allPermissions,
-    onToggle,
-    onToggleAll,
-  }: {
-    module: string;
-    selected: string[];
-    allPermissions: string[];
-    onToggle: (module: string, permission: string) => void;
-    onToggleAll: (module: string, isChecked: boolean) => void;
-  }) {
-    const isAllSelected = selected.length === allPermissions.length;
-
-    return (
-      <div
-        className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
-        style={{
-          border: `1px solid ${Colors.table.lines}`,
-          backgroundColor: Colors.background.tertiary,
-        }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          {/* Checkbox "Seleccionar Todos" a la izquierda */}
-          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: Colors.texts.primary }}>
-            <span
-              onClick={() => onToggleAll(module, !isAllSelected)}
-              className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${isAllSelected ? "animate-[scaleIn_0.2s_ease-in-out]" : ""}`}
-              style={{
-                backgroundColor: isAllSelected ? Colors.buttons.quaternary : Colors.background.primary,
-                borderColor: isAllSelected ? Colors.buttons.quaternary : Colors.table.lines,
-              }}
-            >
-              {isAllSelected && (
-                <svg
-                  className="h-3 w-3 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </span>
-          </label>
-          <span
-            className="font-medium"
-            style={{ color: Colors.texts.primary }}
-          >
-            {module}
-          </span>
-        </div>
-        {/* Línea difuminada separadora */}
-        <div className="h-[1px] my-3" style={{ backgroundColor: "rgba(0, 0, 0, 0.1)" }}></div>
-        <div className="flex flex-wrap gap-3">
-          {allPermissions.map((perm) => {
-            const isChecked = selected.includes(perm);
-            return (
-              <label
-                key={perm}
-                className="flex items-center gap-2 text-sm cursor-pointer"
-                style={{ color: Colors.texts.primary }}
-              >
-                <span
-                  onClick={() => onToggle(module, perm)}
-                  className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${
-                    isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""
-                  }`}
-                  style={{
-                    backgroundColor: isChecked
-                      ? Colors.buttons.quaternary
-                      : Colors.background.primary,
-                    borderColor: isChecked
-                      ? Colors.buttons.quaternary
-                      : Colors.table.lines,
-                  }}
-                >
-                  {isChecked && (
-                    <svg
-                      className="h-3 w-3 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </span>
-                {perm}
-              </label>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+  const Checkbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`w-5 h-5 rounded-md border border-gray-400 flex items-center justify-center transition-all duration-150 
+        ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
+    >
+      <CheckIcon
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${
+          checked ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </button>
+  );
 
   return (
-    <Modal
-      title="Editar Rol"
-      isOpen={isOpen}
-      onClose={onClose}
-      footer={
-        <>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-sm transition-colors"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="bg-white rounded-3xl shadow-lg relative w-full max-w-[800px] h-[88vh] flex flex-col"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 rounded-md font-medium text-sm text-white"
-            style={{
-              backgroundColor: Colors.buttons.quaternary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Actualizar
-          </button>
-        </>
-      }
-    >
-      <div className="overflow-y-auto max-h-[60vh] space-y-6">
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-            Nombre del rol <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              validateForm(e.target.value, permissions);
-            }}
-            onBlur={() => validateForm()}
-            placeholder="Ingrese nombre del rol"
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-            style={{
-              borderColor: errors.name ? "red" : Colors.table.lines,
-              outlineColor: Colors.buttons.quaternary,
-            }}
-          />
-          {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
-        </div>
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
+              <h2 className="text-lg font-semibold">Editar Rol</h2>
+              <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-            Estado
-          </label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-            style={{
-              borderColor: Colors.table.lines,
-              outlineColor: Colors.buttons.quaternary,
-            }}
-          >
-            <option value="Activo">Activo</option>
-            <option value="Inactivo">Inactivo</option>
-          </select>
-        </div>
+            {/* Content */}
+            <div className="p-6 flex-1 space-y-6 overflow-hidden">
+              {/* Nombre y Estado */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                    Nombre del rol <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      validateForm(e.target.value, permissions);
+                    }}
+                    placeholder="Ingrese nombre de rol"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
+                  />
+                  {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
+                </div>
 
-        <h3 className="text-center font-semibold" style={{ color: Colors.texts.primary }}>
-          Permisos Asignados <span className="text-red-500">*</span>
-        </h3>
-        {errors.permissions && (
-          <p className="text-center text-xs text-red-500">{errors.permissions}</p>
-        )}
+                <div>
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                    Estado
+                  </label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    style={{ borderColor: Colors.table.lines }}
+                  >
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {permissionGroups.map((group) => (
-            <PermissionCard
-              key={group.title}
-              module={group.title}
-              selected={permissions[group.title] || []}
-              allPermissions={group.permissions}
-              onToggle={handleTogglePermission}
-              onToggleAll={handleToggleAllPermissions}
-            />
-          ))}
-        </div>
-      </div>
-    </Modal>
+              {/* Permisos */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
+                  Permisos Asignados <span className="text-red-500">*</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={
+                      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
+                      permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0)
+                    }
+                    onChange={handleToggleAllPermissions}
+                  />
+                  <span className="text-sm">Seleccionar todos</span>
+                </div>
+              </div>
+
+              {errors.permissions && <p className="text-left text-xs text-red-500">{errors.permissions}</p>}
+
+              <div className="overflow-hidden rounded-xl border max-h-64 overflow-y-auto custom-scroll">
+                <table className="min-w-full text-sm">
+                  <thead style={{ backgroundColor: "#B20000" }} className="sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-white">Módulo</th>
+                      <th className="px-4 py-3 text-center font-semibold text-white">Permisos / Privilegios</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {permissionGroups.map((group) => {
+                      const allSelected = (permissions[group.title]?.length ?? 0) === group.permissions.length;
+                      return (
+                        <tr key={group.title}>
+                          <td className="px-4 py-3 font-medium text-gray-800">{group.title}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap justify-center gap-4">
+                              {group.title !== "Dashboard" && (
+                                <div className="flex items-center gap-2">
+                                  <Checkbox checked={allSelected} onChange={() => handleToggleModuleAll(group.title)} />
+                                  <span className="text-sm">Todos</span>
+                                </div>
+                              )}
+                              {group.permissions.map((perm) => {
+                                const isChecked = permissions[group.title]?.includes(perm);
+                                return (
+                                  <div key={`${group.title}-${perm}`} className="flex items-center gap-2">
+                                    <Checkbox checked={isChecked || false} onChange={() => handleTogglePermission(group.title, perm)} />
+                                    <span className="text-sm">{perm}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t sticky bottom-0 bg-white z-10 rounded-b-3xl">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 rounded-lg font-medium text-sm text-white"
+                style={{ backgroundColor: Colors.buttons.quaternary }}
+              >
+                Actualizar
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

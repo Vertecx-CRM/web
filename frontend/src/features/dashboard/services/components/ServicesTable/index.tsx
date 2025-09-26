@@ -39,10 +39,15 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
         const isBase64 =
           typeof image === "string" && image.startsWith("data:image");
 
-          console.log(`-----------------------------------
+        console.log(
+          `-----------------------------------
             Renderizando imagen para servicio
-            -----------------------------------------`, s, "URL:", image);
-          
+            -----------------------------------------`,
+          s,
+          "URL:",
+          image
+        );
+
         if (!image) {
           return (
             <span className="text-gray-400 text-xs italic">Sin imagen</span>
@@ -100,7 +105,11 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       searchPlaceholder="Buscar servicios..."
       createButtonText="Crear Servicio"
       rightActions={
-        <DownloadXLSXButton data={services} fileName="reporte_servicios.xlsx" />
+        <DownloadXLSXButton
+          data={services as unknown as Record<string, unknown>[]}
+          fileName="reporte_servicios.xlsx"
+          headers={["ID", "Nombre", "Categoría", "Estado"]}
+        />
       }
     />
   );

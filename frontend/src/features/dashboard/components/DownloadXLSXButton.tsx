@@ -2,20 +2,21 @@
 
 import { MouseEvent } from "react";
 import Colors from "@/shared/theme/colors";
-import ExcelJS from 'exceljs';
+import ExcelJS from "exceljs";
 
 interface DownloadXLSXButtonProps<T extends Record<string, unknown>> {
   data: T[];
   fileName?: string;
-  headers?: string[];
+  headers?: string[]; // nombres visibles en español
+  excludeKeys?: (keyof T)[]; // claves que no deben mostrarse
 }
 
 export default function DownloadXLSXButton<T extends Record<string, unknown>>({
   data,
   fileName = "reporte.xlsx",
   headers,
+  excludeKeys = ["image"] as (keyof T)[], // por defecto quitamos imagen
 }: DownloadXLSXButtonProps<T>) {
-
   const downloadExcel = async (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (!data || data.length === 0) return;
@@ -23,59 +24,61 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Reporte");
 
-    const keys = Object.keys(data[0]) as (keyof T)[];
-    const headerRow = headers || keys.map(String);
-    
+    // Obtenemos solo las keys que no están en excludeKeys
+    const keys = (Object.keys(data[0]) as (keyof T)[]).filter(
+      (k) => !excludeKeys.includes(k)
+    );
+
+    // Si hay headers, los usamos; si no, usamos las keys filtradas
+    const headerRow = headers ?? keys.map(String);
     worksheet.addRow(headerRow);
 
     const headerCell = worksheet.getRow(1);
     headerCell.eachCell((cell) => {
       cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFDC2626' } 
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFDC2626" },
       };
       cell.font = {
-        color: { argb: 'FFFFFFFF' }, 
-        bold: true
+        color: { argb: "FFFFFFFF" },
+        bold: true,
       };
-      cell.alignment = { horizontal: 'center' };
+      cell.alignment = { horizontal: "center" };
       cell.border = {
-        bottom: { style: 'thin', color: { argb: 'FF000000' } },
-        top: { style: 'thin', color: { argb: 'FF000000' } },
-        left: { style: 'thin', color: { argb: 'FF000000' } },
-        right: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: "thin", color: { argb: "FF000000" } },
+        top: { style: "thin", color: { argb: "FF000000" } },
+        left: { style: "thin", color: { argb: "FF000000" } },
+        right: { style: "thin", color: { argb: "FF000000" } },
       };
     });
 
     data.forEach((row, index) => {
       const rowData = keys.map((k) => {
-        if (k === 'price') {
+        if (k === "price") {
           return `$${(row[k] as number).toLocaleString("es-CO")}`;
-        }
-        if (k === 'image') {
-          return row[k] ? "Con imagen" : "Sin imagen";
         }
         return row[k] ?? "";
       });
+
       const newRow = worksheet.addRow(rowData);
-      
+
       if (index % 2 !== 0) {
         newRow.eachCell({ includeEmpty: true }, (cell) => {
           cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFF3F4F6' } // Gris claro (gray-100)
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF3F4F6" },
           };
         });
       }
 
       newRow.eachCell({ includeEmpty: true }, (cell) => {
         cell.border = {
-          top: { style: 'thin', color: { argb: 'FFC0C0C0' } },
-          bottom: { style: 'thin', color: { argb: 'FFC0C0C0' } },
-          left: { style: 'thin', color: { argb: 'FFC0C0C0' } },
-          right: { style: 'thin', color: { argb: 'FFC0C0C0' } },
+          top: { style: "thin", color: { argb: "FFC0C0C0" } },
+          bottom: { style: "thin", color: { argb: "FFC0C0C0" } },
+          left: { style: "thin", color: { argb: "FFC0C0C0" } },
+          right: { style: "thin", color: { argb: "FFC0C0C0" } },
         };
       });
     });
@@ -85,9 +88,11 @@ export default function DownloadXLSXButton<T extends Record<string, unknown>>({
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = fileName;
     a.click();
