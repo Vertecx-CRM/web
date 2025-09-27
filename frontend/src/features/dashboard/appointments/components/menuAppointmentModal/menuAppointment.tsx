@@ -4,7 +4,7 @@ import Colors from '@/shared/theme/colors';
 import { AppointmentDetailsModalProps, Order } from '../../types/typeAppointment';
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
-import { orders } from '../../mocks/mockAppointment';
+
 
 export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({
   isOpen,
@@ -25,11 +25,7 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
   };
 
   let currentOrder: Order | null = null;
-  if (typeof appointment.orden === 'string') {
-    currentOrder = orders.find((o) => o.id === appointment.orden) || null;
-  } else {
-    currentOrder = appointment.orden || null;
-  }
+  currentOrder = appointment.orden || null;
 
   const clientName = currentOrder?.cliente || "Sin cliente";
   const tipoServicio = currentOrder?.tipoServicio || "Sin servicio";

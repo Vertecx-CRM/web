@@ -87,7 +87,7 @@ export const IndexDashboard = () => {
                 className="mr-4 filter brightness-0 invert"
               />
               <div className="flex-grow min-w-0 overflow-hidden">
-                <h2 className="text-[20px] font-medium mb-1">Ordenes: 20</h2>
+                <h2 className="text-[30px] font-medium mb-1">Ordenes: 20</h2>
               </div>
             </div>
           </div>
