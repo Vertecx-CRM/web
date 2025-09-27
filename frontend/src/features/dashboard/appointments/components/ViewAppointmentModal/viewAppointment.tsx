@@ -9,16 +9,15 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
     isOpen,
     onClose,
     appointment,
+
 }) => {
     if (!isOpen || !appointment) return null;
+    console.log(appointment.materiales);
+
 
     // 🔹 Lógica corregida para resolver la orden
     let currentOrder: Order | null = null;
-    if (typeof appointment.orden === 'string') {
-        currentOrder = orders.find((o) => o.id === appointment.orden) || null;
-    } else {
-        currentOrder = appointment.orden || null;
-    }
+    currentOrder = appointment.orden || null
 
     // Define las variables para los datos de la orden
     const cliente = currentOrder?.cliente || "N/A";
@@ -103,7 +102,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                     </div>
                 );
             }
-        } 
+        }
         // Si es un string (URL/base64)
         else {
             if (file.startsWith('data:image') || isImage(file)) {
@@ -257,7 +256,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                                     <div className="w-full px-3 py-2 border rounded-md text-center">{appointment.año}</div>
                                 </div>
                             </div>
-                            
+
                             {/* Observación de la cita */}
                             <div>
                                 <label className="block text-sm font-medium mb-2">Observación</label>
@@ -303,43 +302,133 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                         </div>
 
                         {/* Columna derecha → datos de la orden y técnicos */}
+
                         <div className="space-y-4 text-sm" style={{ color: Colors.texts.primary }}>
+
                             {/* Información de la orden */}
-                            <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
-                                <h3 className="font-medium text-blue-800 mb-2">Información de la Orden</h3>
-                                
-                                {/* Cliente */}
-                                <div className="mb-2">
-                                    <label className="block text-xs font-medium text-blue-700">Cliente</label>
-                                    <div className="text-sm text-blue-900">{cliente}</div>
-                                </div>
+                            {appointment.tipoCita === "ejecucion" && (
+                                <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
+                                    <h3 className="font-medium text-blue-800 mb-2">Información de la cita de ejecucion {appointment.orden?.id}</h3>
 
-                                {/* Dirección */}
-                                <div className="mb-2">
-                                    <label className="block text-xs font-medium text-blue-700">Dirección</label>
-                                    <div className="text-sm text-blue-900">{lugar}</div>
-                                </div>
-
-                                {/* Tipo de servicio */}
-                                <div className="mb-2">
-                                    <label className="block text-xs font-medium text-blue-700">Tipo de servicio</label>
-                                    <div className="text-sm text-blue-900">{tipoServicio}</div>
-                                </div>
-                                
-                                {/* Tipo de mantenimiento (solo si existe y es "mantenimiento") */}
-                                {currentOrder?.tipoServicio === "mantenimiento" && (
+                                    {/* Cliente */}
                                     <div className="mb-2">
-                                        <label className="block text-xs font-medium text-blue-700">Tipo de mantenimiento</label>
-                                        <div className="text-sm text-blue-900">{tipoMantenimiento}</div>
+                                        <label className="block text-xs font-medium text-blue-700">Cliente</label>
+                                        <div className="text-sm text-blue-900">{cliente}</div>
                                     </div>
-                                )}
 
-                                {/* Monto */}
-                                <div className="mb-2">
-                                    <label className="block text-xs font-medium text-blue-700">Monto</label>
-                                    <div className="text-sm text-blue-900">${monto} COP</div>
+                                    {/* Dirección */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-blue-700">Dirección</label>
+                                        <div className="text-sm text-blue-900">{lugar}</div>
+                                    </div>
+
+                                    {/* Tipo de servicio */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-blue-700">Tipo de servicio</label>
+                                        <div className="text-sm text-blue-900">{tipoServicio}</div>
+                                    </div>
+
+                                    {/* Tipo de mantenimiento (solo si existe y es "mantenimiento") */}
+                                    {currentOrder?.tipoServicio === "mantenimiento" && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-blue-700">Tipo de mantenimiento</label>
+                                            <div className="text-sm text-blue-900">{tipoMantenimiento}</div>
+                                        </div>
+                                    )}
+
+                                    {currentOrder?.tipoServicio === "instalacion" && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-blue-700">Tipo de mantenimiento</label>
+                                            <div className="text-sm text-blue-900">{tipoMantenimiento}</div>
+                                        </div>
+                                    )}
+
+                                    {appointment.descripcion && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-blue-700">Descripción</label>
+                                            <div className="text-sm text-blue-900">{appointment.descripcion}</div>
+                                        </div>
+                                    )}
+
+                                    {appointment.orden?.materiales && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-blue-700">Materiales</label>
+                                            <div className="text-sm text-blue-900">{appointment.orden.materiales.map((m) => `${m.nombre} (${m.cantidad})`).join(", ")}</div>
+                                        </div>
+                                    )}
+
+                                    {/* Monto */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-blue-700">Monto</label>
+                                        <div className="text-sm text-blue-900">${monto} COP</div>
+                                    </div>
+
+
                                 </div>
-                            </div>
+                            )
+                            }
+
+                            {appointment.tipoCita === "garantia" && (
+                                <div className="p-3 rounded-md bg-red-50 border border-red-200">
+                                    <h3 className="font-medium text-red-800 mb-2">Información de la cita de garantia {appointment.orden?.id}</h3>
+
+                                    {/* Cliente */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-red-700">Cliente</label>
+                                        <div className="text-sm text-red-900">{cliente}</div>
+                                    </div>
+
+                                    {/* Dirección */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-red-700">Dirección</label>
+                                        <div className="text-sm text-red-900">{lugar}</div>
+                                    </div>
+
+                                    {/* Tipo de servicio */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-red-700">Tipo de servicio</label>
+                                        <div className="text-sm text-red-900">{tipoServicio}</div>
+                                    </div>
+
+                                    {/* Tipo de mantenimiento (solo si existe y es "mantenimiento") */}
+                                    {currentOrder?.tipoServicio === "mantenimiento" && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-red-700">Tipo de mantenimiento</label>
+                                            <div className="text-sm text-red-900">{tipoMantenimiento}</div>
+                                        </div>
+                                    )}
+
+                                    {currentOrder?.tipoServicio === "instalacion" && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-red-700">Tipo de mantenimiento</label>
+                                            <div className="text-sm text-red-900">{tipoMantenimiento}</div>
+                                        </div>
+                                    )}
+
+                                    {appointment.descripcion && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-red-700">Descripción</label>
+                                            <div className="text-sm text-red-900">{appointment.descripcion}</div>
+                                        </div>
+                                    )}
+
+                                    {appointment.orden?.materiales && (
+                                        <div className="mb-2">
+                                            <label className="block text-xs font-medium text-red-700">Materiales</label>
+                                            <div className="text-sm text-red-900">{appointment.orden.materiales.map((m) => `${m.nombre} (${m.cantidad})`).join(", ")}</div>
+                                        </div>
+                                    )}
+
+                                    {/* Monto */}
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-medium text-red-700">Monto</label>
+                                        <div className="text-sm text-red-900">${monto} COP</div>
+                                    </div>
+
+
+                                </div>
+                            )
+                            }
 
                             {/* Comprobante de pago (solo para citas de tipo solicitud) */}
                             {appointment.tipoCita === "solicitud" && appointment.comprobantePago && (
@@ -352,7 +441,7 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                             {/* Información adicional para solicitudes */}
                             {appointment.tipoCita === "solicitud" && (
                                 <div className="p-3 rounded-md bg-green-50 border border-green-200">
-                                    <h3 className="font-medium text-green-800 mb-2">Información de Solicitud</h3>
+                                    <h3 className="font-medium text-green-800 mb-2">Información de la cita de solicitud {appointment.orden?.id}</h3>
                                     {appointment.nombreCliente && (
                                         <div className="mb-1">
                                             <label className="block text-xs font-medium text-green-700">Cliente:</label>
@@ -371,10 +460,28 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                                             <div className="text-sm text-green-900">{appointment.servicio}</div>
                                         </div>
                                     )}
+                                    {appointment.tipoMantenimientoSolicitud == "preventivo" && (
+                                        <div className="mb-1">
+                                            <label className="block text-xs font-medium text-green-700">Tipo de mantenimiento:</label>
+                                            <div className="text-sm text-green-900">{appointment.tipoMantenimientoSolicitud}</div>
+                                        </div>
+                                    )}
+                                    {appointment.tipoMantenimientoSolicitud == "correctivo" && (
+                                        <div className="mb-1">
+                                            <label className="block text-xs font-medium text-green-700">Tipo de mantenimiento:</label>
+                                            <div className="text-sm text-green-900">{appointment.tipoMantenimientoSolicitud}</div>
+                                        </div>
+                                    )}
                                     {appointment.descripcion && (
                                         <div>
                                             <label className="block text-xs font-medium text-green-700">Descripción:</label>
                                             <div className="text-sm text-green-900">{appointment.descripcion}</div>
+                                        </div>
+                                    )}
+                                    {appointment.orden?.monto && (
+                                        <div>
+                                            <label className="block text-xs font-medium text-green-700">Monto:</label>
+                                            <div className="text-sm text-green-900">${monto} COP</div>
                                         </div>
                                     )}
                                 </div>
@@ -383,9 +490,9 @@ export const ViewAppointmentModal: React.FC<ViewAppointmentModalProps> = ({
                             {/* Técnicos asignados */}
                             <div>
                                 <label className="block text-sm font-medium mb-2">Técnicos asignados</label>
-                                <TechniciansTable 
-                                    technicians={appointment.tecnicos || []} 
-                                    onRemoveTechnician={() => { }} 
+                                <TechniciansTable
+                                    technicians={appointment.tecnicos || []}
+                                    onRemoveTechnician={() => { }}
                                 />
                             </div>
 

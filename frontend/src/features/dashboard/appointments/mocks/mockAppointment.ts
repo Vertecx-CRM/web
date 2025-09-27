@@ -6,6 +6,7 @@ export const technicians: Technician[] = [
   { id: 3, nombre: "Darier Alvarez", titulo: "Electricista" },
 ];
 
+
 // Materiales disponibles (solo con nombre, sin precio)
 export const materiales: Material[] = [
   { id: 1, nombre: "Cámara IP HD", cantidad: 0 },

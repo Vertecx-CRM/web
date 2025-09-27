@@ -32,6 +32,7 @@ export interface Order {
   monto: number;
   cliente: string;
   lugar: string;
+  materiales?: Material[] 
 }
 
 // Nuevo tipo para el tipo de cita
@@ -95,6 +96,7 @@ export interface AppointmentEvent {
   tipoMantenimientoSolicitud?: "preventivo" | "correctivo";
   servicio?: string;
   descripcion?: string;
+  materiales?: Material[]; 
 }
 
 
@@ -170,7 +172,7 @@ export interface EditAppointmentModalProps {
 export interface ViewAppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  appointment: AppointmentEvent | null;
+  appointment: AppointmentEvent | null ;
 }
 
 export interface UseEditAppointmentFormProps {
@@ -236,3 +238,4 @@ export interface OrdenServicioSearchComboboxProps {
   label?: string;
   validateOrden?: (orden: OrdenServicio | null) => string | undefined;
 }
+

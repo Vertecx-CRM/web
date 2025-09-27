@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -29,6 +29,8 @@ import { GroupedAppointmentsModal } from '../../appointments/components/GroupedA
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from "react-toastify";
+import { FiltersState } from '../../appointments/filtro/filtro';
+
 
 
 const locales = { es };
@@ -53,6 +55,7 @@ const DnDCalendar = withDragAndDrop<GroupedEvent>(Calendar);
 interface WeeklyCalendarProps {
   selectedDate?: Date;
   search?: string;
+  filters: FiltersState;
 }
 
 const eventPropGetter = (event: AppointmentEvent) => {
@@ -66,7 +69,7 @@ const eventPropGetter = (event: AppointmentEvent) => {
   return {};
 };
 
-const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
+const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) => {
   const [events, setEvents] = useState<AppointmentEvent[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -95,31 +98,74 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
       setDateRange(getWeekRange(selectedDate));
     }
   }, [selectedDate, getWeekRange]);
+
+
+const filteredAppointments = useMemo(() => {
+  return events.filter((a) => {
+    const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase());
+
+    // Técnicos
+    const matchTech =
+      filters.technicians.length === 0 ||
+      a.tecnicos.some(t => filters.technicians.includes(t.id));
+
+    // Tipo de servicio (puede venir en tipoServicioSolicitud o en la orden)
+    const appointmentTipoServicio = a.tipoServicioSolicitud ?? a.orden?.tipoServicio ?? "";
+    const matchTipoServicio = !filters.tipoServicio || appointmentTipoServicio === filters.tipoServicio;
+
+    // Tipo de mantenimiento (puede venir en tipoMantenimientoSolicitud o en la orden)
+    const appointmentTipoMantenimiento = a.tipoMantenimientoSolicitud ?? a.orden?.tipoMantenimiento ?? "";
+    const matchTipoMantenimiento = !filters.tipoMantenimiento || appointmentTipoMantenimiento === filters.tipoMantenimiento;
+
+    // Tipo de cita
+    const matchTipoCita = !filters.tipoCita || a.tipoCita === filters.tipoCita;
+
+    // Estado
+    const matchEstado = !filters.estado || a.estado === filters.estado;
+
+    // Cliente (nombreCliente o cliente de la orden)
+    const clienteCita = a.nombreCliente ?? a.orden?.cliente ?? "";
+    const matchCliente =
+      !filters.cliente ||
+      clienteCita.toLowerCase().includes(filters.cliente.toLowerCase());
+
+    return (
+      matchSearch &&
+      matchTech &&
+      matchTipoServicio &&
+      matchTipoMantenimiento &&
+      matchTipoCita &&
+      matchEstado &&
+      matchCliente 
+    );
+  });
+}, [events, search, filters]);
+
+
+  // 2. UseEffect para buscador + rango visible + agrupar:
   useEffect(() => {
-    // 1. Filtramos por búsqueda
-    const filteredEvents = search
-      ? events.filter(ev =>
-        ev.title?.toLowerCase().includes(search.toLowerCase()) ||
-        ev.orden?.cliente?.toLowerCase().includes(search.toLowerCase()) ||
-        ev.orden?.tipoServicio?.toLowerCase().includes(search.toLowerCase())
-      )
-      : events;
+    // en vez de partir de events, parte de filteredAppointments
+    let filtered = [...filteredAppointments];
 
-    // 2. Ordenamos
-    const sortedEvents = [...filteredEvents].sort((a, b) => a.start.getTime() - b.start.getTime());
+    // 2. Filtrar por rango visible
+    filtered = filtered.filter(
+      ev =>
+        ev.start >= dateRange.start &&
+        ev.start <= dateRange.end
+    );
+
+    // 3. Ordenar y agrupar
+    const sortedEvents = [...filtered].sort((a, b) => a.start.getTime() - b.start.getTime());
     const newDisplayEvents: GroupedEvent[] = [];
-
     let i = 0;
     while (i < sortedEvents.length) {
       const currentEvent = sortedEvents[i];
       const overlappingEvents = [currentEvent];
       let j = i + 1;
-
       while (j < sortedEvents.length && sortedEvents[j].start.getTime() < currentEvent.end.getTime()) {
         overlappingEvents.push(sortedEvents[j]);
         j++;
       }
-
       if (overlappingEvents.length > 1) {
         newDisplayEvents.push({
           ...currentEvent,
@@ -136,10 +182,7 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
     }
 
     setDisplayEvents(newDisplayEvents);
-  }, [events, search]);
-
-
-
+  }, [filteredAppointments, dateRange]);
 
   const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
     if (isDragging) return;
@@ -161,9 +204,6 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
 
     setIsCreateModalOpen(true);
   };
-
-
-
   // En WeeklyCalendar.tsx
   const handleSelectEvent = (event: GroupedEvent) => {
     // 1. Si es un evento agrupado, mostrar el modal de agrupados y salir
@@ -183,7 +223,6 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
     setSelectedAppointment(event);
     setIsDetailsModalOpen(true);
   };
-
 
   const handleSelectGroupedAppointment = (appointment: AppointmentEvent) => {
     setSelectedAppointment(appointment);
@@ -320,97 +359,6 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
 
 
   useEffect(() => {
-    // 1. Filtramos por búsqueda (más completo)
-    let filteredEvents = events.map((ev) => ({
-      ...ev,
-      start: ev.start instanceof Date ? ev.start : new Date(ev.start),
-      end: ev.end instanceof Date ? ev.end : new Date(ev.end),
-    }));
-
-    if (search && search.trim() !== "") {
-      const lowerSearch = search.toLowerCase();
-
-      filteredEvents = filteredEvents.filter((event) => {
-        const cliente = (event.orden?.cliente ?? "").toLowerCase();
-        const lugar = (event.orden?.lugar ?? "").toLowerCase();
-        const idOrden = (event.orden?.id ?? "").toString().toLowerCase();
-        const tipoServicio = (event.orden?.tipoServicio ?? "").toLowerCase();
-        const tecnicos = (event.tecnicos ?? [])
-          .map((t) => (t.nombre ?? "").toLowerCase())
-          .join(" ");
-        const titulo = (event.title ?? "").toLowerCase();
-
-        // Generamos las horas en formato "HH:mm" para buscar
-        const horaInicioStr =
-          event.horaInicio && event.minutoInicio
-            ? `${event.horaInicio.padStart(2, "0")}:${event.minutoInicio.padStart(2, "0")}`
-            : event.start.toLocaleTimeString("es-CO", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-
-        const horaFinStr =
-          event.horaFin && event.minutoFin
-            ? `${event.horaFin.padStart(2, "0")}:${event.minutoFin.padStart(2, "0")}`
-            : event.end.toLocaleTimeString("es-CO", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-
-        return (
-          cliente.includes(lowerSearch) ||
-          lugar.includes(lowerSearch) ||
-          idOrden.includes(lowerSearch) ||
-          tipoServicio.includes(lowerSearch) ||
-          tecnicos.includes(lowerSearch) ||
-          titulo.includes(lowerSearch) ||
-          horaInicioStr.includes(lowerSearch) ||
-          horaFinStr.includes(lowerSearch)
-        );
-      });
-    }
-
-    // 2. Ordenamos
-    const sortedEvents = [...filteredEvents].sort(
-      (a, b) => a.start.getTime() - b.start.getTime()
-    );
-
-    const newDisplayEvents: GroupedEvent[] = [];
-
-    let i = 0;
-    while (i < sortedEvents.length) {
-      const currentEvent = sortedEvents[i];
-      const overlappingEvents = [currentEvent];
-      let j = i + 1;
-
-      while (
-        j < sortedEvents.length &&
-        sortedEvents[j].start.getTime() < currentEvent.end.getTime()
-      ) {
-        overlappingEvents.push(sortedEvents[j]);
-        j++;
-      }
-
-      if (overlappingEvents.length > 1) {
-        newDisplayEvents.push({
-          ...currentEvent,
-          isGrouped: true,
-          count: overlappingEvents.length,
-          groupedEvents: overlappingEvents,
-          title: `${overlappingEvents.length} Citas`,
-        });
-        i = j;
-      } else {
-        newDisplayEvents.push(currentEvent);
-        i++;
-      }
-    }
-
-    setDisplayEvents(newDisplayEvents);
-  }, [events, search]);
-
-
-  useEffect(() => {
     const addHoverEffects = () => {
       const calendarEl = calendarRef.current;
       if (!calendarEl) return;
@@ -494,6 +442,8 @@ const WeeklyCalendar = ({ selectedDate, search }: WeeklyCalendarProps) => {
     mes: '11',
     año: '2025',
   };
+
+    console.log(events);
 
   return (
     <DndProvider backend={HTML5Backend}>

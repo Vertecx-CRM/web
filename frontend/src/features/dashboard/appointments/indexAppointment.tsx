@@ -3,9 +3,9 @@
 import { useState } from "react";
 import CalendarMonth from "../components/calendars/calendarMonth";
 import WeeklyCalendar from "../components/calendars/calendarWeek";
-import { Filtro } from "./filtro/filtro";
 import { ToastContainer } from "react-toastify";
 
+import { AppointmentFilters, FiltersState } from "./filtro/filtro";
 
 const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
@@ -16,7 +16,18 @@ const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
 
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [search, setSearch] = useState(""); 
+  const [search, setSearch] = useState("");
+    const [filters, setFilters] = useState<FiltersState>({
+    technicians: [],
+    tipoServicio: "",
+    tipoMantenimiento: "",
+    tipoCita: "",
+    estado: "",
+    cliente: "",
+    fechaDesde: "",
+    fechaHasta: "",
+  });
+
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
   };
@@ -34,21 +45,31 @@ export default function Appointments() {
             className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400"
           />
         </div>
-        <div className="flex-shrink-0 flex justify-center lg:justify-start">
-          <CalendarMonth onDateSelect={handleDateSelect} selectedDate={selectedDate} />
-        </div>
 
         <div className="flex-shrink-0 flex justify-center lg:justify-start">
-          <Filtro />
+          <CalendarMonth
+            onDateSelect={handleDateSelect}
+            selectedDate={selectedDate}
+          />
         </div>
 
+        {/* Aquí ponemos los filtros */}
+        <div className="flex-shrink-0 flex justify-center lg:justify-start">
+          <AppointmentFilters values={filters} onChange={setFilters} />
+        </div>
       </div>
 
       {/* Columna derecha - Calendario semanal */}
       <div className="flex-1 w-full lg:w-3/4 flex flex-col">
         <div className="flex-none h-[0px]" />
-        <WeeklyCalendar selectedDate={selectedDate} search={search} />
+        {/* Pasamos las citas filtradas al calendario */}
+        <WeeklyCalendar
+          selectedDate={selectedDate}
+          search={search}
+          filters={filters}
+        />
       </div>
+      <ToastContainer />
     </div>
   );
 }

@@ -79,13 +79,7 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
             const estado = appointment.estado as keyof typeof estadoColores;
             const colores = estadoColores[estado];
 
-            let tipoServicio = 'N/A';
-            if (typeof appointment.orden === 'string') {
-              const orderObj = orders.find((o) => o.id === appointment.orden);
-              tipoServicio = orderObj?.tipoServicio || 'N/A';
-            } else if (appointment.orden) {
-              tipoServicio = appointment.orden.tipoServicio || 'N/A';
-            }
+            let tipoServicio = appointment.orden?.tipoServicio || 'N/A';;
 
             return (
               <div

@@ -39,11 +39,7 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
   const isShortEvent = durationMinutes <= 30;
 
   let currentOrder: Order | null = null;
-  if (typeof event.orden === "string") {
-    currentOrder = orders.find((o) => o.id === event.orden) || null;
-  } else {
-    currentOrder = event.orden || null;
-  }
+  currentOrder = event.orden || null;
 
   const tipoServicio = currentOrder?.tipoServicio || "Sin tipo de servicio";
   const nombreCliente = currentOrder?.cliente || "Cliente no asignado";
