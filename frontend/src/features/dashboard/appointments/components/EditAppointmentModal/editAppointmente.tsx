@@ -278,9 +278,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
               error={errors.orden}
               touched={touched.orden}
               resetTrigger={appointment?.id} // Asegúrate de que esto cambie cuando cambie el appointment
-              label={`Buscar Orden de Servicio ${
-                selectedOrdenServicio ? `(${selectedOrdenServicio.id})` : ""
-              }`}
+              label={`Buscar Orden de Servicio ${selectedOrdenServicio ? `(${selectedOrdenServicio.id})` : ""
+                }`}
             />
             {/* Información de la orden seleccionada */}
             {selectedOrdenServicio && (
@@ -329,9 +328,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
               error={errors.orden}
               touched={touched.orden}
               resetTrigger={appointment?.id} // Asegúrate de que esto cambie cuando cambie el appointment
-              label={`Buscar Orden de Servicio ${
-                selectedOrdenServicio ? `(${selectedOrdenServicio.id})` : ""
-              }`}
+              label={`Buscar Orden de Servicio ${selectedOrdenServicio ? `(${selectedOrdenServicio.id})` : ""
+                }`}
             />
             {/* Información de la orden seleccionada */}
             {selectedOrdenServicio && (
@@ -424,11 +422,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                       onBlur={handleBlur}
                       min="0"
                       max="23"
-                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                        touched.horaInicio && errors.horaInicio
+                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.horaInicio && errors.horaInicio
                           ? "border-red-500 focus:ring-red-500"
                           : "border-gray-300 focus:ring-[#CC0000]"
-                      }`}
+                        }`}
                       style={{
                         borderColor:
                           touched.horaInicio && errors.horaInicio
@@ -445,11 +442,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                       onBlur={handleBlur}
                       min="0"
                       max="59"
-                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                        touched.minutoInicio && errors.minutoInicio
+                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.minutoInicio && errors.minutoInicio
                           ? "border-red-500 focus:ring-red-500"
                           : "border-gray-300 focus:ring-[#CC0000]"
-                      }`}
+                        }`}
                       style={{
                         borderColor:
                           touched.minutoInicio && errors.minutoInicio
@@ -493,11 +489,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                       onBlur={handleBlur}
                       min="0"
                       max="23"
-                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                        touched.horaFin && errors.horaFin
+                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.horaFin && errors.horaFin
                           ? "border-red-500 focus:ring-red-500"
                           : "border-gray-300 focus:ring-[#CC0000]"
-                      }`}
+                        }`}
                       style={{
                         borderColor:
                           touched.horaFin && errors.horaFin
@@ -514,11 +509,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                       onBlur={handleBlur}
                       min="0"
                       max="59"
-                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                        touched.minutoFin && errors.minutoFin
+                      className={`w-16 px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.minutoFin && errors.minutoFin
                           ? "border-red-500 focus:ring-red-500"
                           : "border-gray-300 focus:ring-[#CC0000]"
-                      }`}
+                        }`}
                       style={{
                         borderColor:
                           touched.minutoFin && errors.minutoFin
@@ -563,11 +557,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     onBlur={handleBlur}
                     min="1"
                     max="31"
-                    className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                      touched.dia && errors.dia
+                    className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.dia && errors.dia
                         ? "border-red-500 focus:ring-red-500"
                         : "border-gray-300 focus:ring-[#CC0000]"
-                    }`}
+                      }`}
                     style={{
                       borderColor:
                         touched.dia && errors.dia
@@ -596,11 +589,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     value={formData.mes}
                     onChange={handleInputChange}
                     onBlur={handleBlur}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      touched.mes && errors.mes
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${touched.mes && errors.mes
                         ? "border-red-500 focus:ring-red-500"
                         : "border-gray-300 focus:ring-[#CC0000]"
-                    }`}
+                      }`}
                     style={{
                       borderColor:
                         touched.mes && errors.mes
@@ -639,11 +631,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     onBlur={handleBlur}
                     min="2023"
                     max="2030"
-                    className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${
-                      touched.año && errors.año
+                    className={`w-full px-3 py-2 border rounded-md text-center focus:outline-none focus:ring-2 ${touched.año && errors.año
                         ? "border-red-500 focus:ring-red-500"
                         : "border-gray-300 focus:ring-[#CC0000]"
-                    }`}
+                      }`}
                     style={{
                       borderColor:
                         touched.año && errors.año
@@ -680,11 +671,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                   value={formData.tipoCita}
                   onChange={handleInputChange}
                   onBlur={handleBlur}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    touched.tipoCita && errors.tipoCita
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${touched.tipoCita && errors.tipoCita
                       ? "border-red-500 focus:ring-red-500"
                       : "border-gray-300 focus:ring-[#CC0000]"
-                  }`}
+                    }`}
                   style={{
                     borderColor:
                       touched.tipoCita && errors.tipoCita
@@ -727,11 +717,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                   name="tecnico"
                   value=""
                   onChange={handleTechnicianSelect}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    technicianError
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${technicianError
                       ? "border-red-500 focus:ring-red-500"
                       : "border-gray-300 focus:ring-[#CC0000]"
-                  }`}
+                    }`}
                   style={{
                     borderColor: technicianError
                       ? Colors.states.inactive
@@ -854,22 +843,27 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
               </div>
 
               {/* Estado */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Estado</label>
-                <select
-                  name="estado"
-                  value={estado}
-                  onChange={handleEstadoChange}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
-                  style={{ borderColor: Colors.table.lines }}
-                >
-                  {appointmentStates.map((state) => (
+              <select
+                name="estado"
+                value={estado}
+                onChange={handleEstadoChange}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#CC0000]"
+                style={{ borderColor: Colors.table.lines }}
+              >
+                {appointmentStates
+                  .filter(
+                    (state) =>
+                      state.value !== "Reprogramada" &&
+                      state.value !== "En-proceso" &&
+                      state.value !== "Pendiente"
+                  )
+                  .map((state) => (
                     <option key={state.value} value={state.value}>
                       {state.label}
                     </option>
                   ))}
-                </select>
-              </div>
+              </select>
+
 
               {/* Motivo de cancelación (solo si está Cancelado) */}
               {estado === "Cancelado" && (
@@ -883,11 +877,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = ({
                     onChange={handleInputChange}
                     onBlur={handleBlur}
                     rows={3}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                      errors.motivoCancelacion
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${errors.motivoCancelacion
                         ? "border-red-500 focus:ring-red-500"
                         : "border-gray-300 focus:ring-[#CC0000]"
-                    }`}
+                      }`}
                     style={{
                       borderColor: errors.motivoCancelacion
                         ? Colors.states.inactive

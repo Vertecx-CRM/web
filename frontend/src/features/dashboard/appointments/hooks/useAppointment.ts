@@ -30,7 +30,7 @@ import {
 } from "../validations/validationAppointment";
 
 export const useAppointments = () => {
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [events, setEvents] = useState<AppointmentEvent[]>([]);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedDateTime, setSelectedDateTime] = useState<SlotDateTime>({
         horaInicio: "",
@@ -62,7 +62,7 @@ export const useAppointments = () => {
             parseInt(appointmentData.minutoFin)
         );
 
-        // Crear el título basado en el tipo de cita y los datos
+        // Crear el título basado en el tipo de cita
         let title = "";
         if (appointmentData.tipoCita === "solicitud") {
             const cliente = appointmentData.nombreCliente || "Nuevo cliente";
@@ -76,36 +76,139 @@ export const useAppointments = () => {
                 } - ${appointmentData.orden?.tipoServicio || "Servicio"}`;
         }
 
-        const newAppointment: Appointment = {
-            id: Math.max(...appointments.map((a) => a.id), 0) + 1,
+        const newAppointment: AppointmentEvent = {
+            id: Math.max(...events.map((a) => a.id), 0) + 1,
             ...appointmentData,
             tecnicos: selectedTechs,
             start: startDate,
             end: endDate,
-            title: title,
+            title,
+            estado: "Pendiente",
         };
 
-        setAppointments((prev) => [...prev, newAppointment]);
+        setEvents((prev) => [...prev, newAppointment]);
         setIsCreateModalOpen(false);
         showSuccess("Cita creada exitosamente!");
     };
 
-    const closeModals = () => {
-        setIsCreateModalOpen(false);
+    const handleReprogramAppointment = (
+        originalAppointment: AppointmentEvent,
+        newDate: SlotDateTime
+    ) => {
+        const startDate = new Date(
+            parseInt(newDate.año),
+            parseInt(newDate.mes) - 1,
+            parseInt(newDate.dia),
+            parseInt(newDate.horaInicio),
+            parseInt(newDate.minutoInicio)
+        );
+
+        const endDate = new Date(
+            parseInt(newDate.año),
+            parseInt(newDate.mes) - 1,
+            parseInt(newDate.dia),
+            parseInt(newDate.horaFin),
+            parseInt(newDate.minutoFin)
+        );
+
+        const newTitle =
+            /\(Cancelada\)/i.test(originalAppointment.title)
+                ? originalAppointment.title.replace(/\(Cancelada\)/i, "(Reprogramada)")
+                : `${originalAppointment.title} (Reprogramada)`;
+
+        const newAppointment: AppointmentEvent = {
+            ...originalAppointment,
+            id: Math.max(...events.map((a) => a.id), 0) + 1,
+            start: startDate,
+            end: endDate,
+            dia: newDate.dia,
+            mes: newDate.mes,
+            año: newDate.año,
+            horaInicio: newDate.horaInicio,
+            minutoInicio: newDate.minutoInicio,
+            horaFin: newDate.horaFin,
+            minutoFin: newDate.minutoFin,
+            estado: "Pendiente",
+            subestado: "Reprogramada",
+            motivoCancelacion: undefined,
+            title: newTitle,
+        };
+
+        setEvents((prev) => [...prev, newAppointment]);
+        showSuccess("Cita reprogramada exitosamente!");
     };
+
+    const handleCancelAppointment = (appointment: AppointmentEvent, reason: string) => {
+        const cancelTime = new Date();
+
+        setEvents((prev) =>
+            prev.map((ev) =>
+                ev.id === appointment.id
+                    ? {
+                        ...ev,
+                        estado: "Cancelado",
+                        motivoCancelacion: reason,
+                        horaCancelacion: cancelTime,
+                        title: `${ev.title} (Cancelada)`,
+                    }
+                    : ev
+            )
+        );
+    };
+
+    const closeModals = () => setIsCreateModalOpen(false);
 
     const openCreateModal = (dateTime: SlotDateTime) => {
         setSelectedDateTime(dateTime);
         setIsCreateModalOpen(true);
     };
 
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = new Date();
+
+            setEvents((prev) =>
+                prev.map((appt) => {
+                    const start = new Date(appt.start);
+                    const end = new Date(appt.end);
+
+                    if (
+                        appt.estado === "Pendiente" &&
+                        now >= start &&
+                        now <= end
+                    ) {
+                        return { ...appt, estado: "En-proceso" };
+                    }
+
+                    if (appt.estado === "En-proceso" && now > end) {
+                        return { ...appt, estado: "Finalizado" };
+                    }
+
+                    return appt;
+                })
+            );
+        }, 60 * 1000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const handleUpdateAppointment = (updated: AppointmentEvent) => {
+        setEvents(prev =>
+            prev.map(ev => (ev.id === updated.id ? { ...ev, ...updated } : ev))
+        );
+    };
+
+
     return {
-        appointments,
+        events,
         isCreateModalOpen,
         openCreateModal,
         selectedDateTime,
         handleCreateAppointment,
         closeModals,
+        handleReprogramAppointment,
+        handleCancelAppointment,
+        handleUpdateAppointment
     };
 };
 
@@ -657,7 +760,7 @@ export const useEditAppointmentForm = ({
     const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
     const [evidencia, setEvidencia] = useState<File | string | null>(null);
     const [estado, setEstado] = useState<
-        "Pendiente" | "Finalizado" | "Cancelado"
+        "Pendiente" | "Finalizado" | "Cancelado" | "En-proceso" | "Cerrado" | "Reprogramada"
     >("Pendiente");
 
     const prevTipoCita = useRef<string | undefined>(undefined);
@@ -1344,6 +1447,8 @@ export const useClickOutside = (
         };
     }, [ref, callback, isActive]);
 };
+
+
 
 
 

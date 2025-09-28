@@ -13,16 +13,35 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
   onEdit,
   onView,
   onCancel,
+  onReprogram
 }) => {
   if (!isOpen || !appointment) return null;
 
   const handleEditClick = () => {
     if (appointment.estado === 'Finalizado') {
       showWarning('No se puede editar una cita finalizada.');
-    } else {
+    } else if (appointment.estado === 'Cancelado') {
+      showWarning('No se puede editar una cita cancelada.');
+    } else if (appointment.estado === "Cerrado") {
+      showWarning("No se puede editar una cita cerrada.");
+    }
+    else {
       onEdit(appointment);
     }
   };
+
+  const handleCancelledClick = () => {
+    if (appointment.estado === "Cancelado") {
+      showWarning("La cita ya está cancelada.");
+      return;
+    } else if (appointment.estado === "Finalizado") {
+      showWarning("No se puede cancelar una cita finalizada.");
+      return;
+    } else if (appointment.estado === "Cerrado") {
+      showWarning("No se puede cancelar una cita cerrada.");
+    }
+    onCancel(appointment);
+  }
 
   let currentOrder: Order | null = null;
   currentOrder = appointment.orden || null;
@@ -33,9 +52,9 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
 
   const titleText = currentOrder
     ? `${clientName} (${tipoServicio === "mantenimiento"
-        ? `Mantenimiento - ${tipoMantenimiento}`
-        : "Instalación"
-      })`
+      ? `Mantenimiento - ${tipoMantenimiento}`
+      : "Instalación"
+    })`
     : "Sin orden asignada";
 
   return createPortal(
@@ -65,12 +84,23 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
                 <img src="/icons/Eye.svg" alt="Ver" className="w-7 h-7" />
               </button>
               <button
-                onClick={() => onCancel(appointment)}
+                onClick={handleCancelledClick}
                 className="p-1 hover:opacity-70 transition-opacity"
                 title="Cancelar cita"
               >
                 <img src="/icons/minus-circle.svg" alt="Cancelar" className="w-7 h-7" />
               </button>
+
+              {appointment.estado === "Cancelado" && (
+                <button
+                  onClick={() => onReprogram?.(appointment)}
+                  className="p-1 hover:opacity-70 transition-opacity"
+                  title="Reprogramar cita"
+                >
+                  <img src="/icons/reprogramar.svg" alt="Reprogramar" className="w-7 h-7" />
+                </button>
+              )}
+
             </div>
           </div>
           <button
@@ -126,7 +156,13 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
                 style={{ borderColor: Colors.table.lines }}
               >
                 {appointment.estado || "Sin estado"}
+                {appointment.subestado && (
+                  <span className="ml-2 italic text-sm text-gray-600">
+                    ({appointment.subestado})
+                  </span>
+                )}
               </div>
+
               {appointment.estado === "Cancelado" && (
                 <div className="mt-2 space-y-2">
                   {appointment.motivoCancelacion && (

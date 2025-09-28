@@ -5,7 +5,9 @@ import CalendarMonth from "../components/calendars/calendarMonth";
 import WeeklyCalendar from "../components/calendars/calendarWeek";
 import { ToastContainer } from "react-toastify";
 
-import { AppointmentFilters, FiltersState } from "./filtro/filtro";
+import { AppointmentFilters, FiltersState } from "./components/filtro/filtro";
+import { Legend } from "./components/LegendCard/Legend";
+import DownloadCalendarPDF from "./components/buttonDownloadPDF/buttonDownloand";
 
 const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...p}>
@@ -17,7 +19,7 @@ const SearchIcon = (p: React.SVGProps<SVGSVGElement>) => (
 export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [search, setSearch] = useState("");
-    const [filters, setFilters] = useState<FiltersState>({
+  const [filters, setFilters] = useState<FiltersState>({
     technicians: [],
     tipoServicio: "",
     tipoMantenimiento: "",
@@ -33,10 +35,11 @@ export default function Appointments() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen p-4 lg:p-6 gap-4 lg:gap-6">
+    <div className="flex flex-col lg:flex-row h-screen max-h-screen overflow-hidden p-4 lg:p-6 gap-4 lg:gap-6">
       {/* Columna izquierda */}
-      <div className="flex flex-col w-full lg:w-1/4 gap-4 lg:gap-6">
-        <div className="relative w-full max-w-md">
+      <div className="flex flex-col w-full lg:w-1/4 gap-4 lg:gap-6 overflow-y-auto">
+        {/* Buscar */}
+        <div className="relative w-full">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <input
             value={search}
@@ -46,28 +49,39 @@ export default function Appointments() {
           />
         </div>
 
-        <div className="flex-shrink-0 flex justify-center lg:justify-start">
+        {/* Calendario mensual */}
+        <div className="flex justify-center lg:justify-start">
           <CalendarMonth
             onDateSelect={handleDateSelect}
             selectedDate={selectedDate}
           />
         </div>
 
-        {/* Aquí ponemos los filtros */}
-        <div className="flex-shrink-0 flex justify-center lg:justify-start">
+        {/* Filtros */}
+        <div className="flex justify-center lg:justify-start">
           <AppointmentFilters values={filters} onChange={setFilters} />
+        </div>
+
+        {/* Leyenda */}
+        <div className="bg-white border border-gray-300 rounded-lg p-4 flex justify-center">
+          <Legend />
         </div>
       </div>
 
       {/* Columna derecha - Calendario semanal */}
-      <div className="flex-1 w-full lg:w-3/4 flex flex-col">
-        <div className="flex-none h-[0px]" />
-        {/* Pasamos las citas filtradas al calendario */}
-        <WeeklyCalendar
-          selectedDate={selectedDate}
-          search={search}
-          filters={filters}
-        />
+      <div className="flex-1 w-full lg:w-3/4 flex flex-col overflow-hidden">
+        <div className="flex justify-end mb-2">
+          <DownloadCalendarPDF />
+        </div>
+
+        {/* Calendario con scroll */}
+        <div className="flex-1 overflow-auto">
+          <WeeklyCalendar
+            selectedDate={selectedDate}
+            search={search}
+            filters={filters}
+          />
+        </div>
       </div>
       <ToastContainer />
     </div>

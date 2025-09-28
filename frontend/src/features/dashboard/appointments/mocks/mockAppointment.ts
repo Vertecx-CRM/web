@@ -166,10 +166,13 @@ export const months: { [key: number]: string } = {
   12: "Diciembre"
 };
 
-export const appointmentStates: { value: "Pendiente" | "Finalizado" | "Cancelado"; label: string }[] = [
+export const appointmentStates: { value: "Pendiente" | "Finalizado" | "Cancelado" | "En-proceso" | "Cerrado" | "Reprogramada"; label: string }[] = [
   { value: "Pendiente", label: "Pendiente" },
   { value: "Finalizado", label: "Finalizado" },
-  { value: "Cancelado", label: "Cancelado" }
+  { value: "Cancelado", label: "Cancelado" },
+  { value: "En-proceso", label: "En-proceso" },
+  { value: "Cerrado", label: "Cerrado" },
+  { value: "Reprogramada", label: "Reprogramada" }
 ];
 
 export const tiposCita: { value: TipoCita; label: string }[] = [
@@ -177,5 +180,21 @@ export const tiposCita: { value: TipoCita; label: string }[] = [
   { value: "ejecucion", label: "Ejecución de Cita" },
   { value: "garantia", label: "Garantía de Cita" }
 ];
+
+export const estadoColors = [
+  { label: "Finalizado", color: "#23ff2bff" },
+  { label: "Pendiente", color: "#e1b954ff" },
+  { label: "Cancelado", color: "#ee0b0bff" },
+  { label: "En-proceso", color: "#2781ffff" },
+  { label: "Cerrado", color: "#000000ff" },
+  { label: "Reprogramada", color: "#6a0dad" },
+];
+
+export const tipoCitaColors = [
+  { label: "Solicitud", color: "#828299" },
+  { label: "Ejecución", color: "#5b84ff" },
+  { label: "Garantía", color: "#ff6347" },
+];
+
 
 export const monthNames = Object.values(months);

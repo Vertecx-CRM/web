@@ -50,7 +50,7 @@ export interface AppointmentFormData {
   orden?: Order | null;
   observaciones: string;
   motivoCancelacion?: string;
-  estado?: "Pendiente" | "Finalizado" | "Cancelado";
+  estado?: "Pendiente" | "Finalizado" | "Cancelado" | "En-proceso" | "Cerrado" | "Reprogramada";
   tipoCita: TipoCita;
   nombreCliente?: string;
   direccion?: string;
@@ -84,7 +84,8 @@ export interface AppointmentEvent {
   año: string;
   orden?: Order | null;
   observaciones: string;
-  estado?: "Pendiente" | "Finalizado" | "Cancelado";      
+  estado?: "Pendiente" | "Finalizado" | "Cancelado" | "En-proceso" | "Cerrado" | "Reprogramada";   
+  subestado?: "Reprogramada" | "Normal";    
   motivoCancelacion?: string;      
   evidencia?: File | string | null;
   comprobantePago?: File | string | null;
@@ -127,6 +128,7 @@ export interface AppointmentDetailsModalProps {
   onEdit: (appointment: AppointmentEvent) => void;
   onView: (appointment: AppointmentEvent) => void;
   onCancel: (appointment: AppointmentEvent) => void;
+  onReprogram?: (appointment: AppointmentEvent) => void;
 }
 
 export interface UseAppointmentFormProps {
@@ -149,7 +151,6 @@ export type AppointmentErrors = {
   date?: string | undefined;
   timeRange?: string | undefined;
   tipoCita?: string | undefined; 
-  // Nuevos errores para solicitud
   nombreCliente?: string | undefined;
   direccion?: string | undefined;
   tipoServicioSolicitud?: string | undefined;
@@ -238,4 +239,12 @@ export interface OrdenServicioSearchComboboxProps {
   label?: string;
   validateOrden?: (orden: OrdenServicio | null) => string | undefined;
 }
+
+export interface ReprogramAppointmentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  appointment: AppointmentEvent | null;
+  onReprogramSave: (date: Date, end: Date) => void;
+}
+
 

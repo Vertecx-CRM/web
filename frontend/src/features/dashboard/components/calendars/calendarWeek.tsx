@@ -29,9 +29,10 @@ import { GroupedAppointmentsModal } from '../../appointments/components/GroupedA
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer } from "react-toastify";
-import { FiltersState } from '../../appointments/filtro/filtro';
-
-
+import { FiltersState } from '../../appointments/components/filtro/filtro';
+import { ReprogramAppointmentModal } from '../../appointments/components/rescheduleModal/rescheduleModal';
+import { useAppointments } from '../../appointments/hooks/useAppointment';
+import dynamic from 'next/dynamic';
 
 const locales = { es };
 
@@ -59,18 +60,18 @@ interface WeeklyCalendarProps {
 }
 
 const eventPropGetter = (event: AppointmentEvent) => {
-  if (event.estado === 'Finalizado') {
+  if (event.estado === "Finalizado" || event.estado === "Cancelado" || event.estado === "Cerrado") {
     return {
       isDraggable: false,
       isResizable: false,
-      className: 'event-finalizado',
+      className: event.estado === "Finalizado" ? "event-finalizado" : "event-cancelado",
     };
   }
   return {};
 };
 
+
 const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) => {
-  const [events, setEvents] = useState<AppointmentEvent[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isGroupedModalOpen, setIsGroupedModalOpen] = useState(false);
@@ -83,6 +84,8 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewingAppointment, setViewingAppointment] = useState<AppointmentEvent | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isReprogramModalOpen, setIsReprogramModalOpen] = useState(false);
+  const [appointmentToReprogram, setAppointmentToReprogram] = useState<AppointmentEvent | null>(null);
 
   const [displayEvents, setDisplayEvents] = useState<GroupedEvent[]>([]);
 
@@ -99,47 +102,62 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     }
   }, [selectedDate, getWeekRange]);
 
+  const {
+    events,
+    handleReprogramAppointment,
+    handleCancelAppointment,
+    handleCreateAppointment: createAppointmentInHook,
+    handleUpdateAppointment: updateAppointmentInHook,
+  } = useAppointments();
 
-const filteredAppointments = useMemo(() => {
-  return events.filter((a) => {
-    const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase());
+  const filteredAppointments = useMemo(() => {
+    return events.filter((a) => {
+      const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase());
 
-    // Técnicos
-    const matchTech =
-      filters.technicians.length === 0 ||
-      a.tecnicos.some(t => filters.technicians.includes(t.id));
+      // Técnicos
+      const matchTech =
+        filters.technicians.length === 0 ||
+        a.tecnicos.some(t => filters.technicians.includes(t.id));
 
-    // Tipo de servicio (puede venir en tipoServicioSolicitud o en la orden)
-    const appointmentTipoServicio = a.tipoServicioSolicitud ?? a.orden?.tipoServicio ?? "";
-    const matchTipoServicio = !filters.tipoServicio || appointmentTipoServicio === filters.tipoServicio;
+      // Tipo de servicio (puede venir en tipoServicioSolicitud o en la orden)
+      const appointmentTipoServicio = a.tipoServicioSolicitud ?? a.orden?.tipoServicio ?? "";
+      const matchTipoServicio = !filters.tipoServicio || appointmentTipoServicio === filters.tipoServicio;
 
-    // Tipo de mantenimiento (puede venir en tipoMantenimientoSolicitud o en la orden)
-    const appointmentTipoMantenimiento = a.tipoMantenimientoSolicitud ?? a.orden?.tipoMantenimiento ?? "";
-    const matchTipoMantenimiento = !filters.tipoMantenimiento || appointmentTipoMantenimiento === filters.tipoMantenimiento;
+      // Tipo de mantenimiento (puede venir en tipoMantenimientoSolicitud o en la orden)
+      const appointmentTipoMantenimiento = a.tipoMantenimientoSolicitud ?? a.orden?.tipoMantenimiento ?? "";
+      const matchTipoMantenimiento = !filters.tipoMantenimiento || appointmentTipoMantenimiento === filters.tipoMantenimiento;
 
-    // Tipo de cita
-    const matchTipoCita = !filters.tipoCita || a.tipoCita === filters.tipoCita;
+      // Tipo de cita
+      const matchTipoCita = !filters.tipoCita || a.tipoCita === filters.tipoCita;
 
-    // Estado
-    const matchEstado = !filters.estado || a.estado === filters.estado;
+      // Estado
+      let matchEstado = true;
 
-    // Cliente (nombreCliente o cliente de la orden)
-    const clienteCita = a.nombreCliente ?? a.orden?.cliente ?? "";
-    const matchCliente =
-      !filters.cliente ||
-      clienteCita.toLowerCase().includes(filters.cliente.toLowerCase());
+      if (filters.estado) {
+        if (filters.estado === "Reprogramada") {
+          matchEstado = a.subestado === "Reprogramada";
+        } else {
+          matchEstado = a.estado === filters.estado;
+        }
+      }
 
-    return (
-      matchSearch &&
-      matchTech &&
-      matchTipoServicio &&
-      matchTipoMantenimiento &&
-      matchTipoCita &&
-      matchEstado &&
-      matchCliente 
-    );
-  });
-}, [events, search, filters]);
+      // Cliente (nombreCliente o cliente de la orden)
+      const clienteCita = a.nombreCliente ?? a.orden?.cliente ?? "";
+      const matchCliente =
+        !filters.cliente ||
+        clienteCita.toLowerCase().includes(filters.cliente.toLowerCase());
+
+      return (
+        matchSearch &&
+        matchTech &&
+        matchTipoServicio &&
+        matchTipoMantenimiento &&
+        matchTipoCita &&
+        matchEstado &&
+        matchCliente
+      );
+    });
+  }, [events, search, filters]);
 
 
   // 2. UseEffect para buscador + rango visible + agrupar:
@@ -206,20 +224,18 @@ const filteredAppointments = useMemo(() => {
   };
   // En WeeklyCalendar.tsx
   const handleSelectEvent = (event: GroupedEvent) => {
-    // 1. Si es un evento agrupado, mostrar el modal de agrupados y salir
     if (event.isGrouped && event.groupedEvents) {
       setGroupedAppointments(event.groupedEvents);
       setIsGroupedModalOpen(true);
       return;
     }
 
-    // 2. Si es un evento individual finalizado, mostrar advertencia
-    if (event.estado === 'Finalizado') {
-      showWarning('Esta cita ha sido finalizada.');
+    if (event.estado === "Cancelado" || event.estado === "Cerrado" || event.estado === "Finalizado") {
+      setSelectedAppointment(event);
+      setIsDetailsModalOpen(true);
       return;
     }
 
-    // 3. Si es un evento normal, abrir detalles
     setSelectedAppointment(event);
     setIsDetailsModalOpen(true);
   };
@@ -230,8 +246,8 @@ const filteredAppointments = useMemo(() => {
   };
 
   const handleEventDrop = ({ event, start, end }: EventInteractionArgs<AppointmentEvent>) => {
-    if (event.estado === 'Finalizado') {
-      showWarning('No se puede editar ni mover una cita finalizada.');
+    if (event.estado === "Finalizado" || event.estado === "Cancelado" || event.estado === "Cerrado") {
+      showWarning("No se puede editar ni mover una cita finalizada o cancelada.");
       return;
     }
 
@@ -259,16 +275,14 @@ const filteredAppointments = useMemo(() => {
       minutoFin: newEndWithDuration.getMinutes().toString().padStart(2, '0'),
     };
 
-    setEvents(prev =>
-      prev.map(ev => (ev.id === event.id ? updatedEvent : ev))
-    );
+    handleUpdateAppointment(updatedEvent);
 
     setTimeout(() => setIsDragging(false), 100);
   };
 
   const handleEventResize = ({ event, start, end }: EventInteractionArgs<AppointmentEvent>) => {
-    if (event.estado === 'Finalizado') {
-      showWarning('No se puede editar ni mover una cita finalizada.');
+    if (event.estado === "Finalizado" || event.estado === "Cancelado" || event.estado === "Cerrado") {
+      showWarning("No se puede editar ni mover una cita finalizada, cancelada o cerrado.");
       return;
     }
     const newStart = new Date(start);
@@ -284,9 +298,7 @@ const filteredAppointments = useMemo(() => {
       minutoFin: newEnd.getMinutes().toString().padStart(2, '0'),
     };
 
-    setEvents(prev =>
-      prev.map(ev => (ev.id === event.id ? updatedEvent : ev))
-    );
+    handleUpdateAppointment(updatedEvent);
   };
 
   const handleSaveAppointment = (newEvent: Appointment) => {
@@ -295,7 +307,7 @@ const filteredAppointments = useMemo(() => {
       start: new Date(newEvent.start),
       end: new Date(newEvent.end),
     };
-    setEvents(prev => [...prev, fixedEvent]);
+    createAppointmentInHook(fixedEvent, fixedEvent.tecnicos || []);
     setIsCreateModalOpen(false);
   };
 
@@ -315,13 +327,16 @@ const filteredAppointments = useMemo(() => {
         : "Sin orden",
     };
 
-    setEvents(prev =>
-      prev.map(ev => (ev.id === updated.id ? fixedEvent : ev))
-    );
-
+    updateAppointmentInHook(fixedEvent);
     setIsEditModalOpen(false);
     setEditingAppointment(null);
   };
+
+
+  const ToastContainer = dynamic(
+    () => import("react-toastify").then((mod) => mod.ToastContainer),
+    { ssr: false }
+  );
 
 
   const handleViewAppointment = (appointment: AppointmentEvent) => {
@@ -330,32 +345,17 @@ const filteredAppointments = useMemo(() => {
     setIsViewModalOpen(true);
   };
 
-  const handleCancelAppointment = async (appointment: AppointmentEvent) => {
-    // Si la cita tiene orden, construimos un título legible
+  const handleCancel = async (appointment: AppointmentEvent) => {
     const appointmentLabel = appointment.orden
       ? `Orden: ${appointment.orden.tipoServicio} - Cliente: ${appointment.orden.cliente}`
       : appointment.title || "Cita sin título";
 
     await confirmCancelAppointment(appointmentLabel, async (reason) => {
-      const cancelTime = new Date();
-
-      setEvents(prev =>
-        prev.map(ev =>
-          ev.id === appointment.id
-            ? {
-              ...ev,
-              estado: "Cancelado",
-              motivoCancelacion: reason,
-              horaCancelacion: cancelTime,
-              title: `${ev.orden?.tipoServicio} (Cancelada)`,
-            }
-            : ev
-        )
-      );
-
+      handleCancelAppointment(appointment, reason); // hook actualiza appointments
       setIsDetailsModalOpen(false);
     });
   };
+
 
 
   useEffect(() => {
@@ -443,112 +443,146 @@ const filteredAppointments = useMemo(() => {
     año: '2025',
   };
 
-    console.log(events);
+  console.log(events);
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="calendar-wrapper w-full">
-        <div ref={calendarRef} className="w-full h-full min-h-[100px] bg-white rounded-xl">
-          <DnDCalendar
-            localizer={localizer}
-            events={displayEvents}
-            startAccessor="start"
-            endAccessor="end"
-            defaultView="week"
-            views={["week"]}
-            dayPropGetter={(date) => {
-              if (date.getDay() === 0) {
-                return {
-                  style: {
-                    display: "none",
-                  },
-                };
-              }
-              return {};
-            }}
-            date={dateRange.start}
-            culture="es"
-            selectable
-            onSelectSlot={handleSelectSlot}
-            onSelectEvent={handleSelectEvent}
-            onEventDrop={handleEventDrop}
-            onEventResize={handleEventResize}
-            eventPropGetter={eventPropGetter}
-            step={30}
-            timeslots={2}
-            components={{
-              week: { header: CustomHeader },
-              event: CustomEventComponent,
-            }}
-            messages={{
-              next: 'Siguiente',
-              previous: 'Anterior',
-              today: 'Hoy',
-              week: 'Semana',
-              date: 'Fecha',
-              time: 'Hora',
-              event: 'Evento',
-              noEventsInRange: 'No hay eventos en este rango.',
-            }}
-            className="rounded-xl unified-header-calendar h-full"
+    <div id="calendar-pdf" className="calendar-wrapper w-full">
+      <div ref={calendarRef} className="w-full h-full min-h-[100px] bg-white rounded-xl">
+        <DndProvider backend={HTML5Backend}>
+          <div className="calendar-wrapper w-full">
+            <div ref={calendarRef} className="w-full h-full min-h-[100px] bg-white rounded-xl">
+              <DnDCalendar
+                localizer={localizer}
+                events={displayEvents}
+                startAccessor="start"
+                endAccessor="end"
+                defaultView="week"
+                views={["week"]}
+                dayPropGetter={(date) => {
+                  if (date.getDay() === 0) {
+                    return {
+                      style: {
+                        display: "none",
+                      },
+                    };
+                  }
+                  return {};
+                }}
+                date={dateRange.start}
+                culture="es"
+                selectable
+                onSelectSlot={handleSelectSlot}
+                onSelectEvent={handleSelectEvent}
+                onEventDrop={handleEventDrop}
+                onEventResize={handleEventResize}
+                eventPropGetter={eventPropGetter}
+                step={30}
+                timeslots={2}
+                components={{
+                  week: { header: CustomHeader },
+                  event: CustomEventComponent,
+                }}
+                messages={{
+                  next: 'Siguiente',
+                  previous: 'Anterior',
+                  today: 'Hoy',
+                  week: 'Semana',
+                  date: 'Fecha',
+                  time: 'Hora',
+                  event: 'Evento',
+                  noEventsInRange: 'No hay eventos en este rango.',
+                }}
+                className="rounded-xl unified-header-calendar h-full"
 
-            min={new Date(1970, 1, 1, 7, 0)}
-            max={new Date(1970, 1, 1, 18, 0)}
+                min={new Date(1970, 1, 1, 7, 0)}
+                max={new Date(1970, 1, 1, 18, 0)}
+              />
+            </div>
+          </div>
+
+          <CreateAppointmentModal
+            isOpen={isCreateModalOpen}
+            onClose={() => {
+              setIsCreateModalOpen(false);
+              setEditingAppointment(null);
+            }}
+            onSave={handleSaveAppointment}
+            selectedDateTime={selectedSlot || defaultSlot}
+            editingAppointment={editingAppointment}
           />
-        </div>
+
+          <EditAppointmentModal
+            isOpen={isEditModalOpen}
+            onClose={() => {
+              setIsEditModalOpen(false);
+              setEditingAppointment(null);
+            }}
+            appointment={editingAppointment}
+            onSave={handleUpdateAppointment}
+          />
+
+          <ReprogramAppointmentModal
+            isOpen={isReprogramModalOpen}
+            onClose={() => setIsReprogramModalOpen(false)}
+            appointment={appointmentToReprogram}
+            onReprogramSave={(start, end) => {
+              const slot: SlotDateTime = {
+                horaInicio: start.getHours().toString().padStart(2, "0"),
+                minutoInicio: start.getMinutes().toString().padStart(2, "0"),
+                horaFin: end.getHours().toString().padStart(2, "0"),
+                minutoFin: end.getMinutes().toString().padStart(2, "0"),
+                dia: start.getDate().toString(),
+                mes: (start.getMonth() + 1).toString(),
+                año: start.getFullYear().toString(),
+              };
+
+              if (appointmentToReprogram) {
+                handleReprogramAppointment(appointmentToReprogram, slot);
+              }
+
+              setIsReprogramModalOpen(false);
+            }}
+          />
+
+          <ViewAppointmentModal
+            isOpen={isViewModalOpen}
+            onClose={() => {
+              setIsViewModalOpen(false);
+              setViewingAppointment(null);
+            }}
+            appointment={viewingAppointment}
+          />
+
+          <AppointmentDetailsModal
+            isOpen={isDetailsModalOpen}
+            onClose={() => setIsDetailsModalOpen(false)}
+            appointment={selectedAppointment}
+            onReprogram={(appointment) => {
+              setAppointmentToReprogram(appointment);
+              setIsReprogramModalOpen(true);
+            }}
+            onEdit={handleEditAppointment}
+            onView={handleViewAppointment}
+            onCancel={handleCancel}
+          />
+
+
+          <GroupedAppointmentsModal
+            isOpen={isGroupedModalOpen}
+            onClose={() => setIsGroupedModalOpen(false)}
+            appointments={groupedAppointments}
+            onSelectAppointment={handleSelectGroupedAppointment}
+            onCreateAppointment={() => {
+              setIsGroupedModalOpen(false);
+              setIsCreateModalOpen(true);
+            }}
+          />
+          <ToastContainer />
+        </DndProvider>
       </div>
 
-      <CreateAppointmentModal
-        isOpen={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          setEditingAppointment(null);
-        }}
-        onSave={handleSaveAppointment}
-        selectedDateTime={selectedSlot || defaultSlot}
-        editingAppointment={editingAppointment}
-      />
 
-      <EditAppointmentModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingAppointment(null);
-        }}
-        appointment={editingAppointment}
-        onSave={handleUpdateAppointment}
-      />
-
-      <ViewAppointmentModal
-        isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false);
-          setViewingAppointment(null);
-        }}
-        appointment={viewingAppointment}
-      />
-
-      <AppointmentDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
-        appointment={selectedAppointment}
-        onEdit={handleEditAppointment}
-        onView={handleViewAppointment}
-        onCancel={handleCancelAppointment}
-      />
-
-      <GroupedAppointmentsModal
-        isOpen={isGroupedModalOpen}
-        onClose={() => setIsGroupedModalOpen(false)}
-        appointments={groupedAppointments}
-        onSelectAppointment={handleSelectGroupedAppointment}
-        onCreateAppointment={() => {
-          setIsGroupedModalOpen(false);
-          setIsCreateModalOpen(true);
-        }}
-      />
-      <ToastContainer />
-    </DndProvider>
+    </div>
   );
 };
 

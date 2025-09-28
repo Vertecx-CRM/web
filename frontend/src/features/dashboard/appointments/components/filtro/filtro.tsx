@@ -1,6 +1,6 @@
 // components/AppointmentFilters.tsx
 import React from "react";
-import { appointmentStates, technicians, tiposCita } from "../mocks/mockAppointment";
+import { appointmentStates, technicians, tiposCita } from "../../mocks/mockAppointment";
 
 export interface FiltersState {
   technicians: number[];

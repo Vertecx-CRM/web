@@ -1,5 +1,5 @@
-import { AppointmentEvent, Order, TipoCita } from "../../types/typeAppointment";
-
+import { AppointmentEvent, Order } from "../../types/typeAppointment";
+import Colors from "@/shared/theme/colors";
 
 // Define un tipo para el evento de grupo, que extiende al evento normal
 interface GroupedEvent extends AppointmentEvent {
@@ -8,13 +8,12 @@ interface GroupedEvent extends AppointmentEvent {
   groupedEvents?: AppointmentEvent[];
 }
 
-// La prop del componente ahora acepta el nuevo tipo
 interface CustomEventProps {
   event: GroupedEvent;
 }
 
 export const CustomEventComponent = ({ event }: CustomEventProps) => {
-  // Comprobación para eventos de grupo
+  // Eventos agrupados
   if (event.isGrouped && event.count) {
     return (
       <div className="event-group-card bg-[#1a1a1a] text-white rounded-md w-full h-full p-2 flex flex-col justify-center items-center cursor-pointer">
@@ -24,7 +23,7 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
     );
   }
 
-  // Lógica de renderizado para eventos individuales
+  // Fechas
   const start = event.start instanceof Date ? event.start : new Date(event.start);
   const end = event.end instanceof Date ? event.end : new Date(event.end);
   const startTime = `${start.getHours().toString().padStart(2, "0")}:${start
@@ -38,42 +37,30 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
   const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
   const isShortEvent = durationMinutes <= 30;
 
-  let currentOrder: Order | null = null;
-  currentOrder = event.orden || null;
-
+  // Datos de la orden
+  const currentOrder: Order | null = event.orden || null;
   const tipoServicio = currentOrder?.tipoServicio || "Sin tipo de servicio";
   const nombreCliente = currentOrder?.cliente || "Cliente no asignado";
 
-  // Función para determinar el color según el tipo de cita
-  const getEventColor = (): string => {
-    // Determinar color según el tipo de cita
-    switch (event.tipoCita) {
-      case "solicitud":
-        return "#828299"; // Color para solicitud de cita
-      case "ejecucion":
-        return "#5b84ff"; // Color para ejecución de cita
-      case "garantia":
-        return "#ff6347"; // Color para garantía de cita
-      default:
-        return "#B20000"; // Color por defecto (rojo original)
-    }
-  };
+  // 🎨 Colores de estado y subestado desde Colors
+  const estadoColors =
+    Colors.states.appointment[
+      event.estado?.toLowerCase() as keyof typeof Colors.states.appointment
+    ] || { background: "#ccc", text: "#000" };
 
-  // Función para obtener el color del punto según el estado
-  const getEstadoDotColor = (): string => {
-    switch (event.estado) {
-      case "Finalizado":
-        return "#23ff2bff"; // Verde
-      case "Pendiente":
-        return "#e1b954ff"; // Naranja
-      case "Cancelado":
-        return "#ee0b0bff"; // Rojo oscuro
-      default:
-        return "#C47900"; // Naranja por defecto (Pendiente)
-    }
-  };
+  const subestadoColors =
+    event.subestado === "Reprogramada"
+      ? Colors.states.appointment.reprogramada
+      : null;
 
-  // Función para obtener el texto del tipo de cita
+  // Si hay subestado, usar gradiente mitad-mitad
+  const circleStyle = subestadoColors
+    ? {
+        background: `linear-gradient(90deg, ${estadoColors.text} 50%, ${subestadoColors.text} 50%)`,
+      }
+    : { backgroundColor: estadoColors.text };
+
+  // Texto tipo de cita
   const getTipoCitaText = (): string => {
     switch (event.tipoCita) {
       case "solicitud":
@@ -87,19 +74,32 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
     }
   };
 
-  const bgColor = getEventColor();
-  const dotColor = getEstadoDotColor();
+  // Colores por tipo de cita (mantengo esto separado)
+  const getEventColor = (): string => {
+    switch (event.tipoCita) {
+      case "solicitud":
+        return "#828299";
+      case "ejecucion":
+        return "#5b84ff";
+      case "garantia":
+        return "#ff6347";
+      default:
+        return Colors.calendar.primary;
+    }
+  };
 
+  const bgColor = getEventColor();
+
+  // 📌 Eventos cortos
   if (isShortEvent) {
     return (
-      <div 
+      <div
         className="event-content text-white rounded-md w-full h-full overflow-hidden p-1 flex flex-col justify-center text-[10px] sm:text-xs relative"
         style={{ backgroundColor: bgColor }}
       >
-        {/* Punto indicador de estado con borde blanco */}
-        <div 
+        <div
           className="absolute top-1 right-1 w-2 h-2 rounded-full border border-white"
-          style={{ backgroundColor: dotColor }}
+          style={circleStyle}
         />
         <div className="text-center font-bold truncate">{getTipoCitaText()}</div>
         <div className="text-center">{startTime}</div>
@@ -107,41 +107,36 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
     );
   }
 
+  // 📌 Eventos largos
   return (
     <div
       className="event-content text-white rounded-md w-full h-full overflow-hidden p-2 flex flex-col relative"
       style={{ backgroundColor: bgColor }}
     >
-      {/* Punto indicador de estado con borde blanco */}
-      <div 
+      <div
         className="absolute top-2 right-2 w-4 h-4 rounded-full border-[3px] border-white"
-        style={{ backgroundColor: dotColor }}
+        style={circleStyle}
       />
-
-      {/* Mostrar el tipo de cita en lugar del tipo de servicio */}
-      <div className="font-bold truncate text-center text-sm sm:text-base md:text-lg pr-4"> {/* pr-4 para evitar superposición con el punto */}
+      <div className="font-bold truncate text-center text-sm sm:text-base md:text-lg pr-4">
         {getTipoCitaText()}
       </div>
-      
-      {/* Mostrar tipo de servicio si existe orden */}
+
       {currentOrder && (
         <div className="truncate text-[10px] sm:text-xs text-center mt-1 opacity-90">
           {tipoServicio}
         </div>
       )}
-      
-      {/* Mostrar nombre del cliente en lugar de técnicos */}
+
       {currentOrder && (
         <div className="truncate text-[10px] sm:text-sm text-center mt-1">
           {nombreCliente}
         </div>
       )}
-      
-      {/* Mostrar información de tiempo para eventos más largos */}
+
       <div className="truncate text-[8px] sm:text-xs text-center mt-1 opacity-80">
         {startTime} - {endTime}
       </div>
-      
+
       {event.estado === "Cancelado" && (
         <div className="mt-1 text-[10px] sm:text-xs text-center italic truncate">
           Motivo: {event.motivoCancelacion}
