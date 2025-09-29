@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 
 export interface Product {
+  id: string;
   title: string;
   description: string;
   category: string;
   image?: string;
-  price?: number; // ✅ ahora soporta precio
+  price?: number;
 }
 
 export const useProducts = (products: Product[]) => {
@@ -27,7 +28,10 @@ export const useProducts = (products: Product[]) => {
   };
 
   const normalizeText = (text: string) =>
-    text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = normalizeText(searchTerm);

@@ -1,6 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import Colors from "@/shared/theme/colors";
+import { routes } from "@/shared/routes";
 
 const Trajectory = () => {
   return (
@@ -24,7 +25,7 @@ const Trajectory = () => {
           ¡Conoce nuestra <br className="hidden sm:block" /> Trayectoria!
         </h2>
         <p className="text-base sm:text-lg md:text-xl text-gray-700 mb-6 md:mb-8 leading-relaxed">
-          Con más de 10 años de experiencia,{" "}
+          Con más de 20 años de experiencia,{" "}
           <span className="font-semibold">Tech Solutions</span> se ha
           consolidado como líder en soluciones tecnológicas. Hemos ayudado a
           cientos de empresas a crecer y optimizar sus operaciones a través de
@@ -32,6 +33,9 @@ const Trajectory = () => {
         </p>
         <button
           style={{ backgroundColor: Colors.buttons.primary }}
+          onClick={() => {
+            window.location.href = routes.landing.trajectory;
+          }}
           className="relative cursor-pointer inline-flex items-center justify-center px-6 sm:px-8 py-3 text-base sm:text-lg font-semibold text-white rounded-md shadow-lg overflow-hidden group transition-transform duration-300 hover:scale-105"
         >
           <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>

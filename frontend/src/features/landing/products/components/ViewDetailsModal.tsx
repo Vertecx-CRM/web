@@ -3,8 +3,11 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaShoppingCart } from "react-icons/fa";
+import { showSuccess } from "@/shared/utils/notifications";
+import { useCart } from "../../contexts/CartContext";
 
 interface Product {
+  id: string;
   title: string;
   description: string;
   category: string;
@@ -18,11 +21,28 @@ interface ViewDetailsModalProps {
   onClose: () => void;
 }
 
-export default function ViewDetailsModal({ product, isOpen, onClose }: ViewDetailsModalProps) {
+export default function ViewDetailsModal({
+  product,
+  isOpen,
+  onClose,
+}: ViewDetailsModalProps) {
+  const { addToCart, updateQuantity } = useCart();
   const [quantity, setQuantity] = useState(1);
 
   const increase = () => setQuantity((prev) => prev + 1);
   const decrease = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+
+  const handleAddToCart = (product: Product) => {
+    for (let i = 0; i < quantity; i++) {
+      addToCart({
+        id: product.id,
+        name: product.title,
+        price: product.price,
+        image: product.image || "/assets/imgs/default-product.png",
+      });
+    }
+    showSuccess("Producto agregado al carrito");
+  };
 
   return (
     <AnimatePresence>
@@ -62,7 +82,9 @@ export default function ViewDetailsModal({ product, isOpen, onClose }: ViewDetai
                 <h2 className="text-4xl font-extrabold mb-2 break-words text-gray-900">
                   {product.title}
                 </h2>
-                <p className="text-[#B20000] font-semibold mb-3 break-words">{product.category}</p>
+                <p className="text-[#B20000] font-semibold mb-3 break-words">
+                  {product.category}
+                </p>
                 <p className="text-gray-700 mb-6 leading-relaxed break-words whitespace-normal text-base">
                   {product.description}
                 </p>
@@ -79,7 +101,9 @@ export default function ViewDetailsModal({ product, isOpen, onClose }: ViewDetai
                   >
                     -
                   </motion.button>
-                  <span className="bg-gray-100 px-4 py-2 font-semibold">{quantity}</span>
+                  <span className="bg-gray-100 px-4 py-2 font-semibold">
+                    {quantity}
+                  </span>
                   <motion.button
                     onClick={increase}
                     className="bg-gray-100 px-4 py-2 rounded-r-full hover:bg-gray-200 transition-colors duration-200"
@@ -102,6 +126,10 @@ export default function ViewDetailsModal({ product, isOpen, onClose }: ViewDetai
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", stiffness: 250, damping: 15 }}
+                    onClick={() => {
+                      handleAddToCart(product, 0);
+                      onClose();
+                    }}
                   >
                     <FaShoppingCart className="text-xl" />
                     Agregar al carrito

@@ -7,6 +7,7 @@ interface IRoutes {
     about: string;
     contact: string;
     cart: string;
+    trajectory: string;
   };
   auth: {
     login: string;
@@ -46,6 +47,7 @@ export const routes: IRoutes = {
     about: "/landing/about",
     contact: "/landing/contact",
     cart: "/cart",
+    trajectory: "/landing/trajectory",
   },
   auth: {
     login: "/auth/login",
