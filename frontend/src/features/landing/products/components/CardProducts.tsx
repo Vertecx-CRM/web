@@ -11,6 +11,7 @@ interface CardProductProps {
   image?: string;
   price?: number;
   onViewDetails?: () => void;
+  onAddToCart?: () => void;
 }
 
 export default function CardProduct({
@@ -20,6 +21,7 @@ export default function CardProduct({
   image,
   price,
   onViewDetails,
+  onAddToCart,
 }: CardProductProps) {
   return (
     <motion.div
@@ -64,6 +66,7 @@ export default function CardProduct({
         {/* Botones */}
         <div className="flex gap-3">
           <motion.button
+            onClick={onAddToCart}
             className="bg-[#B20000] text-white rounded-full px-4 py-1.5 w-1/2 text-sm flex items-center justify-center gap-2"
             whileHover={{
               scale: 1.05,
