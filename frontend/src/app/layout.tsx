@@ -1,6 +1,8 @@
 import "@/app/globals.css";
 import { AuthProvider } from "@/features/auth/authcontext";
+import { CartProvider } from "@/features/landing/contexts/CartContext";
 import { LoaderProvider } from "@/shared/components/loader";
+import { ToastContainer } from "react-toastify";
 
 export const metadata = {
   metadataBase: new URL("http://localhost:3000"),
@@ -27,8 +29,12 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body>
+        <ToastContainer position="bottom-right" />
+
         <AuthProvider>
-          <LoaderProvider>{children}</LoaderProvider>
+          <LoaderProvider>
+            <CartProvider>{children}</CartProvider>
+          </LoaderProvider>
         </AuthProvider>
       </body>
     </html>

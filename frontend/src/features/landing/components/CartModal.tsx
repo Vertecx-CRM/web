@@ -3,31 +3,25 @@ import { X } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { initialCart } from "../mock/cart.mock";
+import { useCart } from "../contexts/CartContext";
 
 interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type CartItem = {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-  service: boolean;
-  image: string;
-};
 
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
-  const [cart, setCart] = useState<CartItem[]>(initialCart);
-
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
-  const hasService = cart.some((item) => item.service);
   const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
 
+  const { cart, updateQuantity, toggleService, removeFromCart } = useCart();
+
   if (!isOpen) return null;
+
+  const hasService = cart.some((item) => item.service);
+  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const handlePurchase = () => {
     if (!address.trim()) {
@@ -40,30 +34,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     window.location.href = "/payments/register";
     onClose();
   };
-
-  const updateQuantity = (id: number, delta: number) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-          : item
-      )
-    );
-  };
-
-  const toggleService = (id: number) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, service: !item.service } : item
-      )
-    );
-  };
-
-  const removeItem = (id: number) => {
-    setCart((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -236,7 +206,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                 className="cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  removeItem(item.id);
+                                  removeFromCart(item.id);
                                 }}
                               >
                                 <Image
