@@ -6,8 +6,9 @@ import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import {
   DataTable,
-  Column,
 } from "@/features/dashboard/components/datatable/DataTable";
+import Modal from "../../components/Modal";
+import { Column } from "../../components/datatable/types/column.types";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",

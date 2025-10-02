@@ -7,11 +7,11 @@ import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import {
   DataTable,
-  Column,
 } from "@/features/dashboard/components/datatable/DataTable";
 import CreateSuppliersModal, {
   ProviderSubmitPayload,
 } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
+import { Column } from "../../components/datatable/types/column.types";
 
 type Row = {
   id: number;
@@ -156,7 +156,7 @@ export default function SuppliersPage() {
           onClose={() => setOpenCreate(false)}
           onSave={handleSaveProvider}
         />
-        <EditSupplierModal
+        {/* <EditSupplierModal
           isOpen={openEdit}
           onClose={() => {
             setOpenEdit(false);
@@ -165,7 +165,7 @@ export default function SuppliersPage() {
           onSave={handleUpdateProvider}
           provider={selected ? mapRowToProvider(selected) : null}
           title="Editar Proveedor"
-        />
+        /> */}
       </main>
     </RequireAuth>
   );

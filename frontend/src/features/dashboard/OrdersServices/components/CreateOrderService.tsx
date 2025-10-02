@@ -6,9 +6,18 @@ import RequireAuth from "@/features/auth/requireauth";
 
 type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { id: string; nombre: string; cantidad: number; precio: number };
-type Solicitud = { id: string; titulo: string; cliente: string; contacto?: string };
 
-const TECNICOS = ["Carlos Gómez", "Laura Pérez", "Andrés Rojas", "Mónica Silva", "Julián Ortiz", "Sofía Herrera"];
+type Cotizacion = {
+  id: string;
+  titulo: string;
+  cliente: string;
+  contacto?: string;
+  tipo?: RowTipo;
+  descripcion?: string;
+  servicios?: Array<{ nombre: string; cantidad: number; precio?: number }>;
+  materiales?: Array<{ nombre: string; cantidad: number; precio?: number }>;
+};
+
 const TIPOS: RowTipo[] = ["Mantenimiento", "Instalación"];
 const IVA_PCT = 19;
 
@@ -32,10 +41,47 @@ const MATERIALES_DATA: { id: string; nombre: string; precio: number }[] = [
   { id: "mat_rack12", nombre: "Rack 12U", precio: 540000 },
 ];
 
-const SOLICITUDES_MOCK: Solicitud[] = [
-  { id: "SR-1001", titulo: "Instalación 4 cámaras sede norte", cliente: "InnovaTech S.A.S.", contacto: "Andrés • 3001234567" },
-  { id: "SR-1002", titulo: "Mantenimiento preventivo red piso 3", cliente: "Hotel Mirador del Río", contacto: "María • 3017654321" },
-  { id: "SR-1003", titulo: "Diagnóstico servidor contabilidad", cliente: "Distribuciones Antioquia", contacto: "Paola • 3020001111" },
+const COTIZACIONES_MOCK: Cotizacion[] = [
+  {
+    id: "CTZ-1001",
+    titulo: "Instalación 4 cámaras sede norte",
+    cliente: "InnovaTech S.A.S.",
+    contacto: "Andrés • 3001234567",
+    tipo: "Instalación",
+    descripcion: "Montaje de 4 cámaras, canalización y puesta en marcha.",
+    servicios: [
+      { nombre: "Instalación de CCTV", cantidad: 1 },
+      { nombre: "Cableado estructurado", cantidad: 1 },
+    ],
+    materiales: [
+      { nombre: "Cámara Dome 5MP", cantidad: 4 },
+      { nombre: "Cable UTP", cantidad: 80 },
+      { nombre: "Conector RJ45", cantidad: 20 },
+      { nombre: "Ducto 40mm", cantidad: 8 },
+      { nombre: "Patch Panel", cantidad: 1 },
+      { nombre: "Rack 12U", cantidad: 1 },
+    ],
+  },
+  {
+    id: "CTZ-1002",
+    titulo: "Mantenimiento preventivo red piso 3",
+    cliente: "Hotel Mirador del Río",
+    contacto: "María • 3017654321",
+    tipo: "Mantenimiento",
+    descripcion: "Mantenimiento y limpieza general de activos de red.",
+    servicios: [{ nombre: "Mantenimiento preventivo de red", cantidad: 1 }],
+    materiales: [{ nombre: "Switch 8p", cantidad: 1 }],
+  },
+  {
+    id: "CTZ-1003",
+    titulo: "Diagnóstico servidor contabilidad",
+    cliente: "Distribuciones Antioquia",
+    contacto: "Paola • 3020001111",
+    tipo: "Mantenimiento",
+    descripcion: "Diagnóstico y plan de actualización.",
+    servicios: [{ nombre: "Mantenimiento de servidor", cantidad: 1 }],
+    materiales: [],
+  },
 ];
 
 function uid() {
@@ -50,15 +96,12 @@ export default function OrderCreatePage() {
   const searchParams = useSearchParams();
   const returnTo = searchParams.get("returnTo") || "/dashboard/orders";
 
-  const [solicitudesData] = useState<Solicitud[]>(SOLICITUDES_MOCK);
-  const [solicitudId, setSolicitudId] = useState("");
-  const solicitudSel = useMemo(() => solicitudesData.find(s => s.id === solicitudId), [solicitudId, solicitudesData]);
+  const [cotizacionesData] = useState<Cotizacion[]>(COTIZACIONES_MOCK);
+  const [cotizacionId, setCotizacionId] = useState("");
+  const cotizacionSel = useMemo(() => cotizacionesData.find((c) => c.id === cotizacionId), [cotizacionId, cotizacionesData]);
 
-  const [tecnico, setTecnico] = useState("");
   const [tipo, setTipo] = useState<RowTipo | "">("");
   const [descripcion, setDescripcion] = useState("");
-
-  const [tecnicosData] = useState<string[]>(TECNICOS.slice());
 
   const [servSel, setServSel] = useState("");
   const [servQty, setServQty] = useState(1);
@@ -85,6 +128,28 @@ export default function OrderCreatePage() {
   function precioMaterialPorNombre(nombre: string) {
     return MATERIALES_DATA.find((x) => x.nombre === nombre)?.precio ?? 0;
   }
+
+  useEffect(() => {
+    if (!cotizacionSel) return;
+    setTipo(cotizacionSel.tipo ?? "");
+    setDescripcion(cotizacionSel.descripcion ?? "");
+    const svc: LineItem[] = (cotizacionSel.servicios ?? []).map((s) => ({
+      id: uid(),
+      nombre: s.nombre,
+      cantidad: s.cantidad,
+      precio: s.precio ?? precioServicioPorNombre(s.nombre),
+    }));
+    const mats: LineItem[] = (cotizacionSel.materiales ?? []).map((m) => ({
+      id: uid(),
+      nombre: m.nombre,
+      cantidad: m.cantidad,
+      precio: m.precio ?? precioMaterialPorNombre(m.nombre),
+    }));
+    setServicios(svc);
+    setMateriales(mats);
+    setServSel("");
+    setServQty(1);
+  }, [cotizacionSel]);
 
   const subtotalServicios = useMemo(() => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [servicios]);
   const subtotalMateriales = useMemo(() => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [materiales]);
@@ -165,14 +230,15 @@ export default function OrderCreatePage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!solicitudSel || !tipo || servicios.length === 0) return;
+    if (!cotizacionSel || !tipo || servicios.length === 0) return;
     const payload = {
-      solicitudId,
-      cliente: solicitudSel.cliente,
-      tecnico: tecnico || "",
+      cotizacionId,
+      cliente: cotizacionSel.cliente,
       tipo: tipo as RowTipo,
       monto: totalPagar,
       descripcion,
+      servicios,
+      materiales,
     };
     const url = `${returnTo}?newOrder=${encodeURIComponent(JSON.stringify(payload))}`;
     router.push(url);
@@ -194,21 +260,17 @@ export default function OrderCreatePage() {
           <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="space-y-6">
               <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Solicitud de servicio</header>
+                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Cotización</header>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                   <div className="md:col-span-12">
-                    <label className="block text-xs text-gray-700 mb-1">Seleccionar solicitud</label>
+                    <label className="block text-xs text-gray-700 mb-1">Seleccionar cotización</label>
                     <div className="flex gap-2">
                       <div className={`${selectWrap} flex-1`}>
-                        <select
-                          value={solicitudId}
-                          onChange={(e) => setSolicitudId(e.target.value)}
-                          className={selectBase}
-                        >
-                          <option value="">Elige una solicitud</option>
-                          {solicitudesData.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.id} — {s.titulo} ({s.cliente})
+                        <select value={cotizacionId} onChange={(e) => setCotizacionId(e.target.value)} className={selectBase}>
+                          <option value="">Elige una cotización</option>
+                          {cotizacionesData.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.id} — {c.titulo} ({c.cliente})
                             </option>
                           ))}
                         </select>
@@ -216,27 +278,27 @@ export default function OrderCreatePage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => router.push("/dashboard/requests/new")}
+                        onClick={() => router.push("/dashboard/quotes/new")}
                         className="h-10 rounded-md border border-[#CC0000] text-[#CC0000] px-3 text-sm hover:bg-red-50 whitespace-nowrap"
                       >
-                        Nueva solicitud
+                        Nueva cotización
                       </button>
                     </div>
                   </div>
 
-                  {solicitudSel && (
+                  {cotizacionSel && (
                     <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
                       <div className="bg-white rounded-md border p-2">
                         <div className="font-medium">Cliente</div>
-                        <div>{solicitudSel.cliente}</div>
+                        <div>{cotizacionSel.cliente}</div>
                       </div>
                       <div className="bg-white rounded-md border p-2">
-                        <div className="font-medium">Solicitud</div>
-                        <div>{solicitudSel.id}</div>
+                        <div className="font-medium">Cotización</div>
+                        <div>{cotizacionSel.id}</div>
                       </div>
                       <div className="bg-white rounded-md border p-2">
                         <div className="font-medium">Contacto</div>
-                        <div>{solicitudSel.contacto || "—"}</div>
+                        <div>{cotizacionSel.contacto || "—"}</div>
                       </div>
                     </div>
                   )}
@@ -269,33 +331,12 @@ export default function OrderCreatePage() {
                     </div>
                   </div>
 
-                  <div className="md:col-span-6">
-                    <label className="block text-xs text-gray-700 mb-1">Técnico</label>
-                    <div className="flex gap-2">
-                      <div className={`${selectWrap} flex-1`}>
-                        <select
-                          value={tecnico}
-                          onChange={(e) => setTecnico(e.target.value)}
-                          className={selectBase}
-                        >
-                          <option value="">Selecciona el técnico</option>
-                          {tecnicosData.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <span className={chevron}>▾</span>
-                      </div>
-                      <button type="button" onClick={() => router.push("/dashboard/technicians/new")} className="h-10 rounded-md border border-[#CC0000] text-[#CC0000] px-3 text-sm hover:bg-red-50">Crear técnico</button>
-                    </div>
-                  </div>
+                  <div className="md:col-span-6"></div>
 
                   <div className="md:col-span-6">
                     <label className="block text-xs text-gray-700 mb-1">Servicio</label>
                     <div className={selectWrap}>
-                      <select
-                        value={servSel}
-                        onChange={(e) => setServSel(e.target.value)}
-                        className={selectBase}
-                        disabled={!tipo}
-                      >
+                      <select value={servSel} onChange={(e) => setServSel(e.target.value)} className={selectBase} disabled={!tipo}>
                         <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
                         {serviciosFiltrados.map((s) => (
                           <option key={s.id} value={s.nombre}>
@@ -345,12 +386,7 @@ export default function OrderCreatePage() {
                   <div className="md:col-span-12">
                     <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50"
-                        title="Subir imágenes"
-                      >
+                      <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
                         Subir imágenes
                       </button>
                       <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
@@ -364,13 +400,7 @@ export default function OrderCreatePage() {
                         files.map((f, idx) => (
                           <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
                             <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeFile(f)}
-                              className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1"
-                              aria-label="Quitar imagen"
-                              title="Quitar"
-                            >
+                            <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
                               ✕
                             </button>
                           </div>
@@ -424,13 +454,17 @@ export default function OrderCreatePage() {
                               <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
                               <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
                               <td className="px-2 py-1 text-right">
-                                <button type="button" onClick={() => removeItem(it.id, servicios, setServicios)} className="h-8 px-2 rounded-md hover:bg-gray-200">✕</button>
+                                <button type="button" onClick={() => removeItem(it.id, servicios, setServicios)} className="h-8 px-2 rounded-md hover:bg-gray-200">
+                                  ✕
+                                </button>
                               </td>
                             </tr>
                           ))}
                           {servicios.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-2 py-3 text-center text-gray-500">Aún no has añadido servicios.</td>
+                              <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
+                                Aún no has añadido servicios.
+                              </td>
                             </tr>
                           )}
                         </tbody>
@@ -485,20 +519,26 @@ export default function OrderCreatePage() {
                             </td>
                             <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
                             <td className="px-2 py-1 text-right">
-                              <button type="button" onClick={() => removeItem(m.id, materiales, setMateriales)} className="h-8 px-2 rounded-md hover:bg-gray-200">✕</button>
+                              <button type="button" onClick={() => removeItem(m.id, materiales, setMateriales)} className="h-8 px-2 rounded-md hover:bg-gray-200">
+                                ✕
+                              </button>
                             </td>
                           </tr>
                         ))}
                         {materiales.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="px-2 py-3 text-center text-gray-500">Aún no has añadido materiales.</td>
+                            <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
+                              Aún no has añadido materiales.
+                            </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">Añadir material</button>
+                    <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
+                      Añadir material
+                    </button>
                   </div>
                 </div>
               </section>
@@ -507,12 +547,17 @@ export default function OrderCreatePage() {
                 <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
                 <div className="p-4 space-y-3 text-sm">
                   <div>
-                    <div className="flex justify-between"><span>Subtotal servicios</span><span>{formatCOP(subtotalServicios)}</span></div>
+                    <div className="flex justify-between">
+                      <span>Subtotal servicios</span>
+                      <span>{formatCOP(subtotalServicios)}</span>
+                    </div>
                     {serviciosMiniLista.length > 0 && (
                       <ul className="mt-2 space-y-1 text-xs text-gray-600">
                         {serviciosMiniLista.map((s) => (
                           <li key={s.nombre} className="flex justify-between">
-                            <span className="truncate">{s.nombre} × {s.cantidad}</span>
+                            <span className="truncate">
+                              {s.nombre} × {s.cantidad}
+                            </span>
                             <span>{formatCOP(s.total)}</span>
                           </li>
                         ))}
@@ -520,20 +565,31 @@ export default function OrderCreatePage() {
                     )}
                   </div>
                   <div>
-                    <div className="flex justify-between"><span>Subtotal materiales</span><span>{formatCOP(subtotalMateriales)}</span></div>
+                    <div className="flex justify-between">
+                      <span>Subtotal materiales</span>
+                      <span>{formatCOP(subtotalMateriales)}</span>
+                    </div>
                     {materialesMiniLista.length > 0 && (
                       <ul className="mt-2 space-y-1 text-xs text-gray-600">
                         {materialesMiniLista.map((m) => (
                           <li key={m.nombre} className="flex justify-between">
-                            <span className="truncate">{m.nombre} × {m.cantidad}</span>
+                            <span className="truncate">
+                              {m.nombre} × {m.cantidad}
+                            </span>
                             <span>{formatCOP(m.total)}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                  <div className="flex justify-between"><span>IVA ({IVA_PCT}%)</span><span>{formatCOP(impuestos)}</span></div>
-                  <div className="flex justify-between text-base font-semibold pt-2 border-t"><span>Total</span><span>{formatCOP(totalPagar)}</span></div>
+                  <div className="flex justify-between">
+                    <span>IVA ({IVA_PCT}%)</span>
+                    <span>{formatCOP(impuestos)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-semibold pt-2 border-t">
+                    <span>Total</span>
+                    <span>{formatCOP(totalPagar)}</span>
+                  </div>
                 </div>
               </section>
             </aside>
@@ -546,11 +602,7 @@ export default function OrderCreatePage() {
               >
                 Cancelar
               </button>
-              <button
-                type="submit"
-                form="order-form"
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
-              >
+              <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
                 Guardar
               </button>
             </div>
