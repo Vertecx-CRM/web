@@ -26,7 +26,7 @@ function Th({
 }) {
   return (
     <th
-      className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-nowrap ${className}`}
+      className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-pre-line break-words text-center align-middle ${className}`}
       style={{ width }}
     >
       {children}
@@ -49,26 +49,32 @@ const CreateButton = React.memo(CreateButtonComponent);
 const Pagination = React.memo(PaginationComponent);
 
 // Componente principal DataTable
-export function DataTable<T extends { id: number | string }>({
-  data,
-  columns,
-  pageSize = 8,
-  searchableKeys = [],
-  onView,
-  onEdit,
-  onDelete,
-  onCancel,
-  onCreate,
-  searchPlaceholder = "Buscar…",
-  createButtonText = "Crear",
-  rightActions,
-  renderActions,
-  renderExtraActions,
-  tailHeader,
-  renderTail,
-  mobileCardView = true,
-}: DataTableProps<T>) {
+export function DataTable<T extends { id: number | string }>(
+  props: DataTableProps<T>
+) {
+  const {
+    data,
+    columns,
+    pageSize: defaultPageSize = 8,
+    searchableKeys = [],
+    onView,
+    onEdit,
+    onDelete,
+    onCancel,
+    onCreate,
+    searchPlaceholder = "Buscar…",
+    createButtonText = "Crear",
+    rightActions,
+    renderActions,
+    renderExtraActions,
+    tailHeader,
+    renderTail,
+    mobileCardView = true,
+  } = props;
+
   const [q, setQ] = useState("");
+  const [pageSizeOption, setPageSizeOption] = useState<string | number>("");
+  const [pageSize, setPageSize] = useState<number>(5);
   const [page, setPage] = useState(1);
   const [scrollTop, setScrollTop] = useState(0);
 
@@ -118,11 +124,14 @@ export function DataTable<T extends { id: number | string }>({
     );
   }, [q, data, searchableKeys, normalize]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page, pageSize]
-  );
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filtered.length / pageSize));
+  }, [filtered.length, pageSize]);
+
+  // calcular registros visibles
+  const current = useMemo(() => {
+    return filtered.slice((page - 1) * pageSize, page * pageSize);
+  }, [filtered, page, pageSize]);
 
   const goTo = useCallback(
     (p: number) => setPage(Math.min(Math.max(p, 1), totalPages)),
@@ -136,11 +145,10 @@ export function DataTable<T extends { id: number | string }>({
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  // Filtrar columnas visibles en mobile según prioridad
   const visibleColumns = useMemo(() => {
     return columns.filter(
       (col) =>
-        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3) // Por defecto, mostrar las primeras 3
+        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
     );
   }, [columns]);
 
@@ -162,7 +170,7 @@ export function DataTable<T extends { id: number | string }>({
               colIndex={colIndex}
               header={c.header}
               width={c.width}
-              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm "
+              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
             >
               <div className="truncate" title={String(row[c.key])}>
                 {c.render ? c.render(row) : String(row[c.key])}
@@ -215,23 +223,55 @@ export function DataTable<T extends { id: number | string }>({
 
   return (
     <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0">
-      {/* Header con búsqueda y acciones */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* 🔍 Search + PageSize juntos */}
         {searchableKeys && searchableKeys.length > 0 && (
-          <div className="relative w-full sm:max-w-md">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-            <input
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-              placeholder={searchPlaceholder}
-              className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
-            />
+          <div className="flex items-center gap-3 w-full sm:max-w-lg">
+            {/* Search */}
+            <div className="relative flex-1">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={searchPlaceholder}
+                className="w-full rounded-full bg-white px-9 py-2 text-sm shadow-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
+              />
+            </div>
+
+            {/* Page size select */}
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSizeOption}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === "") {
+                    setPageSizeOption("");
+                    setPageSize(5);
+                  } else {
+                    const num = Number(value);
+                    setPageSizeOption(num);
+                    setPageSize(num);
+                  }
+                  setPage(1);
+                }}
+                className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-red-400"
+              >
+                <option value="">Mostrar</option>
+                <option value={8}>8</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
         )}
 
+        {/* Botones de acciones a la derecha */}
         {(rightActions || onCreate) && (
           <div className="flex items-center gap-2 justify-end">
             {rightActions}
@@ -247,9 +287,7 @@ export function DataTable<T extends { id: number | string }>({
         )}
       </div>
 
-      {/* Contenido principal */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        {/* Vista de tarjetas en mobile */}
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
@@ -277,7 +315,6 @@ export function DataTable<T extends { id: number | string }>({
           </div>
         )}
 
-        {/* Vista de tabla en desktop */}
         <div
           className={`${
             mobileCardView ? "hidden md:block" : "block"
@@ -329,13 +366,11 @@ export function DataTable<T extends { id: number | string }>({
           </div>
         </div>
 
-        {/* Paginación */}
         {totalPages > 1 && (
           <Pagination page={page} totalPages={totalPages} goTo={goTo} />
         )}
       </div>
 
-      {/* Botón flotante para crear en mobile */}
       {onCreate && (
         <button
           className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"

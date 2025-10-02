@@ -1,9 +1,7 @@
 "use client";
 
-import {
-  DataTable,
-  Column,
-} from "@/features/dashboard/components/datatable/DataTable";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Colors from "@/shared/theme/colors";
 import { Service } from "../../types/typesServices";
 import DownloadXLSXButton from "../../../components/DownloadXLSXButton";
@@ -31,7 +29,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "image",
       header: "Imagen",
-      render: (s) => {
+      render: (s: Service) => {
         const image =
           typeof s.image === "string"
             ? s.image.trim()
@@ -41,15 +39,6 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
 
         const isBase64 =
           typeof image === "string" && image.startsWith("data:image");
-
-        console.log(
-          `-----------------------------------
-            Renderizando imagen para servicio
-            -----------------------------------------`,
-          s,
-          "URL:",
-          image
-        );
 
         if (!image) {
           return (
@@ -79,7 +68,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "state",
       header: "Estado",
-      render: (s) => (
+      render: (s: Service) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
@@ -99,7 +88,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     <DataTable<Service>
       data={services}
       columns={columns}
-      pageSize={10}
+      pageSize={6}
       searchableKeys={["id", "name", "category", "state"]}
       onView={onView}
       onEdit={onEdit}
@@ -108,7 +97,45 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       searchPlaceholder="Buscar servicios..."
       createButtonText="Crear Servicio"
       rightActions={
-        <DownloadXLSXButton data={services} fileName="reporte_servicios.xlsx" />
+        <>
+          {/* Desktop */}
+          <div className="hidden md:block">
+            <DownloadXLSXButton
+              id="download-excel-btn-services"
+              data={services as unknown as Record<string, unknown>[]}
+              fileName="reporte_servicios.xlsx"
+              headers={["ID", "Nombre", "Categoría", "Estado"]}
+            />
+          </div>
+
+          {/* Mobile Floating Button */}
+          <button
+            onClick={() =>
+              document
+                .querySelector<HTMLButtonElement>(
+                  "#download-excel-btn-services"
+                )
+                ?.click()
+            }
+            className="fixed bottom-20 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
+            style={{ background: "#B20000" }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
+              />
+            </svg>
+          </button>
+        </>
       }
     />
   );

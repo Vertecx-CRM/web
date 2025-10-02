@@ -23,7 +23,7 @@ export default function CardServices({ title, description, category, image }: Ca
         boxShadow: "0 12px 20px rgba(0,0,0,0.1)",
       }}
     >
-      <div className="h-40 bg-gray-200 flex-shrink-0">
+      <div className="h-56 bg-gray-200 flex-shrink-0">
         {image && <img src={image} alt={title} className="w-full h-full object-cover" />}
       </div>
 

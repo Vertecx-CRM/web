@@ -5,10 +5,13 @@ import Image from "next/image";
 import { ShoppingCart, Menu, X } from "lucide-react";
 import { routes } from "@/shared/routes";
 import CartModal from "../components/CartModal";
+import { useCart } from "../contexts/CartContext";
 
 const Nav = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const { cart } = useCart();
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const links = [
     { href: routes.landing.services, label: "Servicios" },
@@ -50,11 +53,18 @@ const Nav = () => {
             {/* Carrito Desktop */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative cursor-pointer ml-4 text-black px-4 py-1 rounded-md flex items-center justify-center overflow-hidden group transition-colors duration-300"
+              className="relative cursor-pointer ml-4 text-black px-4 py-1 rounded-md flex items-center justify-center group transition-colors duration-300"
               aria-label="Abrir carrito"
             >
-              <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+              <span className="absolute rounded-md inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
               <ShoppingCart className="h-7 w-7 relative z-10 transition-colors duration-300 group-hover:text-white" />
+
+              {/* 🔴 Bolita con la cantidad */}
+              {totalItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-[#B20000] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                  {totalItems}
+                </span>
+              )}
             </button>
           </div>
 
@@ -98,9 +108,14 @@ const Nav = () => {
               setIsCartOpen(true);
               setIsMenuOpen(false);
             }}
-            className="cursor-pointer bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
+            className="relative cursor-pointer bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-md flex items-center justify-center transition"
           >
             <ShoppingCart className="h-5 w-5 mr-2" /> Carrito
+            {totalItems > 0 && (
+              <span className="absolute top-0 right-0 -mt-2 -mr-2 bg-[#B20000] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                {totalItems}
+              </span>
+            )}
           </button>
         </div>
       </nav>

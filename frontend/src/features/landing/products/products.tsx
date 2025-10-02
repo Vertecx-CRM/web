@@ -12,6 +12,8 @@ import Pagination from "./components/Pagination";
 import { useProducts, Product } from "./hooks/useProducts";
 import CategoryCarousel from "./components/CategoryCarousel";
 import ViewDetailsModal from "./components/ViewDetailsModal";
+import { useCart } from "../contexts/CartContext";
+import { showSuccess } from "@/shared/utils/notifications";
 
 interface ProductsProps {
   className?: string;
@@ -20,81 +22,107 @@ interface ProductsProps {
 export default function ProductsLanding({ className = "" }: ProductsProps) {
   const mockProducts: Product[] = [
     {
-      title: "Laptop Gamer",
+      id: "camara-tp-link-tapo-c500",
+      title: "Cámara TP-Link Tapo C500",
       description:
-        "Laptop con procesador Intel i7, 16GB RAM y tarjeta gráfica RTX 3060 Laptop con procesador Intel i7, 16GB RAM y tarjeta gráfica RTX 3060.Laptop con procesador Intel i7, 16GB RAM y tarjeta gráfica RTX 3060.Laptop con procesador Intel i7, 16GB RAM y tarjeta gráfica RTX 3060.Laptop con procesador Intel i7, 16GB RAM y tarjeta gráfica RTX 3060.",
-      image: "/assets/imgs/services/imgprovicionales/img7.jpg",
-      category: "Electrónica",
+        "Cámara de seguridad exterior con giro e inclinación 360°, resolución Full HD 1080p, visión nocturna a color y detección inteligente de movimiento. Compatible con app Tapo para monitoreo remoto, alertas instantáneas y almacenamiento local en tarjeta microSD hasta 512 GB.",
+      image: "/assets/imgs/products/product1.webp",
+      category: "Seguridad",
+      price: 160000,
+    },
+    {
+      id: "servidor-nas-synology-ds923-plus",
+      title: "Servidor NAS Synology DS923+",
+      description:
+        "Servidor NAS de 4 bahías ideal para pymes, con sistema DiskStation Manager. Soporta RAID, ampliación de bahías hasta 9, memoria expandible y cache SSD NVMe para mejorar rendimiento. Perfecto para backups automáticos, multimedia y acceso remoto seguro.",
+      image: "/assets/imgs/products/product2.webp",
+      category: "Almacenamiento",
+      price: 5545000,
+    },
+    {
+      id: "laptop-hp-14-dq0530la",
+      title: "Laptop HP 14-dq0530la",
+      description:
+        "Portátil liviano con pantalla de 14”, procesador Intel Celeron, 8 GB de RAM y SSD de 256 GB. Perfecto para trabajo de oficina, clases virtuales y navegación rápida. Incluye Windows 11 Home y batería de larga duración.",
+      image: "/assets/imgs/products/product3.avif",
+      category: "Computadores",
+      price: 1299900,
+    },
+    {
+      id: "pc-gamer-ryzen-5-5600g",
+      title: "PC Gamer Ryzen 5 5600G",
+      description:
+        "Computador gamer armado con procesador AMD Ryzen 5 5600G con gráficos Vega integrados, 16 GB de RAM y SSD NVMe de 512 GB. Ideal para juegos competitivos en 1080p y multitarea fluida para streaming o edición ligera.",
+      image: "/assets/imgs/products/product4.webp",
+      category: "Gaming",
+      price: 1831200,
+    },
+    {
+      id: "servidor-blade-hpe-proliant-bl460c",
+      title: "Servidor Blade HPE ProLiant BL460c",
+      description:
+        "Servidor blade de alta densidad con procesadores Intel Xeon escalables, soporte para virtualización y alto rendimiento. Diseñado para data centers que necesitan optimizar espacio, consumo energético y administración centralizada.",
+      image: "/assets/imgs/products/product5.jpg",
+      category: "Servidores",
+      price: 1909800,
+    },
+    {
+      id: "nas-synology-ds1821-plus",
+      title: "NAS Synology DS1821+",
+      description:
+        "Estación NAS de 8 bahías expandible hasta 18, con procesador AMD Ryzen V1500B y hasta 32 GB de RAM ECC. Ofrece rendimiento empresarial, soporte para máquinas virtuales, snapshots y cifrado avanzado para seguridad de datos.",
+      image: "/assets/imgs/products/product6.webp",
+      category: "Almacenamiento Empresarial",
+      price: 9052600,
+    },
+    {
+      id: "kit-paneles-solares-ecopower-5kw",
+      title: "Kit de Paneles Solares EcoPower 5kW",
+      description:
+        "Sistema de energía solar residencial de 5 kW con 10 paneles monocristalinos, inversor híbrido y monitoreo en tiempo real desde app móvil. Ideal para reducir consumo eléctrico y almacenar energía en baterías.",
+      image: "/assets/imgs/products/product7.webp",
+      category: "Energía Renovable",
+      price: 14800000,
+    },
+    {
+      id: "servidor-rack-dell-poweredge-r740",
+      title: "Servidor Rack Dell PowerEdge R740",
+      description:
+        "Servidor en rack de 2U con doble procesador Intel Xeon Silver, hasta 768 GB de RAM y soporte para virtualización avanzada. Diseñado para cargas de trabajo de bases de datos y aplicaciones críticas empresariales.",
+      image: "/assets/imgs/products/product8.jpg",
+      category: "Servidores",
+      price: 23600000,
+    },
+    {
+      id: "laptop-gamer-asus-rog-strix-g15",
+      title: "Laptop Gamer ASUS ROG Strix G15",
+      description:
+        "Portátil gamer con procesador AMD Ryzen 7 6800H, 16 GB de RAM DDR5, SSD de 1 TB y tarjeta gráfica NVIDIA RTX 3060. Pantalla Full HD 144 Hz para gaming competitivo con gran fluidez.",
+      image: "/assets/imgs/products/product9.webp",
+      category: "Gaming",
+      price: 6800000,
+    },
+    {
+      id: "camara-seguridad-hikvision-colorvu",
+      title: "Cámara de Seguridad Hikvision ColorVu",
+      description:
+        "Cámara bullet con visión nocturna a color, lente de 2.8 mm, grabación en 4 MP y resistencia IP67 para exteriores. Compatible con NVRs y monitoreo remoto desde móvil.",
+      image: "/assets/imgs/products/product10.jpg",
+      category: "Seguridad",
+      price: 310000,
+    },
+    {
+      id: "mini-pc-empresarial-intel-nuc-13",
+      title: "Mini PC Empresarial Intel NUC 13",
+      description:
+        "Computador ultra compacto con procesador Intel Core i7 de 13.ª generación, 32 GB de RAM y SSD de 1 TB. Ideal para oficinas modernas, puntos de venta y entornos donde el espacio es limitado.",
+      image: "/assets/imgs/products/product11.webp",
+      category: "Computadores",
       price: 5200000,
-    },
-    {
-      title: "Impresora 3D",
-      description:
-        "Impresora 3D de alta precisión para prototipos y piezas mecánicas.",
-      image: "https://res.cloudinary.com/dn4snnwkt/image/upload/v1758592233/bannerproducts_jpptnk.jpg",
-      category: "Hardware",
-      price: 2800000,
-    },
-    {
-      title: "Monitor UltraWide",
-      description: "Monitor 34'' 144Hz, ideal para diseño y gaming.",
-      image: "/assets/imgs/products/img3.jpg",
-      category: "Electrónica",
-      price: 1700000,
-    },
-    {
-      title: "Teclado Mecánico",
-      description:
-        "Teclado mecánico con switches rojos, retroiluminación RGB y macros programables.",
-      image: "/assets/imgs/products/img4.jpg",
-      category: "Periféricos",
-      price: 350000,
-    },
-    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
-    },    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
-    },    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
-    },    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
-    },    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
-    },    {
-      title: "Router WiFi 6",
-      description:
-        "Router de última generación con cobertura hasta 200m2 y 4 antenas externas.",
-      image: "/assets/imgs/products/img5.jpg",
-      category: "Networking",
-      price: 480000,
     },
   ];
 
+  const { addToCart } = useCart();
   const {
     selectedFilters,
     handleToggleFilter,
@@ -126,6 +154,16 @@ export default function ProductsLanding({ className = "" }: ProductsProps) {
     setSelectedProduct(null);
   };
 
+  const handleAddToCart = (product: Product) => {
+    addToCart({
+      id: product.id,
+      name: product.title,
+      price: product.price,
+      image: product.image || "/assets/imgs/default-product.png", // Imagen por defecto
+    });
+    showSuccess("Producto agregado al carrito");
+  };
+
   return (
     <div className={className}>
       <Nav />
@@ -154,6 +192,12 @@ export default function ProductsLanding({ className = "" }: ProductsProps) {
                   image={product.image}
                   price={product.price}
                   onViewDetails={() => handleViewDetails(product)}
+                  onAddToCart={() =>
+                    handleAddToCart(
+                      product,
+                      index + (currentPage - 1) * itemsPerPage
+                    )
+                  }
                 />
               ))}
             </div>
@@ -175,6 +219,12 @@ export default function ProductsLanding({ className = "" }: ProductsProps) {
           product={selectedProduct}
           isOpen={isModalOpen}
           onClose={handleCloseModal}
+          onAddToCart={() =>
+            handleAddToCart(
+              selectedProduct,
+              displayedProducts.findIndex((p) => p === selectedProduct)
+            )
+          }
         />
       )}
     </div>

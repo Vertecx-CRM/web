@@ -1,7 +1,7 @@
 import {
   DataTable,
-  Column,
 } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import { Role } from "../../types/typeRoles";
 import Colors from "@/shared/theme/colors";
 
@@ -46,7 +46,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({
     <DataTable<Role>
       data={roles}
       columns={columns}
-      pageSize={10}
+      pageSize={6}
       searchableKeys={["id", "name", "state"]}
       onView={onView}
       onEdit={onEdit}
