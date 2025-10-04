@@ -5,13 +5,10 @@ import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
-import {
-  DataTable,
-} from "@/features/dashboard/components/datatable/DataTable";
-import CreateSuppliersModal, {
-  ProviderSubmitPayload,
-} from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import CreateSuppliersModal, { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 import { Column } from "../../components/datatable/types/column.types";
+import EditSupplierModal from "../components/EditSupplierModal";
 
 type Row = {
   id: number;
@@ -23,18 +20,22 @@ type Row = {
   status: "Activo" | "Inactivo";
 };
 
-const MOCK: Row[] = [
-  { id: 1, name: "TechAndes S.A.S.", nit: "900123456-7", rating: 4.6, contact: "María Fernanda Ríos", category: "Servidores", status: "Activo" },
-  { id: 2, name: "Redes Pacífico Ltda.", nit: "800987321-4", rating: 4.1, contact: "Juan Pablo Cabal", category: "Redes", status: "Activo" },
-  { id: 3, name: "SecureVision Colombia", nit: "901457880-2", rating: 3.8, contact: "Sofía Valencia", category: "Seguridad", status: "Inactivo" },
-  { id: 4, name: "Andina Software Group", nit: "900741258-3", rating: 4.7, contact: "Carlos Ariza", category: "Software", status: "Activo" },
-  { id: 5, name: "Energía & Respaldo S.A.", nit: "890112233-5", rating: 3.2, contact: "Daniel Castaño", category: "Energía", status: "Inactivo" },
-  { id: 6, name: "CloudLatam Proveedores", nit: "901203040-1", rating: 4.4, contact: "Ana Lucía Torres", category: "Nube", status: "Activo" },
-  { id: 7, name: "Cableado Estructurado del Caribe", nit: "800456789-0", rating: 3.9, contact: "Hernán Bustos", category: "Redes", status: "Activo" },
-  { id: 8, name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo" },
-  { id: 9, name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo" },
-  { id: 10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo" },
+type RowWithContact = Row & { phone: string; email: string };
+
+const MOCK_WITH_CONTACT: RowWithContact[] = [
+  { id: 1, name: "TechAndes S.A.S.", nit: "900123456-7", rating: 4.6, contact: "María Fernanda Ríos", category: "Servidores", status: "Activo", phone: "+57 3001234567", email: "contacto@techandes.com" },
+  { id: 2, name: "Redes Pacífico Ltda.", nit: "800987321-4", rating: 4.1, contact: "Juan Pablo Cabal", category: "Redes", status: "Activo", phone: "+57 3019876543", email: "info@redespacifico.com" },
+  { id: 3, name: "SecureVision Colombia", nit: "901457880-2", rating: 3.8, contact: "Sofía Valencia", category: "Seguridad", status: "Inactivo", phone: "+57 3102223344", email: "ventas@securevision.com.co" },
+  { id: 4, name: "Andina Software Group", nit: "900741258-3", rating: 4.7, contact: "Carlos Ariza", category: "Software", status: "Activo", phone: "+57 3145566778", email: "contacto@andinasw.com" },
+  { id: 5, name: "Energía & Respaldo S.A.", nit: "890112233-5", rating: 3.2, contact: "Daniel Castaño", category: "Energía", status: "Inactivo", phone: "+57 3128899001", email: "info@energiarespaldo.com" },
+  { id: 6, name: "CloudLatam Proveedores", nit: "901203040-1", rating: 4.4, contact: "Ana Lucía Torres", category: "Nube", status: "Activo", phone: "+57 3013344556", email: "cloud@latam.com" },
+  { id: 7, name: "Cableado Estructurado del Caribe", nit: "800456789-0", rating: 3.9, contact: "Hernán Bustos", category: "Redes", status: "Activo", phone: "+57 3167788990", email: "soporte@cableadocaribe.com" },
+  { id: 8, name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo", phone: "+57 3134455667", email: "ventas@almacenamientonevado.co" },
+  { id: 9, name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo", phone: "+57 3029988776", email: "contacto@impresionesnorte.com" },
+  { id: 10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo", phone: "+57 3112233445", email: "info@conectividadandina.com" },
 ];
+
+const MOCK: Row[] = MOCK_WITH_CONTACT.map(({ phone, email, ...rest }) => rest);
 
 function stars(r: number) {
   const n = Math.round(r);
@@ -103,18 +104,21 @@ export default function SuppliersPage() {
     setOpenCreate(false);
   };
 
-  const mapRowToProvider = (row: Row): ProviderSubmitPayload => ({
-    name: row.name,
-    nit: row.nit,
-    phone: "",
-    email: "",
-    contactName: row.contact,
-    status: row.status,
-    categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
-    rating: Math.round(row.rating),
-    imageFile: null,
-    imageUrl: null,
-  });
+  const mapRowToProvider = (row: Row): ProviderSubmitPayload => {
+    const ext = MOCK_WITH_CONTACT.find((m) => m.id === row.id);
+    return {
+      name: row.name,
+      nit: row.nit,
+      phone: ext?.phone ?? "",
+      email: ext?.email ?? "",
+      contactName: row.contact,
+      status: row.status,
+      categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      rating: Math.round(row.rating),
+      imageFile: null,
+      imageUrl: null,
+    };
+  };
 
   const handleUpdateProvider = async (data: ProviderSubmitPayload) => {
     if (!selected) return;
@@ -156,7 +160,7 @@ export default function SuppliersPage() {
           onClose={() => setOpenCreate(false)}
           onSave={handleSaveProvider}
         />
-        {/* <EditSupplierModal
+        <EditSupplierModal
           isOpen={openEdit}
           onClose={() => {
             setOpenEdit(false);
@@ -165,7 +169,7 @@ export default function SuppliersPage() {
           onSave={handleUpdateProvider}
           provider={selected ? mapRowToProvider(selected) : null}
           title="Editar Proveedor"
-        /> */}
+        />
       </main>
     </RequireAuth>
   );

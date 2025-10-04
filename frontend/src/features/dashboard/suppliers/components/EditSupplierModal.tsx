@@ -116,10 +116,40 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
     if (provider) {
-      setForm({ ...provider, categorySelect: "", imageFile: null });
+      const mapped = {
+        ...provider,
+      };
+      setForm({
+        name: mapped.name ?? "",
+        nit: mapped.nit ?? "",
+        phone: mapped.phone ?? "",
+        email: mapped.email ?? "",
+        categorySelect: "",
+        categories: mapped.categories ?? [],
+        rating: mapped.rating ?? 0,
+        contactName: mapped.contactName ?? "",
+        status: mapped.status ?? "Activo",
+        imageFile: null,
+        imageUrl: mapped.imageUrl ?? null,
+      });
+    } else {
+      setForm({
+        name: "",
+        nit: "",
+        phone: "",
+        email: "",
+        categorySelect: "",
+        categories: [],
+        rating: 0,
+        contactName: "",
+        status: "Activo",
+        imageFile: null,
+        imageUrl: null,
+      });
     }
-  }, [provider]);
+  }, [provider, isOpen]);
 
   const update = <K extends keyof ProviderForm>(k: K, v: ProviderForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
