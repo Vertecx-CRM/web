@@ -135,9 +135,8 @@
   opacity: 0.5; /* Para verificar superposición */
 }
 
-.unified-header-calendar .rbc-event {
-  z-index: 2;
-  background-color: #B20000 !important; /* Color distintivo */
+.rbc-event .rbc-event-label {
+  display: none !important; /* Oculta el rango de horas arriba */
 }
 
 /* Contenido del evento */
@@ -220,6 +219,7 @@
   min-height: 3vw !important;
   height: 3vh !important;
 }
+
 
 
 
