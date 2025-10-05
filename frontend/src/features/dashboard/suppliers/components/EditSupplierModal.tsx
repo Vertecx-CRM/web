@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { Star, Upload, X as XIcon } from "lucide-react";
 import Modal from "@/features/dashboard/components/Modal";
+import type { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 
 type ProviderForm = {
   name: string;
@@ -20,8 +21,6 @@ type ProviderForm = {
 
 const DEFAULT_CATEGORIES = ["Servidores", "Redes", "CCTV", "Suministros"];
 const MAX_IMG_MB = 2;
-
-export type ProviderSubmitPayload = Omit<ProviderForm, "categorySelect">;
 
 type Props = {
   isOpen: boolean;
@@ -83,11 +82,6 @@ function validatePhone(v: string) {
 function validateNITValue(v: string) {
   const s = sanitizeNIT(v);
   if (!/^\d{5,12}(-\d)?$/.test(s)) return "Formato: 5–12 dígitos y opcional -DV.";
-  const [num, dv] = s.split("-");
-  if (dv) {
-    const expected = nitDV(num).toString();
-    if (dv !== expected) return `Dígito verificador debería ser ${expected}.`;
-  }
   return null;
 }
 function validateImage(file?: File | null) {
@@ -115,26 +109,9 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ⬇️ Sin el guard de isOpen: siempre que cambie `provider` copiamos los datos
   useEffect(() => {
-    if (!isOpen) return;
-    if (provider) {
-      const mapped = {
-        ...provider,
-      };
-      setForm({
-        name: mapped.name ?? "",
-        nit: mapped.nit ?? "",
-        phone: mapped.phone ?? "",
-        email: mapped.email ?? "",
-        categorySelect: "",
-        categories: mapped.categories ?? [],
-        rating: mapped.rating ?? 0,
-        contactName: mapped.contactName ?? "",
-        status: mapped.status ?? "Activo",
-        imageFile: null,
-        imageUrl: mapped.imageUrl ?? null,
-      });
-    } else {
+    if (!provider) {
       setForm({
         name: "",
         nit: "",
@@ -148,8 +125,22 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
         imageFile: null,
         imageUrl: null,
       });
+      return;
     }
-  }, [provider, isOpen]);
+    setForm({
+      name: provider.name ?? "",
+      nit: provider.nit ?? "",
+      phone: provider.phone ?? "",
+      email: provider.email ?? "",
+      categorySelect: "",
+      categories: provider.categories ?? [],
+      rating: provider.rating ?? 0,
+      contactName: provider.contactName ?? "",
+      status: provider.status ?? "Activo",
+      imageFile: null,
+      imageUrl: provider.imageUrl ?? null,
+    });
+  }, [provider]);
 
   const update = <K extends keyof ProviderForm>(k: K, v: ProviderForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -184,9 +175,13 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
     if (!validateAll()) return;
     try {
       setSaving(true);
+      const nitSan = sanitizeNIT(form.nit);
+      const base = nitSan.split("-")[0];
+      const dvCalc = nitDV(base).toString();
+      const nitFixed = `${base}-${dvCalc}`;
       const payload: ProviderSubmitPayload = {
         name: form.name.trim(),
-        nit: sanitizeNIT(form.nit),
+        nit: nitFixed,
         phone: sanitizePhone(form.phone),
         email: form.email.trim(),
         contactName: form.contactName.trim(),
@@ -199,38 +194,17 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
       await onSave(payload);
       setSaving(false);
       onClose();
-    } catch {
+    } catch (err) {
+      console.error(err);
       setSaving(false);
+      alert("Ocurrió un error al guardar.");
     }
   }
 
   const availableOptions = DEFAULT_CATEGORIES.filter((c) => !form.categories.includes(c));
 
   return (
-    <Modal
-      title={title}
-      isOpen={isOpen}
-      onClose={onClose}
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            form="provider-form"
-            disabled={saving}
-            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-        </>
-      }
-    >
+    <Modal title={title} isOpen={isOpen} onClose={onClose}>
       <form id="provider-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
         <div>
           <label className="block text-sm text-gray-700">Nombre</label>
@@ -243,17 +217,26 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
           />
           {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
         </div>
+
         <div>
           <label className="block text-sm text-gray-700">Nit</label>
           <input
             value={form.nit}
             onChange={(e) => update("nit", sanitizeNIT(e.target.value))}
-            onBlur={() => setErrors((er) => ({ ...er, nit: validateNITValue(form.nit) }))}
+            onBlur={() => {
+              const s = sanitizeNIT(form.nit);
+              const base = s.split("-")[0];
+              const dvCalc = nitDV(base).toString();
+              const fixed = `${base}-${dvCalc}`;
+              update("nit", fixed);
+              setErrors((er) => ({ ...er, nit: validateNITValue(fixed) }));
+            }}
             placeholder="900123456-7"
             className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
           />
           {errors.nit && <p className="mt-1 text-xs text-red-600">{errors.nit}</p>}
         </div>
+
         <div>
           <label className="block text-sm text-gray-700">Teléfono</label>
           <input
@@ -266,6 +249,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
           />
           {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
         </div>
+
         <div>
           <label className="block text-sm text-gray-700">Correo Electrónico</label>
           <input
@@ -278,6 +262,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
           />
           {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
         </div>
+
         <div className="md:col-span-2">
           <label className="block text-sm text-gray-700">Categorías</label>
           <div className="mt-1 flex items-center gap-2">
@@ -296,14 +281,11 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
               className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
             >
               <option value="">Selecciona una categoría</option>
-              {DEFAULT_CATEGORIES.map((c) => {
-                const added = form.categories.includes(c);
-                return (
-                  <option key={c} value={c}>
-                    {added ? `✓ ${c} (agregada)` : c}
-                  </option>
-                );
-              })}
+              {DEFAULT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {form.categories.includes(c) ? `✓ ${c} (agregada)` : c}
+                </option>
+              ))}
             </select>
           </div>
           {form.categories.length > 0 && (
@@ -320,6 +302,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
           )}
           {errors.categories && <p className="mt-1 text-xs text-red-600">{errors.categories}</p>}
         </div>
+
         <div>
           <label className="block text-sm text-gray-700">Calificación</label>
           <div className="mt-2 flex items-center gap-1">
@@ -342,23 +325,29 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
             })}
           </div>
         </div>
+
         <div>
           <label className="block text-sm text-gray-700">Imagen</label>
           <div className="mt-1 flex items-center gap-2">
-            {form.imageUrl ? (
-              <img src={form.imageUrl} alt="preview" className="h-10 w-10 rounded-md object-cover border" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed text-gray-400">
-                <Upload size={16} />
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-            <button type="button" onClick={handlePickFile} className="rounded-md bg-gray-200 px-3 h-9 text-sm text-gray-800 hover:bg-gray-300">
-              Subir
+            <button
+              type="button"
+              onClick={handlePickFile}
+              className="h-10 w-10 rounded-md border flex items-center justify-center overflow-hidden"
+              aria-label="Seleccionar imagen"
+            >
+              {form.imageUrl ? (
+                <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center border-dashed text-gray-400">
+                  <Upload size={16} />
+                </div>
+              )}
             </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
           </div>
           {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
         </div>
+
         <div className="md:col-span-2">
           <label className="block text-sm text-gray-700">Nombre del contacto</label>
           <input
@@ -369,6 +358,24 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, provider, t
             className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
           />
           {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
+        </div>
+
+        <div className="md:col-span-2 flex justify-end gap-2 pt-2 border-t mt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+          >
+            {saving ? "Guardando..." : "Guardar"}
+          </button>
         </div>
       </form>
     </Modal>

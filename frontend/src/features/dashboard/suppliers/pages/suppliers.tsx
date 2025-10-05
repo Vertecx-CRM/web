@@ -7,8 +7,9 @@ import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import CreateSuppliersModal, { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
-import { Column } from "../../components/datatable/types/column.types";
 import EditSupplierModal from "../components/EditSupplierModal";
+import ProviderDetailsModal from "@/features/dashboard/suppliers/components/ProviderDetailsModal";
+import { Column } from "../../components/datatable/types/column.types";
 
 type Row = {
   id: number;
@@ -18,24 +19,23 @@ type Row = {
   contact: string;
   category: string;
   status: "Activo" | "Inactivo";
+  phone: string;
+  email: string;
+  imageUrl?: string | null;
 };
 
-type RowWithContact = Row & { phone: string; email: string };
-
-const MOCK_WITH_CONTACT: RowWithContact[] = [
-  { id: 1, name: "TechAndes S.A.S.", nit: "900123456-7", rating: 4.6, contact: "María Fernanda Ríos", category: "Servidores", status: "Activo", phone: "+57 3001234567", email: "contacto@techandes.com" },
-  { id: 2, name: "Redes Pacífico Ltda.", nit: "800987321-4", rating: 4.1, contact: "Juan Pablo Cabal", category: "Redes", status: "Activo", phone: "+57 3019876543", email: "info@redespacifico.com" },
-  { id: 3, name: "SecureVision Colombia", nit: "901457880-2", rating: 3.8, contact: "Sofía Valencia", category: "Seguridad", status: "Inactivo", phone: "+57 3102223344", email: "ventas@securevision.com.co" },
-  { id: 4, name: "Andina Software Group", nit: "900741258-3", rating: 4.7, contact: "Carlos Ariza", category: "Software", status: "Activo", phone: "+57 3145566778", email: "contacto@andinasw.com" },
-  { id: 5, name: "Energía & Respaldo S.A.", nit: "890112233-5", rating: 3.2, contact: "Daniel Castaño", category: "Energía", status: "Inactivo", phone: "+57 3128899001", email: "info@energiarespaldo.com" },
-  { id: 6, name: "CloudLatam Proveedores", nit: "901203040-1", rating: 4.4, contact: "Ana Lucía Torres", category: "Nube", status: "Activo", phone: "+57 3013344556", email: "cloud@latam.com" },
-  { id: 7, name: "Cableado Estructurado del Caribe", nit: "800456789-0", rating: 3.9, contact: "Hernán Bustos", category: "Redes", status: "Activo", phone: "+57 3167788990", email: "soporte@cableadocaribe.com" },
-  { id: 8, name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo", phone: "+57 3134455667", email: "ventas@almacenamientonevado.co" },
-  { id: 9, name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo", phone: "+57 3029988776", email: "contacto@impresionesnorte.com" },
-  { id: 10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo", phone: "+57 3112233445", email: "info@conectividadandina.com" },
+const MOCK: Row[] = [
+  { id: 1, name: "TechAndes S.A.S.", nit: "900123456-7", rating: 4.6, contact: "María Fernanda Ríos", category: "Servidores", status: "Activo", phone: "+57 3001234567", email: "contacto@techandes.com", imageUrl: null },
+  { id: 2, name: "Redes Pacífico Ltda.", nit: "800987321-4", rating: 4.1, contact: "Juan Pablo Cabal", category: "Redes", status: "Activo", phone: "+57 3019876543", email: "info@redespacifico.com", imageUrl: null },
+  { id: 3, name: "SecureVision Colombia", nit: "901457880-2", rating: 3.8, contact: "Sofía Valencia", category: "Seguridad", status: "Inactivo", phone: "+57 3102223344", email: "ventas@securevision.com.co", imageUrl: null },
+  { id: 4, name: "Andina Software Group", nit: "900741258-3", rating: 4.7, contact: "Carlos Ariza", category: "Software", status: "Activo", phone: "+57 3145566778", email: "contacto@andinasw.com", imageUrl: null },
+  { id: 5, name: "Energía & Respaldo S.A.", nit: "890112233-5", rating: 3.2, contact: "Daniel Castaño", category: "Energía", status: "Inactivo", phone: "+57 3128899001", email: "info@energiarespaldo.com", imageUrl: null },
+  { id: 6, name: "CloudLatam Proveedores", nit: "901203040-1", rating: 4.4, contact: "Ana Lucía Torres", category: "Nube", status: "Activo", phone: "+57 3013344556", email: "cloud@latam.com", imageUrl: null },
+  { id: 7, name: "Cableado Estructurado del Caribe", nit: "800456789-0", rating: 3.9, contact: "Hernán Bustos", category: "Redes", status: "Activo", phone: "+57 3167788990", email: "soporte@cableadocaribe.com", imageUrl: null },
+  { id: 8, name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo", phone: "+57 3134455667", email: "ventas@almacenamientonevado.co", imageUrl: null },
+  { id: 9, name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo", phone: "+57 3029988776", email: "contacto@impresionesnorte.com", imageUrl: null },
+  { id: 10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo", phone: "+57 3112233445", email: "info@conectividadandina.com", imageUrl: null },
 ];
-
-const MOCK: Row[] = MOCK_WITH_CONTACT.map(({ phone, email, ...rest }) => rest);
 
 function stars(r: number) {
   const n = Math.round(r);
@@ -48,6 +48,7 @@ export default function SuppliersPage() {
   const [rows, setRows] = useState<Row[]>(MOCK);
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
+  const [openDetails, setOpenDetails] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
 
   const columns: Column<Row>[] = [
@@ -60,9 +61,12 @@ export default function SuppliersPage() {
     { key: "status", header: "Estado", render: (r) => (<span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "Activo" ? "text-green-600" : "text-red-600"}`}>{r.status}</span>) },
   ];
 
-  const searchableKeys: (keyof Row)[] = ["name", "contact", "category", "nit", "status"];
+  const searchableKeys: (keyof Row)[] = ["name", "contact", "category", "nit", "status", "phone", "email"];
 
-  const onView = (row: Row) => router.push(`/dashboard/suppliers/${row.id}`);
+  const onView = (row: Row) => {
+    setSelected(row);
+    setOpenDetails(true);
+  };
 
   const onEdit = (row: Row) => {
     setSelected(row);
@@ -83,6 +87,10 @@ export default function SuppliersPage() {
     });
     if (res.isConfirmed) {
       setRows((prev) => prev.filter((r) => r.id !== row.id));
+      if (selected?.id === row.id) {
+        setOpenDetails(false);
+        setSelected(null);
+      }
       await Swal.fire({ icon: "success", title: "Eliminado", text: "El proveedor fue eliminado correctamente.", timer: 1600, showConfirmButton: false });
     }
   };
@@ -98,6 +106,9 @@ export default function SuppliersPage() {
         contact: (data.contactName ?? "").trim(),
         category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
         status: data.status,
+        phone: data.phone ?? "",
+        email: data.email ?? "",
+        imageUrl: data.imageUrl ?? null,
       };
       return [...prev, newRow];
     });
@@ -105,18 +116,32 @@ export default function SuppliersPage() {
   };
 
   const mapRowToProvider = (row: Row): ProviderSubmitPayload => {
-    const ext = MOCK_WITH_CONTACT.find((m) => m.id === row.id);
     return {
       name: row.name,
       nit: row.nit,
-      phone: ext?.phone ?? "",
-      email: ext?.email ?? "",
+      phone: row.phone ?? "",
+      email: row.email ?? "",
       contactName: row.contact,
       status: row.status,
       categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
       rating: Math.round(row.rating),
       imageFile: null,
-      imageUrl: null,
+      imageUrl: row.imageUrl ?? null,
+    };
+  };
+
+  const mapRowToDetails = (row: Row) => {
+    return {
+      id: row.id,
+      name: row.name,
+      nit: row.nit,
+      phone: row.phone ?? "",
+      email: row.email ?? "",
+      contactName: row.contact,
+      status: row.status,
+      categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      rating: Math.round(row.rating),
+      imageUrl: row.imageUrl ?? null,
     };
   };
 
@@ -133,12 +158,43 @@ export default function SuppliersPage() {
               contact: (data.contactName ?? "").trim(),
               category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
               status: data.status,
+              phone: data.phone ?? "",
+              email: data.email ?? "",
+              imageUrl: data.imageUrl ?? r.imageUrl ?? null,
             }
           : r
       )
     );
     setOpenEdit(false);
-    setSelected(null);
+    setSelected((s) =>
+      s && s.id === selected.id
+        ? {
+            ...s,
+            name: data.name.trim(),
+            nit: data.nit.trim(),
+            rating: Number(data.rating) || 0,
+            contact: (data.contactName ?? "").trim(),
+            category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
+            status: data.status,
+            phone: data.phone ?? "",
+            email: data.email ?? "",
+            imageUrl: data.imageUrl ?? s.imageUrl ?? null,
+          }
+        : s
+    );
+  };
+
+  const handleToggleStatusFromDetails = async () => {
+    if (!selected) return;
+    const nextStatus: Row["status"] = selected.status === "Activo" ? "Inactivo" : "Activo";
+    setRows((prev) => prev.map((r) => (r.id === selected.id ? { ...r, status: nextStatus } : r)));
+    setSelected((s) => (s ? { ...s, status: nextStatus } : s));
+  };
+
+  const handleEditFromDetails = () => {
+    if (!selected) return;
+    setOpenDetails(false);
+    setOpenEdit(true);
   };
 
   return (
@@ -164,11 +220,18 @@ export default function SuppliersPage() {
           isOpen={openEdit}
           onClose={() => {
             setOpenEdit(false);
-            setSelected(null);
           }}
           onSave={handleUpdateProvider}
           provider={selected ? mapRowToProvider(selected) : null}
           title="Editar Proveedor"
+        />
+        <ProviderDetailsModal
+          isOpen={openDetails}
+          onClose={() => setOpenDetails(false)}
+          provider={selected ? mapRowToDetails(selected) : null}
+          onEdit={handleEditFromDetails}
+          onToggleStatus={handleToggleStatusFromDetails}
+          title="Detalles del Proveedor"
         />
       </main>
     </RequireAuth>

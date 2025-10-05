@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
-import { Column } from "../../components/datatable/types/column.types";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
@@ -13,42 +13,124 @@ const ICONS = {
   print: "/icons/printer.svg",
 };
 
+type RowTipo = "Instalación" | "Mantenimiento";
+type LineItem = { nombre: string; cantidad: number; precio?: number };
+
 type Row = {
   id: number;
   cliente: string;
   tecnico: string;
-  tipo: "Instalación" | "Mantenimiento";
+  tipo: RowTipo | string;
   fechaProgramada: string;
   estado: "Aprobada" | "Anulada" | "Pendiente" | "Garantia";
-  monto?: number; // ✅ nuevo campo
+  monto?: number;
+  descripcion?: string;
+  servicios?: LineItem[];
+  materiales?: LineItem[];
 };
-
-const MOCK: Row[] = [
-  { id: 1, cliente: "InnovaTech S.A.S.",       tecnico: "Carlos Gómez",  tipo: "Mantenimiento", fechaProgramada: "11/06/2025", estado: "Aprobada",  monto: 650000  },
-  { id: 2, cliente: "Hotel Mirador del Río",    tecnico: "Laura Pérez",   tipo: "Instalación",  fechaProgramada: "12/06/2025", estado: "Pendiente", monto: 2100000 },
-  { id: 3, cliente: "Distribuciones Antioquia", tecnico: "Andrés Rojas",  tipo: "Mantenimiento", fechaProgramada: "13/06/2025", estado: "Anulada",   monto: 420000  },
-  { id: 4, cliente: "Café La Montaña",          tecnico: "Mónica Silva",  tipo: "Instalación",  fechaProgramada: "14/06/2025", estado: "Aprobada",  monto: 780000  },
-  { id: 5, cliente: "Clínica San Rafael",       tecnico: "Julián Ortiz",  tipo: "Instalación",  fechaProgramada: "15/06/2025", estado: "Garantia",  monto: 0       },
-  { id: 6, cliente: "Universidad Central",      tecnico: "Sofía Herrera", tipo: "Mantenimiento", fechaProgramada: "16/06/2025", estado: "Aprobada",  monto: 520000  },
-];
-
-function today() {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-}
 
 function formatCOP(n?: number) {
   if (n == null) return "—";
   return n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 }
 
+const MOCK: Row[] = [
+  {
+    id: 1,
+    cliente: "InnovaTech S.A.S.",
+    tecnico: "Carlos Gómez",
+    tipo: "Mantenimiento",
+    fechaProgramada: "11/06/2025",
+    estado: "Aprobada",
+    monto: 650000,
+    descripcion: "Mantenimiento trimestral de red y CCTV.",
+    servicios: [
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+    ],
+    materiales: [
+      { nombre: "Cable UTP", cantidad: 30, precio: 2500 },
+      { nombre: "Conector RJ45", cantidad: 10, precio: 600 },
+    ],
+  },
+  {
+    id: 2,
+    cliente: "Hotel Mirador del Río",
+    tecnico: "Laura Pérez",
+    tipo: "Instalación",
+    fechaProgramada: "12/06/2025",
+    estado: "Pendiente",
+    monto: 2100000,
+    descripcion: "Instalación de puntos de red y configuración de impresora.",
+    servicios: [
+      { nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 },
+      { nombre: "Cableado estructurado", cantidad: 1, precio: 280000 },
+      { nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 },
+    ],
+    materiales: [
+      { nombre: "Cámara Dome 5MP", cantidad: 4, precio: 260000 },
+      { nombre: "Cable UTP", cantidad: 100, precio: 2500 },
+      { nombre: "Ducto 40mm", cantidad: 10, precio: 12000 },
+    ],
+  },
+  {
+    id: 3,
+    cliente: "Distribuciones Antioquia",
+    tecnico: "Andrés Rojas",
+    tipo: "Mantenimiento",
+    fechaProgramada: "13/06/2025",
+    estado: "Anulada",
+    monto: 420000,
+    descripcion: "Revisión de servidor contabilidad.",
+    servicios: [{ nombre: "Mantenimiento de servidor", cantidad: 1, precio: 350000 }],
+    materiales: [{ nombre: "Patch Panel", cantidad: 1, precio: 180000 }],
+  },
+  {
+    id: 4,
+    cliente: "Café La Montaña",
+    tecnico: "Mónica Silva",
+    tipo: "Instalación",
+    fechaProgramada: "14/06/2025",
+    estado: "Aprobada",
+    monto: 780000,
+    descripcion: "Montaje de 2 cámaras y rack.",
+    servicios: [{ nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 }],
+    materiales: [
+      { nombre: "Cámara Dome 5MP", cantidad: 2, precio: 260000 },
+      { nombre: "Rack 12U", cantidad: 1, precio: 540000 },
+    ],
+  },
+  {
+    id: 5,
+    cliente: "Clínica San Rafael",
+    tecnico: "Julián Ortiz",
+    tipo: "Instalación",
+    fechaProgramada: "15/06/2025",
+    estado: "Garantia",
+    monto: 0,
+    descripcion: "Reinstalación de switch en garantía.",
+    servicios: [{ nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 }],
+    materiales: [{ nombre: "Switch 8p", cantidad: 1, precio: 220000 }],
+  },
+  {
+    id: 6,
+    cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
+    estado: "Aprobada",
+    monto: 520000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
+  },
+];
+
 function EstadoPill({ v }: { v: Row["estado"] }) {
-  const STYLE: Record<Row["estado"], string> = {
-    Aprobada: "text-green-700",
-    Pendiente: "text-yellow-700",
-    Anulada:  "text-red-700",
-    Garantia: "text-blue-700",
-  };
+  const STYLE: Record<Row["estado"], string> = { Aprobada: "text-green-700", Pendiente: "text-yellow-700", Anulada: "text-red-700", Garantia: "text-blue-700" };
   return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STYLE[v]}`}>{v}</span>;
 }
 
@@ -56,45 +138,68 @@ export default function OrdersServicesIndexPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
   const [rows, setRows] = useState<Row[]>(MOCK);
 
-  // Captura "nueva orden" desde la query (monto opcional)
   useEffect(() => {
     const no = searchParams.get("newOrder");
     if (!no) return;
     try {
-      const payload = JSON.parse(decodeURIComponent(no)) as {
-        cliente: string;
-        tecnico: string;
-        tipo: Row["tipo"];
-        fechaProgramada?: string;
-        monto?: number;
-      };
+      const payload = JSON.parse(decodeURIComponent(no)) as Omit<Row, "id" | "estado" | "fechaProgramada"> & { fechaProgramada?: string };
       setRows((prev) => {
         const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
+        const d = new Date();
+        const fecha = payload.fechaProgramada || `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
         const newRow: Row = {
           id: nextId,
-          fechaProgramada: payload.fechaProgramada || today(),
-          tipo: payload.tipo,
-          tecnico: payload.tecnico,
           cliente: payload.cliente,
+          tecnico: payload.tecnico,
+          tipo: payload.tipo,
+          fechaProgramada: fecha,
           estado: "Pendiente",
-          monto: payload.monto ?? undefined,
+          monto: payload.monto,
+          descripcion: payload.descripcion,
+          servicios: payload.servicios,
+          materiales: payload.materiales,
         };
-        return [newRow, ...prev];
+        return [...prev, newRow];
       });
       Swal.fire({ icon: "success", title: "Orden creada", timer: 1400, showConfirmButton: false });
     } catch {}
-    router.replace(pathname);
-  }, [searchParams, pathname, router]);
+    window.history.replaceState(null, "", pathname);
+  }, [searchParams, pathname]);
 
-  // Acciones
+  useEffect(() => {
+    const eo = searchParams.get("editOrder");
+    if (!eo) return;
+    try {
+      const p = JSON.parse(decodeURIComponent(eo)) as Partial<Row> & { id: number };
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === p.id
+            ? {
+                ...r,
+                cliente: p.cliente ?? r.cliente,
+                tecnico: p.tecnico ?? r.tecnico,
+                tipo: (p.tipo as RowTipo) ?? r.tipo,
+                fechaProgramada: p.fechaProgramada ?? r.fechaProgramada,
+                monto: p.monto ?? r.monto,
+                descripcion: p.descripcion ?? r.descripcion,
+                servicios: p.servicios ?? r.servicios,
+                materiales: p.materiales ?? r.materiales,
+              }
+            : r
+        )
+      );
+      Swal.fire({ icon: "success", title: "Orden actualizada", timer: 1400, showConfirmButton: false });
+    } catch {}
+    window.history.replaceState(null, "", pathname);
+  }, [searchParams, pathname]);
+
   async function setDate(row: Row) {
     const { value, isConfirmed } = await Swal.fire({
       title: `Fecha para #${row.id}`,
       input: "text",
-      inputLabel: "Usa el formato DD/MM/AAAA",
+      inputLabel: "DD/MM/AAAA",
       inputValue: row.fechaProgramada,
       inputAttributes: { placeholder: "DD/MM/AAAA" },
       showCancelButton: true,
@@ -102,7 +207,7 @@ export default function OrdersServicesIndexPage() {
       cancelButtonText: "Cancelar",
       reverseButtons: true,
       preConfirm: (val) => {
-        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val || "")) Swal.showValidationMessage("Formato inválido. Usa DD/MM/AAAA.");
+        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val || "")) Swal.showValidationMessage("Formato inválido");
         return val;
       },
     });
@@ -114,7 +219,7 @@ export default function OrdersServicesIndexPage() {
     if (row.estado === "Anulada") return;
     const res = await Swal.fire({
       title: "¿Anular orden?",
-      text: `Se anulará la orden #${row.id}. Esta acción no se puede deshacer.`,
+      text: `Se anulará la orden #${row.id}.`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Sí, anular",
@@ -128,18 +233,143 @@ export default function OrdersServicesIndexPage() {
     await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1500, showConfirmButton: false });
   }
 
-  function printRow() {
-    window.print();
-  }
+function printRow(row: Row) {
+  const IVA_PCT = 19;
+
+  const servicios = row.servicios ?? [];
+  const materiales = row.materiales ?? [];
+
+  const subServ = servicios.reduce((a, s) => a + (Number(s.cantidad) || 0) * (Number(s.precio) || 0), 0);
+  const subMat = materiales.reduce((a, m) => a + (Number(m.cantidad) || 0) * (Number(m.precio) || 0), 0);
+  const subtotal = subServ + subMat;
+  const iva = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
+  const total = Math.max(0, Math.round(subtotal + iva));
+
+  const serviciosRows =
+    servicios.length === 0
+      ? `<tr><td colspan="4" class="empty">—</td></tr>`
+      : servicios
+          .map(
+            (s) => `<tr>
+  <td>${s.nombre}</td>
+  <td class="num">${s.cantidad}</td>
+  <td class="num">${formatCOP(s.precio)}</td>
+  <td class="num">${formatCOP((Number(s.cantidad) || 0) * (Number(s.precio) || 0))}</td>
+</tr>`
+          )
+          .join("");
+
+  const materialesRows =
+    materiales.length === 0
+      ? `<tr><td colspan="4" class="empty">—</td></tr>`
+      : materiales
+          .map(
+            (m) => `<tr>
+  <td>${m.nombre}</td>
+  <td class="num">${m.cantidad}</td>
+  <td class="num">${formatCOP(m.precio)}</td>
+  <td class="num">${formatCOP((Number(m.cantidad) || 0) * (Number(m.precio) || 0))}</td>
+</tr>`
+          )
+          .join("");
+
+  const html = `<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Orden #${row.id}</title>
+<style>
+:root{color-scheme:light}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";margin:24px;color:#111827}
+.h{font-size:20px;font-weight:700;margin:0 0 12px 0}
+.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:4px}
+.val{font-size:14px}
+.section{margin-top:18px}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th,.table td{border-top:1px solid #e5e7eb;padding:8px}
+.table th{background:#f3f4f6;text-align:left;font-weight:600}
+.table td.num{text-align:right}
+.empty{color:#6b7280;text-align:center;padding:10px}
+.tot{width:100%;margin-top:12px}
+.tot .row{display:flex;justify-content:space-between;padding:6px 0}
+.tot .row.b{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:10px;font-weight:700}
+.footer{margin-top:16px;font-size:12px;color:#6b7280}
+@media print{@page{size:A4;margin:16mm}body{margin:0}}
+</style>
+</head><body>
+
+<div class="card">
+  <div class="h">Orden #${row.id}</div>
+
+  <div class="grid">
+    <div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div>
+    <div class="item"><div class="label">Fecha</div><div class="val">${row.fechaProgramada}</div></div>
+    <div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div>
+    <div class="item"><div class="label">Técnico</div><div class="val">${row.tecnico}</div></div>
+    <div class="item" style="grid-column:1 / -1"><div class="label">Tipo</div><div class="val">${row.tipo}</div></div>
+    ${
+      row.descripcion
+        ? `<div class="item" style="grid-column:1 / -1"><div class="label">Descripción</div><div class="val">${row.descripcion}</div></div>`
+        : ""
+    }
+  </div>
+
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Servicios</div>
+    <table class="table">
+      <thead><tr><th>Servicio</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
+      <tbody>${serviciosRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Materiales</div>
+    <table class="table">
+      <thead><tr><th>Material</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
+      <tbody>${materialesRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Totales</div>
+    <div class="tot">
+      <div class="row"><span>Subtotal servicios</span><span>${formatCOP(subServ)}</span></div>
+      <div class="row"><span>Subtotal materiales</span><span>${formatCOP(subMat)}</span></div>
+      <div class="row"><span>IVA (${IVA_PCT}%)</span><span>${formatCOP(iva)}</span></div>
+      <div class="row b"><span>Total</span><span>${formatCOP(total)}</span></div>
+    </div>
+  </div>
+
+  <div class="footer">Código: OS-${String(row.id).padStart(6, "0")}</div>
+</div>
+
+</body></html>`;
+
+  const iframe: HTMLIFrameElement = document.createElement("iframe");
+  Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 100);
+    }, 50);
+  };
+  iframe.srcdoc = html;
+  document.body.appendChild(iframe);
+}
+
 
   function openCreate() {
     router.push(`/dashboard/orders-services/new?returnTo=${encodeURIComponent(pathname)}`);
   }
+
   function openEdit(r: Row) {
-    router.push(`/dashboard/orders-services/${r.id}`);
+    const payload = encodeURIComponent(JSON.stringify(r));
+    router.push(`/dashboard/orders-services/edit?returnTo=${encodeURIComponent(pathname)}&id=${r.id}&order=${payload}`);
   }
 
-  // Columnas (incluye monto)
   const columns: Column<Row>[] = [
     { key: "id", header: "ID", render: (r) => <span>#{r.id}</span> },
     { key: "cliente", header: "Cliente" },
@@ -150,14 +380,9 @@ export default function OrdersServicesIndexPage() {
     { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
   ];
 
-  // Reporte CSV (incluye monto)
   function downloadReport() {
     const headers = ["Id", "Cliente", "Tecnico", "Tipo", "Fecha programada", "Estado", "Monto"];
-    const lines = rows.map((r) =>
-      [r.id, r.cliente, r.tecnico, r.tipo, r.fechaProgramada, r.estado, r.monto ?? ""]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(",")
-    );
+    const lines = rows.map((r) => [r.id, r.cliente, r.tecnico, r.tipo, r.fechaProgramada, r.estado, r.monto ?? ""].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const csv = [headers.join(","), ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -172,10 +397,7 @@ export default function OrdersServicesIndexPage() {
 
   const rightActions = (
     <div className="flex items-center gap-2">
-      <button
-        onClick={downloadReport}
-        className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-      >
+      <button onClick={downloadReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90">
         Descargar Reporte
       </button>
     </div>
@@ -189,37 +411,25 @@ export default function OrdersServicesIndexPage() {
             data={rows}
             columns={columns}
             pageSize={8}
-            searchableKeys={["id", "cliente", "tecnico", "tipo", "fechaProgramada", "estado", "monto"]} // ✅ busca por monto
-            searchPlaceholder="Buscar (id, técnico, cliente, tipo, estado, fecha, monto)"
+            searchableKeys={["id", "cliente", "tecnico", "tipo", "fechaProgramada", "estado", "monto", "descripcion"]}
+            searchPlaceholder="Buscar (id, técnico, cliente, tipo, estado, fecha, monto, descripción)"
             onCreate={openCreate}
             createButtonText="Crear Orden"
             rightActions={rightActions}
             onEdit={(r) => openEdit(r)}
             renderExtraActions={(row) => (
               <>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Calendario"
-                  onClick={() => setDate(row)}
-                >
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Calendario" onClick={() => setDate(row)}>
                   <img src={ICONS.calendar} className="h-4 w-4" />
                 </button>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Anular"
-                  onClick={() => cancelRow(row)}
-                >
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Anular" onClick={() => cancelRow(row)}>
                   <img src={ICONS.cancel} className="h-4 w-4" />
                 </button>
               </>
             )}
             tailHeader="Imprimir"
-            renderTail={() => (
-              <button
-                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                title="Imprimir"
-                onClick={printRow}
-              >
+            renderTail={(row) => (
+              <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Imprimir" onClick={() => printRow(row)}>
                 <img src={ICONS.print} className="h-4 w-4 mx-auto" />
               </button>
             )}

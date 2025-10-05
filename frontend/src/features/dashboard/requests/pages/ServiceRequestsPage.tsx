@@ -4,57 +4,103 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
-import {
-  DataTable,
-} from "@/features/dashboard/components/datatable/DataTable";
-import Modal from "../../components/Modal";
-import { Column } from "../../components/datatable/types/column.types";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import Modal from "@/features/dashboard/components/Modal";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+import { CreateAppointmentModal } from "@/features/dashboard/appointments/components/CreateAppointmentModal/createAppointment";
+import type { SlotDateTime } from "@/features/dashboard/appointments/types/typeAppointment";
+import ViewRequestModal from "@/features/dashboard/requests/components/ViewRequestModal";
+import EditRequestModal from "@/features/dashboard/requests/components/EditRequestModal";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
-  money: "/icons/dollar-sign.svg",
   cancel: "/icons/minus-circle.svg",
   print: "/icons/printer.svg",
+  money: "/icons/dollar-sign.svg",
 };
 
 type Row = {
   id: number;
   descripcion: string;
   tipo: string;
+  servicio: string;
+  cliente: string;
+  direccion: string;
   fecha: string;
   estado: "Aprobada" | "Anulada" | "Pendiente";
-  monto?: number;
 };
 
 const MOCK: Row[] = [
-  { id: 1, descripcion: "Instalación de 6 cámaras CCTV en bodega principal", tipo: "Instalación", fecha: "03/06/2025", estado: "Aprobada", monto: 4850000 },
-  { id: 2, descripcion: "Mantenimiento preventivo a servidor Dell R740", tipo: "Mantenimiento", fecha: "05/06/2025", estado: "Pendiente", monto: 950000 },
-  { id: 3, descripcion: "Configuración de firewall Fortigate 100F", tipo: "Configuración", fecha: "07/06/2025", estado: "Aprobada", monto: 2100000 },
-  { id: 4, descripcion: "Cableado de red Cat6A en oficina tercer piso", tipo: "Instalación", fecha: "09/06/2025", estado: "Anulada", monto: 3800000 },
-  { id: 5, descripcion: "Migración de correo corporativo a Microsoft 365", tipo: "Soporte", fecha: "10/06/2025", estado: "Pendiente", monto: 1350000 },
-  { id: 6, descripcion: "Reemplazo de UPS 3kVA en sala de equipos", tipo: "Instalación", fecha: "11/06/2025", estado: "Aprobada", monto: 4200000 },
-  { id: 7, descripcion: "Actualización de firmware en 8 switches Cisco", tipo: "Actualización", fecha: "12/06/2025", estado: "Aprobada", monto: 760000 },
-  { id: 8, descripcion: "Instalación de impresora de red HP Color M479", tipo: "Instalación", fecha: "13/06/2025", estado: "Pendiente", monto: 620000 },
-  { id: 9, descripcion: "Diagnóstico de intermitencias en red Wi-Fi", tipo: "Soporte", fecha: "14/06/2025", estado: "Aprobada", monto: 380000 },
-  { id: 10, descripcion: "Implementación de VLAN para visitantes y QoS", tipo: "Configuración", fecha: "15/06/2025", estado: "Pendiente", monto: 1180000 },
+  { id: 1, descripcion: "Instalación de 6 cámaras CCTV en bodega principal", tipo: "Instalación", servicio: "CCTV", cliente: "Innova LTDA", direccion: "Cl. 30 #45-12, Medellín", fecha: "03/06/2025", estado: "Aprobada" },
+  { id: 2, descripcion: "Mantenimiento preventivo a servidor Dell R740", tipo: "Mantenimiento", servicio: "Servidor", cliente: "SistemasPC", direccion: "Cra. 50 #80-21, Medellín", fecha: "05/06/2025", estado: "Pendiente" },
+  { id: 3, descripcion: "Configuración de firewall Fortigate 100F", tipo: "Configuración", servicio: "Configuración", cliente: "Acme S.A.", direccion: "Av. Industriales #20-15, Medellín", fecha: "07/06/2025", estado: "Aprobada" },
+  { id: 4, descripcion: "Cableado de red Cat6A en oficina tercer piso", tipo: "Instalación", servicio: "Cableado", cliente: "Vertecx", direccion: "Cl. 10 #25-33, Medellín", fecha: "09/06/2025", estado: "Anulada" },
+  { id: 5, descripcion: "Migración de correo corporativo a Microsoft 365", tipo: "Soporte", servicio: "Soporte", cliente: "Cliente Demo", direccion: "Cra. 70 #45-18, Medellín", fecha: "10/06/2025", estado: "Pendiente" },
+  { id: 6, descripcion: "Reemplazo de UPS 3kVA en sala de equipos", tipo: "Instalación", servicio: "Servidor", cliente: "Innova LTDA", direccion: "Cl. 52 #30-90, Medellín", fecha: "11/06/2025", estado: "Aprobada" },
+  { id: 7, descripcion: "Actualización de firmware en 8 switches Cisco", tipo: "Actualización", servicio: "Red WiFi", cliente: "Acme S.A.", direccion: "Cra. 38 #12-40, Medellín", fecha: "12/06/2025", estado: "Aprobada" },
+  { id: 8, descripcion: "Instalación de impresora de red HP Color M479", tipo: "Instalación", servicio: "Impresora", cliente: "Vertecx", direccion: "Cl. 44 #73-22, Medellín", fecha: "13/06/2025", estado: "Pendiente" },
+  { id: 9, descripcion: "Diagnóstico de intermitencias en red Wi-Fi", tipo: "Soporte", servicio: "Red WiFi", cliente: "SistemasPC", direccion: "Cra. 43A #1-50, Medellín", fecha: "14/06/2025", estado: "Aprobada" },
+  { id: 10, descripcion: "Implementación de VLAN para visitantes y QoS", tipo: "Configuración", servicio: "Configuración", cliente: "Cliente Demo", direccion: "Cl. 33 #65-08, Medellín", fecha: "15/06/2025", estado: "Pendiente" },
 ];
 
-const SERVICIOS = ["Cableado", "CCTV", "Servidor", "Red WiFi", "Impresora"];
+const SERVICIOS = ["Cableado", "CCTV", "Servidor", "Red WiFi", "Impresora", "Configuración", "Actualización", "Soporte"];
 const CLIENTES = ["Acme S.A.", "Innova LTDA", "SistemasPC", "Vertecx", "Cliente Demo"];
 
-function EstadoPill({ v }: { v: Row["estado"] }) {
-  const cls = v === "Aprobada" ? "text-green-600" : v === "Anulada" ? "text-red-600" : "text-yellow-600";
-  return <span className={`font-medium ${cls}`}>{v}</span>;
-}
 function formatToday() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+function parseDDMMYYYY(s: string): Date | null {
+  const [dd, mm, yyyy] = s.split("/").map((n) => Number(n));
+  if (!dd || !mm || !yyyy) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function dateToSlot(d: Date): SlotDateTime {
+  const startH = d.getHours();
+  const startM = d.getMinutes();
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startH, startM + 60);
+  return {
+    dia: pad2(d.getDate()),
+    mes: pad2(d.getMonth() + 1),
+    año: String(d.getFullYear()),
+    horaInicio: pad2(startH),
+    minutoInicio: pad2(startM),
+    horaFin: pad2(end.getHours()),
+    minutoFin: pad2(end.getMinutes()),
+  };
+}
+
+function estadoClass(v: Row["estado"]) {
+  return v === "Aprobada" ? "text-green-600" : v === "Anulada" ? "text-red-600" : "text-yellow-600";
+}
+
+function nfd(s: string) {
+  return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+function normTipoToCheck(t: string): ("Mantenimiento" | "Instalacion")[] {
+  const s = nfd(t);
+  const arr: ("Mantenimiento" | "Instalacion")[] = [];
+  if (s.includes("mantenimiento")) arr.push("Mantenimiento");
+  if (s.includes("instal")) arr.push("Instalacion");
+  return arr;
+}
+
+function tiposToLabel(tipos: ("Mantenimiento" | "Instalacion")[]) {
+  const labels = tipos.map((t) => (t === "Instalacion" ? "Instalación" : "Mantenimiento"));
+  return labels.join(" / ");
+}
+
 export default function ServiceRequestsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(MOCK);
-
   const [openCreate, setOpenCreate] = useState(false);
   const [tipos, setTipos] = useState<string[]>([]);
   const [servicio, setServicio] = useState("");
@@ -63,26 +109,23 @@ export default function ServiceRequestsPage() {
   const [direccion, setDireccion] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<Record<string, string | null>>({});
+  const [openAppointment, setOpenAppointment] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<SlotDateTime | null>(null);
+  const [openView, setOpenView] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [currentRow, setCurrentRow] = useState<Row | null>(null);
 
   const columns: Column<Row>[] = [
-    { key: "id", header: "Id" },
-    {
-      key: "descripcion",
-      header: "Descripcion",
-      render: (r) => (
-        <div className="max-w-[280px] line-clamp-3 [text-wrap:balance] break-words [hyphens:auto]">
-          {r.descripcion}
-        </div>
-      ),
-    },
-    { key: "tipo", header: `Tipo de\n      servicio` },
-    { key: "fecha", header: `Fecha \n      creacion` },
-    { key: "estado", header: "Estado", render: (r) => <EstadoPill v={r.estado} /> },
+    { key: "id", header: "ID" },
+    { key: "cliente", header: "Cliente" },
+    { key: "descripcion", header: "Descripción", render: (r) => <div className="max-w-[420px] line-clamp-2 [text-wrap:balance] break-words [hyphens:auto]">{r.descripcion}</div> },
+    { key: "servicio", header: "Servicio" },
+    { key: "estado", header: "Estado", render: (r) => <span className={`font-medium ${estadoClass(r.estado)}`}>{r.estado}</span> },
   ];
 
   function downloadReport() {
-    const headers = ["Id", "Descripcion", "Tipo de servicio", "Fecha creacion", "Estado", "Monto"];
-    const lines = rows.map((r) => [r.id, r.descripcion, r.tipo, r.fecha, r.estado, r.monto ?? ""].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    const headers = ["Id", "Cliente", "Descripción", "Servicio", "Estado"];
+    const lines = rows.map((r) => [r.id, r.cliente, r.descripcion, r.servicio, r.estado].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     const csv = [headers.join(","), ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -93,46 +136,6 @@ export default function ServiceRequestsPage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }
-
-  async function setDate(row: Row) {
-    const { value, isConfirmed } = await Swal.fire({
-      title: `Fecha para #${row.id}`,
-      input: "text",
-      inputLabel: "Usa el formato DD/MM/AAAA",
-      inputValue: row.fecha,
-      inputAttributes: { placeholder: "DD/MM/AAAA" },
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      reverseButtons: true,
-      preConfirm: (val) => {
-        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val || "")) Swal.showValidationMessage("Formato inválido. Usa DD/MM/AAAA.");
-        return val;
-      },
-    });
-    if (!isConfirmed || !value) return;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, fecha: value } : r)));
-  }
-
-  async function setAmount(row: Row) {
-    const { value, isConfirmed } = await Swal.fire({
-      title: `Monto (COP) para #${row.id}`,
-      input: "number",
-      inputValue: row.monto ?? undefined,
-      inputAttributes: { min: "0", step: "1" },
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      reverseButtons: true,
-      preConfirm: (val) => {
-        const num = Number(val);
-        if (!isFinite(num) || num < 0) Swal.showValidationMessage("Monto inválido.");
-        return Math.round(num);
-      },
-    });
-    if (!isConfirmed || value == null) return;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, monto: Number(value) } : r)));
   }
 
   async function cancelRow(row: Row) {
@@ -153,13 +156,79 @@ export default function ServiceRequestsPage() {
     await Swal.fire({ icon: "success", title: "Anulada", text: "La solicitud fue anulada correctamente.", timer: 1600, showConfirmButton: false });
   }
 
-  function printRow() {
-    window.print();
+  function printRequest(row: Row) {
+    const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Solicitud #${row.id}</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans"; margin: 24px; }
+  .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+  .h { font-size: 20px; font-weight: 700; margin: 0 0 12px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .item { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+  .label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 4px; }
+  .val { font-size: 14px; color: #111827; }
+  .desc { white-space: pre-wrap; }
+  .footer { margin-top: 16px; font-size: 12px; color: #6b7280; }
+  @media print {
+    @page { size: A4; margin: 16mm; }
+    body { margin: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="h">Solicitud #${row.id}</div>
+    <div class="grid">
+      <div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div>
+      <div class="item"><div class="label">Fecha</div><div class="val">${row.fecha}</div></div>
+      <div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div>
+      <div class="item"><div class="label">Servicio</div><div class="val">${row.servicio}</div></div>
+      <div class="item" style="grid-column: 1 / -1;"><div class="label">Dirección</div><div class="val">${row.direccion}</div></div>
+    </div>
+    <div class="item" style="margin-top:12px;">
+      <div class="label">Tipo de servicio</div>
+      <div class="val">${row.tipo || "—"}</div>
+    </div>
+    <div class="item" style="margin-top:12px;">
+      <div class="label">Descripción</div>
+      <div class="val desc">${row.descripcion || "—"}</div>
+    </div>
+    <div class="footer">Código: SRV-${String(row.id).padStart(6, "0")}</div>
+  </div>
+</body>
+</html>`;
+
+    const iframe: HTMLIFrameElement = document.createElement("iframe");
+    Object.assign(iframe.style, {
+      position: "fixed",
+      right: "0",
+      bottom: "0",
+      width: "0",
+      height: "0",
+      border: "0",
+    });
+
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 100);
+      }, 50);
+    };
+
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
   }
 
   function toggleTipo(t: string) {
     setTipos((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   }
+
   function validateCreate() {
     const e: Record<string, string | null> = {};
     e.tipos = tipos.length ? null : "Selecciona al menos un tipo.";
@@ -170,25 +239,67 @@ export default function ServiceRequestsPage() {
     setErr(e);
     return Object.values(e).every((x) => !x);
   }
+
   async function handleCreateSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validateCreate()) return;
     setSaving(true);
     setRows((prev) => {
       const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
+      const tipoLabel = tipos.length ? tiposToLabel(tipos as any) : (servicio ? servicio : "—");
       const nuevo: Row = {
         id: nextId,
         descripcion: descripcion.trim(),
-        tipo: servicio || (tipos.length ? tipos.join(" / ") : "—"),
+        tipo: tipoLabel,
+        servicio: servicio || (tipos[0] ?? "—"),
+        cliente: cliente || "Cliente Demo",
+        direccion: direccion.trim() || "—",
         fecha: formatToday(),
         estado: "Pendiente",
       };
-      return [nuevo, ...prev];
+      return [...prev,nuevo];
     });
     setSaving(false);
     setOpenCreate(false);
-    setTipos([]); setServicio(""); setDescripcion(""); setCliente(""); setDireccion(""); setErr({});
+    setTipos([]);
+    setServicio("");
+    setDescripcion("");
+    setCliente("");
+    setDireccion("");
+    setErr({});
     await Swal.fire({ icon: "success", title: "Creada", text: "La solicitud fue registrada.", timer: 1400, showConfirmButton: false });
+  }
+
+  function openAppointmentModal(row: Row) {
+    const d = parseDDMMYYYY(row.fecha) ?? new Date();
+    setSelectedSlot(dateToSlot(d));
+    setOpenAppointment(true);
+  }
+
+  function openQuotePlaceholder(row: Row) {
+    Swal.fire({
+      icon: "info",
+      title: "Formulario de cotización",
+      html: `
+        <div class="text-left">
+          <p class="mb-2"><strong>Solicitud:</strong> #${row.id} — ${row.descripcion}</p>
+          <p class="mb-2"><strong>Cliente:</strong> ${row.cliente}</p>
+          <p class="mb-4"><strong>Servicio:</strong> ${row.servicio}</p>
+          <p class="text-gray-700">El formulario de cotización estará disponible próximamente.</p>
+        </div>
+      `,
+      confirmButtonText: "Entendido",
+    });
+  }
+
+  function rowToRequestData(r: Row) {
+    return {
+      tipos: normTipoToCheck(r.tipo),
+      servicio: r.servicio || "",
+      descripcion: r.descripcion || "",
+      cliente: r.cliente || "",
+      direccion: r.direccion || "",
+    };
   }
 
   return (
@@ -199,7 +310,7 @@ export default function ServiceRequestsPage() {
             data={rows}
             columns={columns}
             pageSize={5}
-            searchableKeys={["id", "descripcion", "tipo", "estado", "fecha"]}
+            searchableKeys={["id", "cliente", "descripcion", "servicio", "estado"]}
             rightActions={
               <button
                 onClick={downloadReport}
@@ -210,24 +321,46 @@ export default function ServiceRequestsPage() {
             }
             onCreate={() => setOpenCreate(true)}
             createButtonText="Crear Solicitud"
-            onView={(r) => router.push(`/dashboard/requests/${r.id}`)}
-            onEdit={(r) => router.push(`/dashboard/requests/${r.id}/edit`)}
+            onView={(r) => {
+              setCurrentRow(r);
+              setOpenView(true);
+            }}
+            onEdit={(r) => {
+              setCurrentRow(r);
+              setOpenEdit(true);
+            }}
             renderExtraActions={(row) => (
               <>
-                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Calendario" onClick={() => setDate(row)}>
+                <button
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                  title="Programar"
+                  onClick={() => openAppointmentModal(row)}
+                >
                   <img src={ICONS.calendar} className="h-4 w-4" />
                 </button>
-                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Valor" onClick={() => setAmount(row)}>
+                <button
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                  title="Cotizar"
+                  onClick={() => openQuotePlaceholder(row)}
+                >
                   <img src={ICONS.money} className="h-4 w-4" />
                 </button>
-                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Anular" onClick={() => cancelRow(row)}>
+                <button
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                  title="Anular"
+                  onClick={() => cancelRow(row)}
+                >
                   <img src={ICONS.cancel} className="h-4 w-4" />
                 </button>
               </>
             )}
             tailHeader="Imprimir"
-            renderTail={() => (
-              <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Imprimir" onClick={printRow}>
+            renderTail={(row) => (
+              <button
+                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                title="Imprimir"
+                onClick={() => printRequest(row)}
+              >
                 <img src={ICONS.print} className="h-4 w-4 mx-auto" />
               </button>
             )}
@@ -263,17 +396,16 @@ export default function ServiceRequestsPage() {
                 <div className="text-sm text-gray-800 mb-2">Tipo de servicio</div>
                 <div className="flex items-center gap-6">
                   <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-                    <input type="checkbox" checked={tipos.includes("Mantenimiento")} onChange={() => toggleTipo("Mantenimiento")} className="h-4 w-4 rounded border-gray-300" />
+                    <input type="checkbox" checked={tipos.includes("Mantenimiento")} onChange={() => setTipos((p) => (p.includes("Mantenimiento") ? p.filter((x) => x !== "Mantenimiento") : [...p, "Mantenimiento"]))} className="h-4 w-4 rounded border-gray-300" />
                     Mantenimiento
                   </label>
                   <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-                    <input type="checkbox" checked={tipos.includes("Instalacion")} onChange={() => toggleTipo("Instalacion")} className="h-4 w-4 rounded border-gray-300" />
+                    <input type="checkbox" checked={tipos.includes("Instalacion")} onChange={() => setTipos((p) => (p.includes("Instalacion") ? p.filter((x) => x !== "Instalacion") : [...p, "Instalacion"]))} className="h-4 w-4 rounded border-gray-300" />
                     Instalacion
                   </label>
                 </div>
                 {err.tipos && <p className="mt-1 text-xs text-red-600">{err.tipos}</p>}
               </div>
-
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Servicio</label>
                 <div className="relative">
@@ -291,7 +423,6 @@ export default function ServiceRequestsPage() {
                 </div>
                 {err.servicio && <p className="mt-1 text-xs text-red-600">{err.servicio}</p>}
               </div>
-
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Descripción</label>
                 <textarea
@@ -303,7 +434,6 @@ export default function ServiceRequestsPage() {
                 />
                 {err.descripcion && <p className="mt-1 text-xs text-red-600">{err.descripcion}</p>}
               </div>
-
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Cliente</label>
                 <div className="relative">
@@ -321,7 +451,6 @@ export default function ServiceRequestsPage() {
                 </div>
                 {err.cliente && <p className="mt-1 text-xs text-red-600">{err.cliente}</p>}
               </div>
-
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Dirección</label>
                 <input
@@ -335,6 +464,55 @@ export default function ServiceRequestsPage() {
             </form>
           </Modal>
         </div>
+
+        {openAppointment && selectedSlot && (
+          <CreateAppointmentModal
+            isOpen={openAppointment}
+            onClose={() => setOpenAppointment(false)}
+            onSave={() => setOpenAppointment(false)}
+            selectedDateTime={selectedSlot}
+          />
+        )}
+
+        {openView && currentRow && (
+          <ViewRequestModal
+            isOpen={openView}
+            onClose={() => setOpenView(false)}
+            data={{
+              ...rowToRequestData(currentRow),
+              codigo: `SRV-${String(currentRow.id).padStart(6, "0")}`,
+              estado: currentRow.estado,
+              fecha: currentRow.fecha,
+            }}
+          />
+        )}
+
+        {openEdit && currentRow && (
+          <EditRequestModal
+            isOpen={openEdit}
+            onClose={() => setOpenEdit(false)}
+            initial={rowToRequestData(currentRow)}
+            servicios={SERVICIOS}
+            clientes={CLIENTES}
+            onSave={async (payload) => {
+              setRows((prev) =>
+                prev.map((r) =>
+                  r.id === currentRow!.id
+                    ? {
+                        ...r,
+                        descripcion: payload.descripcion,
+                        tipo: tiposToLabel(payload.tipos as any),
+                        servicio: payload.servicio,
+                        cliente: payload.cliente,
+                        direccion: payload.direccion,
+                      }
+                    : r
+                )
+              );
+              await Swal.fire({ icon: "success", title: "Actualizada", text: "La solicitud fue actualizada.", timer: 1400, showConfirmButton: false });
+            }}
+          />
+        )}
       </main>
     </RequireAuth>
   );
