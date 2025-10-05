@@ -130,20 +130,6 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             ))}
           </select>
         </div>
-
-        {/* Cliente */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Cliente
-          </label>
-          <input
-            type="text"
-            value={values.cliente}
-            onChange={(e) => updateField("cliente", e.target.value)}
-            placeholder="Buscar por cliente..."
-            className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
       </div>
     </div>
   );
