@@ -91,6 +91,14 @@ function formatCOP(n?: number) {
   return n == null ? "—" : n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 }
 
+type Errors = Partial<{
+  cotizacionId: string;
+  tipo: string;
+  servicios: string;
+  materiales: string;
+  files: string;
+}>;
+
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -111,6 +119,16 @@ export default function OrderCreatePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+
+  const [errors, setErrors] = useState<Errors>({});
+  const summaryRef = useRef<HTMLDivElement>(null);
+
+  const inputBase = "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm";
+  const selectBase = `${inputBase} appearance-none pr-8`;
+  const selectWrap = "relative";
+  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2";
+  const errorText = "mt-1 text-xs text-red-600";
+  const errorRing = "border-red-500 ring-1 ring-red-500";
 
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
@@ -149,6 +167,7 @@ export default function OrderCreatePage() {
     setMateriales(mats);
     setServSel("");
     setServQty(1);
+    setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
   }, [cotizacionSel]);
 
   const subtotalServicios = useMemo(() => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [servicios]);
@@ -196,6 +215,7 @@ export default function OrderCreatePage() {
     setServicios((prev) => [...prev, { id: uid(), nombre: rec.nombre, cantidad: servQty, precio: rec.precio }]);
     setServSel("");
     setServQty(1);
+    setErrors((prev) => ({ ...prev, servicios: undefined }));
   }
   function addMaterialRow() {
     const first = MATERIALES_DATA[0];
@@ -218,22 +238,82 @@ export default function OrderCreatePage() {
       return Array.from(map.values());
     });
   }
+
   function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const fs = Array.from(e.target.files || []);
     if (!fs.length) return;
-    dedupeAppend(fs);
+
+    const MAX_FILES = 12;
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const accepteds: File[] = [];
+    const rejected: string[] = [];
+
+    fs.forEach((f) => {
+      const isImg = f.type.startsWith("image/");
+      const okSize = f.size <= MAX_SIZE;
+      if (isImg && okSize) accepteds.push(f);
+      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
+    });
+
+    const totalCount = accepteds.length + files.length;
+    if (totalCount > MAX_FILES) {
+      const allowed = Math.max(0, MAX_FILES - files.length);
+      if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
+      setErrors((prev) => ({
+        ...prev,
+        files: `Máximo ${MAX_FILES} imágenes. ${rejected.length ? `Rechazadas: ${rejected.join(", ")}` : ""}`.trim(),
+      }));
+    } else {
+      dedupeAppend(accepteds);
+      setErrors((prev) => ({
+        ...prev,
+        files: rejected.length ? `Rechazadas: ${rejected.join(", ")}` : undefined,
+      }));
+    }
+
     e.currentTarget.value = "";
   }
+
   function removeFile(file: File) {
     setFiles((prev) => prev.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)));
   }
 
+  function validateForm(): Errors {
+    const errs: Errors = {};
+    if (!cotizacionSel) errs.cotizacionId = "Selecciona una cotización.";
+    if (!tipo) errs.tipo = "Selecciona el tipo de servicio.";
+    if (servicios.length === 0) errs.servicios = "Debes añadir al menos un servicio.";
+    const badQtySvc = servicios.some((s) => !s.cantidad || s.cantidad < 1);
+    const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
+    if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
+    if (badQtyMat) errs.materiales = "Corrige cantidades de materiales.";
+    return errs;
+  }
+
+  function focusFirstError(er: Errors) {
+    const order = ["cotizacion", "tipo", "servicios", "materiales", "files"];
+    const id = order.find((k) => (er as any)[k === "cotizacion" ? "cotizacionId" : (k as keyof Errors)]);
+    if (!id) return;
+    const el = document.getElementById(`field-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      (el as HTMLElement).focus?.();
+    } else {
+      summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!cotizacionSel || !tipo || servicios.length === 0) return;
+    const er = validateForm();
+    setErrors(er);
+    if (Object.keys(er).length > 0) {
+      focusFirstError(er);
+      return;
+    }
     const payload = {
       cotizacionId,
-      cliente: cotizacionSel.cliente,
+      cliente: cotizacionSel!.cliente,
       tipo: tipo as RowTipo,
       monto: totalPagar,
       descripcion,
@@ -244,11 +324,6 @@ export default function OrderCreatePage() {
     router.push(url);
   }
 
-  const inputBase = "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm";
-  const selectBase = `${inputBase} appearance-none pr-8`;
-  const selectWrap = "relative";
-  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2";
-
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100 min-h-screen">
@@ -257,16 +332,40 @@ export default function OrderCreatePage() {
             <h1 className="text-xl font-semibold text-gray-900">Crear orden de servicio</h1>
           </div>
 
+          {Object.keys(errors).length > 0 && (
+            <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+              <strong className="block mb-1">Hay errores en el formulario:</strong>
+              <ul className="list-disc pl-5 space-y-1">
+                {errors.cotizacionId && <li>{errors.cotizacionId}</li>}
+                {errors.tipo && <li>{errors.tipo}</li>}
+                {errors.servicios && <li>{errors.servicios}</li>}
+                {errors.materiales && <li>{errors.materiales}</li>}
+                {errors.files && <li>{errors.files}</li>}
+              </ul>
+            </div>
+          )}
+
           <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
             <div className="space-y-6">
               <section className="rounded-xl border bg-gray-50">
                 <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Cotización</header>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                   <div className="md:col-span-12">
-                    <label className="block text-xs text-gray-700 mb-1">Seleccionar cotización</label>
+                    <label htmlFor="field-cotizacion" className="block text-xs text-gray-700 mb-1">
+                      Seleccionar cotización
+                    </label>
                     <div className="flex gap-2">
                       <div className={`${selectWrap} flex-1`}>
-                        <select value={cotizacionId} onChange={(e) => setCotizacionId(e.target.value)} className={selectBase}>
+                        <select
+                          id="field-cotizacion"
+                          value={cotizacionId}
+                          onChange={(e) => {
+                            setCotizacionId(e.target.value);
+                            setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
+                          }}
+                          className={`${selectBase} ${errors.cotizacionId ? errorRing : ""}`}
+                          aria-invalid={!!errors.cotizacionId}
+                        >
                           <option value="">Elige una cotización</option>
                           {cotizacionesData.map((c) => (
                             <option key={c.id} value={c.id}>
@@ -284,6 +383,7 @@ export default function OrderCreatePage() {
                         Nueva cotización
                       </button>
                     </div>
+                    {errors.cotizacionId && <p className={errorText}>{errors.cotizacionId}</p>}
                   </div>
 
                   {cotizacionSel && (
@@ -308,9 +408,9 @@ export default function OrderCreatePage() {
               <section className="rounded-xl border bg-gray-50">
                 <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-6">
-                    <label className="block text-xs text-gray-700 mb-1">Tipo de servicio</label>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="md:col-span-6" id="field-tipo">
+                    <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
+                    <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
                       {TIPOS.map((t) => (
                         <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
                           <input
@@ -321,6 +421,7 @@ export default function OrderCreatePage() {
                             onChange={(e) => {
                               const v = e.target.value as RowTipo;
                               setTipo(v);
+                              setErrors((prev) => ({ ...prev, tipo: undefined }));
                               if (servSel) setServSel("");
                             }}
                             className="h-4 w-4"
@@ -329,14 +430,23 @@ export default function OrderCreatePage() {
                         </label>
                       ))}
                     </div>
+                    {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
                   </div>
 
                   <div className="md:col-span-6"></div>
 
                   <div className="md:col-span-6">
-                    <label className="block text-xs text-gray-700 mb-1">Servicio</label>
+                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">
+                      Servicio
+                    </label>
                     <div className={selectWrap}>
-                      <select value={servSel} onChange={(e) => setServSel(e.target.value)} className={selectBase} disabled={!tipo}>
+                      <select
+                        id="field-servicio"
+                        value={servSel}
+                        onChange={(e) => setServSel(e.target.value)}
+                        className={selectBase}
+                        disabled={!tipo}
+                      >
                         <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
                         {serviciosFiltrados.map((s) => (
                           <option key={s.id} value={s.nombre}>
@@ -349,8 +459,11 @@ export default function OrderCreatePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-700 mb-1">Cantidad</label>
+                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-serv-cant">
+                      Cantidad
+                    </label>
                     <input
+                      id="field-serv-cant"
                       type="number"
                       min={1}
                       value={servQty}
@@ -379,11 +492,19 @@ export default function OrderCreatePage() {
                   </div>
 
                   <div className="md:col-span-12">
-                    <label className="block text-xs text-gray-700 mb-1">Descripción</label>
-                    <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
+                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
+                      Descripción
+                    </label>
+                    <textarea
+                      id="field-desc"
+                      value={descripcion}
+                      onChange={(e) => setDescripcion(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                    />
                   </div>
 
-                  <div className="md:col-span-12">
+                  <div className="md:col-span-12" id="field-files">
                     <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
@@ -392,6 +513,7 @@ export default function OrderCreatePage() {
                       <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
                       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                     </div>
+                    {errors.files && <p className={errorText}>{errors.files}</p>}
 
                     <div className="mt-2 flex flex-wrap gap-2">
                       {files.length === 0 ? (
@@ -409,9 +531,9 @@ export default function OrderCreatePage() {
                     </div>
                   </div>
 
-                  <div className="md:col-span-12">
+                  <div className="md:col-span-12" id="field-servicios">
                     <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
-                    <div className="rounded-md border overflow-hidden bg-white">
+                    <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
                         <thead className="bg-gray-100">
                           <tr>
@@ -432,6 +554,7 @@ export default function OrderCreatePage() {
                                     const n = e.target.value;
                                     const p = precioServicioPorNombre(n);
                                     patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
+                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
                                   }}
                                   className="w-full h-8 rounded-md border px-2"
                                 >
@@ -447,14 +570,24 @@ export default function OrderCreatePage() {
                                   type="number"
                                   min={1}
                                   value={it.cantidad}
-                                  onChange={(e) => patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios)}
+                                  onChange={(e) => {
+                                    patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
+                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                  }}
                                   className="h-8 w-16 rounded-md border px-2 text-right"
                                 />
                               </td>
                               <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
                               <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
                               <td className="px-2 py-1 text-right">
-                                <button type="button" onClick={() => removeItem(it.id, servicios, setServicios)} className="h-8 px-2 rounded-md hover:bg-gray-200">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    removeItem(it.id, servicios, setServicios);
+                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                  }}
+                                  className="h-8 px-2 rounded-md hover:bg-gray-200"
+                                >
                                   ✕
                                 </button>
                               </td>
@@ -470,16 +603,17 @@ export default function OrderCreatePage() {
                         </tbody>
                       </table>
                     </div>
+                    {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                   </div>
                 </div>
               </section>
             </div>
 
             <aside className="space-y-6">
-              <section className="rounded-xl border bg-gray-50">
+              <section className="rounded-xl border bg-gray-50" id="field-materiales">
                 <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
                 <div className="p-4">
-                  <div className="rounded-md border overflow-hidden bg-white">
+                  <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
                     <table className="w-full text-xs md:text-sm">
                       <thead className="bg-gray-100">
                         <tr>
@@ -498,6 +632,7 @@ export default function OrderCreatePage() {
                                 onChange={(e) => {
                                   const n = e.target.value;
                                   patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
+                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
                                 }}
                                 className="w-full h-8 rounded-md border px-2"
                               >
@@ -513,13 +648,23 @@ export default function OrderCreatePage() {
                                 type="number"
                                 min={1}
                                 value={m.cantidad}
-                                onChange={(e) => patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales)}
+                                onChange={(e) => {
+                                  patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
+                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                }}
                                 className="h-8 w-16 rounded-md border px-2 text-right"
                               />
                             </td>
                             <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
                             <td className="px-2 py-1 text-right">
-                              <button type="button" onClick={() => removeItem(m.id, materiales, setMateriales)} className="h-8 px-2 rounded-md hover:bg-gray-200">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  removeItem(m.id, materiales, setMateriales);
+                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                }}
+                                className="h-8 px-2 rounded-md hover:bg-gray-200"
+                              >
                                 ✕
                               </button>
                             </td>
@@ -535,6 +680,7 @@ export default function OrderCreatePage() {
                       </tbody>
                     </table>
                   </div>
+                  {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
                   <div className="mt-3 flex gap-2">
                     <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
                       Añadir material

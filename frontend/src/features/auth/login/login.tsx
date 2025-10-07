@@ -6,6 +6,11 @@ import { useAuth } from "@/features/auth/authcontext";
 import { routes } from "@/shared/routes";
 import { useLoader, LoaderGate } from "@/shared/components/loader";
 import AuthShell from "@/features/auth/layout/Authshell";
+import {
+  RecoverEmailModal,
+  OtpModal,
+  ChangePasswordModal,
+} from "@/features/auth/Components/PasswordModals";
 
 type FormState = { email: string; password: string; remember: boolean };
 type Props = { embedded?: boolean };
@@ -20,6 +25,11 @@ export default function LoginPage({ embedded = false }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ email: "", password: "", remember: false });
   const next = search.get("next") || "/dashboard";
+
+  const [openEmail, setOpenEmail] = useState(false);
+  const [openOtp, setOpenOtp] = useState(false);
+  const [openChange, setOpenChange] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +50,21 @@ export default function LoginPage({ embedded = false }: Props) {
       hideLoader();
       setLoading(false);
     }
+  }
+
+  async function handleSendCode(email: string) {
+    setResetEmail(email);
+    setOpenEmail(false);
+    setOpenOtp(true);
+  }
+
+  async function handleVerifyCode(_code: string) {
+    setOpenOtp(false);
+    setOpenChange(true);
+  }
+
+  async function handleSavePassword(_pwd: string) {
+    setOpenChange(false);
   }
 
   const formEl = (
@@ -99,7 +124,9 @@ export default function LoginPage({ embedded = false }: Props) {
           {loading ? "Accediendo..." : "Acceder"}
         </button>
         <div className="mt-2 flex items-center justify-between text-xs text-red-600">
-          <Link href="#">¿Olvidaste tu contraseña?</Link>
+          <button type="button" className="underline" onClick={() => setOpenEmail(true)}>
+            ¿Olvidaste tu contraseña?
+          </button>
           <Link href={routes.auth.register}>Crear Cuenta</Link>
         </div>
         <div className="pt-2 text-xs text-gray-500">
@@ -108,6 +135,27 @@ export default function LoginPage({ embedded = false }: Props) {
           </p>
         </div>
       </form>
+
+      <RecoverEmailModal
+        open={openEmail}
+        onClose={() => setOpenEmail(false)}
+        onSubmit={handleSendCode}
+      />
+
+      <OtpModal
+        open={openOtp}
+        email={resetEmail}
+        onClose={() => setOpenOtp(false)}
+        onBack={() => { setOpenOtp(false); setOpenEmail(true); }}
+        onVerify={handleVerifyCode}
+        onResend={() => handleSendCode(resetEmail)}
+      />
+
+      <ChangePasswordModal
+        open={openChange}
+        onClose={() => setOpenChange(false)}
+        onSave={handleSavePassword}
+      />
     </>
   );
 
