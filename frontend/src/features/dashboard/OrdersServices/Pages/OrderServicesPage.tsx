@@ -2,19 +2,35 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+import Modal from "@/features/dashboard/components/Modal";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
   cancel: "/icons/minus-circle.svg",
   print: "/icons/printer.svg",
+  report: "/icons/alert-triangle.svg",
 };
 
 type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { nombre: string; cantidad: number; precio?: number };
+
+type WarrantyInfo = {
+  label: string;
+  reportedBy: string;
+  reportedAtISO: string;
+  details?: string;
+  notifiedClient?: boolean;
+};
+
+type Estado =
+  | "Aprobada"
+  | "Anulada"
+  | "Pendiente"
+  | "Garantia"
+  | "GarantiaReportada";
 
 type Row = {
   id: number;
@@ -22,11 +38,12 @@ type Row = {
   tecnico: string;
   tipo: RowTipo | string;
   fechaProgramada: string;
-  estado: "Aprobada" | "Anulada" | "Pendiente" | "Garantia";
+  estado: Estado;
   monto?: number;
   descripcion?: string;
   servicios?: LineItem[];
   materiales?: LineItem[];
+  garantia?: WarrantyInfo;
 };
 
 function formatCOP(n?: number) {
@@ -106,14 +123,81 @@ const MOCK: Row[] = [
     tecnico: "Julián Ortiz",
     tipo: "Instalación",
     fechaProgramada: "15/06/2025",
-    estado: "Garantia",
+    estado: "GarantiaReportada",
     monto: 0,
     descripcion: "Reinstalación de switch en garantía.",
     servicios: [{ nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 }],
     materiales: [{ nombre: "Switch 8p", cantidad: 1, precio: 220000 }],
+    garantia: {
+      label: "Daño dentro de garantía",
+      reportedBy: "Laura",
+      reportedAtISO: new Date("2025-10-08").toISOString(),
+      details: "Switch dejó de encender al día 20.",
+      notifiedClient: true,
+    },
   },
   {
     id: 6,
+    cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
+    estado: "Garantia",
+    monto: 520000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
+  },
+  {
+    id: 7,
+    cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
+    estado: "Aprobada",
+    monto: 520000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
+  },
+  {
+    id: 8,
+    cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
+    estado: "Aprobada",
+    monto: 520000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
+  },
+  {
+    id: 9,
+    cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
+    estado: "Aprobada",
+    monto: 520000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
+  },
+  {
+    id: 10,
     cliente: "Universidad Central",
     tecnico: "Sofía Herrera",
     tipo: "Mantenimiento",
@@ -129,9 +213,26 @@ const MOCK: Row[] = [
   },
 ];
 
-function EstadoPill({ v }: { v: Row["estado"] }) {
-  const STYLE: Record<Row["estado"], string> = { Aprobada: "text-green-700", Pendiente: "text-yellow-700", Anulada: "text-red-700", Garantia: "text-blue-700" };
-  return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STYLE[v]}`}>{v}</span>;
+function EstadoPill({ v }: { v: Estado }) {
+  const STYLE: Record<Estado, string> = {
+    Aprobada: "text-green-700",
+    Pendiente: "text-yellow-700",
+    Anulada: "text-red-700",
+    Garantia: "text-blue-700",
+    GarantiaReportada: "text-blue-700",
+  };
+  return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STYLE[v]}`}>{v === "GarantiaReportada" ? "Garantía (reportada)" : v}</span>;
+}
+
+function GarantiaChip({ info }: { info?: WarrantyInfo }) {
+  const fecha = info?.reportedAtISO ? new Date(info.reportedAtISO).toLocaleDateString("es-CO") : "";
+  const title = info ? `Motivo: ${info.label} · Reportado por: ${info.reportedBy} · ${fecha}` : "Garantía";
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-[#5C0F0F] bg-[#5C0F0F]/10" title={title}>
+      <img src={ICONS.report} className="h-3.5 w-3.5" />
+      Garantía
+    </span>
+  );
 }
 
 export default function OrdersServicesIndexPage() {
@@ -139,6 +240,12 @@ export default function OrdersServicesIndexPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<Row[]>(MOCK);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportRowId, setReportRowId] = useState<number | null>(null);
+  const [motivo, setMotivo] = useState("Daño dentro de garantía");
+  const [detalle, setDetalle] = useState("");
+  const [notifyClient, setNotifyClient] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState("");
 
   useEffect(() => {
     const no = searchParams.get("newOrder");
@@ -163,7 +270,6 @@ export default function OrdersServicesIndexPage() {
         };
         return [...prev, newRow];
       });
-      Swal.fire({ icon: "success", title: "Orden creada", timer: 1400, showConfirmButton: false });
     } catch {}
     window.history.replaceState(null, "", pathname);
   }, [searchParams, pathname]);
@@ -190,47 +296,26 @@ export default function OrdersServicesIndexPage() {
             : r
         )
       );
-      Swal.fire({ icon: "success", title: "Orden actualizada", timer: 1400, showConfirmButton: false });
     } catch {}
     window.history.replaceState(null, "", pathname);
   }, [searchParams, pathname]);
 
-  async function setDate(row: Row) {
-    const { value, isConfirmed } = await Swal.fire({
-      title: `Fecha para #${row.id}`,
-      input: "text",
-      inputLabel: "DD/MM/AAAA",
-      inputValue: row.fechaProgramada,
-      inputAttributes: { placeholder: "DD/MM/AAAA" },
-      showCancelButton: true,
-      confirmButtonText: "Guardar",
-      cancelButtonText: "Cancelar",
-      reverseButtons: true,
-      preConfirm: (val) => {
-        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val || "")) Swal.showValidationMessage("Formato inválido");
-        return val;
-      },
-    });
-    if (!isConfirmed || !value) return;
+  function setDate(row: Row) {
+    const value = prompt(`Fecha para #${row.id} (DD/MM/AAAA)`, row.fechaProgramada || "");
+    if (!value) return;
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return;
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, fechaProgramada: value } : r)));
   }
 
-  async function cancelRow(row: Row) {
+  function cancelRow(row: Row) {
     if (row.estado === "Anulada") return;
-    const res = await Swal.fire({
-      title: "¿Anular orden?",
-      text: `Se anulará la orden #${row.id}.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Sí, anular",
-      cancelButtonText: "Cancelar",
-      confirmButtonColor: "#d33",
-      reverseButtons: true,
-      focusCancel: true,
-    });
-    if (!res.isConfirmed) return;
+    const ok = confirm(`¿Anular la orden #${row.id}?`);
+    if (!ok) return;
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Anulada" } : r)));
-    await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1500, showConfirmButton: false });
+  }
+
+  function markWarranty(row: Row) {
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Garantia", garantia: undefined } : r)));
   }
 
   function printRow(row: Row) {
@@ -302,11 +387,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     <div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div>
     <div class="item"><div class="label">Técnico</div><div class="val">${row.tecnico}</div></div>
     <div class="item" style="grid-column:1 / -1"><div class="label">Tipo</div><div class="val">${row.tipo}</div></div>
-    ${
-      row.descripcion
-        ? `<div class="item" style="grid-column:1 / -1"><div class="label">Descripción</div><div class="val">${row.descripcion}</div></div>`
-        : ""
-    }
+    ${row.descripcion ? `<div class="item" style="grid-column:1 / -1"><div class="label">Descripción</div><div class="val">${row.descripcion}</div></div>` : ""}
   </div>
   <div class="section">
     <div class="label" style="margin-bottom:6px">Servicios</div>
@@ -357,13 +438,63 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     router.push(`/dashboard/orders-services/edit?returnTo=${encodeURIComponent(pathname)}&id=${r.id}&order=${payload}`);
   }
 
+  function openReport(row: Row) {
+    setReportRowId(row.id);
+    setMotivo(row.garantia?.label || "Daño dentro de garantía");
+    setDetalle(row.garantia?.details || "");
+    setNotifyClient(!!row.garantia?.notifiedClient);
+    setErrorDetalle("");
+    setReportOpen(true);
+  }
+
+  function submitReport() {
+    if (!detalle.trim()) {
+      setErrorDetalle("Describe qué pasó");
+      return;
+    }
+    if (reportRowId == null) return;
+    const now = new Date().toISOString();
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === reportRowId
+          ? {
+              ...r,
+              estado: "GarantiaReportada",
+              descripcion: `[Garantía - ${motivo}${notifyClient ? ", notificar cliente" : ""}] ${detalle}${r.descripcion ? " | " + r.descripcion : ""}`,
+              garantia: {
+                label: motivo,
+                reportedBy: r.tecnico,
+                reportedAtISO: r.garantia?.reportedAtISO || now,
+                details: detalle,
+                notifiedClient: notifyClient,
+              },
+            }
+          : r
+      )
+    );
+    setReportOpen(false);
+  }
+
   const columns: Column<Row>[] = [
     { key: "id", header: "ID", render: (r) => <span>#{r.id}</span> },
     { key: "cliente", header: "Cliente" },
     { key: "tecnico", header: "Técnico" },
     { key: "tipo", header: "Tipo" },
     { key: "fechaProgramada", header: "Fecha" },
-    { key: "estado", header: "Estado", render: (r) => <EstadoPill v={r.estado} /> },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (r) => {
+        if (r.estado === "GarantiaReportada") return <GarantiaChip info={r.garantia} />;
+        if (r.estado === "Garantia")
+          return (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-blue-700 bg-blue-50" title="Garantía sin reporte">
+              Garantía
+            </span>
+          );
+        return <EstadoPill v={r.estado} />;
+      },
+    },
     { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
   ];
 
@@ -380,24 +511,22 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       { header: "Técnico", key: "tecnico", width: 22 },
       { header: "Tipo", key: "tipo", width: 16 },
       { header: "Fecha programada", key: "fechaProgramada", width: 18 },
-      { header: "Estado", key: "estado", width: 14 },
+      { header: "Estado", key: "estado", width: 18 },
       { header: "Monto (COP)", key: "monto", width: 16, style: { numFmt: '"$" #,##0' } },
     ];
     const header = ws.getRow(1);
     (header as any).font = { bold: true };
     (header as any).alignment = { vertical: "middle" };
     (header as any).height = 18;
-    if (typeof (header as any).eachCell === "function") {
-      (header as any).eachCell((cell: any) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFE5E7EB" } },
-          left: { style: "thin", color: { argb: "FFE5E7EB" } },
-          bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
-          right: { style: "thin", color: { argb: "FFE5E7EB" } },
-        };
-      });
-    }
+    (header as any).eachCell?.((cell: any) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE5E7EB" } },
+        left: { style: "thin", color: { argb: "FFE5E7EB" } },
+        bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+        right: { style: "thin", color: { argb: "FFE5E7EB" } },
+      };
+    });
     rows.forEach((r) => {
       const row = ws.addRow({
         id: r.id,
@@ -405,19 +534,17 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
         tecnico: r.tecnico,
         tipo: r.tipo,
         fechaProgramada: r.fechaProgramada,
-        estado: r.estado,
+        estado: r.estado === "GarantiaReportada" ? "Garantía (reportada)" : r.estado,
         monto: r.monto ?? 0,
       });
-      if (typeof (row as any).eachCell === "function") {
-        (row as any).eachCell((cell: any) => {
-          cell.border = {
-            top: { style: "thin", color: { argb: "FFF1F5F9" } },
-            left: { style: "thin", color: { argb: "FFF1F5F9" } },
-            bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
-            right: { style: "thin", color: { argb: "FFF1F5F9" } },
-          };
-        });
-      }
+      (row as any).eachCell?.((cell: any) => {
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFF1F5F9" } },
+          left: { style: "thin", color: { argb: "FFF1F5F9" } },
+          bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
+          right: { style: "thin", color: { argb: "FFF1F5F9" } },
+        };
+      });
     });
     ws.autoFilter = { from: "A1", to: "G1" };
     ws.columns.forEach((col: any) => {
@@ -463,23 +590,118 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
             onEdit={(r) => openEdit(r)}
             renderExtraActions={(row) => (
               <>
-                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Calendario" onClick={() => setDate(row)}>
+                <button
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                  title="Calendario"
+                  onClick={() => setDate(row)}
+                >
                   <img src={ICONS.calendar} className="h-4 w-4" />
                 </button>
-                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Anular" onClick={() => cancelRow(row)}>
+
+                {row.estado !== "Garantia" && row.estado !== "GarantiaReportada" && (
+                  <button
+                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                    title="Marcar garantía (sin reporte)"
+                    onClick={() => markWarranty(row)}
+                  >
+                    <img src={ICONS.report} className="h-4 w-4" />
+                  </button>
+                )}
+
+                {row.estado === "Garantia" && (
+                  <button
+                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                    title="Completar reporte de garantía"
+                    onClick={() => openReport(row)}
+                  >
+                    <img src={ICONS.report} className="h-4 w-4" />
+                  </button>
+                )}
+
+                {row.estado === "GarantiaReportada" && (
+                  <button
+                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                    title="Editar reporte de garantía"
+                    onClick={() => openReport(row)}
+                  >
+                    <img src={ICONS.report} className="h-4 w-4" />
+                  </button>
+                )}
+
+                <button
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                  title="Anular"
+                  onClick={() => cancelRow(row)}
+                >
                   <img src={ICONS.cancel} className="h-4 w-4" />
                 </button>
               </>
             )}
             tailHeader="Imprimir"
             renderTail={(row) => (
-              <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Imprimir" onClick={() => printRow(row)}>
+              <button
+                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                title="Imprimir"
+                onClick={() => printRow(row)}
+              >
                 <img src={ICONS.print} className="h-4 w-4 mx-auto" />
               </button>
             )}
             mobileCardView
           />
         </div>
+
+        <Modal
+          title={reportRowId ? `Reportar garantía #${reportRowId}` : "Reportar garantía"}
+          isOpen={reportOpen}
+          onClose={() => setReportOpen(false)}
+          widthClass="max-w-lg"
+          footer={
+            <>
+              <button onClick={() => setReportOpen(false)} className="cursor-pointer inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={submitReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#B20000] px-4 text-sm font-semibold text-white hover:opacity-90">
+                Guardar reporte
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">Motivo</label>
+              <select value={motivo} onChange={(e) => setMotivo(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B20000]/30">
+                <option>Daño dentro de garantía</option>
+                <option>Producto defectuoso</option>
+                <option>Instalación con falla</option>
+                <option>Otro</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">¿Qué pasó?</label>
+              <textarea
+                value={detalle}
+                onChange={(e) => {
+                  setDetalle(e.target.value);
+                  if (e.target.value.trim()) setErrorDetalle("");
+                }}
+                rows={4}
+                placeholder="Describe brevemente el caso de garantía"
+                className={`w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ${
+                  errorDetalle ? "border-red-500 focus:ring-red-200" : "focus:ring-[#B20000]/30"
+                }`}
+              />
+              {errorDetalle ? <p className="text-xs text-red-600 mt-1">{errorDetalle}</p> : null}
+            </div>
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={notifyClient} onChange={(e) => setNotifyClient(e.target.checked)} />
+              <span className="text-sm">Notificar al cliente</span>
+            </label>
+            <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+              Al guardar, la orden pasará a <b>Garantía (reportada)</b> y en la tabla verás el chip con tooltip del motivo y responsable.
+            </div>
+          </div>
+        </Modal>
       </main>
     </RequireAuth>
   );

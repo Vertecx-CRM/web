@@ -99,6 +99,49 @@ type Errors = Partial<{
   files: string;
 }>;
 
+function useDesktopQuery() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const fn = () => setIsDesktop(mq.matches);
+    fn();
+    mq.addEventListener?.("change", fn);
+    return () => mq.removeEventListener?.("change", fn);
+  }, []);
+  return isDesktop;
+}
+
+function useSidebarWidth(selector = "#app-sidebar") {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return;
+    const update = () => setW(el.offsetWidth || 0);
+    update();
+    let ro: ResizeObserver | null = null;
+    if ("ResizeObserver" in window) {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    }
+    const mo = new MutationObserver(update);
+    mo.observe(el, { attributes: true, attributeFilter: ["class", "style"] });
+    window.addEventListener("resize", update);
+    return () => {
+      if (ro) {
+        try {
+          ro.disconnect();
+        } catch {}
+        ro = null;
+      }
+      mo.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [selector]);
+  return w;
+}
+
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -122,6 +165,9 @@ export default function OrderCreatePage() {
 
   const [errors, setErrors] = useState<Errors>({});
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  const isDesktop = useDesktopQuery();
+  const sidebarW = useSidebarWidth("#app-sidebar");
 
   const inputBase = "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm";
   const selectBase = `${inputBase} appearance-none pr-8`;
@@ -242,36 +288,35 @@ export default function OrderCreatePage() {
   function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const fs = Array.from(e.target.files || []);
     if (!fs.length) return;
-
     const MAX_FILES = 12;
     const MAX_SIZE = 5 * 1024 * 1024;
     const accepteds: File[] = [];
     const rejected: string[] = [];
-
     fs.forEach((f) => {
       const isImg = f.type.startsWith("image/");
       const okSize = f.size <= MAX_SIZE;
       if (isImg && okSize) accepteds.push(f);
       else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
     });
-
     const totalCount = accepteds.length + files.length;
     if (totalCount > MAX_FILES) {
       const allowed = Math.max(0, MAX_FILES - files.length);
       if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
       setErrors((prev) => ({
         ...prev,
-        files: `Máximo ${MAX_FILES} imágenes. ${rejected.length ? `Rechazadas: ${rejected.join(", ")}` : ""}`.trim(),
+        files: `Máximo ${MAX_FILES} imágenes. ${rechazadasTxt(rejected)}`.trim(),
       }));
     } else {
       dedupeAppend(accepteds);
       setErrors((prev) => ({
         ...prev,
-        files: rejected.length ? `Rechazadas: ${rejected.join(", ")}` : undefined,
+        files: rechazadasTxt(rejected) || undefined,
       }));
     }
-
     e.currentTarget.value = "";
+  }
+  function rechazadasTxt(r: string[]) {
+    return r.length ? `Rechazadas: ${r.join(", ")}` : "";
   }
 
   function removeFile(file: File) {
@@ -326,240 +371,321 @@ export default function OrderCreatePage() {
 
   return (
     <RequireAuth>
-      <main className="flex-1 flex flex-col bg-gray-100 min-h-screen">
-        <div className="px-4 pt-4 pb-6 max-w-7xl w-full mx-auto flex-1">
-          <div className="mb-4">
-            <h1 className="text-xl font-semibold text-gray-900">Crear orden de servicio</h1>
-          </div>
-
-          {Object.keys(errors).length > 0 && (
-            <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
-              <strong className="block mb-1">Hay errores en el formulario:</strong>
-              <ul className="list-disc pl-5 space-y-1">
-                {errors.cotizacionId && <li>{errors.cotizacionId}</li>}
-                {errors.tipo && <li>{errors.tipo}</li>}
-                {errors.servicios && <li>{errors.servicios}</li>}
-                {errors.materiales && <li>{errors.materiales}</li>}
-                {errors.files && <li>{errors.files}</li>}
-              </ul>
+      <div className="relative" style={{ paddingLeft: isDesktop ? sidebarW : 0 }}>
+        <main
+          className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-100 pb-32 md:pb-48"
+          style={{ scrollbarGutter: "stable both-edges" }}
+        >
+          <div className="px-4 pt-4 max-w-7xl w-full mx-auto">
+            <div className="mb-4">
+              <h1 className="text-xl font-semibold text-gray-900">Crear orden de servicio</h1>
             </div>
-          )}
 
-          <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <div className="space-y-6">
-              <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Cotización</header>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-12">
-                    <label htmlFor="field-cotizacion" className="block text-xs text-gray-700 mb-1">
-                      Seleccionar cotización
-                    </label>
-                    <div className="flex gap-2">
-                      <div className={`${selectWrap} flex-1`}>
-                        <select
-                          id="field-cotizacion"
-                          value={cotizacionId}
-                          onChange={(e) => {
-                            setCotizacionId(e.target.value);
-                            setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
-                          }}
-                          className={`${selectBase} ${errors.cotizacionId ? errorRing : ""}`}
-                          aria-invalid={!!errors.cotizacionId}
+            {Object.keys(errors).length > 0 && (
+              <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+                <strong className="block mb-1">Hay errores en el formulario:</strong>
+                <ul className="list-disc pl-5 space-y-1">
+                  {errors.cotizacionId && <li>{errors.cotizacionId}</li>}
+                  {errors.tipo && <li>{errors.tipo}</li>}
+                  {errors.servicios && <li>{errors.servicios}</li>}
+                  {errors.materiales && <li>{errors.materiales}</li>}
+                  {errors.files && <li>{errors.files}</li>}
+                </ul>
+              </div>
+            )}
+
+            <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              <div className="space-y-6">
+                <section className="rounded-xl border bg-gray-50">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Cotización</header>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-12">
+                      <label htmlFor="field-cotizacion" className="block text-xs text-gray-700 mb-1">
+                        Seleccionar cotización
+                      </label>
+                      <div className="flex gap-2">
+                        <div className={`${selectWrap} flex-1`}>
+                          <select
+                            id="field-cotizacion"
+                            value={cotizacionId}
+                            onChange={(e) => {
+                              setCotizacionId(e.target.value);
+                              setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
+                            }}
+                            className={`${selectBase} ${errors.cotizacionId ? errorRing : ""}`}
+                            aria-invalid={!!errors.cotizacionId}
+                          >
+                            <option value="">Elige una cotización</option>
+                            {cotizacionesData.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.id} — {c.titulo} ({c.cliente})
+                              </option>
+                            ))}
+                          </select>
+                          <span className={chevron}>▾</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => router.push("/dashboard/quotes/new")}
+                          className="h-10 rounded-md border border-[#CC0000] text-[#CC0000] px-3 text-sm hover:bg-red-50 whitespace-nowrap"
                         >
-                          <option value="">Elige una cotización</option>
-                          {cotizacionesData.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.id} — {c.titulo} ({c.cliente})
+                          Nueva cotización
+                        </button>
+                      </div>
+                      {errors.cotizacionId && <p className={errorText}>{errors.cotizacionId}</p>}
+                    </div>
+
+                    {cotizacionSel && (
+                      <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
+                        <div className="bg-white rounded-md border p-2">
+                          <div className="font-medium">Cliente</div>
+                          <div>{cotizacionSel.cliente}</div>
+                        </div>
+                        <div className="bg-white rounded-md border p-2">
+                          <div className="font-medium">Cotización</div>
+                          <div>{cotizacionSel.id}</div>
+                        </div>
+                        <div className="bg-white rounded-md border p-2">
+                          <div className="font-medium">Contacto</div>
+                          <div>{cotizacionSel.contacto || "—"}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-gray-50">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-6" id="field-tipo">
+                      <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
+                      <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
+                        {TIPOS.map((t) => (
+                          <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
+                            <input
+                              type="radio"
+                              name="tipo-servicio"
+                              value={t}
+                              checked={tipo === t}
+                              onChange={(e) => {
+                                const v = e.target.value as RowTipo;
+                                setTipo(v);
+                                setErrors((prev) => ({ ...prev, tipo: undefined }));
+                                if (servSel) setServSel("");
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">{t}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
+                    </div>
+
+                    <div className="md:col-span-6"></div>
+
+                    <div className="md:col-span-6">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">
+                        Servicio
+                      </label>
+                      <div className={selectWrap}>
+                        <select
+                          id="field-servicio"
+                          value={servSel}
+                          onChange={(e) => setServSel(e.target.value)}
+                          className={selectBase}
+                          disabled={!tipo}
+                        >
+                          <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
+                          {serviciosFiltrados.map((s) => (
+                            <option key={s.id} value={s.nombre}>
+                              {s.nombre}
                             </option>
                           ))}
                         </select>
                         <span className={chevron}>▾</span>
                       </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-serv-cant">
+                        Cantidad
+                      </label>
+                      <input
+                        id="field-serv-cant"
+                        type="number"
+                        min={1}
+                        value={servQty}
+                        onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))}
+                        className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
+                        disabled={!servSel}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
+                      <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
+                        {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 flex items-end">
                       <button
                         type="button"
-                        onClick={() => router.push("/dashboard/quotes/new")}
-                        className="h-10 rounded-md border border-[#CC0000] text-[#CC0000] px-3 text-sm hover:bg-red-50 whitespace-nowrap"
+                        onClick={addServicioDesdeFormulario}
+                        disabled={!tipo || !servSel}
+                        className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50"
                       >
-                        Nueva cotización
+                        Añadir
                       </button>
                     </div>
-                    {errors.cotizacionId && <p className={errorText}>{errors.cotizacionId}</p>}
-                  </div>
 
-                  {cotizacionSel && (
-                    <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
-                      <div className="bg-white rounded-md border p-2">
-                        <div className="font-medium">Cliente</div>
-                        <div>{cotizacionSel.cliente}</div>
+                    <div className="md:col-span-12">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
+                        Descripción
+                      </label>
+                      <textarea
+                        id="field-desc"
+                        value={descripcion}
+                        onChange={(e) => setDescripcion(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div className="md:col-span-12" id="field-files">
+                      <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
+                          Subir imágenes
+                        </button>
+                        <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
+                        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                       </div>
-                      <div className="bg-white rounded-md border p-2">
-                        <div className="font-medium">Cotización</div>
-                        <div>{cotizacionSel.id}</div>
+                      {errors.files && <p className={errorText}>{errors.files}</p>}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {files.length === 0 ? (
+                          <p className="text-xs text-gray-500">No hay imágenes aún.</p>
+                        ) : (
+                          files.map((f, idx) => (
+                            <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
+                              <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
+                                ✕
+                              </button>
+                            </div>
+                          ))
+                        )}
                       </div>
-                      <div className="bg-white rounded-md border p-2">
-                        <div className="font-medium">Contacto</div>
-                        <div>{cotizacionSel.contacto || "—"}</div>
+                    </div>
+
+                    <div className="md:col-span-12" id="field-servicios">
+                      <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
+                      <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+                        <table className="w-full text-xs md:text-sm">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-2 py-2 text-left">Servicio</th>
+                              <th className="px-2 py-2 text-right w-16">Cant.</th>
+                              <th className="px-2 py-2 text-right w-28">Precio</th>
+                              <th className="px-2 py-2 text-right w-28">Importe</th>
+                              <th className="px-2 py-2 w-8"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {servicios.map((it) => (
+                              <tr key={it.id} className="border-t">
+                                <td className="px-2 py-1">
+                                  <select
+                                    value={it.nombre}
+                                    onChange={(e) => {
+                                      const n = e.target.value;
+                                      const p = precioServicioPorNombre(n);
+                                      patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="w-full h-8 rounded-md border px-2"
+                                  >
+                                    {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
+                                      <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
+                                        {opt.nombre}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={it.cantidad}
+                                    onChange={(e) => {
+                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-8 w-16 rounded-md border px-2 text-right"
+                                  />
+                                </td>
+                                <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
+                                <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
+                                <td className="px-2 py-1 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeItem(it.id, servicios, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-8 px-2 rounded-md hover:bg-gray-200"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {servicios.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
+                                  Aún no has añadido servicios.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-6" id="field-tipo">
-                    <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
-                    <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
-                      {TIPOS.map((t) => (
-                        <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
-                          <input
-                            type="radio"
-                            name="tipo-servicio"
-                            value={t}
-                            checked={tipo === t}
-                            onChange={(e) => {
-                              const v = e.target.value as RowTipo;
-                              setTipo(v);
-                              setErrors((prev) => ({ ...prev, tipo: undefined }));
-                              if (servSel) setServSel("");
-                            }}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm">{t}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
-                  </div>
-
-                  <div className="md:col-span-6"></div>
-
-                  <div className="md:col-span-6">
-                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">
-                      Servicio
-                    </label>
-                    <div className={selectWrap}>
-                      <select
-                        id="field-servicio"
-                        value={servSel}
-                        onChange={(e) => setServSel(e.target.value)}
-                        className={selectBase}
-                        disabled={!tipo}
-                      >
-                        <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
-                        {serviciosFiltrados.map((s) => (
-                          <option key={s.id} value={s.nombre}>
-                            {s.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      <span className={chevron}>▾</span>
+                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
                   </div>
+                </section>
+              </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-serv-cant">
-                      Cantidad
-                    </label>
-                    <input
-                      id="field-serv-cant"
-                      type="number"
-                      min={1}
-                      value={servQty}
-                      onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))}
-                      className={inputBase}
-                      disabled={!servSel}
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
-                    <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
-                      {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2 flex items-end">
-                    <button
-                      type="button"
-                      onClick={addServicioDesdeFormulario}
-                      disabled={!tipo || !servSel}
-                      className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50"
-                    >
-                      Añadir
-                    </button>
-                  </div>
-
-                  <div className="md:col-span-12">
-                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
-                      Descripción
-                    </label>
-                    <textarea
-                      id="field-desc"
-                      value={descripcion}
-                      onChange={(e) => setDescripcion(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-                    />
-                  </div>
-
-                  <div className="md:col-span-12" id="field-files">
-                    <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
-                        Subir imágenes
-                      </button>
-                      <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
-                      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
-                    </div>
-                    {errors.files && <p className={errorText}>{errors.files}</p>}
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {files.length === 0 ? (
-                        <p className="text-xs text-gray-500">No hay imágenes aún.</p>
-                      ) : (
-                        files.map((f, idx) => (
-                          <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
-                            <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
-                            <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
-                              ✕
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-12" id="field-servicios">
-                    <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
-                    <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+              <aside className="space-y-6">
+                <section className="rounded-xl border bg-gray-50" id="field-materiales">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
+                  <div className="p-4">
+                    <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
                         <thead className="bg-gray-100">
                           <tr>
-                            <th className="px-2 py-2 text-left">Servicio</th>
+                            <th className="px-2 py-2 text-left">Material</th>
                             <th className="px-2 py-2 text-right w-16">Cant.</th>
                             <th className="px-2 py-2 text-right w-28">Precio</th>
-                            <th className="px-2 py-2 text-right w-28">Importe</th>
                             <th className="px-2 py-2 w-8"></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {servicios.map((it) => (
-                            <tr key={it.id} className="border-t">
+                          {materiales.map((m) => (
+                            <tr key={m.id} className="border-t">
                               <td className="px-2 py-1">
                                 <select
-                                  value={it.nombre}
+                                  value={m.nombre}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    const p = precioServicioPorNombre(n);
-                                    patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
-                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
                                   className="w-full h-8 rounded-md border px-2"
                                 >
-                                  {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
-                                    <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
+                                  {MATERIALES_DATA.map((opt) => (
+                                    <option key={opt.id} value={opt.nombre}>
                                       {opt.nombre}
                                     </option>
                                   ))}
@@ -569,22 +695,21 @@ export default function OrderCreatePage() {
                                 <input
                                   type="number"
                                   min={1}
-                                  value={it.cantidad}
+                                  value={m.cantidad}
                                   onChange={(e) => {
-                                    patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
-                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
                                   className="h-8 w-16 rounded-md border px-2 text-right"
                                 />
                               </td>
-                              <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
-                              <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
+                              <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
                               <td className="px-2 py-1 text-right">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    removeItem(it.id, servicios, setServicios);
-                                    setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    removeItem(m.id, materiales, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
                                   className="h-8 px-2 rounded-md hover:bg-gray-200"
                                 >
@@ -593,168 +718,92 @@ export default function OrderCreatePage() {
                               </td>
                             </tr>
                           ))}
-                          {servicios.length === 0 && (
+                          {materiales.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
-                                Aún no has añadido servicios.
+                              <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
+                                Aún no has añadido materiales.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
-                    {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <aside className="space-y-6">
-              <section className="rounded-xl border bg-gray-50" id="field-materiales">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
-                <div className="p-4">
-                  <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
-                    <table className="w-full text-xs md:text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-2 py-2 text-left">Material</th>
-                          <th className="px-2 py-2 text-right w-16">Cant.</th>
-                          <th className="px-2 py-2 text-right w-28">Precio</th>
-                          <th className="px-2 py-2 w-8"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {materiales.map((m) => (
-                          <tr key={m.id} className="border-t">
-                            <td className="px-2 py-1">
-                              <select
-                                value={m.nombre}
-                                onChange={(e) => {
-                                  const n = e.target.value;
-                                  patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
-                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                }}
-                                className="w-full h-8 rounded-md border px-2"
-                              >
-                                {MATERIALES_DATA.map((opt) => (
-                                  <option key={opt.id} value={opt.nombre}>
-                                    {opt.nombre}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              <input
-                                type="number"
-                                min={1}
-                                value={m.cantidad}
-                                onChange={(e) => {
-                                  patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
-                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                }}
-                                className="h-8 w-16 rounded-md border px-2 text-right"
-                              />
-                            </td>
-                            <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
-                            <td className="px-2 py-1 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  removeItem(m.id, materiales, setMateriales);
-                                  setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                }}
-                                className="h-8 px-2 rounded-md hover:bg-gray-200"
-                              >
-                                ✕
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {materiales.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
-                              Aún no has añadido materiales.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
-                      Añadir material
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
-                <div className="p-4 space-y-3 text-sm">
-                  <div>
-                    <div className="flex justify-between">
-                      <span>Subtotal servicios</span>
-                      <span>{formatCOP(subtotalServicios)}</span>
+                    {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
+                        Añadir material
+                      </button>
                     </div>
-                    {serviciosMiniLista.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                        {serviciosMiniLista.map((s) => (
-                          <li key={s.nombre} className="flex justify-between">
-                            <span className="truncate">
-                              {s.nombre} × {s.cantidad}
-                            </span>
-                            <span>{formatCOP(s.total)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
                   </div>
-                  <div>
-                    <div className="flex justify-between">
-                      <span>Subtotal materiales</span>
-                      <span>{formatCOP(subtotalMateriales)}</span>
-                    </div>
-                    {materialesMiniLista.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                        {materialesMiniLista.map((m) => (
-                          <li key={m.nombre} className="flex justify-between">
-                            <span className="truncate">
-                              {m.nombre} × {m.cantidad}
-                            </span>
-                            <span>{formatCOP(m.total)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="flex justify-between">
-                    <span>IVA ({IVA_PCT}%)</span>
-                    <span>{formatCOP(impuestos)}</span>
-                  </div>
-                  <div className="flex justify-between text-base font-semibold pt-2 border-t">
-                    <span>Total</span>
-                    <span>{formatCOP(totalPagar)}</span>
-                  </div>
-                </div>
-              </section>
-            </aside>
+                </section>
 
-            <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
-              <button
-                type="button"
-                onClick={() => router.push(returnTo)}
-                className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
-                Guardar
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
+                <section className="rounded-xl border bg-gray-50">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
+                  <div className="p-4 space-y-3 text-sm">
+                    <div>
+                      <div className="flex justify-between">
+                        <span>Subtotal servicios</span>
+                        <span>{formatCOP(subtotalServicios)}</span>
+                      </div>
+                      {serviciosMiniLista.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                          {serviciosMiniLista.map((s) => (
+                            <li key={s.nombre} className="flex justify-between">
+                              <span className="truncate">
+                                {s.nombre} × {s.cantidad}
+                              </span>
+                              <span>{formatCOP(s.total)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex justify-between">
+                        <span>Subtotal materiales</span>
+                        <span>{formatCOP(subtotalMateriales)}</span>
+                      </div>
+                      {materialesMiniLista.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                          {materialesMiniLista.map((m) => (
+                            <li key={m.nombre} className="flex justify-between">
+                              <span className="truncate">
+                                {m.nombre} × {m.cantidad}
+                              </span>
+                              <span>{formatCOP(m.total)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="flex justify-between">
+                      <span>IVA ({IVA_PCT}%)</span>
+                      <span>{formatCOP(impuestos)}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-semibold pt-2 border-t">
+                      <span>Total</span>
+                      <span>{formatCOP(totalPagar)}</span>
+                    </div>
+                  </div>
+                </section>
+              </aside>
+
+              <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => router.push(returnTo)}
+                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </main>
+      </div>
     </RequireAuth>
   );
 }
