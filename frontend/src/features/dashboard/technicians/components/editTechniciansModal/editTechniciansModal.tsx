@@ -15,16 +15,17 @@ import {
   TechnicianErrors,
 } from "@/features/dashboard/technicians/validations/techniciansValidations";
 import { showWarning } from "@/shared/utils/notifications";
+import { Upload } from "lucide-react";
 
 type TechnicianField =
-  | "name"
-  | "lastName"
-  | "password"
-  | "confirmPassword"
   | "documentType"
   | "documentNumber"
+  | "name"
+  | "lastName"
   | "phone"
-  | "email";
+  | "email"
+  | "password"
+  | "confirmPassword";
 
 interface EditTechnicianModalProps {
   isOpen: boolean;
@@ -34,7 +35,15 @@ interface EditTechnicianModalProps {
   onUpdate: (data: EditTechnicianData) => void;
 }
 
-const documentTypes: DocumentType[] = ["CC", "CE", "TI", "Pasaporte", "PPT", "PEP", "Otro"];
+const documentTypes: DocumentType[] = [
+  "CC",
+  "CE",
+  "TI",
+  "Pasaporte",
+  "PPT",
+  "PEP",
+  "Otro",
+];
 const states: TechnicianState[] = ["Activo", "Inactivo"];
 
 const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
@@ -54,13 +63,16 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   const [email, setEmail] = useState("");
   const [state, setState] = useState<TechnicianState>("Activo");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
+  const [previewImage, setPreviewImage] = useState<string | undefined>(
+    undefined
+  );
   const [mostrarContraseña, setMostrarContraseña] = useState(false);
-  const [mostrarConfirmarContraseña, setMostrarConfirmarContraseña] = useState(false);
-  const [errors, setErrors] = useState<TechnicianErrors>({});
+  const [mostrarConfirmarContraseña, setMostrarConfirmarContraseña] =
+    useState(false);
+  const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleCircleClick = () => fileInputRef.current?.click();
 
   const resetForm = () => {
     setName(technician.name);
@@ -77,6 +89,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     setMostrarContraseña(false);
     setMostrarConfirmarContraseña(false);
     setErrors({});
+    setImageError(null);
   };
 
   useEffect(() => {
@@ -87,12 +100,14 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     let value = rawValue;
     const hasDigits = /\d/.test(rawValue);
 
-    if (field === "name" || field === "lastName") value = rawValue.replace(/\d/g, "");
+    if (field === "name" || field === "lastName")
+      value = rawValue.replace(/\d/g, "");
     if (field === "phone") value = rawValue.replace(/\D/g, "");
     if (field === "documentNumber") {
-      if (documentType === "PPT" || documentType === "Pasaporte")
-        value = rawValue.replace(/[^a-zA-Z0-9]/g, "");
-      else value = rawValue.replace(/\D/g, "");
+      value =
+        documentType === "PPT" || documentType === "Pasaporte"
+          ? rawValue.replace(/[^a-zA-Z0-9]/g, "")
+          : rawValue.replace(/\D/g, "");
     }
 
     if (field === "documentType") {
@@ -105,43 +120,41 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
         { password, documentType: dt, excludeId: technician.id }
       );
       setErrors((prev) => ({ ...prev, documentNumber: numError }));
-      const docTypeError = validateTechnicianField(
-        "documentType",
-        dt,
-        technicians,
-        { password, documentType: dt, excludeId: technician.id }
-      );
-      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
       return;
     }
 
     switch (field) {
-      case "name": setName(value); break;
-      case "lastName": setLastName(value); break;
-      case "password": setPassword(value); break;
-      case "confirmPassword": setConfirmPassword(value); break;
-      case "documentNumber": setDocumentNumber(value); break;
-      case "phone": setPhone(value); break;
-      case "email": setEmail(value); break;
+      case "name":
+        setName(value);
+        break;
+      case "lastName":
+        setLastName(value);
+        break;
+      case "password":
+        setPassword(value);
+        break;
+      case "confirmPassword":
+        setConfirmPassword(value);
+        break;
+      case "documentNumber":
+        setDocumentNumber(value);
+        break;
+      case "phone":
+        setPhone(value);
+        break;
+      case "email":
+        setEmail(value);
+        break;
     }
 
-    const extra = {
-      password: field === "password" ? value : password,
-      documentType,
-      excludeId: technician.id,
-    };
-
-    const fieldError = validateTechnicianField(field, value, technicians, extra);
+    const extra = { password, documentType, excludeId: technician.id };
+    let fieldError = validateTechnicianField(field, value, technicians, extra);
 
     if ((field === "name" || field === "lastName") && hasDigits) {
-      setErrors((prev) => ({
-        ...prev,
-        [field]:
-          field === "name"
-            ? "El nombre no puede contener números"
-            : "El apellido no puede contener números",
-      }));
-      return;
+      fieldError =
+        field === "name"
+          ? "El nombre no puede contener números"
+          : "El apellido no puede contener números";
     }
 
     setErrors((prev) => ({ ...prev, [field]: fieldError }));
@@ -158,13 +171,32 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     }
   };
 
+  const validateImage = (file: File | null) => {
+    if (!file) return null;
+    if (!file.type.startsWith("image/"))
+      return "El archivo debe ser una imagen";
+    if (file.size > 2 * 1024 * 1024) return "La imagen no debe superar 2MB";
+    return null;
+  };
+
   const handleFileChange = (file: File | null) => {
+    if (file) {
+      const err = validateImage(file);
+      if (err) {
+        setImageError(err);
+        setImageFile(null);
+        setPreviewImage(undefined);
+        return;
+      }
+    }
+    setImageError(null);
     setImageFile(file);
     setPreviewImage(file ? URL.createObjectURL(file) : undefined);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     const updatedData: EditTechnicianData = {
       id: technician.id,
       name,
@@ -179,10 +211,14 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       image: imageFile ? URL.createObjectURL(imageFile) : previewImage,
     };
 
-    const formErrors = validateTechnicianForm(updatedData, technicians, technician.id);
+    const formErrors = validateTechnicianForm(
+      updatedData,
+      technicians,
+      technician.id
+    );
     setErrors(formErrors);
 
-    if (Object.keys(formErrors).length > 0) {
+    if (Object.keys(formErrors).length > 0 || imageError) {
       showWarning("Por favor completa los campos obligatorios correctamente");
       return;
     }
@@ -200,56 +236,54 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
         resetForm();
         onClose();
       }}
-      footer={null}
+      footer={
+        <div className="flex justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="edit-technician-form"
+            className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+          >
+            Guardar
+          </button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <form
+        id="edit-technician-form"
+        onSubmit={handleSubmit}
+        className="flex flex-col h-full"
+      >
         <div className="flex-1 grid grid-cols-2 gap-3 p-1 overflow-y-auto max-h-[calc(100vh-250px)]">
-          {/* Imagen */}
-          <div className="col-span-2 flex flex-col items-center mb-3">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-            />
-            <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
-              onClick={handleCircleClick}
-              style={{ borderColor: Colors.table.lines }}
-            >
-              {previewImage ? (
-                <img src={previewImage} alt="Técnico" className="w-full h-full object-cover rounded-full" />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              )}
-            </div>
-            {previewImage && (
-              <div className="flex flex-col items-center space-y-1">
-                <div className="text-xs text-green-600 font-medium">{imageFile?.name ?? "Imagen actual"}</div>
-                <button
-                  type="button"
-                  onClick={() => handleFileChange(null)}
-                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                  style={{ borderColor: Colors.states.nullable }}
-                >
-                  Eliminar imagen
-                </button>
-              </div>
-            )}
-            <div className="text-center text-xs text-gray-500 mt-1">
-              Haga clic en el círculo para {previewImage ? "cambiar" : "seleccionar"} la imagen
-            </div>
-          </div>
-
-          {/* Campos */}
-          {(["name","lastName","password","confirmPassword","documentType","documentNumber","phone","email"] as TechnicianField[]).map((field) => {
+          {(
+            [
+              "documentType",
+              "documentNumber",
+              "name",
+              "lastName",
+              "phone",
+              "email",
+              "password",
+              "confirmPassword",
+            ] as TechnicianField[]
+          ).map((field) => {
             const valueMap: Record<TechnicianField, string> = {
-              name, lastName, password, confirmPassword,
-              documentType, documentNumber, phone, email,
+              name,
+              lastName,
+              password,
+              confirmPassword,
+              documentType,
+              documentNumber,
+              phone,
+              email,
             };
+
             const typeMap: Record<TechnicianField, string> = {
               name: "text",
               lastName: "text",
@@ -260,25 +294,47 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
               phone: "text",
               email: "email",
             };
+
             const labelMap: Record<TechnicianField, string> = {
-              name: "Nombre", lastName: "Apellido", password: "Contraseña", confirmPassword: "Confirmar Contraseña",
-              documentType: "Tipo de Documento", documentNumber: "Número de Documento", phone: "Teléfono", email: "Correo electrónico",
+              documentType: "Tipo de Documento",
+              documentNumber: "Número de Documento",
+              name: "Nombre",
+              lastName: "Apellido",
+              phone: "Teléfono",
+              email: "Correo electrónico",
+              password: "Contraseña",
+              confirmPassword: "Confirmar contraseña",
             };
 
             return (
               <div key={field} className="relative">
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  {labelMap[field]} <span className="text-red-500">*</span>
+                <label
+                  className="block text-sm font-medium mb-1"
+                  style={{ color: Colors.texts.primary }}
+                >
+                  {labelMap[field]}{" "}
+                  {field !== "documentType" && (
+                    <span className="text-red-500">*</span>
+                  )}
                 </label>
                 {field === "documentType" ? (
                   <select
                     value={documentType}
-                    onChange={(e) => handleFieldChange("documentType", e.target.value)}
-                    onBlur={() => handleFieldChange("documentType", documentType)}
+                    onChange={(e) =>
+                      handleFieldChange("documentType", e.target.value)
+                    }
                     className="w-full px-2 py-1 border rounded-md"
-                    style={{ borderColor: errors.documentType ? "red" : Colors.table.lines }}
+                    style={{
+                      borderColor: errors.documentType
+                        ? "red"
+                        : Colors.table.lines,
+                    }}
                   >
-                    {documentTypes.map((doc) => <option key={doc} value={doc}>{doc}</option>)}
+                    {documentTypes.map((doc) => (
+                      <option key={doc} value={doc}>
+                        {doc}
+                      </option>
+                    ))}
                   </select>
                 ) : (
                   <div className="relative w-full">
@@ -286,11 +342,15 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
                       type={typeMap[field]}
                       value={valueMap[field]}
                       onChange={(e) => handleFieldChange(field, e.target.value)}
-                      onBlur={() => handleFieldChange(field, valueMap[field])}
                       className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 pr-10"
-                      style={{ borderColor: errors[field] ? "red" : Colors.table.lines }}
+                      style={{
+                        borderColor: errors[field]
+                          ? "red"
+                          : Colors.table.lines,
+                      }}
                     />
-                    {(field === "password" || field === "confirmPassword") && (
+                    {(field === "password" ||
+                      field === "confirmPassword") && (
                       <button
                         type="button"
                         onClick={() =>
@@ -302,23 +362,52 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
                       >
                         {field === "password"
                           ? mostrarContraseña
-                            ? <img src="/icons/Eye.svg" alt="Ocultar contraseña" className="h-4 w-4" />
-                            : <img src="/icons/eye-off.svg" alt="Mostrar contraseña" className="h-4 w-4" />
+                            ? (
+                              <img
+                                src="/icons/Eye.svg"
+                                alt="Ocultar contraseña"
+                                className="h-4 w-4"
+                              />
+                            )
+                            : (
+                              <img
+                                src="/icons/eye-off.svg"
+                                alt="Mostrar contraseña"
+                                className="h-4 w-4"
+                              />
+                            )
                           : mostrarConfirmarContraseña
-                            ? <img src="/icons/Eye.svg" alt="Ocultar confirmación" className="h-4 w-4" />
-                            : <img src="/icons/eye-off.svg" alt="Mostrar confirmación" className="h-4 w-4" />}
+                          ? (
+                            <img
+                              src="/icons/Eye.svg"
+                              alt="Ocultar confirmación"
+                              className="h-4 w-4"
+                            />
+                          )
+                          : (
+                            <img
+                              src="/icons/eye-off.svg"
+                              alt="Mostrar confirmación"
+                              className="h-4 w-4"
+                            />
+                          )}
                       </button>
                     )}
                   </div>
                 )}
-                {errors[field] && <span className="text-xs text-red-500">{errors[field]}</span>}
+                {errors[field] && (
+                  <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
+                )}
               </div>
             );
           })}
 
           {/* Estado */}
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Estado <span className="text-red-500">*</span>
             </label>
             <select
@@ -327,28 +416,58 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
               className="w-full px-2 py-1 border rounded-md"
               style={{ borderColor: Colors.table.lines }}
             >
-              {states.map((s) => <option key={s} value={s}>{s}</option>)}
+              {states.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
             </select>
           </div>
-        </div>
 
-        {/* Botones */}
-        <div className="col-span-2 flex justify-end space-x-2 pt-2 sticky bottom-0 bg-white">
-          <button
-            type="button"
-            onClick={() => { resetForm(); onClose(); }}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-            style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-md font-medium text-white text-sm"
-            style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
-          >
-            Guardar
-          </button>
+          {/* Imagen */}
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Imagen
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+              >
+                {previewImage ? (
+                  <img
+                    src={previewImage}
+                    alt="preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Upload size={16} />
+                )}
+              </div>
+              {previewImage && (
+                <button
+                  type="button"
+                  onClick={() => handleFileChange(null)}
+                  className="text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
+                >
+                  Eliminar
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            {imageError && (
+              <p className="mt-1 text-xs text-red-600">{imageError}</p>
+            )}
+          </div>
         </div>
       </form>
     </Modal>
