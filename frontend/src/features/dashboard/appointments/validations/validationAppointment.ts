@@ -1,11 +1,11 @@
 import { months } from "../mocks/mockAppointment";
-import { AppointmentErrors, AppointmentEvent, AppointmentFormData } from "../types/typeAppointment";
+import { AppointmentErrors, AppointmentEvent, AppointmentFormData, TipoCita } from "../types/typeAppointment";
 
 export const validateAppointmentField = (
   name: string,
   value: string,
   formData?: AppointmentFormData
-): string | undefined  => {
+): string | undefined => {
   const intVal = parseInt(value);
 
   switch (name) {
@@ -67,15 +67,36 @@ export const validateAppointmentField = (
       break;
 
     case "orden":
-      if (!value) {
-        return "Selecciona un número de orden";
-      }
       break;
 
     case "mes":
       if (!value || !months[intVal]) {
         return "Selecciona un mes válido";
       }
+      break;
+
+    case "tipoCita":
+      if (!value || !["solicitud", "ejecucion", "garantia"].includes(value)) {
+        return "Selecciona un tipo de cita válido";
+      }
+      break;
+
+    case 'nombreCliente':
+      if (!value?.trim()) return 'El nombre del cliente es obligatorio';
+      if (value.trim().length < 2) return 'El nombre debe tener al menos 2 caracteres';
+      break;
+
+    case 'direccion':
+      if (!value?.trim()) return 'La dirección es obligatoria';
+      if (value.trim().length < 5) return 'La dirección debe tener al menos 5 caracteres';
+      break;
+
+    case 'tipoServicioSolicitud':
+      if (!value) return 'El tipo de servicio es obligatorio';
+      break;
+
+    case 'tipoMantenimientoSolicitud':
+      if (!value) return 'El tipo de mantenimiento es obligatorio';
       break;
   }
 
@@ -84,6 +105,17 @@ export const validateAppointmentField = (
 
 export const validateAppointmentForm = (formData: AppointmentFormData | AppointmentEvent): AppointmentErrors => {
   const errors: AppointmentErrors = {};
+
+  // Validar tipo de cita
+  if (!formData.tipoCita || !["solicitud", "ejecucion", "garantia"].includes(formData.tipoCita)) {
+    errors.tipoCita = 'Selecciona un tipo de cita válido';
+  }
+
+  // Validar orden solo para ejecucion y garantia
+  if ((formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") && !formData.orden) {
+    errors.orden = 'Selecciona un número de orden';
+  }
+  // Para solicitud, la orden no es obligatoria
 
   if (!formData.horaInicio || parseInt(formData.horaInicio) < 0 || parseInt(formData.horaInicio) > 23) {
     errors.horaInicio = 'Hora inicio debe estar entre 0 y 23';
@@ -129,13 +161,9 @@ export const validateAppointmentForm = (formData: AppointmentFormData | Appointm
     errors.año = 'Año debe estar entre 2023 y 2030';
   }
 
-  if (!formData.orden) {
-    errors.orden = 'Selecciona un número de orden';
-  }
-
   if (formData.dia && formData.mes && formData.año) {
     const dia = parseInt(formData.dia);
-    const mes = parseInt(formData.mes); 
+    const mes = parseInt(formData.mes);
     const año = parseInt(formData.año);
 
     const fecha = new Date(año, mes - 1, dia);
@@ -166,9 +194,9 @@ export const getErrorMessages = (errors: AppointmentErrors): string[] => {
 
 // función para validar el rango de tiempo
 export const validateTimeRange = (
-  horaInicio: string, 
-  minutoInicio: string, 
-  horaFin: string, 
+  horaInicio: string,
+  minutoInicio: string,
+  horaFin: string,
   minutoFin: string
 ): string | null => {
   const startHour = parseInt(horaInicio);
@@ -194,12 +222,12 @@ export const validateTimeRange = (
 
 // Función para validar formulario completo (reemplaza la duplicada)
 export const validateCompleteAppointment = (
-  formData: AppointmentFormData, 
+  formData: AppointmentFormData,
   selectedTechnicians: any[]
 ): { isValid: boolean; errors: AppointmentErrors; technicianError: string | null } => {
   const errors = validateAppointmentForm(formData);
   const technicianError = validateTechnicians(selectedTechnicians);
-  
+
   // Validar rango de tiempo
   const timeRangeError = validateTimeRange(
     formData.horaInicio,
@@ -216,7 +244,6 @@ export const validateCompleteAppointment = (
   }
 
   const isValid = !hasValidationErrors(errors) && !technicianError && !timeRangeError;
-  
+
   return { isValid, errors, technicianError };
 };
-

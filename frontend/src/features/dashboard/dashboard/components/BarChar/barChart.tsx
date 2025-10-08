@@ -1,4 +1,3 @@
-// components/charts/CustomBarChart.tsx
 import React from "react";
 import {
   BarChart,
@@ -43,14 +42,10 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({
   data,
   xKey,
   bars,
-  width = 600,
-  height = 300,
 }) => {
   return (
-    <ResponsiveContainer>
+    <ResponsiveContainer width="100%" height="100%" >
       <BarChart
-        width={width}
-        height={height}
         data={data}
         margin={{
           top: 20,
@@ -70,14 +65,13 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({
         />
         <YAxis hide={true} />
         
-        {/* Tooltip personalizado */}
         <Tooltip content={<CustomTooltip />} />
 
         {bars.map((bar, index) => (
           <Bar
             key={index}
             dataKey={bar.dataKey}
-            name="Total" // Nombre fijo para que aparezca como "Total"
+            name="Total"
             radius={bar.radius || [0, 0, 0, 0]}
             stackId="a"
             fill={bar.color}
