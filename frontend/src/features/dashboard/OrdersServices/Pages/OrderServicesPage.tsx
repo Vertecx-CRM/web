@@ -233,47 +233,42 @@ export default function OrdersServicesIndexPage() {
     await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1500, showConfirmButton: false });
   }
 
-function printRow(row: Row) {
-  const IVA_PCT = 19;
-
-  const servicios = row.servicios ?? [];
-  const materiales = row.materiales ?? [];
-
-  const subServ = servicios.reduce((a, s) => a + (Number(s.cantidad) || 0) * (Number(s.precio) || 0), 0);
-  const subMat = materiales.reduce((a, m) => a + (Number(m.cantidad) || 0) * (Number(m.precio) || 0), 0);
-  const subtotal = subServ + subMat;
-  const iva = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
-  const total = Math.max(0, Math.round(subtotal + iva));
-
-  const serviciosRows =
-    servicios.length === 0
-      ? `<tr><td colspan="4" class="empty">—</td></tr>`
-      : servicios
-          .map(
-            (s) => `<tr>
+  function printRow(row: Row) {
+    const IVA_PCT = 19;
+    const servicios = row.servicios ?? [];
+    const materiales = row.materiales ?? [];
+    const subServ = servicios.reduce((a, s) => a + (Number(s.cantidad) || 0) * (Number(s.precio) || 0), 0);
+    const subMat = materiales.reduce((a, m) => a + (Number(m.cantidad) || 0) * (Number(m.precio) || 0), 0);
+    const subtotal = subServ + subMat;
+    const iva = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
+    const total = Math.max(0, Math.round(subtotal + iva));
+    const serviciosRows =
+      servicios.length === 0
+        ? `<tr><td colspan="4" class="empty">—</td></tr>`
+        : servicios
+            .map(
+              (s) => `<tr>
   <td>${s.nombre}</td>
   <td class="num">${s.cantidad}</td>
   <td class="num">${formatCOP(s.precio)}</td>
   <td class="num">${formatCOP((Number(s.cantidad) || 0) * (Number(s.precio) || 0))}</td>
 </tr>`
-          )
-          .join("");
-
-  const materialesRows =
-    materiales.length === 0
-      ? `<tr><td colspan="4" class="empty">—</td></tr>`
-      : materiales
-          .map(
-            (m) => `<tr>
+            )
+            .join("");
+    const materialesRows =
+      materiales.length === 0
+        ? `<tr><td colspan="4" class="empty">—</td></tr>`
+        : materiales
+            .map(
+              (m) => `<tr>
   <td>${m.nombre}</td>
   <td class="num">${m.cantidad}</td>
   <td class="num">${formatCOP(m.precio)}</td>
   <td class="num">${formatCOP((Number(m.cantidad) || 0) * (Number(m.precio) || 0))}</td>
 </tr>`
-          )
-          .join("");
-
-  const html = `<!doctype html><html lang="es"><head>
+            )
+            .join("");
+    const html = `<!doctype html><html lang="es"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Orden #${row.id}</title>
@@ -299,10 +294,8 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
 @media print{@page{size:A4;margin:16mm}body{margin:0}}
 </style>
 </head><body>
-
 <div class="card">
   <div class="h">Orden #${row.id}</div>
-
   <div class="grid">
     <div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div>
     <div class="item"><div class="label">Fecha</div><div class="val">${row.fechaProgramada}</div></div>
@@ -315,7 +308,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
         : ""
     }
   </div>
-
   <div class="section">
     <div class="label" style="margin-bottom:6px">Servicios</div>
     <table class="table">
@@ -323,7 +315,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       <tbody>${serviciosRows}</tbody>
     </table>
   </div>
-
   <div class="section">
     <div class="label" style="margin-bottom:6px">Materiales</div>
     <table class="table">
@@ -331,35 +322,31 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       <tbody>${materialesRows}</tbody>
     </table>
   </div>
-
   <div class="section">
     <div class="label" style="margin-bottom:6px">Totales</div>
     <div class="tot">
       <div class="row"><span>Subtotal servicios</span><span>${formatCOP(subServ)}</span></div>
       <div class="row"><span>Subtotal materiales</span><span>${formatCOP(subMat)}</span></div>
-      <div class="row"><span>IVA (${IVA_PCT}%)</span><span>${formatCOP(iva)}</span></div>
+      <div class="row"><span>IVA (19%)</span><span>${formatCOP(iva)}</span></div>
       <div class="row b"><span>Total</span><span>${formatCOP(total)}</span></div>
     </div>
   </div>
-
   <div class="footer">Código: OS-${String(row.id).padStart(6, "0")}</div>
 </div>
-
 </body></html>`;
-
-  const iframe: HTMLIFrameElement = document.createElement("iframe");
-  Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
-  iframe.onload = () => {
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 100);
-    }, 50);
-  };
-  iframe.srcdoc = html;
-  document.body.appendChild(iframe);
-}
-
+    const iframe: HTMLIFrameElement = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+    iframe.onload = () => {
+      setTimeout(() => {
+        const win = iframe.contentWindow;
+        win?.focus?.();
+        win?.print?.();
+        setTimeout(() => document.body.removeChild(iframe), 100);
+      }, 50);
+    };
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+  }
 
   function openCreate() {
     router.push(`/dashboard/orders-services/new?returnTo=${encodeURIComponent(pathname)}`);
@@ -380,18 +367,75 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
   ];
 
-  function downloadReport() {
-    const headers = ["Id", "Cliente", "Tecnico", "Tipo", "Fecha programada", "Estado", "Monto"];
-    const lines = rows.map((r) => [r.id, r.cliente, r.tecnico, r.tipo, r.fechaProgramada, r.estado, r.monto ?? ""].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    const csv = [headers.join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  async function downloadReport() {
+    const mod = await import("exceljs");
+    const ExcelJS: any = (mod as any).default ?? mod;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Vertecx";
+    wb.created = new Date();
+    const ws = wb.addWorksheet("Órdenes de servicio");
+    ws.columns = [
+      { header: "Id", key: "id", width: 8 },
+      { header: "Cliente", key: "cliente", width: 28 },
+      { header: "Técnico", key: "tecnico", width: 22 },
+      { header: "Tipo", key: "tipo", width: 16 },
+      { header: "Fecha programada", key: "fechaProgramada", width: 18 },
+      { header: "Estado", key: "estado", width: 14 },
+      { header: "Monto (COP)", key: "monto", width: 16, style: { numFmt: '"$" #,##0' } },
+    ];
+    const header = ws.getRow(1);
+    (header as any).font = { bold: true };
+    (header as any).alignment = { vertical: "middle" };
+    (header as any).height = 18;
+    if (typeof (header as any).eachCell === "function") {
+      (header as any).eachCell((cell: any) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE5E7EB" } },
+          left: { style: "thin", color: { argb: "FFE5E7EB" } },
+          bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+          right: { style: "thin", color: { argb: "FFE5E7EB" } },
+        };
+      });
+    }
+    rows.forEach((r) => {
+      const row = ws.addRow({
+        id: r.id,
+        cliente: r.cliente,
+        tecnico: r.tecnico,
+        tipo: r.tipo,
+        fechaProgramada: r.fechaProgramada,
+        estado: r.estado,
+        monto: r.monto ?? 0,
+      });
+      if (typeof (row as any).eachCell === "function") {
+        (row as any).eachCell((cell: any) => {
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFF1F5F9" } },
+            left: { style: "thin", color: { argb: "FFF1F5F9" } },
+            bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
+            right: { style: "thin", color: { argb: "FFF1F5F9" } },
+          };
+        });
+      }
+    });
+    ws.autoFilter = { from: "A1", to: "G1" };
+    ws.columns.forEach((col: any) => {
+      let max = col.header ? String(col.header).length : 10;
+      col.eachCell?.({ includeEmpty: false }, (cell: any) => {
+        max = Math.max(max, String(cell.value ?? "").length);
+      });
+      col.width = Math.max(col.width ?? 10, Math.min(max + 2, 60));
+    });
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "reporte_ordenes.csv";
+    a.download = "reporte_ordenes.xlsx";
     document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.click?.();
+    a.remove?.();
     URL.revokeObjectURL(url);
   }
 

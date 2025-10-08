@@ -123,18 +123,68 @@ export default function ServiceRequestsPage() {
     { key: "estado", header: "Estado", render: (r) => <span className={`font-medium ${estadoClass(r.estado)}`}>{r.estado}</span> },
   ];
 
-  function downloadReport() {
-    const headers = ["Id", "Cliente", "Descripción", "Servicio", "Estado"];
-    const lines = rows.map((r) => [r.id, r.cliente, r.descripcion, r.servicio, r.estado].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    const csv = [headers.join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  async function downloadReport() {
+    const mod = await import("exceljs");
+    const ExcelJS: any = (mod as any).default ?? mod;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Vertecx";
+    wb.created = new Date();
+    const ws = wb.addWorksheet("Solicitudes");
+    ws.columns = [
+      { header: "Id", key: "id", width: 8 },
+      { header: "Cliente", key: "cliente", width: 24 },
+      { header: "Descripción", key: "descripcion", width: 46 },
+      { header: "Servicio", key: "servicio", width: 18 },
+      { header: "Tipo", key: "tipo", width: 18 },
+      { header: "Dirección", key: "direccion", width: 30 },
+      { header: "Fecha", key: "fecha", width: 14 },
+      { header: "Estado", key: "estado", width: 14 },
+    ];
+    const header = ws.getRow(1);
+    (header as any).font = { bold: true };
+    (header as any).alignment = { vertical: "middle" };
+    (header as any).height = 18;
+    if (typeof (header as any).eachCell === "function") {
+      (header as any).eachCell((cell: any) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+        cell.border = { top: { style: "thin", color: { argb: "FFE5E7EB" } }, left: { style: "thin", color: { argb: "FFE5E7EB" } }, bottom: { style: "thin", color: { argb: "FFE5E7EB" } }, right: { style: "thin", color: { argb: "FFE5E7EB" } } };
+      });
+    }
+    rows.forEach((r) => {
+      const row = ws.addRow({
+        id: r.id,
+        cliente: r.cliente,
+        descripcion: r.descripcion,
+        servicio: r.servicio,
+        tipo: r.tipo,
+        direccion: r.direccion,
+        fecha: r.fecha,
+        estado: r.estado,
+      });
+      if (typeof (row as any).eachCell === "function") {
+        (row as any).eachCell((cell: any) => {
+          cell.border = { top: { style: "thin", color: { argb: "FFF1F5F9" } }, left: { style: "thin", color: { argb: "FFF1F5F9" } }, bottom: { style: "thin", color: { argb: "FFF1F5F9" } }, right: { style: "thin", color: { argb: "FFF1F5F9" } } };
+          cell.alignment = { vertical: "top", wrapText: true };
+        });
+      }
+    });
+    ws.autoFilter = { from: "A1", to: "H1" };
+    ws.columns.forEach((col: any) => {
+      let max = col.header ? String(col.header).length : 10;
+      col.eachCell?.({ includeEmpty: false }, (cell: any) => {
+        max = Math.max(max, String(cell.value ?? "").length);
+      });
+      col.width = Math.max(col.width ?? 10, Math.min(max + 2, 60));
+    });
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "reporte_solicitudes.csv";
+    a.download = "reporte_solicitudes.xlsx";
     document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.click?.();
+    a.remove?.();
     URL.revokeObjectURL(url);
   }
 
@@ -174,10 +224,7 @@ export default function ServiceRequestsPage() {
   .val { font-size: 14px; color: #111827; }
   .desc { white-space: pre-wrap; }
   .footer { margin-top: 16px; font-size: 12px; color: #6b7280; }
-  @media print {
-    @page { size: A4; margin: 16mm; }
-    body { margin: 0; }
-  }
+  @media print { @page { size: A4; margin: 16mm; } body { margin: 0; } }
 </style>
 </head>
 <body>
@@ -202,25 +249,15 @@ export default function ServiceRequestsPage() {
   </div>
 </body>
 </html>`;
-
     const iframe: HTMLIFrameElement = document.createElement("iframe");
-    Object.assign(iframe.style, {
-      position: "fixed",
-      right: "0",
-      bottom: "0",
-      width: "0",
-      height: "0",
-      border: "0",
-    });
-
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
     iframe.onload = () => {
       setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
+        iframe.contentWindow?.focus?.();
+        iframe.contentWindow?.print?.();
         setTimeout(() => document.body.removeChild(iframe), 100);
       }, 50);
     };
-
     iframe.srcdoc = html;
     document.body.appendChild(iframe);
   }
@@ -246,18 +283,9 @@ export default function ServiceRequestsPage() {
     setSaving(true);
     setRows((prev) => {
       const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
-      const tipoLabel = tipos.length ? tiposToLabel(tipos as any) : (servicio ? servicio : "—");
-      const nuevo: Row = {
-        id: nextId,
-        descripcion: descripcion.trim(),
-        tipo: tipoLabel,
-        servicio: servicio || (tipos[0] ?? "—"),
-        cliente: cliente || "Cliente Demo",
-        direccion: direccion.trim() || "—",
-        fecha: formatToday(),
-        estado: "Pendiente",
-      };
-      return [...prev,nuevo];
+      const tipoLabel = tipos.length ? tiposToLabel(tipos as any) : servicio ? servicio : "—";
+      const nuevo: Row = { id: nextId, descripcion: descripcion.trim(), tipo: tipoLabel, servicio: servicio || (tipos[0] ?? "—"), cliente: cliente || "Cliente Demo", direccion: direccion.trim() || "—", fecha: formatToday(), estado: "Pendiente" };
+      return [...prev, nuevo];
     });
     setSaving(false);
     setOpenCreate(false);
@@ -280,26 +308,13 @@ export default function ServiceRequestsPage() {
     Swal.fire({
       icon: "info",
       title: "Formulario de cotización",
-      html: `
-        <div class="text-left">
-          <p class="mb-2"><strong>Solicitud:</strong> #${row.id} — ${row.descripcion}</p>
-          <p class="mb-2"><strong>Cliente:</strong> ${row.cliente}</p>
-          <p class="mb-4"><strong>Servicio:</strong> ${row.servicio}</p>
-          <p class="text-gray-700">El formulario de cotización estará disponible próximamente.</p>
-        </div>
-      `,
+      html: `<div class="text-left"><p class="mb-2"><strong>Solicitud:</strong> #${row.id} — ${row.descripcion}</p><p class="mb-2"><strong>Cliente:</strong> ${row.cliente}</p><p class="mb-4"><strong>Servicio:</strong> ${row.servicio}</p><p class="text-gray-700">El formulario de cotización estará disponible próximamente.</p></div>`,
       confirmButtonText: "Entendido",
     });
   }
 
   function rowToRequestData(r: Row) {
-    return {
-      tipos: normTipoToCheck(r.tipo),
-      servicio: r.servicio || "",
-      descripcion: r.descripcion || "",
-      cliente: r.cliente || "",
-      direccion: r.direccion || "",
-    };
+    return { tipos: normTipoToCheck(r.tipo), servicio: r.servicio || "", descripcion: r.descripcion || "", cliente: r.cliente || "", direccion: r.direccion || "" };
   }
 
   return (
@@ -312,10 +327,7 @@ export default function ServiceRequestsPage() {
             pageSize={5}
             searchableKeys={["id", "cliente", "descripcion", "servicio", "estado"]}
             rightActions={
-              <button
-                onClick={downloadReport}
-                className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-              >
+              <button onClick={downloadReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90">
                 Descargar Reporte
               </button>
             }
@@ -331,60 +343,34 @@ export default function ServiceRequestsPage() {
             }}
             renderExtraActions={(row) => (
               <>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Programar"
-                  onClick={() => openAppointmentModal(row)}
-                >
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Programar" onClick={() => openAppointmentModal(row)}>
                   <img src={ICONS.calendar} className="h-4 w-4" />
                 </button>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Cotizar"
-                  onClick={() => openQuotePlaceholder(row)}
-                >
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Cotizar" onClick={() => openQuotePlaceholder(row)}>
                   <img src={ICONS.money} className="h-4 w-4" />
                 </button>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Anular"
-                  onClick={() => cancelRow(row)}
-                >
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Anular" onClick={() => cancelRow(row)}>
                   <img src={ICONS.cancel} className="h-4 w-4" />
                 </button>
               </>
             )}
             tailHeader="Imprimir"
             renderTail={(row) => (
-              <button
-                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                title="Imprimir"
-                onClick={() => printRequest(row)}
-              >
+              <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Imprimir" onClick={() => printRequest(row)}>
                 <img src={ICONS.print} className="h-4 w-4 mx-auto" />
               </button>
             )}
           />
-
           <Modal
             title="Crear solicitud"
             isOpen={openCreate}
             onClose={() => setOpenCreate(false)}
             footer={
               <>
-                <button
-                  type="button"
-                  onClick={() => setOpenCreate(false)}
-                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-                >
+                <button type="button" onClick={() => setOpenCreate(false)} className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200">
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  form="create-request-form"
-                  disabled={saving}
-                  className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-                >
+                <button type="submit" form="create-request-form" disabled={saving} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60">
                   {saving ? "Guardando..." : "Guardar"}
                 </button>
               </>
@@ -409,14 +395,12 @@ export default function ServiceRequestsPage() {
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Servicio</label>
                 <div className="relative">
-                  <select
-                    value={servicio}
-                    onChange={(e) => setServicio(e.target.value)}
-                    className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                  >
+                  <select value={servicio} onChange={(e) => setServicio(e.target.value)} className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40">
                     <option value="">Selecciona el servicio</option>
                     {SERVICIOS.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
                     ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
@@ -425,26 +409,18 @@ export default function ServiceRequestsPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Descripción</label>
-                <textarea
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                  placeholder="Ingrese sus observaciones"
-                  rows={3}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                />
+                <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Ingrese sus observaciones" rows={3} className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40" />
                 {err.descripcion && <p className="mt-1 text-xs text-red-600">{err.descripcion}</p>}
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Cliente</label>
                 <div className="relative">
-                  <select
-                    value={cliente}
-                    onChange={(e) => setCliente(e.target.value)}
-                    className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                  >
+                  <select value={cliente} onChange={(e) => setCliente(e.target.value)} className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40">
                     <option value="">Selecciona el cliente</option>
                     {CLIENTES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
                     ))}
                   </select>
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
@@ -453,40 +429,20 @@ export default function ServiceRequestsPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Dirección</label>
-                <input
-                  value={direccion}
-                  onChange={(e) => setDireccion(e.target.value)}
-                  placeholder="Ingrese su dirección"
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                />
+                <input value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Ingrese su dirección" className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40" />
                 {err.direccion && <p className="mt-1 text-xs text-red-600">{err.direccion}</p>}
               </div>
             </form>
           </Modal>
         </div>
-
-        {openAppointment && selectedSlot && (
-          <CreateAppointmentModal
-            isOpen={openAppointment}
-            onClose={() => setOpenAppointment(false)}
-            onSave={() => setOpenAppointment(false)}
-            selectedDateTime={selectedSlot}
-          />
-        )}
-
+        {openAppointment && selectedSlot && <CreateAppointmentModal isOpen={openAppointment} onClose={() => setOpenAppointment(false)} onSave={() => setOpenAppointment(false)} selectedDateTime={selectedSlot} />}
         {openView && currentRow && (
           <ViewRequestModal
             isOpen={openView}
             onClose={() => setOpenView(false)}
-            data={{
-              ...rowToRequestData(currentRow),
-              codigo: `SRV-${String(currentRow.id).padStart(6, "0")}`,
-              estado: currentRow.estado,
-              fecha: currentRow.fecha,
-            }}
+            data={{ ...rowToRequestData(currentRow), codigo: `SRV-${String(currentRow.id).padStart(6, "0")}`, estado: currentRow.estado, fecha: currentRow.fecha }}
           />
         )}
-
         {openEdit && currentRow && (
           <EditRequestModal
             isOpen={openEdit}
@@ -498,14 +454,7 @@ export default function ServiceRequestsPage() {
               setRows((prev) =>
                 prev.map((r) =>
                   r.id === currentRow!.id
-                    ? {
-                        ...r,
-                        descripcion: payload.descripcion,
-                        tipo: tiposToLabel(payload.tipos as any),
-                        servicio: payload.servicio,
-                        cliente: payload.cliente,
-                        direccion: payload.direccion,
-                      }
+                    ? { ...r, descripcion: payload.descripcion, tipo: tiposToLabel(payload.tipos as any), servicio: payload.servicio, cliente: payload.cliente, direccion: payload.direccion }
                     : r
                 )
               );
