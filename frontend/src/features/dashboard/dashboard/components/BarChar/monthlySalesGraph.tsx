@@ -82,7 +82,7 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
       </div>
 
       {/* Gráfico */}
-      <ResponsiveContainer className="mt-6">
+      <ResponsiveContainer width="100%" height={300}>
         <LineChart data={dailyData}>
           <XAxis
             dataKey="day"

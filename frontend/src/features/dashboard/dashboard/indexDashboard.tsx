@@ -1,13 +1,19 @@
 "use client";
 
-import React, { useState } from 'react'
-import Image from 'next/image'
+import React, { useState } from "react";
+import Image from "next/image";
 import Colors from "@/shared/theme/colors";
-import { OrderServiceData, TotalClientsData, TotalSalesData, TotalShoppingData } from './mocks/mocksDashboard';
-import { YearlyGraph } from './components/BarChar/YearlySalesGraph';
-import { MonthlyGraph } from './components/BarChar/monthlySalesGraph';
-import { PieChartCategoryAndProducts } from './components/PieChart/pieChart';
-import { CustomBarChart } from './components/BarChar/barChart';
+import {
+  OrderServiceData,
+  TotalClientsData,
+  TotalSalesData,
+  TotalShoppingData,
+} from "./mocks/mocksDashboard";
+import { YearlyGraph } from "./components/BarChar/YearlySalesGraph";
+import { MonthlyGraph } from "./components/BarChar/monthlySalesGraph";
+import { PieChartCategoryAndProducts } from "./components/PieChart/pieChart";
+import { CustomBarChart } from "./components/BarChar/barChart";
+import { WeeklyCalendarDashboard } from "./components/reprogramming/reprogramming";
 
 export const IndexDashboard = () => {
   const [selectedMonthSales, setSelectedMonthSales] = useState<string | null>(null);
@@ -15,24 +21,27 @@ export const IndexDashboard = () => {
   const [selectedMonthClients, setSelectedMonthClients] = useState<string | null>(null);
 
   return (
-    <>
-      {/* Primera fila: Contenedor principal para las tarjetas de métricas */}
-      <div className="p-4 flex flex-wrap gap-4 justify-center md:justify-start">
-
+    <div className="w-full h-screen overflow-y-auto overflow-x-hidden p-4">
+      {/* Primera fila: tarjetas de métricas */}
+      <div className="flex flex-wrap gap-4 justify-center md:justify-start">
         {/* Ventas */}
         <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
           <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-7 flex items-center h-full">
+            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 flex items-center h-full">
               <Image
                 src="/icons/cash-stack.svg"
                 alt="Ventas"
-                width={50}
-                height={50}
-                className="mr-4 filter brightness-0 invert"
+                width={40}
+                height={40}
+                className="mr-3 sm:mr-4 filter brightness-0 invert"
               />
               <div className="flex-grow min-w-0 overflow-hidden">
-                <h2 className="text-lg font-medium mb-1 break-words whitespace-normal">Ventas:</h2>
-                <p className="text-2xl font-bold break-words whitespace-normal">$2.000.000</p>
+                <h2 className="text-base sm:text-lg font-medium mb-1 break-words whitespace-normal">
+                  Ventas:
+                </h2>
+                <p className="text-xl sm:text-2xl font-bold break-words whitespace-normal">
+                  $2.000.000
+                </p>
               </div>
             </div>
           </div>
@@ -41,17 +50,17 @@ export const IndexDashboard = () => {
         {/* Compras */}
         <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
           <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-7 flex items-center h-full">
+            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 flex items-center h-full">
               <Image
                 src="/icons/cart2.svg"
-                alt="Ventas"
-                width={50}
-                height={50}
-                className="mr-4 filter brightness-0 invert"
+                alt="Compras"
+                width={40}
+                height={40}
+                className="mr-3 sm:mr-4 filter brightness-0 invert"
               />
               <div className="flex-grow min-w-0 overflow-hidden">
-                <h2 className="text-lg font-medium mb-1">Compras:</h2>
-                <p className="text-2xl font-bold">$2.000.000</p>
+                <h2 className="text-base sm:text-lg font-medium mb-1">Compras:</h2>
+                <p className="text-xl sm:text-2xl font-bold">$2.000.000</p>
               </div>
             </div>
           </div>
@@ -60,51 +69,52 @@ export const IndexDashboard = () => {
         {/* Citas */}
         <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
           <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-7 flex items-center h-full">
+            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 flex items-center h-full">
               <Image
                 src="/icons/calendar.svg"
-                alt="Ventas"
-                width={50}
-                height={50}
-                className="mr-4 filter brightness-0 invert"
+                alt="Citas"
+                width={40}
+                height={40}
+                className="mr-3 sm:mr-4 filter brightness-0 invert"
               />
               <div className="flex-grow min-w-0 overflow-hidden">
-                <h2 className="text-[30px] font-medium mb-1">Cita: 20</h2>
+                <h2 className="text-base sm:text-lg font-medium mb-1">Citas:</h2>
+                <p className="text-xl sm:text-2xl font-bold">20</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Ordenes */}
+        {/* Órdenes */}
         <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
           <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-7 flex items-center h-full">
+            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 flex items-center h-full">
               <Image
                 src="/icons/box.svg"
-                alt="Ventas"
-                width={50}
-                height={50}
-                className="mr-4 filter brightness-0 invert"
+                alt="Órdenes"
+                width={40}
+                height={40}
+                className="mr-3 sm:mr-4 filter brightness-0 invert"
               />
               <div className="flex-grow min-w-0 overflow-hidden">
-                <h2 className="text-[20px] font-medium mb-1">Ordenes: 20</h2>
+                <h2 className="text-base sm:text-lg font-medium mb-1">Órdenes:</h2>
+                <p className="text-xl sm:text-2xl font-bold">20</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Segunda fila: Contenedor para los gráficos de Ventas y Compras */}
-      <div className="flex flex-wrap lg:flex-nowrap w-full h-full">
-        {/* Gráfico de Ventas */}
-        <div className="p-2 w-full lg:w-[50%] h-[60%]">
-          <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-            <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-              {/* Cabecera */}
+      {/* Segunda fila: Ventas y Compras */}
+      <div className="flex flex-wrap lg:flex-nowrap w-full h-auto mt-4 gap-4">
+        {/* Ventas */}
+        <div className="p-2 w-full lg:w-[50%]">
+          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+            <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
               <div className="flex justify-between items-center mb-4">
-                {!selectedMonthSales  ? (
+                {!selectedMonthSales && (
                   <>
-                    <h2 className="text-black text-xl font-bold">Ventas: $2.000.000</h2>
+                    <h2 className="text-black text-lg sm:text-xl font-bold">Ventas: $2.000.000</h2>
                     <button className="p-2 bg-gray-100 rounded-lg shadow">
                       <Image
                         src="/icons/graphic.svg"
@@ -115,11 +125,8 @@ export const IndexDashboard = () => {
                       />
                     </button>
                   </>
-                ) : (
-                  <></>
                 )}
               </div>
-              {/* Gráfico */}
               <div className="flex-1">
                 {!selectedMonthSales ? (
                   <YearlyGraph
@@ -141,15 +148,14 @@ export const IndexDashboard = () => {
           </div>
         </div>
 
-        {/* Gráfico de Compras */}
-        <div className="p-2 w-full lg:w-[50%] h-[60%]">
-          <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-            <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-              {/* Cabecera */}
+        {/* Compras */}
+        <div className="p-2 w-full lg:w-[50%]">
+          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+            <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
               <div className="flex justify-between items-center mb-4">
-                {!selectedMonthShopping  ? (
+                {!selectedMonthShopping && (
                   <>
-                    <h2 className="text-black text-xl font-bold">Compra: $2.000.000</h2>
+                    <h2 className="text-black text-lg sm:text-xl font-bold">Compras: $2.000.000</h2>
                     <button className="p-2 bg-gray-100 rounded-lg shadow">
                       <Image
                         src="/icons/graphic.svg"
@@ -160,13 +166,10 @@ export const IndexDashboard = () => {
                       />
                     </button>
                   </>
-                ) : (
-                  <></>
                 )}
               </div>
-              {/* Gráfico */}
               <div className="flex-1">
-                {!selectedMonthShopping  ? (
+                {!selectedMonthShopping ? (
                   <YearlyGraph
                     title="Compra"
                     data={TotalShoppingData}
@@ -187,30 +190,26 @@ export const IndexDashboard = () => {
         </div>
       </div>
 
-      {/* Tercera fila: Contenedor para los gráficos de Categorías, Ordenes de servicio y Citas */}
-      <div className="flex flex-wrap lg:flex-nowrap gap-4 w-full h-full lg:-mt-[20%]">
-        {/* Gráfico de Categoría por productos */}
-        <div className="p-2 w-full md:w-[35%] h-full">
-          <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-            <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-              {/* Cabecera */}
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <button className="p-3 bg-gray-100 rounded-lg shadow">
-                    <Image
-                      src="/icons/whh_infographic.svg"
-                      alt="Categorías"
-                      width={25}
-                      height={25}
-                      className="filter brightness-0"
-                    />
-                  </button>
-                  <h2 className="text-black text-xl font-bold">
-                    Cantidad de productos por categoría
-                  </h2>
-                </div>
+      {/* Tercera fila: Categorías, Órdenes de servicio y Citas */}
+      <div className="flex flex-wrap lg:flex-nowrap gap-4 w-full h-auto mt-6">
+        {/* Categorías */}
+        <div className="p-2 w-full md:w-[35%]">
+          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+            <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
+              <div className="flex items-center gap-3 mb-4">
+                <button className="p-3 bg-gray-100 rounded-lg shadow">
+                  <Image
+                    src="/icons/whh_infographic.svg"
+                    alt="Categorías"
+                    width={25}
+                    height={25}
+                    className="filter brightness-0"
+                  />
+                </button>
+                <h2 className="text-black text-lg sm:text-xl font-bold">
+                  Productos por categoría
+                </h2>
               </div>
-              {/* Gráfico */}
               <div className="flex-1">
                 <PieChartCategoryAndProducts />
               </div>
@@ -218,33 +217,27 @@ export const IndexDashboard = () => {
           </div>
         </div>
 
-        {/* Gráfico de Orden de servicios */}
-        <div className="p-2 w-full md:w-[35%] h-full">
-          <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-            <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-              {/* Cabecera */}
-              <div className="mb-4">
-                <div className="flex items-start gap-2">
-                  <button className="p-4 bg-gray-100 rounded-lg shadow">
-                    <Image
-                      src="/icons/bi_bar-chart.svg"
-                      alt="Categorías"
-                      width={35}
-                      height={35}
-                      className="filter brightness-0"
-                    />
-                  </button>
-                  <div className="flex flex-col">
-                    <h2 className="text-black text-xl font-bold">
-                      Ordenes de servicio
-                    </h2>
-                    <p className="text-gray-500 text-base mt-1">
-                      Comparación de ordenes en pendientes, en proceso y completadas
-                    </p>
-                  </div>
+        {/* Órdenes de servicio */}
+        <div className="p-2 w-full md:w-[35%]">
+          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+            <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
+              <div className="flex items-start gap-3 mb-4">
+                <button className="p-4 bg-gray-100 rounded-lg shadow">
+                  <Image
+                    src="/icons/bi_bar-chart.svg"
+                    alt="Órdenes"
+                    width={35}
+                    height={35}
+                    className="filter brightness-0"
+                  />
+                </button>
+                <div>
+                  <h2 className="text-black text-lg sm:text-xl font-bold">Órdenes de servicio</h2>
+                  <p className="text-gray-500 text-sm sm:text-base mt-1">
+                    Pendientes, en proceso y completadas
+                  </p>
                 </div>
               </div>
-              {/* Gráfico */}
               <div className="flex-1">
                 <CustomBarChart
                   data={OrderServiceData}
@@ -267,33 +260,27 @@ export const IndexDashboard = () => {
           </div>
         </div>
 
-        {/* Gráfico de Citas */}
-        <div className="p-2 w-full md:w-[35%] h-full">
-          <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-            <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-              {/* Cabecera */}
-              <div className="mb-4">
-                <div className="flex items-start gap-2">
-                  <button className="p-4 bg-gray-100 rounded-lg shadow">
-                    <Image
-                      src="/icons/bi_bar-chart.svg"
-                      alt="Categorías"
-                      width={35}
-                      height={35}
-                      className="filter brightness-0"
-                    />
-                  </button>
-                  <div className="flex flex-col">
-                    <h2 className="text-black text-3xl font-bold">
-                      Citas
-                    </h2>
-                    <p className="text-gray-500 text-base mt-1">
-                      Comparación de citas en pendientes, en proceso y completadas
-                    </p>
-                  </div>
+        {/* Citas */}
+        <div className="p-2 w-full md:w-[35%]">
+          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+            <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
+              <div className="flex items-start gap-3 mb-4">
+                <button className="p-4 bg-gray-100 rounded-lg shadow">
+                  <Image
+                    src="/icons/bi_bar-chart.svg"
+                    alt="Citas"
+                    width={35}
+                    height={35}
+                    className="filter brightness-0"
+                  />
+                </button>
+                <div>
+                  <h2 className="text-black text-lg sm:text-xl font-bold">Citas</h2>
+                  <p className="text-gray-500 text-sm sm:text-base mt-1">
+                    Pendientes, en proceso y completadas
+                  </p>
                 </div>
               </div>
-              {/* Gráfico */}
               <div className="flex-1">
                 <CustomBarChart
                   data={OrderServiceData}
@@ -317,32 +304,28 @@ export const IndexDashboard = () => {
         </div>
       </div>
 
-      {/* Cuarta fila: Contenedor para el gráfico de Clientes */}
-      <div className="p-2 w-full lg:w-[50%] h-[60%]">
-        <div className="bg-[#F4F4F4] rounded-lg p-7 shadow-md h-full">
-          <div className="bg-[#FFFFFF] rounded-lg p-7 flex flex-col h-full">
-            {/* Cabecera */}
+      {/* Cuarta fila: Clientes */}
+      <div className="p-2 w-full lg:w-[100%] mt-6 mb-10">
+        <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
+          <div className="bg-[#FFFFFF] rounded-lg p-6 flex flex-col h-full">
             <div className="flex justify-between items-center mb-4">
-              {!selectedMonthClients  ? (
+              {!selectedMonthClients && (
                 <>
-                  <h2 className="text-black text-xl font-bold">Clientes: 1000</h2>
+                  <h2 className="text-black text-lg sm:text-xl font-bold">Clientes: 1000</h2>
                   <button className="p-2 bg-gray-100 rounded-lg shadow">
                     <Image
                       src="/icons/graphic.svg"
-                      alt="Clients"
+                      alt="Clientes"
                       width={20}
                       height={20}
                       className="filter brightness-0"
                     />
                   </button>
                 </>
-              ) : (
-                <></>
               )}
             </div>
-            {/* Gráfico */}
             <div className="flex-1">
-              {!selectedMonthClients  ? (
+              {!selectedMonthClients ? (
                 <YearlyGraph
                   title="Clientes"
                   data={TotalClientsData}
@@ -362,6 +345,7 @@ export const IndexDashboard = () => {
           </div>
         </div>
       </div>
-    </>
-  )
-}
+      <WeeklyCalendarDashboard/>
+    </div>
+  );
+};

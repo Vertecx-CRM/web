@@ -9,6 +9,7 @@ export interface TotalSales{
 export interface CategoryandProducts{
     category: string,
     value: number
+    [key: string]: string | number;
 }
 
 export interface OrderService{

@@ -10,6 +10,7 @@ interface IRoutes {
     trajectory: string;
   };
   auth: {
+    access: string; 
     login: string;
     register: string;
   };
@@ -50,6 +51,7 @@ export const routes: IRoutes = {
     trajectory: "/landing/trajectory",
   },
   auth: {
+    access: "/auth/access",
     login: "/auth/login",
     register: "/auth/register",
   },

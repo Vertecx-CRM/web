@@ -1,0 +1,216 @@
+/* --- HEADERS --- */
+.rbc-time-header > .rbc-row.rbc-row-resource {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+.rbc-time-header > .rbc-row:first-child {
+  display: flex !important;
+  min-height: 60px !important;
+  height: 60px !important;
+}
+
+.rbc-time-header { min-height: 60px !important; height: 60px !important; }
+
+.rbc-time-header .rbc-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f4f4f4 !important;
+  color: #000000;
+  border-bottom: 2px solid #E6E6E6;
+  height: 60px;
+  font-weight: 600;
+  font-size: 16px;
+  position: relative;
+  flex: 1 !important;
+}
+
+.rbc-time-header .rbc-header { border-right: 2px solid #E6E6E6 !important; }
+.rbc-time-header .rbc-header:last-child { border-right: none !important; }
+
+/* --- LÍNEAS / BORDES VISUALES --- */
+.rbc-day-slot .rbc-time-slot { border-top: 1px dashed #E6E6E6 !important; }
+.rbc-day-slot .rbc-time-slot:nth-child(odd) { border-top: 2px solid #E6E6E6 !important; }
+.rbc-time-content > * + * > * { border-left: 2px solid #E6E6E6 !important; }
+.rbc-time-content > *:last-child { border-right: 2px solid #E6E6E6 !important; }
+.rbc-day-slot { position: relative; }
+.rbc-day-slot:not(:last-child)::after {
+  content: ''; position: absolute; top: 0; right: 0; height: 100%; width: 2px; background-color: #E6E6E6;
+}
+
+/* --- CONTENEDOR PRINCIPAL --- */
+.rbc-time-content {
+  height: calc(100% - 60px) !important;
+  border-top: none !important;
+  display: flex !important;
+}
+
+/* --- GUTTER (columna de horas) --- */
+.rbc-time-view .rbc-time-gutter {
+  background-color: #F4F4F4 !important;
+  border-right: 2px solid #E6E6E6 !important;
+  flex: 0 0 80px !important;
+}
+.rbc-time-view .rbc-time-gutter .rbc-time-slot {
+  background-color: #F4F4F4 !important;
+  color: #000000 !important;
+  font-weight: 500 !important;
+  border-top: 1px dashed #E6E6E6 !important;
+  padding-right: 10px !important;
+  text-align: right !important;
+}
+.rbc-time-view .rbc-time-gutter .rbc-time-slot:nth-child(odd) {
+  border-top: 2px solid #E6E6E6 !important;
+}
+
+/* --- CONTENEDOR DE DÍAS --- */
+.rbc-time-content > .rbc-time-column {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+/* --- CORRECCIÓN PARA EVENTOS (LO MÁS IMPORTANTE) --- */
+.rbc-day-slot {
+  position: relative;
+}
+
+/* Evento de RBC - posición absoluta calculada por la librería */
+.rbc-event {
+  position: relative !important;
+  
+  /* Ajusta el ancho para que quepan varios eventos y se expanda si es necesario */
+  /* Cambiamos 'width' por 'min-width' y 'max-width' */
+  min-width: 90px; /* <--- Ancho mínimo para la visibilidad */
+  max-width: 90% !important; /* <--- No se estira más allá de la columna */
+  flex: 1 1 auto; /* <--- Propiedad Flexbox para distribución de espacio */
+
+  margin: 0 !important;
+  padding: 0 2px !important;
+  box-sizing: border-box !important;
+  z-index: 2;
+}
+
+/* Tu evento personalizado - mayor prioridad */
+.unified-header-calendar .rbc-event {
+  /* Si necesitas algún estilo adicional para tus eventos, agrégalo aquí. */
+  /* Los estilos de ancho y posición serán manejados por las reglas anteriores. */
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+  z-index: 3;
+}
+
+.rbc-day-slot .rbc-events-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  margin: 0 !important;
+}
+
+/* Si quieres ocultar completamente el evento nativo de RBC */
+.rbc-event:not(.unified-header-calendar .rbc-event) {
+  display: none !important;
+}
+
+/* Alternativa: si quieres mantener ambos eventos pero posicionarlos correctamente */
+.rbc-event.rbc-event-regular {
+  z-index: 1;
+  opacity: 0.5; /* Para verificar superposición */
+}
+
+.rbc-event .rbc-event-label {
+  display: none !important; /* Oculta el rango de horas arriba */
+}
+
+/* Contenido del evento */
+.unified-header-calendar .rbc-event-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* Mejorar la legibilidad en eventos pequeños */
+.event-content {
+  line-height: 1.2;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  padding: 2px 4px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Asegurar que el texto no se desborde */
+.event-content * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* bordes redondeados generales */
+.calendar-wrapper .rbc-calendar {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.rbc-time-header > .rbc-row:first-child,
+.rbc-time-header .rbc-header:first-child {
+  border-top-left-radius: 12px;
+}
+.rbc-time-header .rbc-header:last-child {
+  border-top-right-radius: 12px;
+}
+.rbc-time-gutter {
+  border-bottom-left-radius: 12px;
+}
+.rbc-day-slot:last-child {
+  border-bottom-right-radius: 12px;
+}
+.rbc-time-content {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+.rbc-today {
+  background-color: transparent !important;
+}
+
+/* NO tocar el posicionamiento vertical de los eventos */
+.rbc-event {
+  position: absolute !important; /* restauramos lo original */
+  box-sizing: border-box;
+  padding: 0 2px;
+  z-index: 2;
+}
+
+/* Para que los eventos paralelos se repartan ancho */
+.rbc-day-slot .rbc-events-container {
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+}
+
+.rbc-day-slot .rbc-event {
+  flex: 1 1 auto;      /* que se adapten */
+  max-width: 50%;      /* si hay dos eventos */
+  min-width: 90px;     /* ancho mínimo visible */
+}
+
+.rbc-timeslot-group {
+  min-height: 3vw !important;
+  height: 3vh !important;
+}
+
+
