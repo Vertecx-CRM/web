@@ -1,565 +1,484 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
-  money: "/icons/dollar-sign.svg",
   cancel: "/icons/minus-circle.svg",
   print: "/icons/printer.svg",
-  edit: "/icons/edit.svg",
 };
+
+type RowTipo = "Instalación" | "Mantenimiento";
+type LineItem = { nombre: string; cantidad: number; precio?: number };
 
 type Row = {
   id: number;
-  fechaProgramada: string;
-  tipo: string;
-  tecnico: string;
   cliente: string;
-  estado: "Aprobada" | "Anulada" | "Pendiente";
+  tecnico: string;
+  tipo: RowTipo | string;
+  fechaProgramada: string;
+  estado: "Aprobada" | "Anulada" | "Pendiente" | "Garantia";
   monto?: number;
+  descripcion?: string;
+  servicios?: LineItem[];
+  materiales?: LineItem[];
 };
+
+function formatCOP(n?: number) {
+  if (n == null) return "—";
+  return n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+}
 
 const MOCK: Row[] = [
   {
     id: 1,
-    fechaProgramada: "11/06/2025",
-    tipo: "Mantenimiento",
-    tecnico: "Carlos Gómez",
     cliente: "InnovaTech S.A.S.",
+    tecnico: "Carlos Gómez",
+    tipo: "Mantenimiento",
+    fechaProgramada: "11/06/2025",
     estado: "Aprobada",
     monto: 650000,
+    descripcion: "Mantenimiento trimestral de red y CCTV.",
+    servicios: [
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+    ],
+    materiales: [
+      { nombre: "Cable UTP", cantidad: 30, precio: 2500 },
+      { nombre: "Conector RJ45", cantidad: 10, precio: 600 },
+    ],
   },
   {
     id: 2,
-    fechaProgramada: "12/06/2025",
-    tipo: "Instalación",
-    tecnico: "Laura Pérez",
     cliente: "Hotel Mirador del Río",
+    tecnico: "Laura Pérez",
+    tipo: "Instalación",
+    fechaProgramada: "12/06/2025",
     estado: "Pendiente",
     monto: 2100000,
+    descripcion: "Instalación de puntos de red y configuración de impresora.",
+    servicios: [
+      { nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 },
+      { nombre: "Cableado estructurado", cantidad: 1, precio: 280000 },
+      { nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 },
+    ],
+    materiales: [
+      { nombre: "Cámara Dome 5MP", cantidad: 4, precio: 260000 },
+      { nombre: "Cable UTP", cantidad: 100, precio: 2500 },
+      { nombre: "Ducto 40mm", cantidad: 10, precio: 12000 },
+    ],
   },
   {
     id: 3,
-    fechaProgramada: "13/06/2025",
-    tipo: "Reparación",
-    tecnico: "Andrés Rojas",
     cliente: "Distribuciones Antioquia",
+    tecnico: "Andrés Rojas",
+    tipo: "Mantenimiento",
+    fechaProgramada: "13/06/2025",
     estado: "Anulada",
     monto: 420000,
+    descripcion: "Revisión de servidor contabilidad.",
+    servicios: [{ nombre: "Mantenimiento de servidor", cantidad: 1, precio: 350000 }],
+    materiales: [{ nombre: "Patch Panel", cantidad: 1, precio: 180000 }],
   },
   {
     id: 4,
-    fechaProgramada: "14/06/2025",
-    tipo: "Configuración",
-    tecnico: "Mónica Silva",
     cliente: "Café La Montaña",
+    tecnico: "Mónica Silva",
+    tipo: "Instalación",
+    fechaProgramada: "14/06/2025",
     estado: "Aprobada",
     monto: 780000,
+    descripcion: "Montaje de 2 cámaras y rack.",
+    servicios: [{ nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 }],
+    materiales: [
+      { nombre: "Cámara Dome 5MP", cantidad: 2, precio: 260000 },
+      { nombre: "Rack 12U", cantidad: 1, precio: 540000 },
+    ],
   },
   {
     id: 5,
-    fechaProgramada: "15/06/2025",
-    tipo: "Instalación",
-    tecnico: "Julián Ortiz",
     cliente: "Clínica San Rafael",
-    estado: "Pendiente",
-    monto: 3400000,
+    tecnico: "Julián Ortiz",
+    tipo: "Instalación",
+    fechaProgramada: "15/06/2025",
+    estado: "Garantia",
+    monto: 0,
+    descripcion: "Reinstalación de switch en garantía.",
+    servicios: [{ nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 }],
+    materiales: [{ nombre: "Switch 8p", cantidad: 1, precio: 220000 }],
   },
   {
     id: 6,
-    fechaProgramada: "16/06/2025",
-    tipo: "Mantenimiento",
-    tecnico: "Sofía Herrera",
     cliente: "Universidad Central",
+    tecnico: "Sofía Herrera",
+    tipo: "Mantenimiento",
+    fechaProgramada: "16/06/2025",
     estado: "Aprobada",
     monto: 520000,
-  },
-  {
-    id: 7,
-    fechaProgramada: "17/06/2025",
-    tipo: "Auditoría",
-    tecnico: "Daniel Torres",
-    cliente: "AgroCampo S.A.",
-    estado: "Pendiente",
-    monto: 960000,
-  },
-  {
-    id: 8,
-    fechaProgramada: "18/06/2025",
-    tipo: "Instalación",
-    tecnico: "Natalia Ruiz",
-    cliente: "Banco Andino",
-    estado: "Aprobada",
-    monto: 2650000,
-  },
-  {
-    id: 9,
-    fechaProgramada: "19/06/2025",
-    tipo: "Reparación",
-    tecnico: "Felipe Medina",
-    cliente: "Ferretería El Tornillo",
-    estado: "Aprobada",
-    monto: 380000,
-  },
-  {
-    id: 10,
-    fechaProgramada: "20/06/2025",
-    tipo: "Mantenimiento",
-    tecnico: "Paula Castillo",
-    cliente: "Colegio San Marcos",
-    estado: "Pendiente",
-    monto: 610000,
-  },
-  {
-    id: 11,
-    fechaProgramada: "21/06/2025",
-    tipo: "Revisión",
-    tecnico: "Camilo Pérez",
-    cliente: "Textiles del Norte",
-    estado: "Aprobada",
-    monto: 290000,
-  },
-  {
-    id: 12,
-    fechaProgramada: "22/06/2025",
-    tipo: "Instalación",
-    tecnico: "Elena Mora",
-    cliente: "Conjunto Altavista",
-    estado: "Pendiente",
-    monto: 1880000,
-  },
-  {
-    id: 13,
-    fechaProgramada: "23/06/2025",
-    tipo: "Calibración",
-    tecnico: "Hugo Díaz",
-    cliente: "Laboratorios Vita",
-    estado: "Aprobada",
-    monto: 430000,
-  },
-  {
-    id: 14,
-    fechaProgramada: "24/06/2025",
-    tipo: "Configuración",
-    tecnico: "Iván Pardo",
-    cliente: "Municipio de Envigado",
-    estado: "Anulada",
-    monto: 0,
-  },
-  {
-    id: 1515,
-    fechaProgramada: "25/06/2025",
-    tipo: "Reparación",
-    tecnico: "Karen León",
-    cliente: "Panadería La Espiga",
-    estado: "Pendiente",
-    monto: 710000,
+    descripcion: "Mantenimiento de cámaras y limpieza general.",
+    servicios: [
+      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
+      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
+    ],
+    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
   },
 ];
 
 function EstadoPill({ v }: { v: Row["estado"] }) {
-  const map = {
-    Aprobada: "bg-green-100 text-green-700",
-    Pendiente: "bg-yellow-100 text-yellow-700",
-    Anulada: "bg-red-100 text-red-700",
-  } as const;
-  return (
-    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${map[v]}`}>
-      {v}
-    </span>
-  );
+  const STYLE: Record<Row["estado"], string> = { Aprobada: "text-green-700", Pendiente: "text-yellow-700", Anulada: "text-red-700", Garantia: "text-blue-700" };
+  return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STYLE[v]}`}>{v}</span>;
 }
 
-const formatCOP = (n?: number) =>
-  n == null
-    ? "—"
-    : n.toLocaleString("es-CO", {
-        style: "currency",
-        currency: "COP",
-        maximumFractionDigits: 0,
-      });
-const norm = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-function pageList(totalPages: number, current: number) {
-  if (totalPages <= 7)
-    return Array.from({ length: totalPages }, (_, i) => i + 1);
-  const pages: (number | "...")[] = [1];
-  const left = Math.max(2, current - 1);
-  const right = Math.min(totalPages - 1, current + 1);
-  if (left > 2) pages.push("...");
-  for (let p = left; p <= right; p++) pages.push(p);
-  if (right < totalPages - 1) pages.push("...");
-  pages.push(totalPages);
-  return pages;
-}
-
-const gridVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06 } },
-};
-const cardVariants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35 } },
-};
-const MTR: any = motion.tr;
-
-function InfoRow({
-  label,
-  value,
-  delay = 0,
-}: {
-  label: string;
-  value: React.ReactNode;
-  delay?: number;
-}) {
-  return (
-    <MTR
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.35, delay }}
-    >
-      <td className="px-3 py-2 text-gray-500">{label}</td>
-      <td className="px-3 py-2 text-right text-gray-700 font-medium">
-        {value}
-      </td>
-    </MTR>
-  );
-}
-
-type Filter = "Todas" | Row["estado"];
-
-const selectedFilterClasses: Record<Filter, string> = {
-  Todas: "bg-gray-100 border-gray-300 text-gray-900",
-  Aprobada: "bg-green-100 border-green-200 text-green-700",
-  Pendiente: "bg-yellow-100 border-yellow-200 text-yellow-700",
-  Anulada: "bg-red-100 border-red-200 text-red-700",
-};
-
-export default function ServiceOrdersCardsPage() {
+export default function OrdersServicesIndexPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<Row[]>(MOCK);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("Todas");
-  const [page, setPage] = useState(1);
-  const pageSize = 6;
 
-  const filtered = useMemo(() => {
-    const q = norm(query.trim());
-    return rows.filter((r) => {
-      const matchesQ =
-        !q ||
-        norm(r.fechaProgramada).includes(q) ||
-        norm(r.tipo).includes(q) ||
-        norm(r.tecnico).includes(q) ||
-        norm(r.cliente).includes(q) ||
-        norm(r.estado).includes(q) ||
-        String(r.id).includes(q);
-      const matchesF = filter === "Todas" ? true : r.estado === filter;
-      return matchesQ && matchesF;
+  useEffect(() => {
+    const no = searchParams.get("newOrder");
+    if (!no) return;
+    try {
+      const payload = JSON.parse(decodeURIComponent(no)) as Omit<Row, "id" | "estado" | "fechaProgramada"> & { fechaProgramada?: string };
+      setRows((prev) => {
+        const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
+        const d = new Date();
+        const fecha = payload.fechaProgramada || `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+        const newRow: Row = {
+          id: nextId,
+          cliente: payload.cliente,
+          tecnico: payload.tecnico,
+          tipo: payload.tipo,
+          fechaProgramada: fecha,
+          estado: "Pendiente",
+          monto: payload.monto,
+          descripcion: payload.descripcion,
+          servicios: payload.servicios,
+          materiales: payload.materiales,
+        };
+        return [...prev, newRow];
+      });
+      Swal.fire({ icon: "success", title: "Orden creada", timer: 1400, showConfirmButton: false });
+    } catch {}
+    window.history.replaceState(null, "", pathname);
+  }, [searchParams, pathname]);
+
+  useEffect(() => {
+    const eo = searchParams.get("editOrder");
+    if (!eo) return;
+    try {
+      const p = JSON.parse(decodeURIComponent(eo)) as Partial<Row> & { id: number };
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === p.id
+            ? {
+                ...r,
+                cliente: p.cliente ?? r.cliente,
+                tecnico: p.tecnico ?? r.tecnico,
+                tipo: (p.tipo as RowTipo) ?? r.tipo,
+                fechaProgramada: p.fechaProgramada ?? r.fechaProgramada,
+                monto: p.monto ?? r.monto,
+                descripcion: p.descripcion ?? r.descripcion,
+                servicios: p.servicios ?? r.servicios,
+                materiales: p.materiales ?? r.materiales,
+              }
+            : r
+        )
+      );
+      Swal.fire({ icon: "success", title: "Orden actualizada", timer: 1400, showConfirmButton: false });
+    } catch {}
+    window.history.replaceState(null, "", pathname);
+  }, [searchParams, pathname]);
+
+  async function setDate(row: Row) {
+    const { value, isConfirmed } = await Swal.fire({
+      title: `Fecha para #${row.id}`,
+      input: "text",
+      inputLabel: "DD/MM/AAAA",
+      inputValue: row.fechaProgramada,
+      inputAttributes: { placeholder: "DD/MM/AAAA" },
+      showCancelButton: true,
+      confirmButtonText: "Guardar",
+      cancelButtonText: "Cancelar",
+      reverseButtons: true,
+      preConfirm: (val) => {
+        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val || "")) Swal.showValidationMessage("Formato inválido");
+        return val;
+      },
     });
-  }, [rows, query, filter]);
+    if (!isConfirmed || !value) return;
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, fechaProgramada: value } : r)));
+  }
 
-  useEffect(() => setPage(1), [query, filter]);
+  async function cancelRow(row: Row) {
+    if (row.estado === "Anulada") return;
+    const res = await Swal.fire({
+      title: "¿Anular orden?",
+      text: `Se anulará la orden #${row.id}.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, anular",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#d33",
+      reverseButtons: true,
+      focusCancel: true,
+    });
+    if (!res.isConfirmed) return;
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Anulada" } : r)));
+    await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1500, showConfirmButton: false });
+  }
 
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const current = Math.min(page, totalPages);
-  const start = (current - 1) * pageSize;
-  const end = start + pageSize;
-  const paged = filtered.slice(start, end);
-  const pages = pageList(totalPages, current);
+  function printRow(row: Row) {
+    const IVA_PCT = 19;
+    const servicios = row.servicios ?? [];
+    const materiales = row.materiales ?? [];
+    const subServ = servicios.reduce((a, s) => a + (Number(s.cantidad) || 0) * (Number(s.precio) || 0), 0);
+    const subMat = materiales.reduce((a, m) => a + (Number(m.cantidad) || 0) * (Number(m.precio) || 0), 0);
+    const subtotal = subServ + subMat;
+    const iva = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
+    const total = Math.max(0, Math.round(subtotal + iva));
+    const serviciosRows =
+      servicios.length === 0
+        ? `<tr><td colspan="4" class="empty">—</td></tr>`
+        : servicios
+            .map(
+              (s) => `<tr>
+  <td>${s.nombre}</td>
+  <td class="num">${s.cantidad}</td>
+  <td class="num">${formatCOP(s.precio)}</td>
+  <td class="num">${formatCOP((Number(s.cantidad) || 0) * (Number(s.precio) || 0))}</td>
+</tr>`
+            )
+            .join("");
+    const materialesRows =
+      materiales.length === 0
+        ? `<tr><td colspan="4" class="empty">—</td></tr>`
+        : materiales
+            .map(
+              (m) => `<tr>
+  <td>${m.nombre}</td>
+  <td class="num">${m.cantidad}</td>
+  <td class="num">${formatCOP(m.precio)}</td>
+  <td class="num">${formatCOP((Number(m.cantidad) || 0) * (Number(m.precio) || 0))}</td>
+</tr>`
+            )
+            .join("");
+    const html = `<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Orden #${row.id}</title>
+<style>
+:root{color-scheme:light}
+body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";margin:24px;color:#111827}
+.h{font-size:20px;font-weight:700;margin:0 0 12px 0}
+.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:4px}
+.val{font-size:14px}
+.section{margin-top:18px}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th,.table td{border-top:1px solid #e5e7eb;padding:8px}
+.table th{background:#f3f4f6;text-align:left;font-weight:600}
+.table td.num{text-align:right}
+.empty{color:#6b7280;text-align:center;padding:10px}
+.tot{width:100%;margin-top:12px}
+.tot .row{display:flex;justify-content:space-between;padding:6px 0}
+.tot .row.b{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:10px;font-weight:700}
+.footer{margin-top:16px;font-size:12px;color:#6b7280}
+@media print{@page{size:A4;margin:16mm}body{margin:0}}
+</style>
+</head><body>
+<div class="card">
+  <div class="h">Orden #${row.id}</div>
+  <div class="grid">
+    <div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div>
+    <div class="item"><div class="label">Fecha</div><div class="val">${row.fechaProgramada}</div></div>
+    <div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div>
+    <div class="item"><div class="label">Técnico</div><div class="val">${row.tecnico}</div></div>
+    <div class="item" style="grid-column:1 / -1"><div class="label">Tipo</div><div class="val">${row.tipo}</div></div>
+    ${
+      row.descripcion
+        ? `<div class="item" style="grid-column:1 / -1"><div class="label">Descripción</div><div class="val">${row.descripcion}</div></div>`
+        : ""
+    }
+  </div>
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Servicios</div>
+    <table class="table">
+      <thead><tr><th>Servicio</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
+      <tbody>${serviciosRows}</tbody>
+    </table>
+  </div>
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Materiales</div>
+    <table class="table">
+      <thead><tr><th>Material</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr></thead>
+      <tbody>${materialesRows}</tbody>
+    </table>
+  </div>
+  <div class="section">
+    <div class="label" style="margin-bottom:6px">Totales</div>
+    <div class="tot">
+      <div class="row"><span>Subtotal servicios</span><span>${formatCOP(subServ)}</span></div>
+      <div class="row"><span>Subtotal materiales</span><span>${formatCOP(subMat)}</span></div>
+      <div class="row"><span>IVA (19%)</span><span>${formatCOP(iva)}</span></div>
+      <div class="row b"><span>Total</span><span>${formatCOP(total)}</span></div>
+    </div>
+  </div>
+  <div class="footer">Código: OS-${String(row.id).padStart(6, "0")}</div>
+</div>
+</body></html>`;
+    const iframe: HTMLIFrameElement = document.createElement("iframe");
+    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+    iframe.onload = () => {
+      setTimeout(() => {
+        const win = iframe.contentWindow;
+        win?.focus?.();
+        win?.print?.();
+        setTimeout(() => document.body.removeChild(iframe), 100);
+      }, 50);
+    };
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+  }
 
-  function downloadReport() {
-    const headers = [
-      "Id",
-      "Fecha programada",
-      "Tipo de servicio",
-      "Tecnico",
-      "Cliente",
-      "Estado",
-      "Monto",
+  function openCreate() {
+    router.push(`/dashboard/orders-services/new?returnTo=${encodeURIComponent(pathname)}`);
+  }
+
+  function openEdit(r: Row) {
+    const payload = encodeURIComponent(JSON.stringify(r));
+    router.push(`/dashboard/orders-services/edit?returnTo=${encodeURIComponent(pathname)}&id=${r.id}&order=${payload}`);
+  }
+
+  const columns: Column<Row>[] = [
+    { key: "id", header: "ID", render: (r) => <span>#{r.id}</span> },
+    { key: "cliente", header: "Cliente" },
+    { key: "tecnico", header: "Técnico" },
+    { key: "tipo", header: "Tipo" },
+    { key: "fechaProgramada", header: "Fecha" },
+    { key: "estado", header: "Estado", render: (r) => <EstadoPill v={r.estado} /> },
+    { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
+  ];
+
+  async function downloadReport() {
+    const mod = await import("exceljs");
+    const ExcelJS: any = (mod as any).default ?? mod;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Vertecx";
+    wb.created = new Date();
+    const ws = wb.addWorksheet("Órdenes de servicio");
+    ws.columns = [
+      { header: "Id", key: "id", width: 8 },
+      { header: "Cliente", key: "cliente", width: 28 },
+      { header: "Técnico", key: "tecnico", width: 22 },
+      { header: "Tipo", key: "tipo", width: 16 },
+      { header: "Fecha programada", key: "fechaProgramada", width: 18 },
+      { header: "Estado", key: "estado", width: 14 },
+      { header: "Monto (COP)", key: "monto", width: 16, style: { numFmt: '"$" #,##0' } },
     ];
-    const lines = rows.map((r) =>
-      [
-        r.id,
-        r.fechaProgramada,
-        r.tipo,
-        r.tecnico,
-        r.cliente,
-        r.estado,
-        r.monto ?? "",
-      ]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(",")
-    );
-    const csv = [headers.join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const header = ws.getRow(1);
+    (header as any).font = { bold: true };
+    (header as any).alignment = { vertical: "middle" };
+    (header as any).height = 18;
+    if (typeof (header as any).eachCell === "function") {
+      (header as any).eachCell((cell: any) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE5E7EB" } },
+          left: { style: "thin", color: { argb: "FFE5E7EB" } },
+          bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+          right: { style: "thin", color: { argb: "FFE5E7EB" } },
+        };
+      });
+    }
+    rows.forEach((r) => {
+      const row = ws.addRow({
+        id: r.id,
+        cliente: r.cliente,
+        tecnico: r.tecnico,
+        tipo: r.tipo,
+        fechaProgramada: r.fechaProgramada,
+        estado: r.estado,
+        monto: r.monto ?? 0,
+      });
+      if (typeof (row as any).eachCell === "function") {
+        (row as any).eachCell((cell: any) => {
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFF1F5F9" } },
+            left: { style: "thin", color: { argb: "FFF1F5F9" } },
+            bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
+            right: { style: "thin", color: { argb: "FFF1F5F9" } },
+          };
+        });
+      }
+    });
+    ws.autoFilter = { from: "A1", to: "G1" };
+    ws.columns.forEach((col: any) => {
+      let max = col.header ? String(col.header).length : 10;
+      col.eachCell?.({ includeEmpty: false }, (cell: any) => {
+        max = Math.max(max, String(cell.value ?? "").length);
+      });
+      col.width = Math.max(col.width ?? 10, Math.min(max + 2, 60));
+    });
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "reporte_ordenes.csv";
+    a.download = "reporte_ordenes.xlsx";
     document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.click?.();
+    a.remove?.();
     URL.revokeObjectURL(url);
   }
 
-  function setDate(row: Row) {
-    const val = prompt("Fecha (DD/MM/AAAA):", row.fechaProgramada);
-    if (!val) return;
-    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(val))
-      return alert("Formato inválido. Usa DD/MM/AAAA.");
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, fechaProgramada: val } : r))
-    );
-  }
-  function setAmount(row: Row) {
-    const val = prompt(
-      "Valor COP:",
-      row.monto != null ? String(row.monto) : ""
-    );
-    if (val == null) return;
-    const num = Number(val.replace(/[^\d.]/g, ""));
-    if (!isFinite(num) || num < 0) return alert("Monto inválido.");
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, monto: Math.round(num) } : r))
-    );
-  }
-  function cancelRow(row: Row) {
-    if (row.estado === "Anulada") return;
-    if (!confirm(`¿Anular orden #${row.id}?`)) return;
-    setRows((prev) =>
-      prev.map((r) => (r.id === row.id ? { ...r, estado: "Anulada" } : r))
-    );
-  }
-  function printRow() {
-    window.print();
-  }
+  const rightActions = (
+    <div className="flex items-center gap-2">
+      <button onClick={downloadReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90">
+        Descargar Reporte
+      </button>
+    </div>
+  );
 
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
         <div className="px-4 pb-6 pt-4 max-w-7xl w-full mx-auto">
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-4">
-            <div className="flex gap-2">
-              {(["Todas", "Aprobada", "Pendiente", "Anulada"] as const).map(
-                (f) => {
-                  const active = filter === f;
-                  return (
-                    <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                        active
-                          ? selectedFilterClasses[f]
-                          : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  );
-                }
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar (id, técnico, cliente, tipo, estado, fecha)"
-                className="h-9 w-full sm:w-80 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-gray-200"
-              />
-              <button
-                onClick={() => router.push("/dashboard/orders/new")}
-                className="inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-              >
-                Crear Orden
+          <DataTable<Row>
+            data={rows}
+            columns={columns}
+            pageSize={8}
+            searchableKeys={["id", "cliente", "tecnico", "tipo", "fechaProgramada", "estado", "monto", "descripcion"]}
+            searchPlaceholder="Buscar (id, técnico, cliente, tipo, estado, fecha, monto, descripción)"
+            onCreate={openCreate}
+            createButtonText="Crear Orden"
+            rightActions={rightActions}
+            onEdit={(r) => openEdit(r)}
+            renderExtraActions={(row) => (
+              <>
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Calendario" onClick={() => setDate(row)}>
+                  <img src={ICONS.calendar} className="h-4 w-4" />
+                </button>
+                <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Anular" onClick={() => cancelRow(row)}>
+                  <img src={ICONS.cancel} className="h-4 w-4" />
+                </button>
+              </>
+            )}
+            tailHeader="Imprimir"
+            renderTail={(row) => (
+              <button className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60" title="Imprimir" onClick={() => printRow(row)}>
+                <img src={ICONS.print} className="h-4 w-4 mx-auto" />
               </button>
-              <button
-                onClick={downloadReport}
-                className="inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90"
-              >
-                Descargar Reporte
-              </button>
-            </div>
-          </div>
-
-          <motion.div
-            variants={gridVariants}
-            initial="hidden"
-            animate="visible"
-            key={`${page}-${filter}-${query}`}
-            className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            <AnimatePresence>
-              {paged.map((row) => (
-                <motion.article
-                  key={row.id}
-                  variants={cardVariants}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-gray-700">
-                        #{row.id}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900">
-                          {row.cliente}
-                        </h3>
-                        <p className="text-xs text-gray-500">
-                          Programada: {row.fechaProgramada}
-                        </p>
-                      </div>
-                    </div>
-                    <EstadoPill v={row.estado} />
-                  </div>
-
-                  <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <tbody>
-                        <InfoRow
-                          label="Técnico"
-                          value={row.tecnico}
-                          delay={0.05}
-                        />
-                        <InfoRow
-                          label="Tipo de servicio"
-                          value={row.tipo}
-                          delay={0.1}
-                        />
-                        <InfoRow
-                          label="Fecha"
-                          value={row.fechaProgramada}
-                          delay={0.15}
-                        />
-                        <InfoRow
-                          label="Monto"
-                          value={
-                            <span className="font-semibold">
-                              {formatCOP(row.monto)}
-                            </span>
-                          }
-                          delay={0.2}
-                        />
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() =>
-                          router.push(`/dashboard/orders/${row.id}/edit`)
-                        }
-                        className="h-7 px-2 rounded-md text-sm inline-flex items-center gap-1"
-                      >
-                        <img src={ICONS.edit} className="h-4 w-4" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        title="Calendario"
-                        onClick={() => setDate(row)}
-                        className="h-7 w-7 rounded-md flex items-center justify-center"
-                      >
-                        <img src={ICONS.calendar} className="h-4 w-4" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        title="Valor"
-                        onClick={() => setAmount(row)}
-                        className="h-7 w-7 rounded-md flex items-center justify-center"
-                      >
-                        <img src={ICONS.money} className="h-4 w-4" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        title="Anular"
-                        onClick={() => cancelRow(row)}
-                        className="h-7 w-7 rounded-md flex items-center justify-center"
-                      >
-                        <img src={ICONS.cancel} className="h-4 w-4" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        title="Imprimir"
-                        onClick={printRow}
-                        className="h-7 w-7 rounded-md flex items-center justify-center"
-                      >
-                        <img src={ICONS.print} className="h-4 w-4" />
-                      </motion.button>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => router.push(`/dashboard/orders/${row.id}`)}
-                      className="inline-flex h-8 items-center rounded-md bg-[#CC0000] px-3 text-xs font-semibold text-white shadow-sm"
-                    >
-                      Ver Detalles
-                    </motion.button>
-                  </div>
-                </motion.article>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-
-          <div className="mt-6 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={current === 1}
-                className="h-9 px-3 rounded-md border border-gray-300 bg-white text-sm disabled:opacity-50"
-              >
-                Anterior
-              </motion.button>
-              {pages.map((p, i) =>
-                p === "..." ? (
-                  <span key={`e${i}`} className="px-2 text-sm text-gray-500">
-                    …
-                  </span>
-                ) : (
-                  <motion.button
-                    key={p}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setPage(p as number)}
-                    className={`h-9 min-w-9 px-3 rounded-md border text-sm ${
-                      current === p
-                        ? "bg-[#CC0000] border-[#CC0000] text-white"
-                        : "bg-white border-gray-300"
-                    }`}
-                  >
-                    {p}
-                  </motion.button>
-                )
-              )}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={current === totalPages}
-                className="h-9 px-3 rounded-md border border-gray-300 bg-white text-sm disabled:opacity-50"
-              >
-                Siguiente
-              </motion.button>
-            </div>
-          </div>
+            )}
+            mobileCardView
+          />
         </div>
       </main>
     </RequireAuth>

@@ -1,9 +1,9 @@
-// CreateSuppliersModal.tsx
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Star, Upload, X as XIcon } from "lucide-react";
 import Modal from "@/features/dashboard/components/Modal";
+import type { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 
 type ProviderForm = {
   name: string;
@@ -22,12 +22,11 @@ type ProviderForm = {
 const DEFAULT_CATEGORIES = ["Servidores", "Redes", "CCTV", "Suministros"];
 const MAX_IMG_MB = 2;
 
-export type ProviderSubmitPayload = Omit<ProviderForm, "categorySelect">;
-
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: ProviderSubmitPayload) => void | Promise<void>;
+  provider: ProviderSubmitPayload | null;
   title?: string;
 };
 
@@ -92,7 +91,7 @@ function validateImage(file?: File | null) {
   return null;
 }
 
-export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = "Crear Proveedor" }: Props) {
+export default function EditSupplierModal({ isOpen, onClose, onSave, provider, title = "Editar Proveedor" }: Props) {
   const [form, setForm] = useState<ProviderForm>({
     name: "",
     nit: "",
@@ -109,7 +108,39 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const fileRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
+
+  // ⬇️ Sin el guard de isOpen: siempre que cambie `provider` copiamos los datos
+  useEffect(() => {
+    if (!provider) {
+      setForm({
+        name: "",
+        nit: "",
+        phone: "",
+        email: "",
+        categorySelect: "",
+        categories: [],
+        rating: 0,
+        contactName: "",
+        status: "Activo",
+        imageFile: null,
+        imageUrl: null,
+      });
+      return;
+    }
+    setForm({
+      name: provider.name ?? "",
+      nit: provider.nit ?? "",
+      phone: provider.phone ?? "",
+      email: provider.email ?? "",
+      categorySelect: "",
+      categories: provider.categories ?? [],
+      rating: provider.rating ?? 0,
+      contactName: provider.contactName ?? "",
+      status: provider.status ?? "Activo",
+      imageFile: null,
+      imageUrl: provider.imageUrl ?? null,
+    });
+  }, [provider]);
 
   const update = <K extends keyof ProviderForm>(k: K, v: ProviderForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -154,7 +185,7 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
         phone: sanitizePhone(form.phone),
         email: form.email.trim(),
         contactName: form.contactName.trim(),
-        status: "Activo",
+        status: form.status,
         categories: form.categories.slice(),
         rating: form.rating,
         imageFile: form.imageFile ?? null,
@@ -163,39 +194,18 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
       await onSave(payload);
       setSaving(false);
       onClose();
-    } catch {
+    } catch (err) {
+      console.error(err);
       setSaving(false);
+      alert("Ocurrió un error al guardar.");
     }
   }
 
   const availableOptions = DEFAULT_CATEGORIES.filter((c) => !form.categories.includes(c));
 
   return (
-    <Modal
-      title={title}
-      isOpen={isOpen}
-      onClose={onClose}
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => formRef.current?.requestSubmit()}
-            disabled={saving}
-            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
-        </>
-      }
-    >
-      <form ref={formRef} id="provider-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
+    <Modal title={title} isOpen={isOpen} onClose={onClose}>
+      <form id="provider-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
         <div>
           <label className="block text-sm text-gray-700">Nombre</label>
           <input
@@ -271,14 +281,11 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
               className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
             >
               <option value="">Selecciona una categoría</option>
-              {DEFAULT_CATEGORIES.map((c) => {
-                const added = form.categories.includes(c);
-                return (
-                  <option key={c} value={c}>
-                    {added ? `✓ ${c} (agregada)` : c}
-                  </option>
-                );
-              })}
+              {DEFAULT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {form.categories.includes(c) ? `✓ ${c} (agregada)` : c}
+                </option>
+              ))}
             </select>
           </div>
           {form.categories.length > 0 && (
@@ -351,6 +358,24 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
             className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
           />
           {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
+        </div>
+
+        <div className="md:col-span-2 flex justify-end gap-2 pt-2 border-t mt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+          >
+            {saving ? "Guardando..." : "Guardar"}
+          </button>
         </div>
       </form>
     </Modal>
