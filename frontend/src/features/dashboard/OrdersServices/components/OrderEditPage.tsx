@@ -73,9 +73,54 @@ function isValidDateDDMMYYYY(s: string): boolean {
   return dt.getFullYear() === yyyy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
 }
 
+function useDesktopQuery() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const fn = () => setIsDesktop(mq.matches);
+    fn();
+    mq.addEventListener?.("change", fn);
+    return () => mq.removeEventListener?.("change", fn);
+  }, []);
+  return isDesktop;
+}
+
+function useSidebarWidth(selector = "#app-sidebar") {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return;
+    const update = () => setW(el.offsetWidth || 0);
+    update();
+    let ro: ResizeObserver | null = null;
+    if ("ResizeObserver" in window) {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    }
+    const mo = new MutationObserver(update);
+    mo.observe(el, { attributes: true, attributeFilter: ["class", "style"] });
+    window.addEventListener("resize", update);
+    return () => {
+      if (ro) {
+        try {
+          ro.disconnect();
+        } catch {}
+        ro = null;
+      }
+      mo.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [selector]);
+  return w;
+}
+
 export default function OrderEditPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDesktop = useDesktopQuery();
+  const sidebarW = useSidebarWidth("#app-sidebar");
 
   const returnTo = (() => {
     const rt = searchParams.get("returnTo");
@@ -144,9 +189,7 @@ export default function OrderEditPage() {
       setServSel("");
       setServQty(1);
       setErrors({});
-    } catch {
-      // si falla el parseo, las validaciones del submit se encargan
-    }
+    } catch {}
   }, [searchParams]);
 
   const serviciosFiltrados = useMemo(() => SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo), [tipo]);
@@ -324,202 +367,281 @@ export default function OrderEditPage() {
 
   return (
     <RequireAuth>
-      <main className="flex-1 flex flex-col bg-gray-100 min-h-screen">
-        <div className="px-4 pt-4 pb-6 max-w-7xl w-full mx-auto flex-1">
-          <div className="mb-4">
-            <h1 className="text-xl font-semibold text-gray-900">Editar orden #{id ?? ""}</h1>
-          </div>
-
-          {Object.keys(errors).length > 0 && (
-            <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
-              <strong className="block mb-1">Hay errores en el formulario:</strong>
-              <ul className="list-disc pl-5 space-y-1">
-                {errors.id && <li>{errors.id}</li>}
-                {errors.cliente && <li>{errors.cliente}</li>}
-                {errors.tecnico && <li>{errors.tecnico}</li>}
-                {errors.tipo && <li>{errors.tipo}</li>}
-                {errors.fechaProgramada && <li>{errors.fechaProgramada}</li>}
-                {errors.monto && <li>{errors.monto}</li>}
-                {errors.servicios && <li>{errors.servicios}</li>}
-                {errors.materiales && <li>{errors.materiales}</li>}
-                {errors.files && <li>{errors.files}</li>}
-              </ul>
+      <div className="relative" style={{ paddingLeft: isDesktop ? sidebarW : 0 }}>
+        <main className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-100 pb-32 md:pb-48" style={{ scrollbarGutter: "stable both-edges" }}>
+          <div className="px-4 pt-4 max-w-7xl w-full mx-auto">
+            <div className="mb-4">
+              <h1 className="text-xl font-semibold text-gray-900">Editar orden #{id ?? ""}</h1>
             </div>
-          )}
 
-          <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <section className="rounded-xl border bg-gray-50 lg:col-span-2">
-              <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Datos</header>
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className={selectWrap}>
-                  <label htmlFor="field-cliente" className="block text-xs text-gray-700 mb-1">Cliente</label>
-                  <input
-                    id="field-cliente"
-                    value={cliente}
-                    onChange={(e) => { setCliente(e.target.value); setErrors((p) => ({ ...p, cliente: undefined })); }}
-                    className={`${inputBase} ${errors.cliente ? errorRing : ""}`}
-                    placeholder="Cliente"
-                  />
-                  {errors.cliente && <p className={errorText}>{errors.cliente}</p>}
-                </div>
-                <div className={selectWrap}>
-                  <label htmlFor="field-tecnico" className="block text-xs text-gray-700 mb-1">Técnico</label>
-                  <input
-                    id="field-tecnico"
-                    value={tecnico}
-                    onChange={(e) => { setTecnico(e.target.value); setErrors((p) => ({ ...p, tecnico: undefined })); }}
-                    className={`${inputBase} ${errors.tecnico ? errorRing : ""}`}
-                    placeholder="Técnico"
-                  />
-                  {errors.tecnico && <p className={errorText}>{errors.tecnico}</p>}
-                </div>
-
-                <div className="md:col-span-2" id="field-tipo">
-                  <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
-                  <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
-                    {TIPOS.map((t) => (
-                      <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
-                        <input
-                          type="radio"
-                          name="tipo-servicio"
-                          value={t}
-                          checked={tipo === t}
-                          onChange={(e) => { setTipo(e.target.value as RowTipo); setErrors((p) => ({ ...p, tipo: undefined })); }}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-sm">{t}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
-                </div>
-
-                <div id="field-fechaProgramada">
-                  <label className="block text-xs text-gray-700 mb-1">Fecha programada</label>
-                  <input
-                    value={fechaProgramada}
-                    onChange={(e) => { setFechaProgramada(e.target.value); setErrors((p) => ({ ...p, fechaProgramada: undefined })); }}
-                    placeholder="DD/MM/AAAA"
-                    className={`${inputBase} ${errors.fechaProgramada ? errorRing : ""}`}
-                  />
-                  {errors.fechaProgramada && <p className={errorText}>{errors.fechaProgramada}</p>}
-                </div>
-
-                <div id="field-monto">
-                  <label className="block text-xs text-gray-700 mb-1">Monto (COP)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={monto}
-                    onChange={(e) => {
-                      setMonto(e.target.value);
-                      setMontoDirty(true);
-                      setErrors((p) => ({ ...p, monto: undefined }));
-                    }}
-                    className={`${inputBase} ${errors.monto ? errorRing : ""}`}
-                  />
-                  {errors.monto && <p className={errorText}>{errors.monto}</p>}
-                  <p className="mt-1 text-xs text-gray-500">Si no editas el monto, se usará el total calculado.</p>
-                </div>
+            {Object.keys(errors).length > 0 && (
+              <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+                <strong className="block mb-1">Hay errores en el formulario:</strong>
+                <ul className="list-disc pl-5 space-y-1">
+                  {errors.id && <li>{errors.id}</li>}
+                  {errors.cliente && <li>{errors.cliente}</li>}
+                  {errors.tecnico && <li>{errors.tecnico}</li>}
+                  {errors.tipo && <li>{errors.tipo}</li>}
+                  {errors.fechaProgramada && <li>{errors.fechaProgramada}</li>}
+                  {errors.monto && <li>{errors.monto}</li>}
+                  {errors.servicios && <li>{errors.servicios}</li>}
+                  {errors.materiales && <li>{errors.materiales}</li>}
+                  {errors.files && <li>{errors.files}</li>}
+                </ul>
               </div>
-            </section>
+            )}
 
-            <div className="space-y-6">
-              <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-6">
-                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">Servicio</label>
-                    <div className={selectWrap}>
-                      <select id="field-servicio" value={servSel} onChange={(e) => setServSel(e.target.value)} className={selectBase} disabled={!tipo}>
-                        <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
-                        {SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo).map((s) => (
-                          <option key={s.id} value={s.nombre}>{s.nombre}</option>
-                        ))}
-                      </select>
-                      <span className={chevron}>▾</span>
+            <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              <section className="rounded-xl border bg-gray-50 lg:col-span-2">
+                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Datos</header>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={selectWrap}>
+                    <label htmlFor="field-cliente" className="block text-xs text-gray-700 mb-1">Cliente</label>
+                    <input
+                      id="field-cliente"
+                      value={cliente}
+                      onChange={(e) => { setCliente(e.target.value); setErrors((p) => ({ ...p, cliente: undefined })); }}
+                      className={`${inputBase} ${errors.cliente ? errorRing : ""}`}
+                      placeholder="Cliente"
+                    />
+                    {errors.cliente && <p className={errorText}>{errors.cliente}</p>}
+                  </div>
+                  <div className={selectWrap}>
+                    <label htmlFor="field-tecnico" className="block text-xs text-gray-700 mb-1">Técnico</label>
+                    <input
+                      id="field-tecnico"
+                      value={tecnico}
+                      onChange={(e) => { setTecnico(e.target.value); setErrors((p) => ({ ...p, tecnico: undefined })); }}
+                      className={`${inputBase} ${errors.tecnico ? errorRing : ""}`}
+                      placeholder="Técnico"
+                    />
+                    {errors.tecnico && <p className={errorText}>{errors.tecnico}</p>}
+                  </div>
+
+                  <div className="md:col-span-2" id="field-tipo">
+                    <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
+                    <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
+                      {TIPOS.map((t) => (
+                        <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
+                          <input
+                            type="radio"
+                            name="tipo-servicio"
+                            value={t}
+                            checked={tipo === t}
+                            onChange={(e) => { setTipo(e.target.value as RowTipo); setErrors((p) => ({ ...p, tipo: undefined })); }}
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm">{t}</span>
+                        </label>
+                      ))}
                     </div>
+                    {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-700 mb-1">Cantidad</label>
-                    <input type="number" min={1} value={servQty} onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))} className={inputBase} disabled={!servSel} />
+                  <div id="field-fechaProgramada">
+                    <label className="block text-xs text-gray-700 mb-1">Fecha programada</label>
+                    <input
+                      value={fechaProgramada}
+                      onChange={(e) => { setFechaProgramada(e.target.value); setErrors((p) => ({ ...p, fechaProgramada: undefined })); }}
+                      placeholder="DD/MM/AAAA"
+                      className={`${inputBase} ${errors.fechaProgramada ? errorRing : ""}`}
+                    />
+                    {errors.fechaProgramada && <p className={errorText}>{errors.fechaProgramada}</p>}
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
-                    <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
-                      {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
+                  <div id="field-monto">
+                    <label className="block text-xs text-gray-700 mb-1">Monto (COP)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={monto}
+                      onChange={(e) => {
+                        setMonto(e.target.value);
+                        setMontoDirty(true);
+                        setErrors((p) => ({ ...p, monto: undefined }));
+                      }}
+                      className={`${inputBase} ${errors.monto ? errorRing : ""}`}
+                    />
+                    {errors.monto && <p className={errorText}>{errors.monto}</p>}
+                    <p className="mt-1 text-xs text-gray-500">Si no editas el monto, se usará el total calculado.</p>
+                  </div>
+                </div>
+              </section>
+
+              <div className="space-y-6">
+                <section className="rounded-xl border bg-gray-50">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-6">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">Servicio</label>
+                      <div className={selectWrap}>
+                        <select id="field-servicio" value={servSel} onChange={(e) => setServSel(e.target.value)} className={selectBase} disabled={!tipo}>
+                          <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
+                          {SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo).map((s) => (
+                            <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                          ))}
+                        </select>
+                        <span className={chevron}>▾</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="md:col-span-2 flex items-end">
-                    <button type="button" onClick={addServicioDesdeFormulario} disabled={!tipo || !servSel} className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50">
-                      Añadir
-                    </button>
-                  </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-700 mb-1">Cantidad</label>
+                      <input type="number" min={1} value={servQty} onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))} className={inputBase} disabled={!servSel} />
+                    </div>
 
-                  <div className="md:col-span-12">
-                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">Descripción</label>
-                    <textarea id="field-desc" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
-                  </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
+                      <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
+                        {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
+                      </div>
+                    </div>
 
-                  <div className="md:col-span-12" id="field-files">
-                    <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
-                        Subir imágenes
+                    <div className="md:col-span-2 flex items-end">
+                      <button type="button" onClick={addServicioDesdeFormulario} disabled={!tipo || !servSel} className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50">
+                        Añadir
                       </button>
-                      <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
-                      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                     </div>
-                    {errors.files && <p className={errorText}>{errors.files}</p>}
 
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {files.length === 0 ? (
-                        <p className="text-xs text-gray-500">No hay imágenes aún.</p>
-                      ) : (
-                        files.map((f, idx) => (
-                          <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
-                            <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
-                            <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
-                              ✕
-                            </button>
-                          </div>
-                        ))
-                      )}
+                    <div className="md:col-span-12">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">Descripción</label>
+                      <textarea id="field-desc" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
+                    </div>
+
+                    <div className="md:col-span-12" id="field-files">
+                      <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
+                          Subir imágenes
+                        </button>
+                        <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
+                        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+                      </div>
+                      {errors.files && <p className={errorText}>{errors.files}</p>}
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {files.length === 0 ? (
+                          <p className="text-xs text-gray-500">No hay imágenes aún.</p>
+                        ) : (
+                          files.map((f, idx) => (
+                            <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
+                              <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
+                                ✕
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-12" id="field-servicios">
+                      <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
+                      <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+                        <table className="w-full text-xs md:text-sm">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="px-2 py-2 text-left">Servicio</th>
+                              <th className="px-2 py-2 text-right w-16">Cant.</th>
+                              <th className="px-2 py-2 text-right w-28">Precio</th>
+                              <th className="px-2 py-2 text-right w-28">Importe</th>
+                              <th className="px-2 py-2 w-8"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {servicios.map((it) => (
+                              <tr key={it.id} className="border-t">
+                                <td className="px-2 py-1">
+                                  <select
+                                    value={it.nombre}
+                                    onChange={(e) => {
+                                      const n = e.target.value;
+                                      const p = precioServicioPorNombre(n);
+                                      patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
+                                      setErrors((p) => ({ ...p, servicios: undefined }));
+                                    }}
+                                    className="w-full h-8 rounded-md border px-2"
+                                  >
+                                    {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
+                                      <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
+                                        {opt.nombre}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-2 py-1 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={it.cantidad}
+                                    onChange={(e) => {
+                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
+                                      setErrors((p) => ({ ...p, servicios: undefined }));
+                                    }}
+                                    className="h-8 w-16 rounded-md border px-2 text-right"
+                                  />
+                                </td>
+                                <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
+                                <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
+                                <td className="px-2 py-1 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeItem(it.id, servicios, setServicios);
+                                      setErrors((p) => ({ ...p, servicios: undefined }));
+                                    }}
+                                    className="h-8 px-2 rounded-md hover:bg-gray-200"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {servicios.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
+                                  Aún no has añadido servicios.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
                   </div>
+                </section>
+              </div>
 
-                  <div className="md:col-span-12" id="field-servicios">
-                    <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
-                    <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+              <aside className="space-y-6">
+                <section className="rounded-xl border bg-gray-50" id="field-materiales">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
+                  <div className="p-4">
+                    <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
                         <thead className="bg-gray-100">
                           <tr>
-                            <th className="px-2 py-2 text-left">Servicio</th>
+                            <th className="px-2 py-2 text-left">Material</th>
                             <th className="px-2 py-2 text-right w-16">Cant.</th>
                             <th className="px-2 py-2 text-right w-28">Precio</th>
-                            <th className="px-2 py-2 text-right w-28">Importe</th>
                             <th className="px-2 py-2 w-8"></th>
                           </tr>
                         </thead>
                         <tbody>
-                          {servicios.map((it) => (
-                            <tr key={it.id} className="border-t">
+                          {materiales.map((m) => (
+                            <tr key={m.id} className="border-t">
                               <td className="px-2 py-1">
                                 <select
-                                  value={it.nombre}
+                                  value={m.nombre}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    const p = precioServicioPorNombre(n);
-                                    patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
-                                    setErrors((p) => ({ ...p, servicios: undefined }));
+                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
+                                    setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
                                   className="w-full h-8 rounded-md border px-2"
                                 >
-                                  {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
-                                    <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
+                                  {MATERIALES_DATA.map((opt) => (
+                                    <option key={opt.id} value={opt.nombre}>
                                       {opt.nombre}
                                     </option>
                                   ))}
@@ -529,22 +651,21 @@ export default function OrderEditPage() {
                                 <input
                                   type="number"
                                   min={1}
-                                  value={it.cantidad}
+                                  value={m.cantidad}
                                   onChange={(e) => {
-                                    patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
-                                    setErrors((p) => ({ ...p, servicios: undefined }));
+                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
+                                    setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
                                   className="h-8 w-16 rounded-md border px-2 text-right"
                                 />
                               </td>
-                              <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
-                              <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
+                              <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
                               <td className="px-2 py-1 text-right">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    removeItem(it.id, servicios, setServicios);
-                                    setErrors((p) => ({ ...p, servicios: undefined }));
+                                    removeItem(m.id, materiales, setMateriales);
+                                    setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
                                   className="h-8 px-2 rounded-md hover:bg-gray-200"
                                 >
@@ -553,164 +674,88 @@ export default function OrderEditPage() {
                               </td>
                             </tr>
                           ))}
-                          {servicios.length === 0 && (
+                          {materiales.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
-                                Aún no has añadido servicios.
+                              <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
+                                Aún no has añadido materiales.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
-                    {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <aside className="space-y-6">
-              <section className="rounded-xl border bg-gray-50" id="field-materiales">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
-                <div className="p-4">
-                  <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
-                    <table className="w-full text-xs md:text-sm">
-                      <thead className="bg-gray-100">
-                        <tr>
-                          <th className="px-2 py-2 text-left">Material</th>
-                          <th className="px-2 py-2 text-right w-16">Cant.</th>
-                          <th className="px-2 py-2 text-right w-28">Precio</th>
-                          <th className="px-2 py-2 w-8"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {materiales.map((m) => (
-                          <tr key={m.id} className="border-t">
-                            <td className="px-2 py-1">
-                              <select
-                                value={m.nombre}
-                                onChange={(e) => {
-                                  const n = e.target.value;
-                                  patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
-                                  setErrors((p) => ({ ...p, materiales: undefined }));
-                                }}
-                                className="w-full h-8 rounded-md border px-2"
-                              >
-                                {MATERIALES_DATA.map((opt) => (
-                                  <option key={opt.id} value={opt.nombre}>
-                                    {opt.nombre}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              <input
-                                type="number"
-                                min={1}
-                                value={m.cantidad}
-                                onChange={(e) => {
-                                  patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
-                                  setErrors((p) => ({ ...p, materiales: undefined }));
-                                }}
-                                className="h-8 w-16 rounded-md border px-2 text-right"
-                              />
-                            </td>
-                            <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
-                            <td className="px-2 py-1 text-right">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  removeItem(m.id, materiales, setMateriales);
-                                  setErrors((p) => ({ ...p, materiales: undefined }));
-                                }}
-                                className="h-8 px-2 rounded-md hover:bg-gray-200"
-                              >
-                                ✕
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {materiales.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
-                              Aún no has añadido materiales.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
-                      Añadir material
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-xl border bg-gray-50">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
-                <div className="p-4 space-y-3 text-sm">
-                  <div>
-                    <div className="flex justify-between">
-                      <span>Subtotal servicios</span>
-                      <span>{formatCOP(subtotalServicios)}</span>
+                    {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
+                        Añadir material
+                      </button>
                     </div>
-                    {serviciosMiniLista.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                        {serviciosMiniLista.map((s) => (
-                          <li key={s.nombre} className="flex justify-between">
-                            <span className="truncate">{s.nombre} × {s.cantidad}</span>
-                            <span>{formatCOP(s.total)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
                   </div>
-                  <div>
-                    <div className="flex justify-between">
-                      <span>Subtotal materiales</span>
-                      <span>{formatCOP(subtotalMateriales)}</span>
-                    </div>
-                    {materialesMiniLista.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                        {materialesMiniLista.map((m) => (
-                          <li key={m.nombre} className="flex justify-between">
-                            <span className="truncate">{m.nombre} × {m.cantidad}</span>
-                            <span>{formatCOP(m.total)}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="flex justify-between">
-                    <span>IVA ({IVA_PCT}%)</span>
-                    <span>{formatCOP(impuestos)}</span>
-                  </div>
-                  <div className="flex justify-between text-base font-semibold pt-2 border-t">
-                    <span>Total</span>
-                    <span>{formatCOP(totalPagar)}</span>
-                  </div>
-                </div>
-              </section>
-            </aside>
+                </section>
 
-            <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
-              <button
-                type="button"
-                onClick={() => router.push(returnTo)}
-                className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
-                Guardar
-              </button>
-            </div>
-          </form>
-        </div>
-      </main>
+                <section className="rounded-xl border bg-gray-50">
+                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
+                  <div className="p-4 space-y-3 text-sm">
+                    <div>
+                      <div className="flex justify-between">
+                        <span>Subtotal servicios</span>
+                        <span>{formatCOP(subtotalServicios)}</span>
+                      </div>
+                      {serviciosMiniLista.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                          {serviciosMiniLista.map((s) => (
+                            <li key={s.nombre} className="flex justify-between">
+                              <span className="truncate">{s.nombre} × {s.cantidad}</span>
+                              <span>{formatCOP(s.total)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex justify-between">
+                        <span>Subtotal materiales</span>
+                        <span>{formatCOP(subtotalMateriales)}</span>
+                      </div>
+                      {materialesMiniLista.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                          {materialesMiniLista.map((m) => (
+                            <li key={m.nombre} className="flex justify-between">
+                              <span className="truncate">{m.nombre} × {m.cantidad}</span>
+                              <span>{formatCOP(m.total)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="flex justify-between">
+                      <span>IVA ({IVA_PCT}%)</span>
+                      <span>{formatCOP(impuestos)}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-semibold pt-2 border-t">
+                      <span>Total</span>
+                      <span>{formatCOP(totalPagar)}</span>
+                    </div>
+                  </div>
+                </section>
+              </aside>
+
+              <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
+                <button
+                  type="button"
+                  onClick={() => router.push(returnTo)}
+                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </main>
+      </div>
     </RequireAuth>
   );
 }
