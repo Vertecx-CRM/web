@@ -3,7 +3,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaShoppingCart } from "react-icons/fa";
-import { showSuccess } from "@/shared/utils/notifications";
+import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { useCart } from "../../contexts/CartContext";
 
 interface Product {
@@ -29,6 +29,11 @@ export default function ViewDetailsModal({
   const { addToCart } = useCart();
 
   const handleAddToCart = (product: Product) => {
+    if (!product.price || product.price <= 0) {
+      showWarning("Este producto no tiene un precio válido");
+      return;
+    }
+
     addToCart({
       id: product.id,
       name: product.title,
@@ -54,7 +59,7 @@ export default function ViewDetailsModal({
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 25 }}
+            transition={{ type: "spring", stiffness: 260, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Imagen del producto (como las cards) */}
@@ -99,7 +104,11 @@ export default function ViewDetailsModal({
                     className="bg-[#B20000] text-white rounded-full px-6 py-3 flex items-center justify-center gap-3 shadow-lg hover:bg-red-700"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    transition={{ type: 'spring', stiffness: 250, damping: 15 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 250,
+                      damping: 15,
+                    }}
                     onClick={() => {
                       handleAddToCart(product);
                       onClose();
