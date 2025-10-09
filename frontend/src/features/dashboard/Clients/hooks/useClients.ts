@@ -27,6 +27,7 @@ export const useClients = () => {
       tipo: clientData.tipo,
       documento: clientData.documento,
       nombre: clientData.nombre,
+      apellido: clientData.apellido,
       telefono: clientData.telefono,
       correoElectronico: clientData.correoElectronico,
       rol: clientData.rol,
@@ -112,16 +113,20 @@ export const useCreateClientForm = ({
     tipo: '',
     documento: '',
     nombre: '',
+    apellido: '',
     telefono: '',
     correoElectronico: '',
     rol: 'Cliente',
-    estado: 'Activo'
+    estado: 'Activo',
+    contrasena: '',
+    confirmarContrasena: ''
   });
 
   const [errors, setErrors] = useState<FormErrors>({
     tipo: '',
     documento: '',
     nombre: '',
+    apellido: '',
     telefono: '',
     correoElectronico: '',
     rol: ''
@@ -131,6 +136,7 @@ export const useCreateClientForm = ({
     tipo: false,
     documento: false,
     nombre: false,
+    apellido: false,
     telefono: false,
     correoElectronico: false,
     rol: false
@@ -142,15 +148,19 @@ export const useCreateClientForm = ({
         tipo: '',
         documento: '',
         nombre: '',
+        apellido: '',
         telefono: '',
         correoElectronico: '',
         rol: 'Cliente',
-        estado: 'Activo'
+        estado: 'Activo',
+        contrasena: '',
+        confirmarContrasena: ''
       });
       setErrors({
         tipo: '',
         documento: '',
         nombre: '',
+        apellido: '',
         telefono: '',
         correoElectronico: '',
         rol: ''
@@ -159,6 +169,7 @@ export const useCreateClientForm = ({
         tipo: false,
         documento: false,
         nombre: false,
+        apellido: false,
         telefono: false,
         correoElectronico: false,
         rol: false
@@ -222,6 +233,9 @@ export const useCreateClientForm = ({
       case 'nombre':
         validateNombreWithNotification(formData, setErrors, setTouched);
         break;
+      case 'apellido':
+        validateTelefonoWithNotification(formData, setErrors, setTouched);
+        break;
       case 'telefono':
         validateTelefonoWithNotification(formData, setErrors, setTouched);
         break;
@@ -270,16 +284,20 @@ export const useEditClientForm = ({
     tipo: '',
     documento: '',
     nombre: '',
+    apellido: '',
     telefono: '',
     correoElectronico: '',
     rol: 'Cliente',
-    estado: 'Activo'
+    estado: 'Activo',
+    contrasena: '',
+    confirmarContrasena: ''
   });
 
   const [errors, setErrors] = useState<FormErrors>({
     tipo: '',
     documento: '',
     nombre: '',
+    apellido: '',
     telefono: '',
     correoElectronico: '',
     rol: ''
@@ -289,6 +307,7 @@ export const useEditClientForm = ({
     tipo: false,
     documento: false,
     nombre: false,
+    apellido: false,
     telefono: false,
     correoElectronico: false,
     rol: false
@@ -301,15 +320,19 @@ export const useEditClientForm = ({
         tipo: client.tipo,
         documento: client.documento,
         nombre: client.nombre,
+        apellido: client.apellido,
         telefono: client.telefono,
         correoElectronico: client.correoElectronico,
         rol: client.rol,
-        estado: client.estado
+        estado: client.estado,
+        contrasena: '',
+        confirmarContrasena: ''
       });
       setErrors({
         tipo: '',
         documento: '',
         nombre: '',
+        apellido: '',
         telefono: '',
         correoElectronico: '',
         rol: ''
@@ -318,6 +341,7 @@ export const useEditClientForm = ({
         tipo: false,
         documento: false,
         nombre: false,
+        apellido: false,
         telefono: false,
         correoElectronico: false,
         rol: false
@@ -351,6 +375,9 @@ export const useEditClientForm = ({
       case 'nombre':
         validateNombreWithNotification({ ...formData, [name]: value }, setErrors, setTouched);
         break;
+      case 'apellido':
+        validateNombreWithNotification({ ...formData, [name]: value }, setErrors, setTouched);
+        break;
       case 'telefono':
         validateTelefonoWithNotification({ ...formData, [name]: value }, setErrors, setTouched);
         break;
@@ -376,6 +403,9 @@ export const useEditClientForm = ({
         validateDocumentoWithNotification(formData, setErrors, setTouched);
         break;
       case 'nombre':
+        validateNombreWithNotification(formData, setErrors, setTouched);
+        break;
+      case 'apellido':
         validateNombreWithNotification(formData, setErrors, setTouched);
         break;
       case 'telefono':

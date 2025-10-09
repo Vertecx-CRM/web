@@ -23,168 +23,118 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white p-4 rounded-lg shadow-lg w-full max-w-lg relative z-50 mx-auto">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50 mx-auto">
         <button onClick={onClose} className="absolute top-3 right-3 z-10">
           <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
         </button>
 
-        <div className="px-4 py-3 rounded-t-lg text-black font-semibold text-2xl">
+        {/* Título */}
+        <div className="px-1 py-2 text-black font-semibold text-lg">
           Editar Cliente
         </div>
 
-        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+        <div className="w-full h-0 outline outline-1 outline-black"></div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-96 overflow-y-auto">
-          
-          {/* Tipo */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Tipo
-            </label>
-            <select
-              name="tipo"
-              value={formData.tipo}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.tipo && touched.tipo ? "red" : Colors.table.lines,
-              }}
-            >
-              <option value="">Seleccione el tipo</option>
-              <option value="CC">CC - Cédula de Ciudadanía</option>
-              <option value="TI">TI - Tarjeta de Identidad</option>
-              <option value="CE">CE - Cédula de Extranjería</option>
-              <option value="PPN">PPN - Pasaporte</option>
-            </select>
-            {errors.tipo && touched.tipo && (
-              <span className="text-red-500 text-xs mt-1">{errors.tipo}</span>
-            )}
+        <form onSubmit={handleSubmit} className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
+
+          {/* Documento y Número */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Documento</label>
+              <select
+                name="tipo"
+                value={formData.tipo}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+                style={{
+                  borderColor: errors.tipo && touched.tipo ? "red" : Colors.table.lines,
+                }}
+              >
+                <option value="">Seleccione</option>
+                <option value="CC">CC</option>
+                <option value="TI">TI</option>
+                <option value="CE">CE</option>
+                <option value="PPN">PPN</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Número de Documento</label>
+              <input
+                type="text"
+                name="documento"
+                placeholder="Ingrese su documento"
+                value={formData.documento}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+                style={{
+                  borderColor: errors.documento && touched.documento ? "red" : Colors.table.lines,
+                }}
+              />
+            </div>
           </div>
 
-          {/* Documento */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Documento
-            </label>
-            <input
-              type="text"
-              name="documento"
-              placeholder="Ingrese el número de documento"
-              value={formData.documento}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.documento && touched.documento ? "red" : Colors.table.lines,
-              }}
-            />
-            {errors.documento && touched.documento && (
-              <span className="text-red-500 text-xs mt-1">{errors.documento}</span>
-            )}
+          {/* Nombre y Apellido */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <input
+                type="text"
+                name="nombre"
+                placeholder="Nombre"
+                value={formData.nombre}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <input
+                type="text"
+                name="apellido"
+                placeholder="Apellido"
+                value={formData.apellido || ""}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
           </div>
 
-          {/* Nombre */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Nombre
-            </label>
-            <input
-              type="text"
-              name="nombre"
-              placeholder="Ingrese el nombre completo"
-              value={formData.nombre}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.nombre && touched.nombre ? "red" : Colors.table.lines,
-              }}
-            />
-            {errors.nombre && touched.nombre && (
-              <span className="text-red-500 text-xs mt-1">{errors.nombre}</span>
-            )}
-          </div>
-
-          {/* Teléfono */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Teléfono
-            </label>
-            <input
-              type="tel"
-              name="telefono"
-              placeholder="Ingrese el número de teléfono"
-              value={formData.telefono}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.telefono && touched.telefono ? "red" : Colors.table.lines,
-              }}
-            />
-            {errors.telefono && touched.telefono && (
-              <span className="text-red-500 text-xs mt-1">{errors.telefono}</span>
-            )}
-          </div>
-
-          {/* Correo Electrónico */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Correo Electrónico
-            </label>
-            <input
-              type="email"
-              name="correoElectronico"
-              placeholder="Ingrese el correo electrónico"
-              value={formData.correoElectronico}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.correoElectronico && touched.correoElectronico ? "red" : Colors.table.lines,
-              }}
-            />
-            {errors.correoElectronico && touched.correoElectronico && (
-              <span className="text-red-500 text-xs mt-1">{errors.correoElectronico}</span>
-            )}
-          </div>
-
-          {/* Rol */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Rol
-            </label>
-            <select
-              name="rol"
-              value={formData.rol}
-              onChange={handleInputChange}
-              onBlur={handleBlur}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor: errors.rol && touched.rol ? "red" : Colors.table.lines,
-              }}
-            >
-              <option value="">Seleccione el rol</option>
-              <option value="Cliente">Cliente</option>
-              <option value="Proveedor">Proveedor</option>
-              <option value="Administrador">Administrador</option>
-            </select>
-            {errors.rol && touched.rol && (
-              <span className="text-red-500 text-xs mt-1">{errors.rol}</span>
-            )}
+          {/* Teléfono y Correo */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <input
+                type="tel"
+                name="telefono"
+                placeholder="Teléfono"
+                value={formData.telefono}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+            <div>
+              <input
+                type="email"
+                name="correoElectronico"
+                placeholder="Correo Electrónico"
+                value={formData.correoElectronico}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
           </div>
 
           {/* Estado */}
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Estado
-            </label>
+            <label className="block text-sm font-medium mb-1">Estado</label>
             <select
               name="estado"
               value={formData.estado}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="w-full px-3 py-2 border rounded-md"
               style={{
                 borderColor: Colors.table.lines,
               }}
@@ -194,32 +144,46 @@ export const EditClientModal: React.FC<EditClientModalProps> = ({
             </select>
           </div>
 
+          {/* Contraseña y Confirmar */}
+          <div>
+            <input
+              type="password"
+              name="contrasena"
+              placeholder="Ingrese una contraseña"
+              value={formData.contrasena || ""}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              className="w-full px-3 py-2 border rounded-md mb-3"
+            />
+            <input
+              type="password"
+              name="confirmarContrasena"
+              placeholder="Confirme la contraseña"
+              value={formData.confirmarContrasena || ""}
+              onChange={handleInputChange}
+              onBlur={handleBlur}
+              className="w-full px-3 py-2 border rounded-md"
+            />
+          </div>
+
           {/* Botones */}
           <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-              style={{
-                backgroundColor: Colors.buttons.tertiary,
-                color: Colors.texts.quaternary,
-              }}
+              className="px-4 py-2 rounded-md font-medium bg-gray-200 hover:bg-gray-300"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-md font-medium text-white text-sm"
-              style={{
-                backgroundColor: Colors.buttons.quaternary,
-                color: Colors.texts.quaternary,
-              }}
+              className="px-4 py-2 rounded-md font-medium text-white"
+              style={{ backgroundColor: Colors.buttons.quaternary }}
             >
-              Guardar Cambios
+              Guardar
             </button>
           </div>
         </form>
-        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
       </div>
     </div>,
     document.body

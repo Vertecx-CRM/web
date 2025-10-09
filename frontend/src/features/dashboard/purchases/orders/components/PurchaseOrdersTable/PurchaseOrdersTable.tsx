@@ -1,14 +1,27 @@
+import React, { useState } from "react";
 import { DataTable, Column } from "@/features/dashboard/components/DataTable";
-import { editPurchaseOrder, purchaseOrder, purchaseOrderForTable, PurchaseOrdersTableProps } from "../../types/typesPurchaseOrder";
+import { 
+  editPurchaseOrder, 
+  purchaseOrder, 
+  purchaseOrderForTable, 
+  PurchaseOrdersTableProps 
+} from "../../types/typesPurchaseOrder";
 import Colors from "@/shared/theme/colors";
+import { CancelPurchaseOrderModal } from "../CancelPurchaseOrderModal/CancelPurchaseOrderModal";
 
-export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
+interface ExtendedPurchaseOrdersTableProps extends Omit<PurchaseOrdersTableProps, 'onDelete'> {
+  onCancel: (order: purchaseOrder, reason: string) => void;
+}
+
+export const PurchaseOrdersTable: React.FC<ExtendedPurchaseOrdersTableProps> = ({
   purchaseOrders,
   onView,
   onEdit,
-  onDelete,
-  onCreate
+  onCreate,
+  onCancel
 }) => {
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [selectedOrderToCancel, setSelectedOrderToCancel] = useState<purchaseOrder | null>(null);
 
   // Convertir órdenes de compra para la tabla asegurando que tengan ID
   const purchaseOrdersForTable: purchaseOrderForTable[] = purchaseOrders.map((order, index) => ({
@@ -21,10 +34,10 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
     { key: "id", header: "#" },
     { key: "numeroOrden", header: "N° Orden" },
     { key: "proveedor", header: "Proveedor" },
-    { 
-      key: "precioUnitario", 
+    {
+      key: "precioUnitario",
       header: "Precio Unitario",
-      render: (order) => `$${order.precioUnitario.toLocaleString("es-CO")}`
+      render: (order) => `${order.precioUnitario.toLocaleString("es-CO")}`
     },
     { key: "fecha", header: "Fecha" },
     {
@@ -59,28 +72,50 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
     onEdit(order as editPurchaseOrder);
   };
 
-  const handleDelete = (order: purchaseOrderForTable) => {
-    onDelete(order as purchaseOrder);
+  // Nueva función para abrir el modal de anulación
+  const handleCancelClick = (order: purchaseOrderForTable) => {
+    setSelectedOrderToCancel(order as purchaseOrder);
+    setCancelModalOpen(true);
+  };
+
+  // Función para procesar la anulación
+  const handleCancelConfirm = (order: purchaseOrder, reason: string) => {
+    onCancel(order, reason);
+    setCancelModalOpen(false);
+    setSelectedOrderToCancel(null);
   };
 
   return (
-    <DataTable<purchaseOrderForTable>
-      data={purchaseOrdersForTable}
-      columns={columns}
-      pageSize={10}
-      searchableKeys={[
-        "numeroOrden",
-        "proveedor",
-        "estado",
-        "fecha",
-      ]}
-      onView={handleView}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreate={onCreate}
-      searchPlaceholder="Buscar por número de orden, proveedor, estado o fecha…"
-      createButtonText="Crear Orden"
-    />
+    <>
+      <DataTable<purchaseOrderForTable>
+        data={purchaseOrdersForTable}
+        columns={columns}
+        pageSize={10}
+        searchableKeys={[
+          "numeroOrden",
+          "proveedor",
+          "estado",
+          "fecha",
+        ]}
+        onView={handleView}
+        onEdit={handleEdit}
+        onCancel={handleCancelClick}
+        onCreate={onCreate}
+        searchPlaceholder="Buscar por número de orden, proveedor, estado o fecha…"
+        createButtonText="Crear Orden"
+      />
+
+      {/* Modal de anulación */}
+      <CancelPurchaseOrderModal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          setCancelModalOpen(false);
+          setSelectedOrderToCancel(null);
+        }}
+        onCancel={handleCancelConfirm}
+        purchaseOrder={selectedOrderToCancel}
+      />
+    </>
   );
 };
 

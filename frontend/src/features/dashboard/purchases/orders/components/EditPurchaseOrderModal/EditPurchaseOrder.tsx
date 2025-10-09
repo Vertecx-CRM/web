@@ -48,55 +48,54 @@ export const EditPurchaseOrderModal: React.FC<editPurchaseOrderModalProps> = ({
         <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl relative z-50 max-h-[90vh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-xl font-semibold text-gray-900">
-              Editar Orden de Compra
+            <h2 className="text-lg font-semibold text-gray-900">
+              Editar Orden Compra
             </h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 space-y-6">
-            {/* Número de Orden */}
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Número de Orden*
-              </label>
-              <input
-                type="text"
-                name="numeroOrden"
-                value={formData.numeroOrden}
-                onChange={handleFieldChange}
-                onBlur={() => handleBlur('numeroOrden')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                style={{
-                  borderColor: errors.numeroOrden && touched.numeroOrden ? 'red' : Colors.table.lines,
-                }}
-                placeholder="Ej: ORD-001"
-              />
-              {errors.numeroOrden && touched.numeroOrden && (
-                <span className="text-red-500 text-xs mt-1">{errors.numeroOrden}</span>
-              )}
-            </div>
-
-            {/* Proveedor y Estado */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* Primera fila: Número de Orden y Proveedor */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Proveedor*
+                <label className="block text-xs font-medium mb-1 text-gray-600">
+                  N° Orden
+                </label>
+                <input
+                  type="text"
+                  name="numeroOrden"
+                  value={formData.numeroOrden}
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('numeroOrden')}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                  style={{
+                    borderColor: errors.numeroOrden && touched.numeroOrden ? 'red' : Colors.table.lines,
+                  }}
+                  placeholder="001"
+                />
+                {errors.numeroOrden && touched.numeroOrden && (
+                  <span className="text-red-500 text-xs mt-1">{errors.numeroOrden}</span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1 text-gray-600">
+                  Proveedor
                 </label>
                 <select
                   name="proveedor"
                   value={formData.proveedor}
                   onChange={handleFieldChange}
                   onBlur={() => handleBlur('proveedor')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
                   style={{
                     borderColor: errors.proveedor && touched.proveedor ? 'red' : Colors.table.lines,
                   }}
@@ -114,17 +113,40 @@ export const EditPurchaseOrderModal: React.FC<editPurchaseOrderModalProps> = ({
                   <span className="text-red-500 text-xs mt-1">{errors.proveedor}</span>
                 )}
               </div>
+            </div>
+
+            {/* Segunda fila: Fecha estimada y Estado */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium mb-1 text-gray-600">
+                  Fecha estimada de entrega
+                </label>
+                <input
+                  type="date"
+                  name="fecha"
+                  value={formData.fecha}
+                  onChange={handleFieldChange}
+                  onBlur={() => handleBlur('fecha')}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                  style={{
+                    borderColor: errors.fecha && touched.fecha ? 'red' : Colors.table.lines,
+                  }}
+                />
+                {errors.fecha && touched.fecha && (
+                  <span className="text-red-500 text-xs mt-1">{errors.fecha}</span>
+                )}
+              </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Estado*
+                <label className="block text-xs font-medium mb-1 text-gray-600">
+                  Estado de Ordn
                 </label>
                 <select
                   name="estado"
                   value={formData.estado}
                   onChange={handleFieldChange}
                   onBlur={() => handleBlur('estado')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
                 >
                   <option value="Pendiente">Pendiente</option>
                   <option value="Completada">Completada</option>
@@ -134,105 +156,92 @@ export const EditPurchaseOrderModal: React.FC<editPurchaseOrderModalProps> = ({
               </div>
             </div>
 
-            {/* Fecha estimada de entrega */}
+            {/* Tabla de productos */}
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
-                Fecha estimada de entrega
+              <label className="block text-xs font-medium mb-2 text-gray-600">
+                Productos
               </label>
-              <input
-                type="date"
-                name="fecha"
-                value={formData.fecha}
-                onChange={handleFieldChange}
-                onBlur={() => handleBlur('fecha')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                style={{
-                  borderColor: errors.fecha && touched.fecha ? 'red' : Colors.table.lines,
-                }}
-              />
-              {errors.fecha && touched.fecha && (
-                <span className="text-red-500 text-xs mt-1">{errors.fecha}</span>
+              <div className="border border-gray-300 rounded overflow-hidden">
+                {/* Header de tabla */}
+                <div className="grid grid-cols-4 bg-gray-50 border-b border-gray-300">
+                  <div className="px-3 py-2 text-xs font-medium text-gray-600">Productos</div>
+                  <div className="px-3 py-2 text-xs font-medium text-gray-600 text-center">Cantidad</div>
+                  <div className="px-3 py-2 text-xs font-medium text-gray-600 text-right">Precio Unitario</div>
+                  <div className="px-3 py-2 text-xs font-medium text-gray-600 text-right">Total</div>
+                </div>
+                
+                {/* Fila de datos (editable) */}
+                <div className="grid grid-cols-4 border-b border-gray-200">
+                  <div className="px-3 py-3 text-sm text-gray-700">
+                    Producto
+                  </div>
+                  <div className="px-3 py-2 flex items-center justify-center">
+                    <input
+                      type="number"
+                      name="cantidad"
+                      value={formData.cantidad || ''}
+                      onChange={handleFieldChange}
+                      onBlur={() => handleBlur('cantidad')}
+                      min="1"
+                      className="w-16 px-2 py-1 text-sm text-center border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                      style={{
+                        borderColor: errors.cantidad && touched.cantidad ? 'red' : Colors.table.lines,
+                      }}
+                    />
+                  </div>
+                  <div className="px-3 py-2 flex items-center justify-end">
+                    <input
+                      type="number"
+                      name="precioUnitario"
+                      value={formData.precioUnitario || ''}
+                      onChange={handleFieldChange}
+                      onBlur={() => handleBlur('precioUnitario')}
+                      min="0"
+                      step="0.01"
+                      className="w-28 px-2 py-1 text-sm text-right border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
+                      style={{
+                        borderColor: errors.precioUnitario && touched.precioUnitario ? 'red' : Colors.table.lines,
+                      }}
+                    />
+                  </div>
+                  <div className="px-3 py-3 text-sm text-gray-700 text-right">
+                    ${subtotal.toLocaleString('es-CO')}
+                  </div>
+                </div>
+              </div>
+              {errors.cantidad && touched.cantidad && (
+                <span className="text-red-500 text-xs mt-1 block">{errors.cantidad}</span>
+              )}
+              {errors.precioUnitario && touched.precioUnitario && (
+                <span className="text-red-500 text-xs mt-1 block">{errors.precioUnitario}</span>
               )}
             </div>
 
-            {/* Información del producto */}
-            <div className="bg-gray-50 p-4 rounded-md">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Información del Producto</h3>
-              
-              {/* Cantidad y Precio Unitario */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Cantidad*
-                  </label>
-                  <input
-                    type="number"
-                    name="cantidad"
-                    value={formData.cantidad || ''}
-                    onChange={handleFieldChange}
-                    onBlur={() => handleBlur('cantidad')}
-                    min="1"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    style={{
-                      borderColor: errors.cantidad && touched.cantidad ? 'red' : Colors.table.lines,
-                    }}
-                    placeholder="1"
-                  />
-                  {errors.cantidad && touched.cantidad && (
-                    <span className="text-red-500 text-xs mt-1">{errors.cantidad}</span>
-                  )}
+            {/* Resumen de totales - alineado a la derecha */}
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2 text-sm">
+                <div className="flex justify-between py-1">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span className="text-gray-900">${subtotal.toLocaleString('es-CO')}</span>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">
-                    Precio Unitario*
-                  </label>
-                  <input
-                    type="number"
-                    name="precioUnitario"
-                    value={formData.precioUnitario || ''}
-                    onChange={handleFieldChange}
-                    onBlur={() => handleBlur('precioUnitario')}
-                    min="0"
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    style={{
-                      borderColor: errors.precioUnitario && touched.precioUnitario ? 'red' : Colors.table.lines,
-                    }}
-                    placeholder="0.00"
-                  />
-                  {errors.precioUnitario && touched.precioUnitario && (
-                    <span className="text-red-500 text-xs mt-1">{errors.precioUnitario}</span>
-                  )}
+                <div className="flex justify-between py-1">
+                  <span className="text-gray-600">IVA (19%)</span>
+                  <span className="text-gray-900">${iva.toLocaleString('es-CO')}</span>
                 </div>
-              </div>
-
-              {/* Resumen de totales */}
-              <div className="bg-white p-3 rounded border">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>${subtotal.toLocaleString('es-CO')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>IVA (19%):</span>
-                    <span>${iva.toLocaleString('es-CO')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Descuento:</span>
-                    <span>$0</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-base border-t pt-2">
-                    <span>TOTAL:</span>
-                    <span>${total.toLocaleString('es-CO')}</span>
-                  </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-gray-600">Descuento</span>
+                  <span className="text-gray-900">$0</span>
+                </div>
+                <div className="flex justify-between py-2 border-t border-gray-300 font-semibold">
+                  <span className="text-gray-900">TOTAL a pagar</span>
+                  <span className="text-gray-900">${total.toLocaleString('es-CO')}</span>
                 </div>
               </div>
             </div>
 
-            {/* Descripción/Observaciones */}
+            {/* Observaciones */}
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">
+              <label className="block text-xs font-medium mb-1 text-gray-600">
                 Observaciones
               </label>
               <textarea
@@ -241,26 +250,26 @@ export const EditPurchaseOrderModal: React.FC<editPurchaseOrderModalProps> = ({
                 onChange={handleFieldChange}
                 onBlur={() => handleBlur('descripcion')}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-red-500 focus:border-red-500"
                 placeholder="Ingrese observaciones adicionales sobre la orden..."
               />
             </div>
 
             {/* Botones */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-md font-medium"
+                className="px-6 py-2 text-sm text-gray-700 bg-gray-200 hover:bg-gray-300 rounded font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md font-medium disabled:opacity-50"
+                className="px-6 py-2 text-sm bg-gray-900 hover:bg-black text-white rounded font-medium disabled:opacity-50"
               >
-                {isSubmitting ? 'Actualizando...' : 'Actualizar'}
+                {isSubmitting ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </form>

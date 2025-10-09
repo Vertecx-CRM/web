@@ -5,11 +5,11 @@ import Colors from "@/shared/theme/colors";
 import { motion } from "framer-motion";
 import Image from "next/image";
 
-export type Column<T> = {
-  key: keyof T;
+export interface Column<T> {
+  key: keyof T | string; // 👈 acepta claves que no existen en T
   header: string;
   render?: (row: T) => React.ReactNode;
-};
+}
 
 type DataTableProps<T> = {
   data: T[];
@@ -183,7 +183,7 @@ export function DataTable<T extends { id: number | string }>({
                     className="block md:table-cell before:content-[attr(data-label)] before:font-semibold before:mr-2 md:before:content-none"
                     data-label={c.header}
                   >
-                    {c.render ? c.render(row) : String(row[c.key])}
+                     {c.render ? c.render(row) : (c.key in row ? String(row[c.key as keyof T]) : "")} {/* Aseguramos que c.key es una clave válida de row y modifique la siguiente parte String(row[c.key])}*/}
                   </Td>
                 ))}
 
