@@ -10,17 +10,18 @@ interface ViewSaleModalProps {
   sale: Sale | null;
 }
 
-const ViewSaleModal: React.FC<ViewSaleModalProps> = ({ isOpen, onClose, sale }) => {
+const ViewSaleModal: React.FC<ViewSaleModalProps> = ({
+  isOpen,
+  onClose,
+  sale,
+}) => {
   if (!isOpen || !sale) return null;
 
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl relative z-50 max-h-[95vh] overflow-y-auto">
         {/* Botón cerrar */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3"
-        >
+        <button onClick={onClose} className="absolute top-3 right-3">
           <img src="/icons/X.svg" alt="Cerrar" className="w-6 h-6" />
         </button>
 
@@ -72,9 +73,15 @@ const ViewSaleModal: React.FC<ViewSaleModalProps> = ({ isOpen, onClose, sale }) 
               <tr key={i}>
                 <td className="border px-3 py-2">{item.nombre}</td>
                 <td className="border px-3 py-2">{item.tipo}</td>
-                <td className="border px-3 py-2 text-center">{item.cantidad}</td>
-                <td className="border px-3 py-2 text-right">${item.precio.toLocaleString()}</td>
-                <td className="border px-3 py-2 text-right">${item.total.toLocaleString()}</td>
+                <td className="border px-3 py-2 text-center">
+                  {item.cantidad}
+                </td>
+                <td className="border px-3 py-2 text-right">
+                  ${item.precio.toLocaleString()}
+                </td>
+                <td className="border px-3 py-2 text-right">
+                  ${item.total.toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -122,5 +129,3 @@ const ViewSaleModal: React.FC<ViewSaleModalProps> = ({ isOpen, onClose, sale }) 
 };
 
 export default ViewSaleModal;
-
-

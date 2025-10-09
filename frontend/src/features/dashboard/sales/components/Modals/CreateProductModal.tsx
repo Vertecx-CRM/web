@@ -1,11 +1,18 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Colors from "@/shared/theme/colors";
 
 interface CreateProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: {
+    nombre: string;
+    descripcion: string;
+    precio: string;
+    cantidad: string;
+    categoria: string;
+    imagen: File | null;
+  }) => void;
 }
 
 export const CreateProductModal: React.FC<CreateProductModalProps> = ({
@@ -13,7 +20,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [formData, setFormData] = React.useState({
+  const [mounted, setMounted] = useState(false);
+  const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
     precio: "",
@@ -22,9 +30,13 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
     imagen: null as File | null,
   });
 
-  if (!isOpen) return null;
+  // Previene errores de SSR en Next.js
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -41,13 +53,19 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50">
-        <button onClick={onClose} className="absolute top-4 right-4">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 p-4">
+      <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg relative animate-fadeIn">
+        {/* Botón de cerrar */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 hover:scale-110 transition-transform"
+        >
           <img src="/icons/X.svg" alt="Cerrar" className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-semibold mb-4">Crear Producto</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800">
+          Crear Producto
+        </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
@@ -57,6 +75,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             value={formData.nombre}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
+            required
           />
 
           <input
@@ -72,18 +91,20 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             <input
               type="number"
               name="precio"
-              placeholder="Ingrese Precio"
+              placeholder="Ingrese precio"
               value={formData.precio}
               onChange={handleChange}
               className="w-full px-3 py-2 border rounded-md"
+              required
             />
             <input
               type="number"
               name="cantidad"
-              placeholder="Ingrese Cantidad"
+              placeholder="Ingrese cantidad"
               value={formData.cantidad}
               onChange={handleChange}
               className="w-full px-3 py-2 border rounded-md"
+              required
             />
           </div>
 
@@ -96,6 +117,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             <option value="">Seleccione categoría</option>
             <option value="Electrónica">Electrónica</option>
             <option value="Accesorios">Accesorios</option>
+            <option value="Muebles">Muebles</option>
           </select>
 
           <input type="file" onChange={handleFileChange} />
@@ -104,14 +126,17 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-md bg-gray-300"
+              className="px-4 py-2 rounded-md bg-gray-300 hover:bg-gray-400"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-md"
-              style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
+              className="px-4 py-2 rounded-md hover:scale-105 transition-transform"
+              style={{
+                backgroundColor: Colors.buttons.quaternary,
+                color: Colors.texts.quaternary,
+              }}
             >
               Guardar
             </button>

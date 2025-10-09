@@ -1,11 +1,17 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Colors from "@/shared/theme/colors";
 
 interface CreateServiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: {
+    nombre: string;
+    descripcion: string;
+    precio: string;
+    categoria: string;
+    imagen: File | null;
+  }) => void;
 }
 
 export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
@@ -13,7 +19,8 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [formData, setFormData] = React.useState({
+  const [mounted, setMounted] = useState(false);
+  const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
     precio: "",
@@ -21,9 +28,12 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     imagen: null as File | null,
   });
 
-  if (!isOpen) return null;
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !isOpen) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -40,13 +50,18 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
   };
 
   return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50">
-        <button onClick={onClose} className="absolute top-4 right-4">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50 p-4">
+      <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-lg relative animate-fadeIn">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 hover:scale-110 transition-transform"
+        >
           <img src="/icons/X.svg" alt="Cerrar" className="w-6 h-6" />
         </button>
 
-        <h2 className="text-2xl font-semibold mb-4">Crear Servicio</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-800">
+          Crear Servicio
+        </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
@@ -56,6 +71,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             value={formData.nombre}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
+            required
           />
 
           <input
@@ -70,10 +86,11 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
           <input
             type="number"
             name="precio"
-            placeholder="Ingrese Precio"
+            placeholder="Ingrese precio"
             value={formData.precio}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-md"
+            required
           />
 
           <select
@@ -83,7 +100,9 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             className="w-full px-3 py-2 border rounded-md"
           >
             <option value="">Seleccione categoría</option>
-            <option value="Mantenimiento Preventivo">Mantenimiento Preventivo</option>
+            <option value="Mantenimiento Preventivo">
+              Mantenimiento Preventivo
+            </option>
             <option value="Instalación">Instalación</option>
             <option value="Reparación">Reparación</option>
           </select>
@@ -94,14 +113,17 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-md bg-gray-300"
+              className="px-4 py-2 rounded-md bg-gray-300 hover:bg-gray-400"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-md"
-              style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
+              className="px-4 py-2 rounded-md hover:scale-105 transition-transform"
+              style={{
+                backgroundColor: Colors.buttons.quaternary,
+                color: Colors.texts.quaternary,
+              }}
             >
               Guardar
             </button>
