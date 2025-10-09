@@ -54,7 +54,10 @@ export default function ViewRoleModal({
           >
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
-              <h2 className="text-lg font-semibold" style={{ color: Colors.texts.primary }}>
+              <h2
+                className="text-lg font-semibold"
+                style={{ color: Colors.texts.primary }}
+              >
                 Ver Rol
               </h2>
               <button
@@ -69,7 +72,10 @@ export default function ViewRoleModal({
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                  <label
+                    className="block text-base font-semibold mb-1"
+                    style={{ color: Colors.texts.primary }}
+                  >
                     Nombre del rol
                   </label>
                   <input
@@ -82,7 +88,10 @@ export default function ViewRoleModal({
                 </div>
 
                 <div>
-                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                  <label
+                    className="block text-base font-semibold mb-1"
+                    style={{ color: Colors.texts.primary }}
+                  >
                     Estado
                   </label>
                   <input
@@ -99,13 +108,19 @@ export default function ViewRoleModal({
                 </div>
               </div>
 
-              <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
+              <h3
+                className="text-base font-semibold"
+                style={{ color: Colors.texts.primary }}
+              >
                 Permisos Asignados
               </h3>
 
               <div className="overflow-hidden rounded-xl border max-h-64 overflow-y-auto custom-scroll">
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 z-10" style={{ backgroundColor: "#B20000" }}>
+                  <thead
+                    className="sticky top-0 z-10"
+                    style={{ backgroundColor: "#B20000" }}
+                  >
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-white">
                         Módulo
@@ -124,7 +139,10 @@ export default function ViewRoleModal({
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-center gap-4">
                             {groupedPermissions[module].map((perm) => (
-                              <div key={`${module}-${perm}`} className="flex items-center gap-2">
+                              <div
+                                key={`${module}-${perm}`}
+                                className="flex items-center gap-2"
+                              >
                                 <Checkbox checked={true} />
                                 <span className="text-sm">{perm}</span>
                               </div>
@@ -138,17 +156,14 @@ export default function ViewRoleModal({
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t sticky bottom-0 bg-white z-10 rounded-b-3xl">
+            {/* Footer (mismo estilo que Crear, sin botón Guardar) */}
+            <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                style={{
-                  backgroundColor: Colors.buttons.quaternary,
-                  color: Colors.texts.quaternary,
-                }}
+                className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
               >
-                Cerrar
+                Cancelar
               </button>
             </div>
           </motion.div>

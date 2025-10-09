@@ -29,25 +29,19 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2 sm:gap-3 p-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
           >
             Cerrar
           </button>
         </div>
       }
     >
-      {/* Contenedor fijo sin scroll */}
       <div className="overflow-hidden">
         <div className="grid grid-cols-2 gap-3 p-1">
-          {/* Imagen */}
           <div className="col-span-2 flex flex-col items-center mb-3">
             <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden">
               {imageSrc ? (
@@ -75,7 +69,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Nombre */}
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -88,7 +81,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Precio */}
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -101,7 +93,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Stock */}
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -114,7 +105,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Categoría */}
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -127,7 +117,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Descripción (único con scroll) */}
           <div className="col-span-2">
             <label
               className="block text-sm font-medium mb-1"
@@ -138,8 +127,8 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             <div
               className="px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-line break-words"
               style={{
-                maxHeight: "160px",
-                minHeight: "100px",
+                maxHeight: "100px",
+                minHeight: "80px",
                 overflowY: "auto",
                 overflowX: "hidden",
               }}
@@ -148,7 +137,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
             </div>
           </div>
 
-          {/* Estado */}
           <div>
             <label
               className="block text-sm font-medium mb-1"
@@ -163,7 +151,6 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
         </div>
       </div>
 
-      {/* Forzamos bloqueo total del scroll en el modal */}
       <style jsx global>{`
         .fixed.inset-0.overflow-y-auto {
           overflow: hidden !important;
