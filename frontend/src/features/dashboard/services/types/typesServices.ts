@@ -3,7 +3,7 @@ export interface Service {
   name: string;
   description?: string;
   category: string;
-  image: string | File; 
+  image: string | File | null; 
   state: "Activo" | "Inactivo";
 }
 
@@ -11,7 +11,7 @@ export interface CreateServiceData {
   name: string;
   description?: string;
   category: string;
-  image: string | File;
+  image: string | File | null;
 }
 
 export interface EditServiceData extends CreateServiceData {

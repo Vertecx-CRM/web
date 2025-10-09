@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Colors from "@/shared/theme/colors";
 
 const OurServices = () => {
   const services = [
@@ -24,43 +25,53 @@ const OurServices = () => {
   ];
 
   return (
-    <section className="bg-gradient-to-b from-white to-gray-900 py-16 px-6 md:px-20 text-center">
+    <section className="bg-gradient-to-b from-white to-gray-900 py-16 px-6 sm:px-10 lg:px-20 text-center">
       {/* Título */}
-      <h2 className="text-3xl md:text-4xl font-extrabold text-red-700 mb-12">
+      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-red-700 mb-12">
         Categoría de Servicios
       </h2>
 
-      {/* Servicios */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+      {/* Grid de servicios */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-12 mb-16">
         {services.map((service, index) => (
           <div
             key={index}
-            className="cursor-pointer flex flex-col items-center text-white text-center p-6 rounded-xl 
-  bg-gray-800/30 shadow-md hover:shadow-xl hover:scale-105 transition-transform duration-300"
+            className="cursor-pointer flex flex-col items-center text-white text-center p-8 rounded-2xl 
+            bg-gray-800/40 shadow-md hover:shadow-2xl hover:scale-105 transition-transform duration-300"
           >
-            {/* Imagen animada */}
-            <Image
-              src={service.image}
-              alt={service.title}
-              width={200}
-              height={200}
-              className="object-contain mb-4 transform transition-transform duration-500 hover:rotate-3 hover:scale-105"
-            />
+            {/* Imagen */}
+            <div className="w-50 h-46 flex items-center justify-center mb-6">
+              <Image
+                src={service.image}
+                alt={service.title}
+                width={250}
+                height={150}
+                className="object-contain transform transition-transform duration-500 hover:rotate-3 hover:scale-105"
+              />
+            </div>
 
             {/* Título */}
-            <h3 className="text-lg font-bold mb-4">{service.title}</h3>
+            <h3 className="text-lg sm:text-xl font-bold mb-4">
+              {service.title}
+            </h3>
 
             {/* Descripción */}
-            <p className="text-lg text-gray-200 leading-relaxed">
+            <p className="text-base sm:text-lg text-gray-200 leading-relaxed">
               {service.description}
             </p>
           </div>
         ))}
       </div>
 
-      {/* Botón único */}
-      <button className="cursor-pointer bg-red-700 text-white px-8 py-3 rounded-md shadow-md hover:bg-red-800 transition">
-        Ver Servicios
+      {/* Botón */}
+      <button
+        style={{ backgroundColor: Colors.buttons.primary }}
+        className="relative cursor-pointer inline-flex items-center justify-center px-8 py-3 text-base sm:text-lg font-semibold text-white rounded-md shadow-lg overflow-hidden group transition-transform duration-300 hover:scale-105"
+      >
+        <span className="absolute inset-0 bg-red-800 scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+        <span className="relative z-10 transition-colors duration-300 group-hover:text-white">
+          Ver más
+        </span>
       </button>
     </section>
   );

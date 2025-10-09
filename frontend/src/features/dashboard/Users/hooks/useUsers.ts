@@ -2,18 +2,83 @@ import { useEffect, useState } from "react";
 import { createUserData, createUserModalProps, editUser, editUserModalProps, formErrors, formTouched, user } from "../types/typesUser";
 import { initialUsers } from "../mocks/mockUser"
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
-import { EditCategoryData } from "../../CategoryProducts/types/typeCategoryProducts";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import { validateField, validateAllFields, hasErrors, validateSpecificFields, validateFormWithNotification } from "../Validations/UserValidations";
 
 
+// Clave para el localStorage
+const USERS_STORAGE_KEY = 'users';
+
+// Función para convertir File a Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
+// Función para cargar usuarios del localStorage
+const loadUsersFromStorage = (): user[] => {
+  if (typeof window === 'undefined') return initialUsers;
+  
+  try {
+    const stored = localStorage.getItem(USERS_STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    // Si no hay datos en localStorage, guardar los usuarios iniciales
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
+    return initialUsers;
+  } catch (error) {
+    console.error('Error loading users from localStorage:', error);
+    return initialUsers;
+  }
+};
+
+// Función para guardar usuarios en el localStorage
+const saveUsersToStorage = (users: user[]) => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+  } catch (error) {
+    console.error('Error saving users to localStorage:', error);
+  }
+};
+
 export const useUsers = () => {
-  const [users, setUsers] = useState<user[]>(initialUsers);
+  // Cargar usuarios desde localStorage al inicializar
+  const [users, setUsers] = useState<user[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<editUser | null>(null);
   const [viewingUser, setViewingUser] = useState<user | null>(null);
 
-  const handleCreateUser = (userData: createUserData) => {
+  // Cargar usuarios del localStorage cuando el componente se monta
+  useEffect(() => {
+    const loadedUsers = loadUsersFromStorage();
+    setUsers(loadedUsers);
+  }, []);
+
+  // Función para actualizar el estado y el localStorage simultáneamente
+  const updateUsers = (newUsers: user[]) => {
+    setUsers(newUsers);
+    saveUsersToStorage(newUsers);
+  };
+
+  const handleCreateUser = async (userData: createUserData) => {
+    let imagenBase64 = null;
+    
+    // Convertir imagen a Base64 si existe
+    if (userData.imagen instanceof File) {
+      try {
+        imagenBase64 = await fileToBase64(userData.imagen);
+      } catch (error) {
+        console.error('Error converting image to Base64:', error);
+      }
+    }
+
     const existingIds = users.map(c => c.id).filter((id): id is number => id !== undefined);
     const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
 
@@ -30,47 +95,60 @@ export const useUsers = () => {
       email: userData.email,
       rol: userData.rol,
       estado: "Activo",
-      imagen: userData.imagen,
+      imagen: imagenBase64 || userData.imagen,
     };
 
-    setUsers(prev => [...prev, newUser]);
+    const updatedUsers = [...users, newUser];
+    updateUsers(updatedUsers);
     setIsCreateModalOpen(false);
 
     showSuccess('Usuario creado exitosamente!');
   };
-  const handleEditUser = (userData: editUser) => {
+
+  const handleEditUser = async (userData: editUser) => {
     if (!userData.id) return;
+
+    let imagenBase64 = null;
+    
+    // Convertir imagen a Base64 si es un archivo nuevo
+    if (userData.imagen instanceof File) {
+      try {
+        imagenBase64 = await fileToBase64(userData.imagen);
+      } catch (error) {
+        console.error('Error converting image to Base64:', error);
+      }
+    }
 
     // Combinar nombre y apellido para el nombre completo
     const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`.trim();
 
-    setUsers(prev =>
-      prev.map(user =>
-        user.id === userData.id ?
-          {
-            ...user,
-            ...userData,
-            nombre: nombreCompleto 
-          }
-          : user
-      )
+    const updatedUsers = users.map(user =>
+      user.id === userData.id ?
+        {
+          ...user,
+          ...userData,
+          nombre: nombreCompleto,
+          imagen: imagenBase64 || userData.imagen || user.imagen 
+        }
+        : user
     );
+    
+    updateUsers(updatedUsers);
     setEditingUser(null);
     showSuccess('Usuario actualizado exitosamente!');
   };
 
-  const performDeleteUser = async (user: user): Promise<boolean> => {
+  const performDeleteUser = async (userToDelete: user): Promise<boolean> => {
     return confirmDelete(
       {
-        itemName: user.nombre,
+        itemName: userToDelete.nombre,
         itemType: 'usuario',
-        successMessage: `El usuario "${user.nombre}" ha sido eliminado correctamente.`,
+        successMessage: `El usuario "${userToDelete.nombre}" ha sido eliminado correctamente.`,
         errorMessage: 'No se pudo eliminar el usuario. Por favor, intenta nuevamente.',
       },
       () => {
-        // Esta es la función que se ejecuta si el usuario confirma la eliminación
-        setUsers(prev => prev.filter(c => c.id !== user.id));
-        return Promise.resolve(); 
+        const updatedUsers = users.filter(u => u.id !== userToDelete.id);
+        updateUsers(updatedUsers);
       }
     );
   };
@@ -93,6 +171,11 @@ export const useUsers = () => {
     setIsCreateModalOpen(false);
   };
 
+  // Función para resetear los usuarios a los iniciales (útil para testing)
+  const resetUsers = () => {
+    updateUsers(initialUsers);
+  };
+
   return {
     users,
     isCreateModalOpen,
@@ -107,7 +190,8 @@ export const useUsers = () => {
     handleDelete,
     closeModals,
     setEditingUser,
-    setViewingUser
+    setViewingUser,
+    resetUsers // Opcional: para debugging
   };
 };
 

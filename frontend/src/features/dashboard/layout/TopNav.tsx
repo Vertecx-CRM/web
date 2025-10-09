@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { UserCircle, LogOut, Menu, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { UserCircle, LogOut, Pencil, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 import { useLoader } from "@/shared/components/loader";
+import ProfileModal from "@/features/auth/porfile/porfilemodal";
 
 const titles: Record<string, string> = {
   [routes.dashboard.main]: "Dashboard",
@@ -13,7 +14,7 @@ const titles: Record<string, string> = {
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
   [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
+  [routes.dashboard.purchasesGraph]: "Gráficas de Compras",
   [routes.dashboard.services]: "Servicios",
   [routes.dashboard.technicians]: "Técnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
@@ -24,7 +25,8 @@ const titles: Record<string, string> = {
   [routes.dashboard.productsCategories]: "Categorías de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
   [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
-  [routes.dashboard.ordersServices]: "Ordenes de Servicio",
+  [routes.dashboard.ordersServices]: "Órdenes de Servicio",
+  [routes.dashboard.appointments]: "Citas",
 };
 
 type TopNavProps = {
@@ -32,16 +34,32 @@ type TopNavProps = {
   fallbackUserName?: string;
 };
 
-const TopNav = ({
-  logoutRedirectTo = "/auth/login",
+interface AuthUser {
+  name?: string;
+  email?: string;
+  avatar?: string;
+}
+
+export default function TopNav({
+  logoutRedirectTo = "/auth/access",
   fallbackUserName = "Usuario",
-}: TopNavProps) => {
+}: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth() as {
+    user: AuthUser | null;
+    logout: () => Promise<void> | void;
+  };
   const { showLoader, hideLoader } = useLoader();
+
   const [loading, setLoading] = useState(false);
+  const [displayedText, setDisplayedText] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [menuProfileOpen, setMenuProfileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const currentTitle =
     titles[pathname] ||
@@ -50,83 +68,134 @@ const TopNav = ({
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
 
-  const [displayedText, setDisplayedText] = useState("");
-
   useEffect(() => {
     setDisplayedText("");
     let i = 0;
-    const interval = setInterval(() => {
+    const id = setInterval(() => {
       if (i < currentTitle.length) {
         setDisplayedText(currentTitle.slice(0, i + 1));
         i++;
       } else {
-        clearInterval(interval);
+        clearInterval(id);
       }
     }, 80);
-    return () => clearInterval(interval);
+    return () => clearInterval(id);
   }, [currentTitle]);
 
   useEffect(() => {
     router.prefetch(logoutRedirectTo);
   }, [router, logoutRedirectTo]);
 
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!menuProfileOpen) return;
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t)) return;
+      if (btnRef.current?.contains(t)) return;
+      setMenuProfileOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuProfileOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuProfileOpen]);
+
+  useEffect(() => {
+    hideLoader();
+  }, [pathname, hideLoader]);
+
   const handleLogout = async () => {
+    setMenuProfileOpen(false);
     setLoading(true);
     showLoader();
-    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
     try {
-      logout();
-      await Promise.resolve();
+      await Promise.resolve(logout());
       router.replace(logoutRedirectTo);
-    } catch {
-      hideLoader();
+    } finally {
       setLoading(false);
+      hideLoader();
+      setTimeout(hideLoader, 250);
     }
   };
 
-  return (
-    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-8 py-3 flex items-center justify-between relative">
-      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-5">{displayedText}</h1>
+  const handleOpenProfile = () => {
+    setMenuProfileOpen(false);
+    setProfileOpen(true);
+  };
 
-      <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-700">
+  return (
+    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-4 md:px-8 py-3 flex items-center justify-between relative">
+      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-2 md:pl-5">
+        {displayedText}
+      </h1>
+      <button
+        onClick={() => setMenuOpen((v) => !v)}
+        className="md:hidden text-gray-700 mr-2"
+        aria-label="Abrir menú"
+      >
         {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
-
-      <div className="hidden md:flex items-center gap-4">
-        <span className="text-gray-700 truncate max-w-[200px]">
-          {user?.name ?? fallbackUserName}
-        </span>
-        <UserCircle className="w-8 h-8 text-gray-600" />
+      <div className="relative">
         <button
-          onClick={handleLogout}
-          disabled={loading}
-          className="cursor-pointer text-red-700 hover:text-red-900 flex items-center gap-1 disabled:opacity-60"
+          ref={btnRef}
+          onClick={() => setMenuProfileOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={menuProfileOpen}
+          className="flex items-center gap-3 rounded-full px-3 py-1 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 hover:bg-gray-100/70 transition"
         >
-          <LogOut size={18} />
-          {loading ? "Saliendo…" : "Cerrar sesión"}
+          <span className="hidden md:block text-gray-700 max-w-[180px] truncate">
+            {user?.name ?? fallbackUserName}
+          </span>
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt="avatar"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover ring-1 ring-gray-200"
+            />
+          ) : (
+            <UserCircle className="w-9 h-9 md:w-10 md:h-10 text-gray-600" />
+          )}
         </button>
-      </div>
-
-      {menuOpen && (
-        <div className="absolute right-4 top-full mt-2 w-48 bg-white border rounded-lg shadow-md p-3 flex flex-col gap-3 md:hidden z-50">
-          <div className="flex items-center gap-2">
-            <UserCircle className="w-6 h-6 text-gray-600" />
-            <span className="text-gray-700 truncate">
-              {user?.name ?? fallbackUserName}
-            </span>
-          </div>
-          <button
-            onClick={handleLogout}
-            disabled={loading}
-            className="cursor-pointer text-red-700 hover:text-red-900 flex items-center gap-2 disabled:opacity-60"
+        {menuProfileOpen && (
+          <div
+            ref={menuRef}
+            role="menu"
+            className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-xl z-50 overflow-hidden"
           >
-            <LogOut size={18} />
-            {loading ? "Saliendo…" : "Cerrar sesión"}
-          </button>
-        </div>
-      )}
+            <div className="px-4 py-3 border-b">
+              <p className="text-sm font-medium truncate">
+                {user?.name ?? fallbackUserName}
+              </p>
+              {user?.email && (
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              )}
+            </div>
+            <button
+              onClick={handleOpenProfile}
+              role="menuitem"
+              className="w-full text-left px-4 py-3 flex items-center gap-2 hover:bg-gray-50"
+            >
+              <Pencil size={16} />
+              Editar perfil
+            </button>
+            <button
+              onClick={handleLogout}
+              disabled={loading}
+              role="menuitem"
+              className="w-full text-left px-4 py-3 flex items-center gap-2 text-red-700 hover:bg-red-50 disabled:opacity-60"
+            >
+              <LogOut size={16} />
+              {loading ? "Saliendo…" : "Cerrar sesión"}
+            </button>
+          </div>
+        )}
+      </div>
+      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );
-};
-
-export default TopNav;
+}

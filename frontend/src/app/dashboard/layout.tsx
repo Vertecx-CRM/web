@@ -6,7 +6,11 @@ import TopNav from "@/features/dashboard/layout/TopNav";
 import { LoaderGate } from "@/shared/components/loader";
 import RequireAuth from "@/features/auth/requireauth";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
@@ -22,7 +26,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}
         >
           <TopNav />
-          <main className="flex-1 bg-gray-100 p-6 overflow-y-auto">{children}</main>
+          <main className="flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden overflow-y-hidden scrollbar-thin">
+            {children}
+          </main>
         </div>
       </div>
     </RequireAuth>

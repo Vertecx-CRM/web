@@ -1,3 +1,4 @@
+// CreateSuppliersModal.tsx
 "use client";
 
 import { useRef, useState } from "react";
@@ -82,11 +83,6 @@ function validatePhone(v: string) {
 function validateNITValue(v: string) {
   const s = sanitizeNIT(v);
   if (!/^\d{5,12}(-\d)?$/.test(s)) return "Formato: 5–12 dígitos y opcional -DV.";
-  const [num, dv] = s.split("-");
-  if (dv) {
-    const expected = nitDV(num).toString();
-    if (dv !== expected) return `Dígito verificador debería ser ${expected}.`;
-  }
   return null;
 }
 function validateImage(file?: File | null) {
@@ -113,6 +109,7 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const update = <K extends keyof ProviderForm>(k: K, v: ProviderForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -147,9 +144,13 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
     if (!validateAll()) return;
     try {
       setSaving(true);
+      const nitSan = sanitizeNIT(form.nit);
+      const base = nitSan.split("-")[0];
+      const dvCalc = nitDV(base).toString();
+      const nitFixed = `${base}-${dvCalc}`;
       const payload: ProviderSubmitPayload = {
         name: form.name.trim(),
-        nit: sanitizeNIT(form.nit),
+        nit: nitFixed,
         phone: sanitizePhone(form.phone),
         email: form.email.trim(),
         contactName: form.contactName.trim(),
@@ -184,8 +185,8 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
             Cancelar
           </button>
           <button
-            type="submit"
-            form="provider-form"
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
             disabled={saving}
             className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
           >
@@ -194,7 +195,7 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
         </>
       }
     >
-      <form id="provider-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
+      <form ref={formRef} id="provider-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
         <div>
           <label className="block text-sm text-gray-700">Nombre</label>
           <input
@@ -212,7 +213,14 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
           <input
             value={form.nit}
             onChange={(e) => update("nit", sanitizeNIT(e.target.value))}
-            onBlur={() => setErrors((er) => ({ ...er, nit: validateNITValue(form.nit) }))}
+            onBlur={() => {
+              const s = sanitizeNIT(form.nit);
+              const base = s.split("-")[0];
+              const dvCalc = nitDV(base).toString();
+              const fixed = `${base}-${dvCalc}`;
+              update("nit", fixed);
+              setErrors((er) => ({ ...er, nit: validateNITValue(fixed) }));
+            }}
             placeholder="900123456-7"
             className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
           />
@@ -314,17 +322,21 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
         <div>
           <label className="block text-sm text-gray-700">Imagen</label>
           <div className="mt-1 flex items-center gap-2">
-            {form.imageUrl ? (
-              <img src={form.imageUrl} alt="preview" className="h-10 w-10 rounded-md object-cover border" />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed text-gray-400">
-                <Upload size={16} />
-              </div>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-            <button type="button" onClick={handlePickFile} className="rounded-md bg-gray-200 px-3 h-9 text-sm text-gray-800 hover:bg-gray-300">
-              Subir
+            <button
+              type="button"
+              onClick={handlePickFile}
+              className="h-10 w-10 rounded-md border flex items-center justify-center overflow-hidden"
+              aria-label="Seleccionar imagen"
+            >
+              {form.imageUrl ? (
+                <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center border-dashed text-gray-400">
+                  <Upload size={16} />
+                </div>
+              )}
             </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
           </div>
           {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
         </div>

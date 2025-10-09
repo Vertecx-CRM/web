@@ -1,4 +1,7 @@
-import { DataTable, Column } from "@/features/dashboard/components/DataTable";
+import {
+  DataTable,
+  Column,
+} from "@/features/dashboard/components/datatable/DataTable";
 import { Client } from "../../types/typeClients";
 import Colors from "@/shared/theme/colors";
 
@@ -15,7 +18,7 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
   onView,
   onEdit,
   onDelete,
-  onCreate
+  onCreate,
 }) => {
   // Definición de columnas para el DataTable
   const columns: Column<Client>[] = [
@@ -34,14 +37,15 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
             backgroundColor: client.estado === "Activo" ? "#e8f5e8" : "#f5e8e8",
-            color: client.estado === "Activo"
-              ? Colors.states.success
-              : Colors.states.inactive
+            color:
+              client.estado === "Activo"
+                ? Colors.states.success
+                : Colors.states.inactive,
           }}
         >
           {client.estado}
         </span>
-      )
+      ),
     },
   ];
 
@@ -50,7 +54,16 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
       data={clients}
       columns={columns}
       pageSize={10}
-      searchableKeys={["id", "tipo", "documento", "nombre", "telefono", "correoElectronico", "rol", "estado"]}
+      searchableKeys={[
+        "id",
+        "tipo",
+        "documento",
+        "nombre",
+        "telefono",
+        "correoElectronico",
+        "rol",
+        "estado",
+      ]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}

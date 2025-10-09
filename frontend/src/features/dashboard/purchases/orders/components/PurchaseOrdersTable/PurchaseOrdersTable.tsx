@@ -24,16 +24,20 @@ export const PurchaseOrdersTable: React.FC<ExtendedPurchaseOrdersTableProps> = (
   const [selectedOrderToCancel, setSelectedOrderToCancel] = useState<purchaseOrder | null>(null);
 
   // Convertir órdenes de compra para la tabla asegurando que tengan ID
-  const purchaseOrdersForTable: purchaseOrderForTable[] = purchaseOrders.map((order, index) => ({
-    ...order,
-    id: order.id || index + 1 // Usar index + 1 como fallback
-  }));
+  const purchaseOrdersForTable: purchaseOrderForTable[] = purchaseOrders.map(
+    (order, index) => ({
+      ...order,
+      id: order.id || index + 1, // Usar index + 1 como fallback
+    })
+  );
 
   // Definición de columnas para el DataTable
   const columns: Column<purchaseOrderForTable>[] = [
     { key: "id", header: "#" },
     { key: "numeroOrden", header: "N° Orden" },
     { key: "proveedor", header: "Proveedor" },
+    {
+      key: "precioUnitario",
     {
       key: "precioUnitario",
       header: "Precio Unitario",

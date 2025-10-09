@@ -1,8 +1,11 @@
-// src/features/dashboard/roles/components/EditRoleModal/EditRole.tsx
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { XMarkIcon, CheckIcon } from "@heroicons/react/24/solid";
+import { motion, AnimatePresence } from "framer-motion";
 import Colors from "@/shared/theme/colors";
-import { EditRoleData, PermissionGroup } from "../../types/typeRoles";
+import { EditRoleData, PermissionGroup, Role } from "../../types/typeRoles";
+import { showWarning } from "@/shared/utils/notifications";
 
 const permissionGroups: PermissionGroup[] = [
   { title: "Roles", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
@@ -20,187 +23,280 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Dashboard", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
+  { title: "Dashboard", permissions: ["Ver"] }, // solo ver
 ];
-
 
 interface EditRoleModalProps {
   isOpen: boolean;
   role: EditRoleData | null;
   onClose: () => void;
   onSave: (id: number, data: EditRoleData) => void;
+  existingRoles: Role[];
 }
 
-export const EditRoleModal: React.FC<EditRoleModalProps> = ({
+export default function EditRoleModal({
   isOpen,
   role,
   onClose,
   onSave,
-}) => {
+  existingRoles,
+}: EditRoleModalProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"Activo" | "Inactivo">("Activo");
-  const [permissions, setPermissions] = useState<string[]>([]);
-useEffect(() => {
-  if (role) {
-    setName(role.name);
-    setStatus(role.status as "Activo" | "Inactivo");
+  const [permissions, setPermissions] = useState<Record<string, string[]>>({});
+  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
-    const rolePerms = Array.isArray(role.permissions) ? role.permissions : [];
-
-    const rolePermissionsWithGroup: string[] = [];
-
-    permissionGroups.forEach((group) => {
-      group.permissions.forEach((perm) => {
-        const key = `${group.title}-${perm}`;
-        if (rolePerms.includes(key)) {
-          rolePermissionsWithGroup.push(key);
-        }
+  useEffect(() => {
+    if (role) {
+      setName(role.name);
+      setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
+      const mappedPermissions: Record<string, string[]> = {};
+      const rolePerms = role.permissions ?? [];
+      permissionGroups.forEach((group) => {
+        mappedPermissions[group.title] = group.permissions.filter((perm) =>
+          rolePerms.includes(`${group.title}-${perm}`)
+        );
       });
-    });
-
-    setPermissions(rolePermissionsWithGroup);
-  }
-}, [role]);
-
-
-
+      setPermissions(mappedPermissions);
+      setErrors({});
+    }
+  }, [role]);
 
   if (!isOpen || !role) return null;
 
-  const handleTogglePermission = (key: string) => {
-    setPermissions(prev =>
-      prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
-    );
+  const validateForm = (nameVal?: string, permsVal?: Record<string, string[]>) => {
+    const newErrors: { name?: string; permissions?: string } = {};
+    const nameToCheck = (nameVal ?? name).trim();
+    const permsToCheck = permsVal ?? permissions;
+
+    if (!nameToCheck) {
+      newErrors.name = "El nombre del rol es obligatorio";
+    } else {
+      const isDuplicate = existingRoles.some(
+        (r) => r.name.toLowerCase() === nameToCheck.toLowerCase() && r.id !== role.id
+      );
+      if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
+    }
+
+    const selectedCount = Object.values(permsToCheck).reduce((acc, arr) => acc + arr.length, 0);
+    if (selectedCount === 0) newErrors.permissions = "Debe asignar al menos un permiso al rol";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onSave(role.id, { id: role.id, name: name.trim(), status, permissions });
+  const handleTogglePermission = (module: string, permission: string) => {
+    setPermissions((prev) => {
+      const current = prev[module] || [];
+      const updated = current.includes(permission)
+        ? current.filter((p) => p !== permission)
+        : [...current, permission];
+      const newPermissions = { ...prev, [module]: updated };
+      validateForm(undefined, newPermissions);
+      return newPermissions;
+    });
+  };
+
+  const handleToggleModuleAll = (module: string) => {
+    if (module === "Dashboard") return; // evita el toggle "Todo" en Dashboard
+    setPermissions((prev) => {
+      const current = prev[module] || [];
+      const allSelected = current.length === permissionGroups.find((g) => g.title === module)?.permissions.length;
+      const updated = allSelected ? [] : [...(permissionGroups.find((g) => g.title === module)?.permissions || [])];
+      const newPermissions = { ...prev, [module]: updated };
+      validateForm(undefined, newPermissions);
+      return newPermissions;
+    });
+  };
+
+  const handleToggleAllPermissions = () => {
+    const allSelected =
+      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
+      permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
+
+    if (allSelected) {
+      setPermissions({});
+    } else {
+      const fullSelection: Record<string, string[]> = {};
+      permissionGroups.forEach((group) => {
+        fullSelection[group.title] = [...group.permissions];
+      });
+      setPermissions(fullSelection);
+    }
+    validateForm(undefined, permissions);
+  };
+
+  const handleSubmit = () => {
+    const formattedPermissions: string[] = [];
+    Object.entries(permissions).forEach(([module, perms]) =>
+      perms.forEach((perm) => formattedPermissions.push(`${module}-${perm}`))
+    );
+
+    if (!validateForm(name, permissions)) {
+      showWarning("Por favor completa los campos obligatorios correctamente");
+      return;
+    }
+
+    onSave(role.id, { id: role.id, name: name.trim(), state: status, permissions: formattedPermissions });
     onClose();
   };
 
-  return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-4xl relative mx-auto flex flex-col max-h-[90vh]">
-        <button onClick={onClose} className="absolute top-3 right-3 z-10">
-          <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
-        </button>
-
-        <div className="px-6 pt-6 pb-4 font-semibold text-2xl" style={{ color: Colors.texts.primary }}>
-          Editar Rol
-        </div>
-
-        <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto" style={{ outlineColor: Colors.table.lines }} />
-
-        <form onSubmit={handleSubmit} className="overflow-y-auto px-6 py-4 space-y-6">
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Nombre del rol
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ingrese nombre del rol"
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-              style={{ borderColor: Colors.table.lines, outlineColor: Colors.buttons.quaternary }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Estado
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
-              style={{ borderColor: Colors.table.lines, outlineColor: Colors.buttons.quaternary }}
-            >
-              <option value="Activo">Activo</option>
-              <option value="Inactivo">Inactivo</option>
-            </select>
-          </div>
-
-          <h3 className="text-center font-semibold" style={{ color: Colors.texts.primary }}>
-            Permisos Asignados
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {permissionGroups.map((group) => (
-              <PermissionCard
-                key={group.title}
-                group={group}
-                selected={permissions}
-                onToggle={handleTogglePermission}
-              />
-            ))}
-          </div>
-
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] mx-auto" style={{ outlineColor: Colors.table.lines }} />
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-md font-medium text-sm transition-colors"
-              style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md font-medium text-sm text-white"
-              style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
-            >
-              Actualizar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>,
-    document.body
+  const Checkbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`w-5 h-5 rounded-md border border-gray-400 flex items-center justify-center transition-all duration-150 
+        ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
+    >
+      <CheckIcon
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${
+          checked ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </button>
   );
-};
 
-function PermissionCard({
-  group,
-  selected,
-  onToggle,
-}: {
-  group: PermissionGroup;
-  selected: string[];
-  onToggle: (key: string) => void;
-}) {
   return (
-    <div className="rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow" style={{ border: `1px solid ${Colors.table.lines}`, backgroundColor: Colors.background.tertiary }}>
-      <span className="block font-medium mb-3" style={{ color: Colors.texts.primary }}>
-        {group.title}
-      </span>
-      <div className="flex flex-wrap gap-3">
-        {group.permissions.map((perm) => {
-          const key = `${group.title}-${perm}`;
-          const isChecked = selected.includes(key);
-          return (
-            <label key={key} className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: Colors.texts.primary }}>
-              <span
-                onClick={() => onToggle(key)}
-                className={`h-5 w-5 flex items-center justify-center border rounded-md transition-all duration-200 ${isChecked ? "animate-[scaleIn_0.2s_ease-in-out]" : ""}`}
-                style={{ backgroundColor: isChecked ? Colors.buttons.quaternary : Colors.background.primary, borderColor: isChecked ? Colors.buttons.quaternary : Colors.table.lines }}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <motion.div
+            className="bg-white rounded-3xl shadow-lg relative w-full max-w-[800px] h-[88vh] flex flex-col"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
+              <h2 className="text-lg font-semibold">Editar Rol</h2>
+              <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 flex-1 space-y-6 overflow-hidden">
+              {/* Nombre y Estado */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                    Nombre del rol <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      validateForm(e.target.value, permissions);
+                    }}
+                    placeholder="Ingrese nombre de rol"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
+                  />
+                  {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
+                </div>
+
+                <div>
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                    Estado
+                  </label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    style={{ borderColor: Colors.table.lines }}
+                  >
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Permisos */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
+                  Permisos Asignados <span className="text-red-500">*</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={
+                      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
+                      permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0)
+                    }
+                    onChange={handleToggleAllPermissions}
+                  />
+                  <span className="text-sm">Seleccionar todos</span>
+                </div>
+              </div>
+
+              {errors.permissions && <p className="text-left text-xs text-red-500">{errors.permissions}</p>}
+
+              <div className="overflow-hidden rounded-xl border max-h-64 overflow-y-auto custom-scroll">
+                <table className="min-w-full text-sm">
+                  <thead style={{ backgroundColor: "#B20000" }} className="sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-white">Módulo</th>
+                      <th className="px-4 py-3 text-center font-semibold text-white">Permisos / Privilegios</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {permissionGroups.map((group) => {
+                      const allSelected = (permissions[group.title]?.length ?? 0) === group.permissions.length;
+                      return (
+                        <tr key={group.title}>
+                          <td className="px-4 py-3 font-medium text-gray-800">{group.title}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap justify-center gap-4">
+                              {group.title !== "Dashboard" && (
+                                <div className="flex items-center gap-2">
+                                  <Checkbox checked={allSelected} onChange={() => handleToggleModuleAll(group.title)} />
+                                  <span className="text-sm">Todos</span>
+                                </div>
+                              )}
+                              {group.permissions.map((perm) => {
+                                const isChecked = permissions[group.title]?.includes(perm);
+                                return (
+                                  <div key={`${group.title}-${perm}`} className="flex items-center gap-2">
+                                    <Checkbox checked={isChecked || false} onChange={() => handleTogglePermission(group.title, perm)} />
+                                    <span className="text-sm">{perm}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-4 border-t sticky bottom-0 bg-white z-10 rounded-b-3xl">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
               >
-                {isChecked && (
-                  <svg className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-              {perm}
-            </label>
-          );
-        })}
-      </div>
-    </div>
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 rounded-lg font-medium text-sm text-white"
+                style={{ backgroundColor: Colors.buttons.quaternary }}
+              >
+                Actualizar
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
-
-export default EditRoleModal;
