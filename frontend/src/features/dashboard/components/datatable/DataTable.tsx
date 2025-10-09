@@ -61,6 +61,7 @@ export function DataTable<T extends { id: number | string }>(
     onEdit,
     onDelete,
     onCancel,
+    onCheck,
     onCreate,
     searchPlaceholder = "Buscar…",
     createButtonText = "Crear",
@@ -179,7 +180,7 @@ export function DataTable<T extends { id: number | string }>(
           )
         )}
 
-        {(onView || onEdit || onDelete || onCancel || renderActions) && (
+        {(onView || onEdit || onDelete || onCancel || onCheck || renderActions) && (
           <OptimizedTd header="Acciones">
             {renderActions ? (
               renderActions(row)
@@ -190,6 +191,7 @@ export function DataTable<T extends { id: number | string }>(
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onCancel={onCancel}
+                onCheck={onCheck}
                 renderExtraActions={renderExtraActions}
               />
             )}
@@ -213,6 +215,7 @@ export function DataTable<T extends { id: number | string }>(
       onEdit,
       onDelete,
       onCancel,
+      onCheck,
       renderActions,
       renderExtraActions,
       renderTail,
@@ -300,6 +303,7 @@ export function DataTable<T extends { id: number | string }>(
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onCancel={onCancel}
+                  onCheck={onCheck}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
                   renderTail={renderTail}
@@ -339,6 +343,7 @@ export function DataTable<T extends { id: number | string }>(
                     onEdit ||
                     onDelete ||
                     onCancel ||
+                    onCheck ||
                     renderActions) && <Th>Acciones</Th>}
                   {renderTail && (
                     <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
