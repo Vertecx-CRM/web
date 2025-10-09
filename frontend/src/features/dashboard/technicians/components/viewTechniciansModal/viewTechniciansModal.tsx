@@ -18,7 +18,6 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
 }) => {
   if (!technician) return null;
 
-  // 🔥 Generamos iniciales si no hay imagen
   const getInitials = (name: string, lastName: string) => {
     const firstInitial = name?.charAt(0)?.toUpperCase() ?? "";
     const lastInitial = lastName?.charAt(0)?.toUpperCase() ?? "";
@@ -31,15 +30,11 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2 sm:gap-3 p-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
           >
             Cerrar
           </button>
@@ -49,8 +44,12 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
       <div className="grid grid-cols-2 gap-3 p-1">
         {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
-          <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-bold text-lg"
-            style={{ backgroundColor: technician.image ? "transparent" : "#f3f4f6" }}>
+          <div
+            className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-bold text-lg"
+            style={{
+              backgroundColor: technician.image ? "transparent" : "#f3f4f6",
+            }}
+          >
             {technician.image ? (
               <img
                 src={technician.image}
@@ -159,3 +158,4 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
 };
 
 export default ViewTechnicianModal;
+ 
