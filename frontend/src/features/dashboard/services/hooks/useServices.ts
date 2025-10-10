@@ -5,11 +5,7 @@ import { Service } from "../types/typesServices";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
-// =================== VALIDACIONES DE SERVICIOS ===================
-/**
- * Ahora validate recibe payload SIN id ni state (lo que envía el modal).
- * Service sin id/state: Omit<Service, "id" | "state">
- */
+
 const validateServiceWithNotification = (
   serviceData: Omit<Service, "id" | "state">
 ): boolean => {

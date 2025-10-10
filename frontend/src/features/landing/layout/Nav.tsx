@@ -18,8 +18,7 @@ const Nav = () => {
     { href: routes.landing.products, label: "Productos" },
     { href: routes.landing.about, label: "Nosotros" },
     { href: routes.landing.contact, label: "Contáctanos" },
-    { href: routes.auth.login, label: "Iniciar Sesión" },
-    { href: routes.auth.register, label: "Registrarse" },
+    { href: routes.auth.access, label: "Acceder" },
   ];
 
   return (
