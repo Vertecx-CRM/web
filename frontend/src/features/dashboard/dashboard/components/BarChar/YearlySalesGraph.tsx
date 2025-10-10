@@ -18,7 +18,7 @@ interface YearlyGraphProps {
   title: string;               
   data: { month: string; total: number }[]; 
   onMonthClick: (month: string) => void;
-  isCurrency?: boolean; // Nueva prop para controlar si mostrar $
+  isCurrency?: boolean; 
 }
 
 // Componente Tooltip personalizado
@@ -41,10 +41,9 @@ export const YearlyGraph = ({ title, data, onMonthClick, isCurrency = true }: Ye
   const maxValue = Math.max(...data.map((item) => item.total));
 
   return (
-    <ResponsiveContainer>
+    <ResponsiveContainer width="100%" height={300}>
       <BarChart
-        width={500}
-        height={300}
+
         data={data}
         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
       >

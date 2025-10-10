@@ -86,26 +86,28 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
     });
   };
 
-  const validateField = (field: keyof ServiceErrors, value: ServiceFieldValue) => {
+  const validateField = (
+    field: keyof ServiceErrors,
+    value: ServiceFieldValue
+  ) => {
     setErrors((prev) => {
       const newErrors = { ...prev };
       if (field === "categoria") {
-  if (!value || (typeof value === "string" && value.trim() === "")) {
-    newErrors.categoria = "La categoría es obligatoria";
-  } else {
-    delete newErrors.categoria;
-  }
-}
+        if (!value || (typeof value === "string" && value.trim() === "")) {
+          newErrors.categoria = "La categoría es obligatoria";
+        } else {
+          delete newErrors.categoria;
+        }
+      }
 
-if (field === "imagen") {
-  if (!value && !isImagenEliminada) {
-    newErrors.imagen = "La imagen es obligatoria";
-  } else {
-    delete newErrors.imagen;
-  }
-}
+      if (field === "imagen") {
+        if (!value && !isImagenEliminada) {
+          newErrors.imagen = "La imagen es obligatoria";
+        } else {
+          delete newErrors.imagen;
+        }
+      }
 
-    
       return newErrors;
     });
   };
@@ -138,21 +140,6 @@ if (field === "imagen") {
 
     if (!service) return;
 
-    let imagenUrl = "";
-
-    if (imagen instanceof File) {
-      // Convertir File a Base64
-      try {
-        imagenUrl = await fileToBase64(imagen);
-      } catch (error) {
-        console.error("Error converting image to base64:", error);
-        showWarning("Error al procesar la imagen");
-        return;
-      }
-    } else if (typeof imagen === "string" && !isImagenEliminada) {
-      imagenUrl = imagen;
-    }
-
     onSave({
       id: service.id,
       name: nombre,
@@ -165,16 +152,6 @@ if (field === "imagen") {
     onClose();
   };
 
-  // Función auxiliar para convertir File a Base64
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
   const nombreImagen = imagen instanceof File ? imagen.name : "";
 
   return (
@@ -182,9 +159,33 @@ if (field === "imagen") {
       title="Editar Servicio"
       isOpen={isOpen}
       onClose={onClose}
-      footer={null}
+      footer={
+        <>
+          <div className="border-t border-gray-300 mt-3 mb-2"></div>
+          <div className="flex justify-end gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="edit-service-form"
+              className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+            >
+              Guardar
+            </button>
+          </div>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
+      <form
+        id="edit-service-form"
+        onSubmit={handleSubmit}
+        className="grid grid-cols-2 gap-3 p-1 overflow-hidden"
+      >
         {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
           <input
@@ -212,7 +213,7 @@ if (field === "imagen") {
                 className="rounded-full object-cover"
                 onError={() => setImagen(null)}
                 fill
-                sizes="80px" // Tamaño específico para el círculo
+                sizes="80px"
                 unoptimized
               />
             ) : (
@@ -233,7 +234,6 @@ if (field === "imagen") {
             )}
           </div>
 
-          {/* Resto del código se mantiene igual */}
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">
               Haga clic en el círculo para{" "}
@@ -268,6 +268,7 @@ if (field === "imagen") {
             )}
           </div>
         </div>
+
         {/* Nombre */}
         <div>
           <label
@@ -325,6 +326,27 @@ if (field === "imagen") {
           )}
         </div>
 
+        {/* Descripción */}
+        <div className="col-span-2">
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Descripción
+          </label>
+          <div
+            className="border rounded-md"
+            style={{ borderColor: Colors.table.lines }}
+          >
+            <textarea
+              placeholder="Ingrese descripción"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="w-full max-h-28 min-h-24 px-2 py-1 resize-none overflow-y-auto outline-none bg-transparent"
+            />
+          </div>
+        </div>
+
         {/* Estado */}
         <div>
           <label
@@ -342,49 +364,6 @@ if (field === "imagen") {
             <option value="Activo">Activo</option>
             <option value="Inactivo">Inactivo</option>
           </select>
-        </div>
-
-        {/* Descripción */}
-        <div className="col-span-2">
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Descripción
-          </label>
-          <textarea
-            placeholder="Ingrese descripción"
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            rows={3}
-            className="w-full px-2 py-1 border rounded-md resize-none"
-            style={{ borderColor: Colors.table.lines }}
-          />
-        </div>
-
-        {/* Botones */}
-        <div className="col-span-2 flex justify-end space-x-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-md font-medium text-white text-sm"
-            style={{
-              backgroundColor: Colors.buttons.quaternary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Guardar
-          </button>
         </div>
       </form>
     </Modal>

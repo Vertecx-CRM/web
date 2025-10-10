@@ -1,8 +1,3 @@
-/* sytileWeek.css (versión corregida) */
-
-/* ocultar toolbar si quieres */
-.rbc-toolbar { display: none; }
-
 /* --- HEADERS --- */
 .rbc-time-header > .rbc-row.rbc-row-resource {
   display: none !important;
@@ -83,8 +78,6 @@
 .rbc-day-slot {
   position: relative;
 }
-
-
 
 /* Evento de RBC - posición absoluta calculada por la librería */
 .rbc-event {
@@ -219,7 +212,5 @@
   min-height: 3vw !important;
   height: 3vh !important;
 }
-
-
 
 

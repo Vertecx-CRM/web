@@ -52,14 +52,14 @@ export const PieChartCategoryAndProducts = () => {
         return null;
     };
 
-    // Dividimos la leyenda en dos columnas
+
     const leftColumn = CategoryAndProducts.slice(0, 3);
     const rightColumn = CategoryAndProducts.slice(3);
 
     return (
         <div className="flex flex-col items-center w-full h-full">
             {/* Gráfico */}
-            <ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300} >
                 <PieChart>
                     <Pie
                         data={CategoryAndProducts}
@@ -81,7 +81,6 @@ export const PieChartCategoryAndProducts = () => {
                             />
                         ))}
                     </Pie>
-                    {/* Agregar Tooltip aquí */}
                     <Tooltip content={<CustomTooltip />} />
                 </PieChart>
             </ResponsiveContainer>

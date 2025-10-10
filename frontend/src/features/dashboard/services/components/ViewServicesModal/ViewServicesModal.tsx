@@ -29,15 +29,11 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2 sm:gap-3 p-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
           >
             Cerrar
           </button>
@@ -99,6 +95,19 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
           </div>
         </div>
 
+        {/* Descripción */}
+        <div className="col-span-2">
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Descripción
+          </label>
+          <div className="border rounded-md bg-gray-50 text-sm whitespace-pre-line break-words w-full max-h-28 min-h-24 px-3 py-2 overflow-y-auto">
+            {service.description || "Sin descripción"}
+          </div>
+        </div>
+
         {/* Estado */}
         <div>
           <label
@@ -109,19 +118,6 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
             {service.state}
-          </div>
-        </div>
-
-        {/* Descripción */}
-        <div className="col-span-2">
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Descripción
-          </label>
-          <div className="px-2 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-line">
-            {service.description || "Sin descripción"}
           </div>
         </div>
       </div>

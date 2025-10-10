@@ -1,12 +1,18 @@
 "use client";
+import { useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { IPurchase } from "../Types/Purchase.type";
 import { usePurchases, months } from "../hooks/usePurchases";
 import {
   showSuccess,
-  showError,
   showWarning,
+  showError,
 } from "@/shared/utils/notifications";
+import {
+  validatePurchaseForm,
+  validatePurchaseField,
+  PurchaseErrors,
+} from "../validations/purchasesValidations";
 
 interface Props {
   onSave: (purchase: IPurchase) => void;
@@ -23,6 +29,7 @@ const formatCOP = (value: number) =>
 export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
   const {
     form,
+    setForm,
     selectedProduct,
     setSelectedProduct,
     quantity,
@@ -38,6 +45,18 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     suppliers,
   } = usePurchases(purchases, onSave);
 
+  const [errors, setErrors] = useState<PurchaseErrors>({});
+
+  /** ✅ Valida un campo individual y actualiza el estado de errores */
+  const handleFieldValidation = (
+    field: keyof Omit<IPurchase, "id">,
+    value: any
+  ) => {
+    const error = validatePurchaseField(field, value, purchases);
+    setErrors((prev) => ({ ...prev, [field]: error }));
+  };
+
+  /** ✅ Al enviar el formulario */
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -46,8 +65,17 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
       return;
     }
 
-    if (!form.supplier) {
-      showError("Debes seleccionar un proveedor.");
+    const data = {
+      ...form,
+      amount: total,
+      status: "Aprobado",
+    };
+
+    const validationErrors = validatePurchaseForm(data, purchases);
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      showError("Corrige los errores antes de guardar.");
       return;
     }
 
@@ -62,27 +90,24 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="space-y-5 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto rounded "
+      className="space-y-5 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto rounded"
     >
-      {/* Fecha */}
+      {/* 📅 Fecha */}
       <div>
-        <div className="flex justify-between mb-1 text-xs sm:text-sm">
-          <label>
-            Día <span className="text-red-500">*</span>
-          </label>
-          <label>
-            Mes <span className="text-red-500">*</span>
-          </label>
-          <label>
-            Año <span className="text-red-500">*</span>
-          </label>
-        </div>
+        <label className="block text-sm font-medium mb-1">
+          Fecha de Registro <span className="text-red-500">*</span>
+        </label>
         <div className="grid grid-cols-3 gap-2">
           <select
             name="day"
-            onChange={handleChange}
+            onChange={(e) => {
+              handleChange(e);
+              handleFieldValidation("registerDate", form.registerDate);
+            }}
             required
-            className="rounded-md border px-2 py-2 text-sm w-full"
+            className={`rounded-md border px-2 py-2 text-sm w-full ${
+              errors.registerDate ? "border-red-500" : "border-gray-300"
+            }`}
           >
             <option value="">Día</option>
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
@@ -91,11 +116,17 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
               </option>
             ))}
           </select>
+
           <select
             name="month"
-            onChange={handleChange}
+            onChange={(e) => {
+              handleChange(e);
+              handleFieldValidation("registerDate", form.registerDate);
+            }}
             required
-            className="rounded-md border px-2 py-2 text-sm w-full"
+            className={`rounded-md border px-2 py-2 text-sm w-full ${
+              errors.registerDate ? "border-red-500" : "border-gray-300"
+            }`}
           >
             <option value="">Mes</option>
             {months.map((m) => (
@@ -104,11 +135,17 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
               </option>
             ))}
           </select>
+
           <select
             name="year"
-            onChange={handleChange}
+            onChange={(e) => {
+              handleChange(e);
+              handleFieldValidation("registerDate", form.registerDate);
+            }}
             required
-            className="rounded-md border px-2 py-2 text-sm w-full"
+            className={`rounded-md border px-2 py-2 text-sm w-full ${
+              errors.registerDate ? "border-red-500" : "border-gray-300"
+            }`}
           >
             <option value="">Año</option>
             {years.map((y) => (
@@ -118,12 +155,15 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             ))}
           </select>
         </div>
+        {errors.registerDate && (
+          <p className="text-xs text-red-500 mt-1">{errors.registerDate}</p>
+        )}
       </div>
 
-      {/* Orden y Proveedor */}
+      {/* 📦 N° Orden y Proveedor */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm mb-1">
+          <label className="block text-sm mb-1 font-medium">
             N° de Orden <span className="text-red-500">*</span>
           </label>
           <input
@@ -131,19 +171,28 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             name="orderNumber"
             value={form.orderNumber}
             readOnly
-            className="w-full rounded-md border px-2 py-2 text-sm bg-gray-100"
+            className={`w-full rounded-md border px-2 py-2 text-sm bg-gray-100 ${
+              errors.orderNumber ? "border-red-500" : "border-gray-300"
+            }`}
           />
+          {errors.orderNumber && (
+            <p className="text-xs text-red-500">{errors.orderNumber}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm mb-1">
+          <label className="block text-sm mb-1 font-medium">
             Proveedor <span className="text-red-500">*</span>
           </label>
           <select
             name="supplier"
-            onChange={handleChange}
-            required
-            className="w-full rounded-md border px-2 py-2 text-sm"
+            onChange={(e) => {
+              handleChange(e);
+              handleFieldValidation("supplier", e.target.value);
+            }}
+            className={`w-full rounded-md border px-2 py-2 text-sm ${
+              errors.supplier ? "border-red-500" : "border-gray-300"
+            }`}
           >
             <option value="">Selecciona el proveedor</option>
             {suppliers.map((s) => (
@@ -152,15 +201,80 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
               </option>
             ))}
           </select>
+          {errors.supplier && (
+            <p className="text-xs text-red-500">{errors.supplier}</p>
+          )}
         </div>
       </div>
 
-      {/* Productos */}
+      {/* 🧾 Número de Factura */}
+      <div>
+        <label className="block text-sm mb-1 font-medium">
+          Número de Factura <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          placeholder="FAC-2025-1001"
+          name="invoiceNumber"
+          value={form.invoiceNumber}
+          onChange={(e) => {
+            handleChange(e);
+            handleFieldValidation("invoiceNumber", e.target.value);
+          }}
+          className={`w-full rounded-md border px-2 py-2 text-sm ${
+            errors.invoiceNumber ? "border-red-500" : "border-gray-300"
+          }`}
+        />
+        {errors.invoiceNumber && (
+          <p className="text-xs text-red-500">{errors.invoiceNumber}</p>
+        )}
+      </div>
+
+      {/* 💰 Total */}
+      <div>
+        <label className="block text-sm mb-1 font-medium">
+          Total <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formatCOP(total)}
+          readOnly
+          className={`w-full rounded-md border px-2 py-2 text-sm bg-gray-100 ${
+            errors.amount ? "border-red-500" : "border-gray-300"
+          }`}
+        />
+        {errors.amount && (
+          <p className="text-xs text-red-500">{errors.amount}</p>
+        )}
+      </div>
+
+      {/* 📝 Descripción */}
+      <div>
+        <label className="block text-sm mb-1 font-medium">Descripción</label>
+        <textarea
+          name="description"
+          onChange={(e) => {
+            handleChange(e);
+            handleFieldValidation("description", e.target.value);
+          }}
+          rows={3}
+          className={`w-full rounded-md border px-2 py-2 text-sm resize-none ${
+            errors.description ? "border-red-500" : "border-gray-300"
+          }`}
+          placeholder="Ingrese sus observaciones"
+        ></textarea>
+        {errors.description && (
+          <p className="text-xs text-red-500">{errors.description}</p>
+        )}
+      </div>
+
+      {/* 🛒 Productos */}
       <div className="p-3 border rounded-lg bg-gray-50">
         <label className="block text-sm mb-2">
           Productos <span className="text-red-500">*</span>
         </label>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={selectedProduct}
             onChange={(e) => setSelectedProduct(e.target.value)}
@@ -182,20 +296,12 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
           />
         </div>
 
-        {selectedProduct && (
-          <p className="text-xs text-gray-600 mt-1">
-            Stock disponible: {products[selectedProduct].stock}
-          </p>
-        )}
-
         <button
           type="button"
           onClick={() => {
             if (!selectedProduct) return;
-
             const alreadyInCart =
               cart.find((item) => item.name === selectedProduct)?.qty || 0;
-
             const stock = products[selectedProduct].stock;
 
             if (alreadyInCart + quantity > stock + alreadyInCart) {
@@ -211,67 +317,9 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         >
           Añadir más productos +
         </button>
-
-        {/* Lista de productos en el carrito */}
-        <ul className="mt-3 text-sm space-y-1">
-          {cart.map((item) => (
-            <li
-              key={item.name}
-              className="flex justify-between border-b pb-1 text-gray-700"
-            >
-              <span>
-                {item.name} x {item.qty} ({formatCOP(item.price)} c/u)
-              </span>
-              <span>= {formatCOP(item.qty * item.price)}</span>
-            </li>
-          ))}
-        </ul>
       </div>
 
-      {/* Factura y Total */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm mb-1">
-            Número de factura <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder="FAC-2025-1001"
-            pattern="^FAC-\\d{4}-\\d{4}$"
-            name="invoiceNumber"
-            onChange={handleChange}
-            required
-            className="w-full rounded-md border px-2 py-2 text-sm"
-            title="El formato debe ser FAC-AAAA-NNNN (ej: FAC-2025-1001)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">
-            Total <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={formatCOP(total)}
-            readOnly
-            className="w-full sm:w-32 rounded-md border px-2 py-2 text-sm bg-gray-100"
-          />
-        </div>
-      </div>
-
-      {/* Descripción */}
-      <div>
-        <label className="block text-sm mb-1">Descripción</label>
-        <textarea
-          name="description"
-          onChange={handleChange}
-          rows={3}
-          className="w-full rounded-md border px-2 py-2 text-sm"
-          placeholder="Ingrese sus observaciones"
-        ></textarea>
-      </div>
-
-      {/* Botones */}
+      {/* ⚙️ Botones */}
       <div className="flex flex-col sm:flex-row justify-end gap-2">
         <button
           type="button"

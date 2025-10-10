@@ -1,58 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { X } from "lucide-react";
 import Image from "next/image";
-import Swal from "sweetalert2";
 import Colors from "@/shared/theme/colors";
 import Nav from "../layout/Nav";
+import PaymentSuccessAlert from "./PaymentSuccessAlert"; // 👈 Importamos la alerta
 
 const PaymentMethod = () => {
+  const [showSuccess, setShowSuccess] = useState(false); // 👈 Estado para mostrar la alerta
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    Swal.fire({
-      html: `
-    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;">
-      <!-- Círculo blanco con borde verde -->
-      <div style="width:100px;height:100px;display:flex;align-items:center;justify-content:center;border:4px solid #11b740;border-radius:50%;background-color:white;">
-        <!-- Chulito verde -->
-        <svg xmlns="http://www.w3.org/2000/svg" width="55" height="55" fill="#11b740" viewBox="0 0 24 24">
-          <path d="M20.285 6.709l-11.285 11.291-5.285-5.3 1.415-1.414 3.87 3.885 9.87-9.885z"/>
-        </svg>
-      </div>
-
-      <h2 style="font-size:1.25rem;font-weight:700;color:#111;margin:12px 0 0;">Gracias por comprar en</h2>
-      <p style="font-size:1.1rem;font-weight:700;margin:0;color:#111;">SistemasPc</p>
-      <p style="font-size:0.95rem;color:#444;margin-top:4px;">Su compra será enviada en pocos días.</p>
-
-      <img src="/assets/imgs/mercadoPagoLogo.png" width="130" height="60" style="margin-top:10px;" alt="Mercado Pago"/>
-
-      <p style="font-size:0.9rem;margin-top:5px;color:#333;">Código: <b>RF-12345678</b></p>
-      <p style="font-size:1rem;font-weight:600;color:#11b740;margin-top:6px;">Pago exitoso</p>
-    </div>
-  `,
-      showConfirmButton: true,
-      confirmButtonText: "Aceptar",
-      confirmButtonColor: "#11b740",
-      background: "#fff",
-      color: "#111",
-      width: "360px",
-      customClass: {
-        popup: "rounded-xl shadow-lg border border-gray-200 font-sans",
-        confirmButton:
-          "cursor-pointer px-5 py-2.5 rounded-md font-semibold text-white text-sm transition hover:scale-105",
-      },
-    }).then(() => {
-      // ✅ Redirección al home
-      window.location.href = "/";
-    });
+    // Simulamos que el pago fue exitoso
+    setShowSuccess(true);
   };
 
   return (
     <>
       <Nav />
-      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+
+      {/* Si showSuccess es true, mostramos la alerta */}
+      {showSuccess && (
+        <PaymentSuccessAlert storeName="SistemasPc" code="RF-12345678" />
+      )}
+
+      <div className="fixed inset-0 flex items-center justify-center z-40 p-4">
         {/* Card principal */}
         <div className="relative bg-white w-full max-w-sm rounded-lg shadow-xl p-6">
           {/* Botón cerrar */}
