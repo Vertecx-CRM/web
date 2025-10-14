@@ -12,6 +12,7 @@ import {
 } from "@/features/dashboard/products/validations/productsValidations";
 import { showWarning } from "@/shared/utils/notifications";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
+import { Upload } from "lucide-react";
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -36,8 +37,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [errors, setErrors] = useState<ProductErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleCircleClick = () => fileInputRef.current?.click();
-
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/\D/g, "");
     const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -48,10 +47,6 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
     field: keyof Omit<Product, "id" | "state">,
     value: unknown
   ) => {
-    if (field === "stock" && String(value).trim() === "") {
-      setErrors((prev) => ({ ...prev, stock: "La cantidad es obligatoria" }));
-      return;
-    }
     const error = validateProductField(field, value, products);
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
@@ -83,57 +78,43 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
 
     setErrors(formErrors);
     if (Object.keys(formErrors).length > 0) {
-      showWarning("Por favor completa los campos requeridos", {
-        autoClose: 5000,
-      });
+      showWarning("Por favor completa los campos requeridos", { autoClose: 5000 });
       return;
     }
 
     let imageString = "";
     if (image instanceof File) {
       imageString = await uploadImageToCloudinary(image);
-      console.log("Uploaded image URL:", imageString);
     } else if (typeof image === "string") {
       imageString = image;
     }
 
-    onSave({
-      ...data,
-      image: imageString,
-    });
-
+    onSave({ ...data, image: imageString });
     resetForm();
     onClose();
   };
-
-  const imageName = image instanceof File ? image.name : "";
 
   return (
     <Modal
       title="Crear Producto"
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        resetForm();
+        onClose();
+      }}
       footer={
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-end gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
           >
             Cancelar
           </button>
           <button
             type="submit"
             form="create-product-form"
-            className="px-4 py-2 rounded-md font-medium text-white text-sm"
-            style={{
-              backgroundColor: Colors.buttons.quaternary,
-              color: Colors.texts.quaternary,
-            }}
+            className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
           >
             Guardar
           </button>
@@ -145,89 +126,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         onSubmit={handleSubmit}
         className="flex flex-col h-full"
       >
-        <div className="flex-1 grid grid-cols-2 gap-3 p-1 overflow-y-auto max-h-[calc(100vh-250px)]">
-          {/* Imagen */}
-          <div className="col-span-2 flex flex-col items-center mb-3">
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Imagen <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                setImage(file ?? undefined);
-                validateField("image", file);
-              }}
-            />
-            <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
-              onClick={handleCircleClick}
-              style={{ borderColor: errors.image ? "red" : Colors.table.lines }}
-            >
-              {image ? (
-                <img
-                  src={
-                    image instanceof File ? URL.createObjectURL(image) : image
-                  }
-                  alt="Producto"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-              )}
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-gray-500 mb-1">
-                Haga clic en el círculo para {image ? "cambiar" : "seleccionar"}{" "}
-                la imagen
-              </div>
-              {image && (
-                <div className="flex flex-col items-center space-y-1">
-                  {imageName && (
-                    <div className="text-xs text-green-600 font-medium">
-                      {imageName}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImage(undefined);
-                      validateField("image", undefined);
-                    }}
-                    className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                    style={{ borderColor: Colors.states?.nullable }}
-                  >
-                    Eliminar imagen
-                  </button>
-                </div>
-              )}
-              {errors.image && (
-                <span className="text-xs text-red-500 mt-1">
-                  {errors.image}
-                </span>
-              )}
-            </div>
-          </div>
-
+        <div className="flex-1 grid grid-cols-2 gap-3 p-1">
           {/* Nombre */}
           <div>
             <label
@@ -246,7 +145,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               }}
               onBlur={() => validateField("name", name)}
               className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
+              style={{
+                borderColor: errors.name ? "red" : Colors.table.lines,
+              }}
             />
             {errors.name && (
               <span className="text-xs text-red-500">{errors.name}</span>
@@ -269,7 +170,9 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               onBlur={() => validateField("price", price)}
               inputMode="numeric"
               className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.price ? "red" : Colors.table.lines }}
+              style={{
+                borderColor: errors.price ? "red" : Colors.table.lines,
+              }}
             />
             {errors.price && (
               <span className="text-xs text-red-500">{errors.price}</span>
@@ -288,12 +191,13 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               type="text"
               value={stock}
               onChange={(e) => {
-                const value = e.target.value;
-                if (/^\d*$/.test(value)) setStock(value);
+                if (/^\d*$/.test(e.target.value)) setStock(e.target.value);
               }}
               onBlur={() => validateField("stock", stock)}
               className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.stock ? "red" : Colors.table.lines }}
+              style={{
+                borderColor: errors.stock ? "red" : Colors.table.lines,
+              }}
             />
             {errors.stock && (
               <span className="text-xs text-red-500">{errors.stock}</span>
@@ -329,22 +233,79 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
             )}
           </div>
 
-          {/* Descripción */}
-          <div className="col-span-2">
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Descripción
-            </label>
-            <textarea
-              placeholder="Ingrese descripción"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-2 py-1 border rounded-md resize-none"
-              style={{ borderColor: Colors.table.lines }}
-            />
+          {/* Descripción + Imagen */}
+          <div className="col-span-2 grid grid-cols-3 gap-3">
+            {/* Descripción */}
+            <div className="col-span-2 flex flex-col">
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
+                Descripción
+              </label>
+              <textarea
+                placeholder="Ingrese descripción"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full flex-1 px-2 py-1 border rounded-md resize-none"
+                style={{ borderColor: Colors.table.lines }}
+              />
+            </div>
+
+            {/* Imagen */}
+            <div className="col-span-1 flex flex-col">
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
+                Imagen
+              </label>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="flex flex-1 w-full items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+              >
+                {image ? (
+                  <img
+                    src={
+                      image instanceof File
+                        ? URL.createObjectURL(image)
+                        : (image as string)
+                    }
+                    alt="Producto"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Upload size={24} />
+                )}
+              </div>
+              {image && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImage(undefined);
+                    validateField("image", undefined);
+                  }}
+                  className="mt-2 text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
+                >
+                  Eliminar
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setImage(file ?? undefined);
+                  validateField("image", file);
+                }}
+              />
+              {errors.image && (
+                <p className="mt-1 text-xs text-red-600">{errors.image}</p>
+              )}
+            </div>
           </div>
         </div>
       </form>
