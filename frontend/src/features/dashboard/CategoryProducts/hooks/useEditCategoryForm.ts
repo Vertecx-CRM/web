@@ -119,7 +119,6 @@ export const useEditCategoryForm = ({
     let iconUrl: string | null = null;
 
     if (formData.icon instanceof File) {
-      showSuccess("Subiendo imagen a Cloudinary...");
       iconUrl = await uploadToCloudinary(formData.icon);
     } else if (typeof formData.icon === "string") {
       iconUrl = formData.icon;

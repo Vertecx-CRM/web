@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3001/products-categories";
+const API_URL = "http://localhost:3000/products-categories";
 
 // 📦 Obtener todas las categorías
 export const fetchCategories = async () => {
