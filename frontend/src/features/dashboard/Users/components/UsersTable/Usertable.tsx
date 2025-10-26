@@ -1,14 +1,33 @@
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import {
-  DataTable,
-  Column,
-} from "@/features/dashboard/components/datatable/DataTable";
-import {
-  editUser,
-  user,
-  userForTable,
+  User,
+  EditUser,
+  UserForTable,
   UsersTableProps,
 } from "../../types/typesUser";
 import Colors from "@/shared/theme/colors";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+
+// Función auxiliar para mostrar tipo de documento
+const mapTypeIdToLabel = (typeid: number): string => {
+  const types: Record<number, string> = {
+    1: "CC",
+    2: "CE",
+    3: "TI",
+    4: "NIT",
+    5: "PAS",
+  };
+  return types[typeid] || "N/A";
+};
+
+// Función auxiliar para mostrar estado
+const mapStateIdToLabel = (stateid: number): string => {
+  const states: Record<number, string> = {
+    1: "Activo",
+    2: "Inactivo",
+  };
+  return states[stateid] || "Desconocido";
+};
 
 export const UsersTable: React.FC<UsersTableProps> = ({
   users,
@@ -17,71 +36,72 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onDelete,
   onCreate,
 }) => {
-  // Convertir usuarios para la tabla asegurando que tengan ID
-  const usersForTable: userForTable[] = users.map((user, index) => ({
-    ...user,
-    id: user.id || index + 1, // Usar index + 1 como fallback
+  // 🧠 Adaptar usuarios al formato del DataTable
+  const usersForTable = users.map((u, index) => ({
+    ...u,
+    id: u.userid ?? index + 1, // ✅ Se agrega id solo para DataTable
   }));
 
-  // Definición de columnas para el DataTable
-  const columns: Column<userForTable>[] = [
+  // Columnas para el DataTable
+  const columns: Column<typeof usersForTable[0]>[] = [
     { key: "id", header: "#" },
-    { key: "tipoDocumento", header: "T. Documento" },
-    { key: "numeroDocumento", header: "Número de documento" },
-    { key: "nombre", header: "Nombre" },
-    { key: "telefono", header: "Teléfono" },
-    { key: "email", header: "Correo electrónico" },
-    { key: "rol", header: "Rol" },
     {
-      key: "estado",
+      key: "typeid",
+      header: "Tipo Doc.",
+      render: (u) => mapTypeIdToLabel(u.typeid),
+    },
+    { key: "documentnumber", header: "N° Documento" },
+    {
+      key: "name",
+      header: "Nombre Completo",
+      render: (u) => `${u.name} ${u.lastname || ""}`.trim(),
+    },
+    { key: "phone", header: "Teléfono" },
+    { key: "email", header: "Correo Electrónico" },
+    {
+      key: "stateid",
       header: "Estado",
-      render: (user) => (
-        <span
-          className="rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{
-            color:
-              user.estado === "Activo"
-                ? Colors.states.success
-                : Colors.states.inactive,
-          }}
-        >
-          {user.estado}
-        </span>
-      ),
+      render: (u) => {
+        const label = mapStateIdToLabel(u.stateid);
+        return (
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{
+              color:
+                label === "Activo"
+                  ? Colors.states.success
+                  : Colors.states.inactive,
+            }}
+          >
+            {label}
+          </span>
+        );
+      },
     },
   ];
 
-  // Funciones adaptadoras para mantener la compatibilidad
-  const handleView = (user: userForTable) => {
-    onView(user as user);
-  };
-
-  const handleEdit = (user: userForTable) => {
-    onEdit(user as editUser);
-  };
-
-  const handleDelete = (user: userForTable) => {
-    onDelete(user as user);
-  };
+  // Funciones de acción
+  const handleView = (u: any) => onView(u as User);
+  const handleEdit = (u: any) => onEdit(u as EditUser);
+  const handleDelete = (u: any) => onDelete(u as User);
 
   return (
-    <DataTable<userForTable>
+    <DataTable
       data={usersForTable}
       columns={columns}
       pageSize={10}
       searchableKeys={[
-        "nombre",
+        "name",
+        "lastname",
         "email",
-        "rol",
-        "numeroDocumento",
-        "telefono",
-        "estado",
+        "documentnumber",
+        "phone",
       ]}
       onView={handleView}
       onEdit={handleEdit}
       onDelete={handleDelete}
       onCreate={onCreate}
-      searchPlaceholder="Buscar por nombre, email, rol, documento, teléfono o estado…"
+      searchPlaceholder="Buscar por nombre, correo, documento o teléfono…"
       createButtonText="Crear Usuario"
     />
   );

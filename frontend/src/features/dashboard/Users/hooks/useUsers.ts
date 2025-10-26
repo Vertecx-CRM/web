@@ -1,179 +1,160 @@
-import { useEffect, useState } from "react";
-import { createUserData, createUserModalProps, editUser, editUserModalProps, formErrors, formTouched, user } from "../types/typesUser";
-import { initialUsers } from "../mocks/mockUser"
+import { useState, useEffect } from "react";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-import { validateField, validateAllFields, hasErrors, validateSpecificFields, validateFormWithNotification } from "../Validations/UserValidations";
+import {
+  User,
+  EditUser,
+  CreateUserData,
+} from "../types/typesUser";
+import {
+  fetchUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+} from "../connection/userApi";
 
-
-// Clave para el localStorage
-const USERS_STORAGE_KEY = 'users';
-
-// Función para convertir File a Base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-};
-
-// Función para cargar usuarios del localStorage
-const loadUsersFromStorage = (): user[] => {
-  if (typeof window === 'undefined') return initialUsers;
-  
-  try {
-    const stored = localStorage.getItem(USERS_STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-    // Si no hay datos en localStorage, guardar los usuarios iniciales
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
-    return initialUsers;
-  } catch (error) {
-    console.error('Error loading users from localStorage:', error);
-    return initialUsers;
-  }
-};
-
-// Función para guardar usuarios en el localStorage
-const saveUsersToStorage = (users: user[]) => {
-  if (typeof window === 'undefined') return;
-  
-  try {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-  } catch (error) {
-    console.error('Error saving users to localStorage:', error);
-  }
-};
-
-export const useUsers = () => {
-  // Cargar usuarios desde localStorage al inicializar
-  const [users, setUsers] = useState<user[]>([]);
+export const useUser = () => {
+  const [users, setUsers] = useState<User[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<editUser | null>(null);
-  const [viewingUser, setViewingUser] = useState<user | null>(null);
+  const [editingUser, setEditingUser] = useState<EditUser | null>(null);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
 
-  // Cargar usuarios del localStorage cuando el componente se monta
   useEffect(() => {
-    const loadedUsers = loadUsersFromStorage();
-    setUsers(loadedUsers);
-  }, []);
-
-  // Función para actualizar el estado y el localStorage simultáneamente
-  const updateUsers = (newUsers: user[]) => {
-    setUsers(newUsers);
-    saveUsersToStorage(newUsers);
-  };
-
-  const handleCreateUser = async (userData: createUserData) => {
-    let imagenBase64 = null;
-    
-    // Convertir imagen a Base64 si existe
-    if (userData.imagen instanceof File) {
+    const loadUsers = async () => {
       try {
-        imagenBase64 = await fileToBase64(userData.imagen);
+        const response = await fetchUsers();
+        console.log("📦 Respuesta del servidor:", response);
+
+        // Verifica si viene en formato { success, data: [...] }
+        if (response.success && Array.isArray(response.data)) {
+          setUsers(response.data);
+        } else if (Array.isArray(response)) {
+          // Si el backend devolviera directamente un array
+          setUsers(response);
+        } else {
+          console.warn("⚠️ Estructura de respuesta inesperada:", response);
+          setUsers([]);
+        }
       } catch (error) {
-        console.error('Error converting image to Base64:', error);
+        console.error(error);
+        showWarning("Error al cargar usuarios desde el servidor");
       }
-    }
-
-    const existingIds = users.map(c => c.id).filter((id): id is number => id !== undefined);
-    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
-
-    // Combinar nombre y apellido para el nombre completo
-    const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`.trim();
-
-    const newUser: user = {
-      id: maxId + 1,
-      tipoDocumento: userData.tipoDocumento,
-      numeroDocumento: userData.numeroDocumento,
-      nombre: nombreCompleto,
-      apellido: userData.apellido || '',
-      telefono: userData.telefono,
-      email: userData.email,
-      rol: userData.rol,
-      estado: "Activo",
-      imagen: imagenBase64 || userData.imagen,
     };
 
-    const updatedUsers = [...users, newUser];
-    updateUsers(updatedUsers);
-    setIsCreateModalOpen(false);
+    loadUsers();
+  }, []);
 
-    showSuccess('Usuario creado exitosamente!');
-  };
 
-  const handleEditUser = async (userData: editUser) => {
-    if (!userData.id) return;
+  const handleCreateUser = async (userData: CreateUserData) => {
+    try {
+      const payload = {
+        name: userData.name,
+        lastname: userData.lastname,
+        email: userData.email,
+        password: userData.password,
+        confirmPassword: userData.confirmPassword,
+        phone: userData.phone,
+        documentnumber: userData.documentnumber,
+        typeid: userData.typeid,
+        image: userData.image || null,
+        stateid: userData.stateid,
+      };
 
-    let imagenBase64 = null;
-    
-    // Convertir imagen a Base64 si es un archivo nuevo
-    if (userData.imagen instanceof File) {
-      try {
-        imagenBase64 = await fileToBase64(userData.imagen);
-      } catch (error) {
-        console.error('Error converting image to Base64:', error);
-      }
+      const newUser = await createUser(payload);
+      showSuccess("Usuario creado exitosamente");
+
+      // ✅ Actualiza el estado local sin esperar al backend
+      setUsers((prev) => [...prev, newUser]);
+
+      // (opcional) vuelve a cargar en segundo plano
+      fetchUsers().then((fresh) => {
+        if (Array.isArray(fresh.data)) setUsers(fresh.data);
+      });
+
+      setIsCreateModalOpen(false);
+    } catch (error: any) {
+      console.error(error);
+      showWarning(error.message || "Error al crear usuario");
     }
-
-    // Combinar nombre y apellido para el nombre completo
-    const nombreCompleto = `${userData.nombre} ${userData.apellido || ''}`.trim();
-
-    const updatedUsers = users.map(user =>
-      user.id === userData.id ?
-        {
-          ...user,
-          ...userData,
-          nombre: nombreCompleto,
-          imagen: imagenBase64 || userData.imagen || user.imagen 
-        }
-        : user
-    );
-    
-    updateUsers(updatedUsers);
-    setEditingUser(null);
-    showSuccess('Usuario actualizado exitosamente!');
   };
 
-  const performDeleteUser = async (userToDelete: user): Promise<boolean> => {
+
+  const handleEditUser = async (userData: EditUser) => {
+    if (!userData.userid) return;
+
+    try {
+      const payload = {
+        name: userData.name,
+        lastname: userData.lastname,
+        email: userData.email,
+        phone: userData.phone,
+        documentnumber: userData.documentnumber,
+        typeid: userData.typeid,
+        image: userData.image || null,
+        stateid: userData.stateid,
+      };
+
+      const updatedUser = await updateUser(userData.userid, payload);
+      showSuccess("Usuario actualizado exitosamente");
+
+      // ✅ Actualiza el estado local sin esperar a recargar todo
+      setUsers((prev) =>
+        prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
+      );
+
+      // (opcional) vuelve a cargar en segundo plano para sincronizar
+      fetchUsers().then((fresh) => {
+        if (Array.isArray(fresh.data)) setUsers(fresh.data);
+      });
+
+      setEditingUser(null);
+    } catch (error: any) {
+      console.error(error);
+      showWarning(error.message || "Error al actualizar usuario");
+    }
+  };
+
+
+  const handleDelete = async (userToDelete: User) => {
     return confirmDelete(
       {
-        itemName: userToDelete.nombre,
-        itemType: 'usuario',
-        successMessage: `El usuario "${userToDelete.nombre}" ha sido eliminado correctamente.`,
-        errorMessage: 'No se pudo eliminar el usuario. Por favor, intenta nuevamente.',
+        itemName: userToDelete.name,
+        itemType: "usuario",
+        successMessage: `El usuario "${userToDelete.name}" ha sido eliminado.`,
+        errorMessage: "Error al eliminar usuario",
       },
-      () => {
-        const updatedUsers = users.filter(u => u.id !== userToDelete.id);
-        updateUsers(updatedUsers);
+      async () => {
+        try {
+          if (!userToDelete.userid) return;
+
+          setUsers((prev) => prev.filter((u) => u.userid !== userToDelete.userid));
+
+          await deleteUser(userToDelete.userid);
+
+          showSuccess(`Usuario "${userToDelete.name}" eliminado exitosamente`);
+
+          fetchUsers().then((fresh) => {
+            if (fresh.success && Array.isArray(fresh.data)) {
+              setUsers(fresh.data);
+            }
+          });
+        } catch (error) {
+          console.error(error);
+          showWarning("Error al eliminar usuario");
+        }
       }
     );
   };
 
-  const handleView = (user: user) => {
-    setViewingUser(user);
-  };
 
-  const handleEdit = (user: editUser) => {
-    setEditingUser(user);
-  };
+  const handleView = (u: User) => setViewingUser(u);
 
-  const handleDelete = async (user: user) => {
-    await performDeleteUser(user);
-  };
+  const handleEdit = (u: EditUser) => setEditingUser(u);
 
   const closeModals = () => {
+    setIsCreateModalOpen(false);
     setEditingUser(null);
     setViewingUser(null);
-    setIsCreateModalOpen(false);
-  };
-
-  // Función para resetear los usuarios a los iniciales (útil para testing)
-  const resetUsers = () => {
-    updateUsers(initialUsers);
   };
 
   return {
@@ -184,390 +165,9 @@ export const useUsers = () => {
     viewingUser,
     handleCreateUser,
     handleEditUser,
-    performDeleteUser,
-    handleView,
-    handleEdit,
     handleDelete,
+    handleEdit,
+    handleView,
     closeModals,
-    setEditingUser,
-    setViewingUser,
-    resetUsers // Opcional: para debugging
   };
 };
-
-// Hook para el formulario de creación
-export const useCreateUserForm = ({
-  isOpen,
-  onClose,
-  onSave
-}: createUserModalProps) => {
-  const [formData, setFormData] = useState<createUserData>({
-    tipoDocumento: '',
-    numeroDocumento: '',
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    email: '',
-    rol: '',
-    estado: "Activo",
-    imagen: null,
-    password: '',
-    confirmPassword: '',
-  });
-
-  const [errors, setErrors] = useState<formErrors>({
-    tipoDocumento: '',
-    numeroDocumento: '',
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    email: '',
-    rol: '',
-    estado: '',
-    password: '',
-    confirmPassword: '',
-  });
-
-  const [touched, setTouched] = useState<formTouched>({
-    tipoDocumento: false,
-    numeroDocumento: false,
-    nombre: false,
-    apellido: false,
-    telefono: false,
-    email: false,
-    rol: false,
-    estado: false,
-    password: false,
-    confirmPassword: false,
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Función segura para manejar campos que pueden no existir en formTouched
-  const handleInputChange = (field: keyof createUserData, value: string | File | null) => {
-    const newFormData = { ...formData, [field]: value };
-    setFormData(newFormData);
-
-    // Si el campo ha sido tocado y existe en touched, validarlo
-    if (touched[field as keyof formTouched] && typeof value === 'string') {
-      validateFieldOnChange(field, value);
-    }
-  };
-
-  // Función segura para manejar blur
-  const handleBlur = (field: keyof formTouched) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-
-    // Validar solo si el campo existe en formData y es string
-    const formDataValue = formData[field as keyof createUserData];
-    if (typeof formDataValue === 'string') {
-      validateFieldOnChange(field as string, formDataValue);
-    }
-  };
-
-  // Validar campo individual cuando cambia
-  const validateFieldOnChange = (fieldName: string, value: string) => {
-    const error = validateField(fieldName, value, formData, false);
-    setErrors(prev => ({ ...prev, [fieldName]: error }));
-  };
-
-  // Validar todo el formulario
-  const validateFormWithNotifications = (): boolean => {
-    return validateFormWithNotification(
-      formData,
-      setErrors,
-      setTouched,
-      false
-    );
-  };
-
-  // Manejar envío del formulario
-  const handleSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    // ↓↓↓ USA LA NUEVA FUNCIÓN CON NOTIFICACIONES ↓↓↓
-    if (validateFormWithNotifications()) {
-      setIsSubmitting(true);
-      try {
-        const userData = {
-          ...formData,
-          rol: formData.rol || 'Usuario'
-        };
-        onSave(userData);
-        onClose();
-      } catch (error) {
-        console.error('Error al guardar usuario:', error);
-        showWarning('Error al guardar el usuario. Por favor, intenta nuevamente.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-
-  // Resetear formulario cuando se abre/cierra
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        tipoDocumento: '',
-        numeroDocumento: '',
-        nombre: '',
-        apellido: '',
-        telefono: '',
-        email: '',
-        rol: '',
-        estado: "Activo",
-        imagen: null,
-        password: '',
-        confirmPassword: '',
-      });
-      setErrors({
-        tipoDocumento: '',
-        numeroDocumento: '',
-        nombre: '',
-        apellido: '',
-        telefono: '',
-        email: '',
-        rol: '',
-        estado: '',
-        password: '',
-        confirmPassword: '',
-      });
-      setTouched({
-        tipoDocumento: false,
-        numeroDocumento: false,
-        nombre: false,
-        apellido: false,
-        telefono: false,
-        email: false,
-        rol: false,
-        estado: false,
-        password: false,
-        confirmPassword: false,
-      });
-      setIsSubmitting(false);
-    }
-  }, [isOpen]);
-
-  return {
-    formData,
-    setFormData,
-    errors,
-    setErrors,
-    touched,
-    setTouched,
-    isSubmitting,
-    handleInputChange,
-    handleBlur,
-    handleSubmit,
-    validateForm: validateFormWithNotifications
-  };
-};
-
-// Hook para el formulario de edición
-export const useEditUserForm = ({
-  isOpen,
-  onClose,
-  onSave,
-  user
-}: editUserModalProps) => {
-  const [formData, setFormData] = useState<editUser>({
-    id: 0,
-    tipoDocumento: '',
-    numeroDocumento: '',
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    email: '',
-    rol: '',
-    estado: "Activo",
-    imagen: null,
-  });
-
-  const [errors, setErrors] = useState<formErrors>({
-    tipoDocumento: '',
-    numeroDocumento: '',
-    nombre: '',
-    apellido: '',
-    telefono: '',
-    email: '',
-    rol: '',
-    estado: '',
-    password: '', // Estos campos se mantienen pero no se usan en edición
-    confirmPassword: '',
-  });
-
-  const [touched, setTouched] = useState<formTouched>({
-    tipoDocumento: false,
-    numeroDocumento: false,
-    nombre: false,
-    apellido: false,
-    telefono: false,
-    email: false,
-    rol: false,
-    estado: false,
-    password: false, // Estos campos se mantienen pero no se usan en edición
-    confirmPassword: false,
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Función para convertir editUser a user para las validaciones
-  const convertToUserForValidation = (editUserData: editUser): user => {
-    return {
-      ...editUserData,
-      password: '', // Campos de password vacíos para edición
-      confirmPassword: ''
-    };
-  };
-
-  // Función para manejar cambios en los campos
-  const handleInputChange = (field: keyof editUser, value: string | File | null) => {
-    const newFormData = { ...formData, [field]: value };
-    setFormData(newFormData);
-
-    // Si el campo ha sido tocado y es string, validarlo
-    if (touched[field as keyof formTouched] && typeof value === 'string') {
-      validateFieldOnChange(field, value);
-    }
-  };
-
-  // Función para manejar blur
-  const handleBlur = (field: keyof formTouched) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-
-    // Validar solo si el campo existe en formData y es string
-    const formDataValue = formData[field as keyof editUser];
-    if (typeof formDataValue === 'string') {
-      validateFieldOnChange(field as string, formDataValue);
-    }
-  };
-
-  // Validar campo individual cuando cambia
-  const validateFieldOnChange = (fieldName: string, value: string) => {
-    // Convertir a user para la validación
-    const userData = convertToUserForValidation(formData);
-    const error = validateField(fieldName, value, userData, true); // isEditMode = true
-    setErrors(prev => ({ ...prev, [fieldName]: error }));
-  };
-
-  // Validar todo el formulario para edición
-  const validateFormWithNotifications = (): boolean => {
-    // Convertir a user para la validación
-    const userData = convertToUserForValidation(formData);
-
-    return validateFormWithNotification(
-      userData,
-      setErrors,
-      setTouched,
-      true // isEditMode = true
-    );
-  };
-
-  // Manejar envío del formulario de edición
-  const handleSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    if (validateFormWithNotifications()) {
-      setIsSubmitting(true);
-      try {
-        onSave(formData);
-        onClose();
-      } catch (error) {
-        console.error('Error al actualizar usuario:', error);
-        showWarning('Error al actualizar el usuario. Por favor, intenta nuevamente.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-
-  // Cargar datos del usuario cuando se abre el modal o cambia el usuario
-  useEffect(() => {
-    if (isOpen && user) {
-      // Lógica mejorada para separar nombres y apellidos
-      const nombreCompleto = user.nombre || '';
-
-      // Dividir el nombre completo en partes
-      const partesNombre = nombreCompleto.split(' ');
-
-      // Casos especiales para diferentes cantidades de palabras
-      let nombre = '';
-      let apellido = '';
-
-      if (partesNombre.length === 1) {
-        // Solo una palabra: considerarla como nombre
-        nombre = partesNombre[0];
-      } else if (partesNombre.length === 2) {
-        // Dos palabras: primera es nombre, segunda es apellido
-        nombre = partesNombre[0];
-        apellido = partesNombre[1];
-      } else if (partesNombre.length === 3) {
-        // Tres palabras: primera es nombre, las otras dos son apellidos
-        nombre = partesNombre[0];
-        apellido = partesNombre.slice(1).join(' ');
-      } else {
-        // Cuatro o más palabras: primeras dos son nombres, el resto apellidos
-        nombre = partesNombre.slice(0, 2).join(' ');
-        apellido = partesNombre.slice(2).join(' ');
-      }
-
-      // Cargar datos del usuario en el formulario
-      setFormData({
-        id: user.id,
-        tipoDocumento: user.tipoDocumento,
-        numeroDocumento: user.numeroDocumento,
-        nombre: nombre,
-        apellido: apellido,
-        telefono: user.telefono,
-        email: user.email,
-        rol: user.rol,
-        estado: user.estado,
-        imagen: user.imagen,
-      });
-
-      // Resetear errores y estados touched
-      setErrors({
-        tipoDocumento: '',
-        numeroDocumento: '',
-        nombre: '',
-        apellido: '',
-        telefono: '',
-        email: '',
-        rol: '',
-        estado: '',
-        password: '',
-        confirmPassword: '',
-      });
-
-      setTouched({
-        tipoDocumento: false,
-        numeroDocumento: false,
-        nombre: false,
-        apellido: false,
-        telefono: false,
-        email: false,
-        rol: false,
-        estado: false,
-        password: false,
-        confirmPassword: false,
-      });
-
-      setIsSubmitting(false);
-    }
-  }, [isOpen, user]);
-
-  return {
-    formData,
-    setFormData,
-    errors,
-    setErrors,
-    touched,
-    setTouched,
-    isSubmitting,
-    handleInputChange,
-    handleBlur,
-    handleSubmit,
-    validateForm: validateFormWithNotifications
-  };
-};
-
