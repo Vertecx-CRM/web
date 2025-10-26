@@ -16,6 +16,10 @@ export interface User {
   typeofdocuments?: any;     
 }
 
+export interface UserForTable extends User {
+  id: number; 
+}
+
 export interface CreateUserData {
   name: string;
   lastname: string;

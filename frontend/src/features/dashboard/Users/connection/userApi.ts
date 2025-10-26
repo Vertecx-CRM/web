@@ -7,10 +7,7 @@ export const fetchUsers = async () => {
     if (!response.ok) {
       throw new Error("Error al obtener los usuarios");
     }
-
-    const data = await response.json(); // 👈 Aquí se leen los datos reales del backend
-    console.log("✅ Datos recibidos desde la API (fetchUsers):", data); // 🔍 Log limpio de lo que llega
-
+    const data = await response.json();
     return data;
   } catch (error) {
     console.error("❌ Error en fetchUsers:", error);

@@ -8,18 +8,6 @@ import {
 import Colors from "@/shared/theme/colors";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
-// Función auxiliar para mostrar tipo de documento
-const mapTypeIdToLabel = (typeid: number): string => {
-  const types: Record<number, string> = {
-    1: "CC",
-    2: "CE",
-    3: "TI",
-    4: "NIT",
-    5: "PAS",
-  };
-  return types[typeid] || "N/A";
-};
-
 // Función auxiliar para mostrar estado
 const mapStateIdToLabel = (stateid: number): string => {
   const states: Record<number, string> = {
@@ -36,19 +24,20 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   onDelete,
   onCreate,
 }) => {
-  // 🧠 Adaptar usuarios al formato del DataTable
-  const usersForTable = users.map((u, index) => ({
+  const usersForTable: UserForTable[] = users.map((u, index) => ({
     ...u,
-    id: u.userid ?? index + 1, // ✅ Se agrega id solo para DataTable
+    id: u.userid ?? index + 1,
+    userid: u.userid ?? index + 1,
   }));
 
-  // Columnas para el DataTable
-  const columns: Column<typeof usersForTable[0]>[] = [
+
+  //Columnas del DataTable
+  const columns: Column<UserForTable>[] = [
     { key: "id", header: "#" },
     {
-      key: "typeid",
+      key: "typeofdocuments",
       header: "Tipo Doc.",
-      render: (u) => mapTypeIdToLabel(u.typeid),
+      render: (u) => u.typeofdocuments?.name || "Sin tipo",
     },
     { key: "documentnumber", header: "N° Documento" },
     {
@@ -62,7 +51,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       key: "stateid",
       header: "Estado",
       render: (u) => {
-        const label = mapStateIdToLabel(u.stateid);
+        const label = u.stateid === 1 ? "Activo" : "Inactivo";
         return (
           <span
             className="rounded-full px-2 py-0.5 text-xs font-medium"
@@ -80,13 +69,13 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     },
   ];
 
-  // Funciones de acción
-  const handleView = (u: any) => onView(u as User);
-  const handleEdit = (u: any) => onEdit(u as EditUser);
-  const handleDelete = (u: any) => onDelete(u as User);
+  // Funciones adaptadoras
+  const handleView = (u: UserForTable) => onView(u as User);
+  const handleEdit = (u: UserForTable) => onEdit(u as EditUser);
+  const handleDelete = (u: UserForTable) => onDelete(u as User);
 
   return (
-    <DataTable
+    <DataTable<UserForTable>
       data={usersForTable}
       columns={columns}
       pageSize={10}
@@ -96,6 +85,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
         "email",
         "documentnumber",
         "phone",
+        "typeofdocuments",
       ]}
       onView={handleView}
       onEdit={handleEdit}
@@ -104,6 +94,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       searchPlaceholder="Buscar por nombre, correo, documento o teléfono…"
       createButtonText="Crear Usuario"
     />
+
   );
 };
 
