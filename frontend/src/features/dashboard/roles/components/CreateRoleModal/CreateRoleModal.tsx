@@ -40,7 +40,7 @@ export default function CreateRoleModal({
     Citas: ["Editar", "Crear", "Eliminar", "Ver"],
     "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
     "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
-    Dashboard: ["Ver"]
+    Dashboard: ["Ver"],
   };
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function CreateRoleModal({
   };
 
   const toggleModuleAll = (module: string) => {
-    if (module === "Dashboard") return; // <-- evita seleccionar "Todo" en Dashboard
+    if (module === "Dashboard") return;
     setPermissions((prev) => {
       const current = prev[module] || [];
       const allSelected = current.length === allModulePermissions[module].length;
@@ -230,7 +230,6 @@ export default function CreateRoleModal({
                           <td className="px-4 py-3 font-medium text-gray-800">{module}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap justify-center gap-4">
-                              {/* Oculta el "Todo" si es Dashboard */}
                               {module !== "Dashboard" && (
                                 <div className="flex items-center gap-2">
                                   <Checkbox
@@ -259,24 +258,19 @@ export default function CreateRoleModal({
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t sticky bottom-0 bg-white z-10 rounded-b-3xl">
+            {/* Footer actualizado */}
+            <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                style={{
-                  backgroundColor: Colors.buttons.tertiary,
-                  color: Colors.texts.quaternary,
-                }}
+                className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
-                className="px-4 py-2 rounded-lg font-medium text-sm text-white"
-                style={{
-                  backgroundColor: Colors.buttons.quaternary,
-                }}
+                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
               >
                 Guardar
               </button>

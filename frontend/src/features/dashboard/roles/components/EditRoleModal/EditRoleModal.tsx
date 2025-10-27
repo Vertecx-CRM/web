@@ -23,7 +23,7 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Dashboard", permissions: ["Ver"] }, // solo ver
+  { title: "Dashboard", permissions: ["Ver"] },
 ];
 
 interface EditRoleModalProps {
@@ -98,7 +98,7 @@ export default function EditRoleModal({
   };
 
   const handleToggleModuleAll = (module: string) => {
-    if (module === "Dashboard") return; // evita el toggle "Todo" en Dashboard
+    if (module === "Dashboard") return;
     setPermissions((prev) => {
       const current = prev[module] || [];
       const allSelected = current.length === permissionGroups.find((g) => g.title === module)?.permissions.length;
@@ -171,7 +171,6 @@ export default function EditRoleModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
-            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2 className="text-lg font-semibold">Editar Rol</h2>
               <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black">
@@ -179,9 +178,7 @@ export default function EditRoleModal({
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
-              {/* Nombre y Estado */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
@@ -217,7 +214,6 @@ export default function EditRoleModal({
                 </div>
               </div>
 
-              {/* Permisos */}
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
                   Permisos Asignados <span className="text-red-500">*</span>
@@ -277,21 +273,21 @@ export default function EditRoleModal({
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex justify-end gap-3 p-4 border-t sticky bottom-0 bg-white z-10 rounded-b-3xl">
+            {/* Footer actualizado */}
+            <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
+                type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-                style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
+                className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
-                className="px-4 py-2 rounded-lg font-medium text-sm text-white"
-                style={{ backgroundColor: Colors.buttons.quaternary }}
+                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
               >
-                Actualizar
+                Guardar
               </button>
             </div>
           </motion.div>

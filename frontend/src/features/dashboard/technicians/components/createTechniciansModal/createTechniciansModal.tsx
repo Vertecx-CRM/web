@@ -14,16 +14,17 @@ import {
   TechnicianErrors,
 } from "@/features/dashboard/technicians/validations/techniciansValidations";
 import { showWarning } from "@/shared/utils/notifications";
+import { Upload } from "lucide-react";
 
 type TechnicianField =
-  | "name"
-  | "lastName"
-  | "password"
-  | "confirmPassword"
   | "documentType"
   | "documentNumber"
+  | "name"
+  | "lastName"
   | "phone"
-  | "email";
+  | "email"
+  | "password"
+  | "confirmPassword";
 
 interface CreateTechnicianModalProps {
   isOpen: boolean;
@@ -57,14 +58,14 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   const [telefono, setTelefono] = useState("");
   const [correo, setCorreo] = useState("");
   const [imagen, setImagen] = useState<File | null>(null);
-  const [previewImagen, setPreviewImagen] = useState<string>();
+  const [previewImagen, setPreviewImagen] = useState<string | null>(null);
   const [mostrarContraseña, setMostrarContraseña] = useState(false);
   const [mostrarConfirmarContraseña, setMostrarConfirmarContraseña] =
     useState(false);
   const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleCircleClick = () => fileInputRef.current?.click();
 
   const resetForm = () => {
     setNombre("");
@@ -76,10 +77,11 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     setTelefono("");
     setCorreo("");
     setImagen(null);
-    setPreviewImagen(undefined);
+    setPreviewImagen(null);
     setMostrarContraseña(false);
     setMostrarConfirmarContraseña(false);
     setErrors({});
+    setImageError(null);
   };
 
   useEffect(() => {
@@ -181,9 +183,26 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     }
   };
 
+  const validateImage = (file: File | null) => {
+    if (!file) return null;
+    if (!file.type.startsWith("image/")) return "El archivo debe ser una imagen";
+    if (file.size > 2 * 1024 * 1024) return "La imagen no debe superar 2MB";
+    return null;
+  };
+
   const handleFileChange = (file: File | null) => {
+    if (file) {
+      const err = validateImage(file);
+      if (err) {
+        setImageError(err);
+        setImagen(null);
+        setPreviewImagen(null);
+        return;
+      }
+    }
+    setImageError(null);
     setImagen(file);
-    setPreviewImagen(file ? URL.createObjectURL(file) : undefined);
+    setPreviewImagen(file ? URL.createObjectURL(file) : null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -205,7 +224,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     const formErrors = validateTechnicianForm(formData, technicians);
     setErrors(formErrors);
 
-    if (Object.keys(formErrors).length > 0) {
+    if (Object.keys(formErrors).length > 0 || imageError) {
       showWarning("Por favor completa los campos obligatorios correctamente");
       return;
     }
@@ -223,92 +242,41 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         resetForm();
         onClose();
       }}
-      footer={null}
+      footer={
+        <div className="flex justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="create-technician-form"
+            className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+          >
+            Guardar
+          </button>
+        </div>
+      }
     >
       <form
+        id="create-technician-form"
         onSubmit={handleSubmit}
         className="flex flex-col h-full"
       >
-        <div className="flex-1 grid grid-cols-2 gap-3 p-1 overflow-y-auto max-h-[calc(100vh-250px)]">
-          {/* Imagen */}
-          <div className="col-span-2 flex flex-col items-center mb-3">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-            />
-            <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden relative"
-              onClick={handleCircleClick}
-              style={{ borderColor: Colors.table.lines }}
-            >
-              {previewImagen ? (
-                <img
-                  src={previewImagen}
-                  alt="Técnico"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : imagen ? (
-                <img
-                  src={URL.createObjectURL(imagen)}
-                  alt="Técnico"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-              )}
-            </div>
-
-            {imagen && (
-              <div className="flex flex-col items-center space-y-1">
-                {imagen.name && (
-                  <div className="text-xs text-green-600 font-medium">
-                    {imagen.name}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleFileChange(null)}
-                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                  style={{ borderColor: Colors.states.nullable }}
-                >
-                  Eliminar imagen
-                </button>
-              </div>
-            )}
-
-            <div className="text-center text-xs text-gray-500 mt-1">
-              Haga clic en el círculo para {imagen ? "cambiar" : "seleccionar"} la
-              imagen
-            </div>
-          </div>
-
-          {/* Campos */}
+        <div className="flex-1 grid grid-cols-2 gap-3 p-1">
           {(
             [
-              "name",
-              "lastName",
-              "password",
-              "confirmPassword",
               "documentType",
               "documentNumber",
+              "name",
+              "lastName",
               "phone",
               "email",
+              "password",
+              "confirmPassword",
             ] as TechnicianField[]
           ).map((field) => {
             const valueMap: Record<TechnicianField, string> = {
@@ -334,25 +302,25 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
             };
 
             const placeholderMap: Record<TechnicianField, string> = {
-              name: "Ingrese nombre *",
-              lastName: "Ingrese apellido *",
-              password: "Ingrese contraseña *",
-              confirmPassword: "Confirme contraseña *",
+              name: "Ingrese nombre",
+              lastName: "Ingrese apellido",
+              password: "Ingrese contraseña",
+              confirmPassword: "Confirme contraseña",
               documentType: "",
-              documentNumber: "Ingrese número de documento *",
-              phone: "Ingrese teléfono *",
-              email: "Ingrese correo electrónico *",
+              documentNumber: "Número de documento",
+              phone: "Ingrese teléfono",
+              email: "Correo@gmail.com",
             };
 
             const labelMap: Record<TechnicianField, string> = {
-              name: "Nombre",
-              lastName: "Apellido",
-              password: "Contraseña",
-              confirmPassword: "Confirmar contraseña",
               documentType: "Tipo de Documento",
               documentNumber: "Número de Documento",
+              name: "Nombre",
+              lastName: "Apellido",
               phone: "Teléfono",
               email: "Correo electrónico",
+              password: "Contraseña",
+              confirmPassword: "Confirmar contraseña",
             };
 
             return (
@@ -405,7 +373,8 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
                       }}
                     />
 
-                    {(field === "password" || field === "confirmPassword") && (
+                    {(field === "password" ||
+                      field === "confirmPassword") && (
                       <button
                         type="button"
                         onClick={() =>
@@ -452,39 +421,57 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
                 )}
 
                 {errors[field] && (
-                  <span className="text-xs text-red-500">{errors[field]}</span>
+                  <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
                 )}
               </div>
             );
           })}
-        </div>
 
-        {/* Botones */}
-        <div className="col-span-2 flex justify-end space-x-2 pt-2 sticky bottom-0 bg-white">
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              onClose();
-            }}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-md font-medium text-white text-sm"
-            style={{
-              backgroundColor: Colors.buttons.quaternary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Guardar
-          </button>
+{/* Imagen */}
+<div className="col-span-2">
+  <label
+    className="block text-sm font-medium mb-1"
+    style={{ color: Colors.texts.primary }}
+  >
+    Imagen
+  </label>
+  <div className="mt-1 flex items-center gap-2">
+    <div
+      onClick={() => fileInputRef.current?.click()}
+      className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+    >
+      {previewImagen ? (
+        <img
+          src={previewImagen}
+          alt="preview"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <Upload size={16} />
+      )}
+    </div>
+    {imagen && (
+      <button
+        type="button"
+        onClick={() => handleFileChange(null)}
+        className="text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
+      >
+        Eliminar
+      </button>
+    )}
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+    />
+  </div>
+  {imageError && (
+    <p className="mt-1 text-xs text-red-600">{imageError}</p>
+  )}
+</div>
+
         </div>
       </form>
     </Modal>

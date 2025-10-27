@@ -51,7 +51,6 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     if (isOpen) resetForm();
   }, [isOpen]);
 
-  // 🚀 Cambié solo el tipo de value para eliminar el any
   type ServiceFieldValue = string | File | undefined;
 
   const validateField = (
@@ -95,9 +94,33 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         resetForm();
         onClose();
       }}
-      footer={null}
+      footer={
+        <>
+          <div className="border-t border-gray-300 mt-3 mb-2"></div>
+          <div className="flex justify-end gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="create-service-form"
+              className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+            >
+              Guardar
+            </button>
+          </div>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
+      <form
+        id="create-service-form"
+        onSubmit={handleSubmit}
+        className="grid grid-cols-2 gap-3 p-1"
+      >
         {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
           <label
@@ -155,7 +178,9 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             {image && (
               <div className="flex flex-col items-center space-y-1">
                 {imageName && (
-                  <div className="text-xs text-green-600 font-medium">{imageName}</div>
+                  <div className="text-xs text-green-600 font-medium">
+                    {imageName}
+                  </div>
                 )}
                 <button
                   type="button"
@@ -244,38 +269,10 @@ const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
             placeholder="Ingrese descripción"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            rows={3}
+            rows={5} // ← antes eran 3, ahora es un poco más alto
             className="w-full px-2 py-1 border rounded-md resize-none"
             style={{ borderColor: Colors.table.lines }}
           />
-        </div>
-
-        {/* Botones */}
-        <div className="col-span-2 flex justify-end space-x-2 pt-2">
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              onClose();
-            }}
-            className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-            style={{
-              backgroundColor: Colors.buttons.tertiary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-md font-medium text-white text-sm"
-            style={{
-              backgroundColor: Colors.buttons.quaternary,
-              color: Colors.texts.quaternary,
-            }}
-          >
-            Guardar
-          </button>
         </div>
       </form>
     </Modal>

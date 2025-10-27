@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Modal from "@/features/dashboard/components/Modal";
+import { CreateAppointmentModal } from "@/features/dashboard/appointments/components/CreateAppointmentModal/createAppointment";
+import type { SlotDateTime } from "@/features/dashboard/appointments/types/typeAppointment";
 
 const ICONS = {
   calendar: "/icons/calendar.svg",
@@ -25,12 +28,7 @@ type WarrantyInfo = {
   notifiedClient?: boolean;
 };
 
-type Estado =
-  | "Aprobada"
-  | "Anulada"
-  | "Pendiente"
-  | "Garantia"
-  | "GarantiaReportada";
+type Estado = "Aprobada" | "Anulada" | "Pendiente" | "Garantia" | "GarantiaReportada";
 
 type Row = {
   id: number;
@@ -235,17 +233,49 @@ function GarantiaChip({ info }: { info?: WarrantyInfo }) {
   );
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+function parseDDMMYYYY(s: string): Date | null {
+  const [dd, mm, yyyy] = s.split("/").map((n) => Number(n));
+  if (!dd || !mm || !yyyy) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  return isNaN(d.getTime()) ? null : d;
+}
+function dateToSlot(d: Date): SlotDateTime {
+  const startH = d.getHours();
+  const startM = d.getMinutes();
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startH, startM + 60);
+  return {
+    dia: pad2(d.getDate()),
+    mes: pad2(d.getMonth() + 1),
+    año: String(d.getFullYear()),
+    horaInicio: pad2(startH),
+    minutoInicio: pad2(startM),
+    horaFin: pad2(end.getHours()),
+    minutoFin: pad2(end.getMinutes()),
+  };
+}
+function slotToDDMMYYYY(slot: SlotDateTime): string {
+  return `${slot.dia}/${slot.mes}/${slot.año}`;
+}
+
 export default function OrdersServicesIndexPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<Row[]>(MOCK);
+
   const [reportOpen, setReportOpen] = useState(false);
   const [reportRowId, setReportRowId] = useState<number | null>(null);
   const [motivo, setMotivo] = useState("Daño dentro de garantía");
   const [detalle, setDetalle] = useState("");
   const [notifyClient, setNotifyClient] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState("");
+
+  const [openAppointment, setOpenAppointment] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<SlotDateTime | null>(null);
+  const [appointmentRowId, setAppointmentRowId] = useState<number | null>(null);
 
   useEffect(() => {
     const no = searchParams.get("newOrder");
@@ -300,18 +330,29 @@ export default function OrdersServicesIndexPage() {
     window.history.replaceState(null, "", pathname);
   }, [searchParams, pathname]);
 
-  function setDate(row: Row) {
-    const value = prompt(`Fecha para #${row.id} (DD/MM/AAAA)`, row.fechaProgramada || "");
-    if (!value) return;
-    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, fechaProgramada: value } : r)));
+  function openAppointmentModal(row: Row) {
+    const d = parseDDMMYYYY(row.fechaProgramada) ?? new Date();
+    setSelectedSlot(dateToSlot(d));
+    setAppointmentRowId(row.id);
+    setOpenAppointment(true);
   }
 
-  function cancelRow(row: Row) {
+  async function cancelRow(row: Row) {
     if (row.estado === "Anulada") return;
-    const ok = confirm(`¿Anular la orden #${row.id}?`);
-    if (!ok) return;
+    const res = await Swal.fire({
+      title: "¿Anular orden?",
+      text: `Se anulará la orden #${row.id}. Esta acción no se puede deshacer.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, anular",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#d33",
+      reverseButtons: true,
+      focusCancel: true,
+    });
+    if (!res.isConfirmed) return;
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Anulada" } : r)));
+    await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1600, showConfirmButton: false });
   }
 
   function markWarranty(row: Row) {
@@ -592,12 +633,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
               <>
                 <button
                   className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Calendario"
-                  onClick={() => setDate(row)}
+                  title="Programar"
+                  onClick={() => openAppointmentModal(row)}
                 >
                   <img src={ICONS.calendar} className="h-4 w-4" />
                 </button>
-
                 {row.estado !== "Garantia" && row.estado !== "GarantiaReportada" && (
                   <button
                     className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
@@ -607,7 +647,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
                     <img src={ICONS.report} className="h-4 w-4" />
                   </button>
                 )}
-
                 {row.estado === "Garantia" && (
                   <button
                     className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
@@ -617,7 +656,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
                     <img src={ICONS.report} className="h-4 w-4" />
                   </button>
                 )}
-
                 {row.estado === "GarantiaReportada" && (
                   <button
                     className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
@@ -627,11 +665,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
                     <img src={ICONS.report} className="h-4 w-4" />
                   </button>
                 )}
-
                 <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Anular"
-                  onClick={() => cancelRow(row)}
+                  className={`p-1 rounded-full transition-all duration-300 ${row.estado === "Anulada" ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:scale-110 hover:bg-red-300/60"}`}
+                  title={row.estado === "Anulada" ? "Ya está anulada" : "Anular"}
+                  onClick={() => row.estado !== "Anulada" && cancelRow(row)}
+                  disabled={row.estado === "Anulada"}
                 >
                   <img src={ICONS.cancel} className="h-4 w-4" />
                 </button>
@@ -702,6 +740,22 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
             </div>
           </div>
         </Modal>
+
+        {openAppointment && selectedSlot && (
+          <CreateAppointmentModal
+            isOpen={openAppointment}
+            onClose={() => setOpenAppointment(false)}
+            selectedDateTime={selectedSlot}
+            onSave={(slot?: SlotDateTime) => {
+              if (!slot || appointmentRowId == null) return;
+              const nuevaFecha = slotToDDMMYYYY(slot);
+              setRows((prev) => prev.map((r) => (r.id === appointmentRowId ? { ...r, fechaProgramada: nuevaFecha } : r)));
+              setOpenAppointment(false);
+              setAppointmentRowId(null);
+              Swal.fire({ icon: "success", title: "Programada", text: `Fecha guardada: ${nuevaFecha}`, timer: 1400, showConfirmButton: false });
+            }}
+          />
+        )}
       </main>
     </RequireAuth>
   );
