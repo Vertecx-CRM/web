@@ -20,8 +20,6 @@ export const useCreateUserForm = ({
     name: "",
     lastname: "",
     email: "",
-    password: "",
-    confirmPassword: "",
     phone: "",
     typeid: 0,
     documentnumber: "",
@@ -60,7 +58,7 @@ export const useCreateUserForm = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 📸 Subir imagen a Cloudinary
+  // Subir imagen a Cloudinary
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -146,8 +144,6 @@ export const useCreateUserForm = ({
         name: "",
         lastname: "",
         email: "",
-        password: "",
-        confirmPassword: "",
         phone: "",
         typeid: 0,
         documentnumber: "",

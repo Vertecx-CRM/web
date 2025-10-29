@@ -12,7 +12,7 @@ export const validateField = (
 
   switch (fieldName) {
     case "typeid":
-      if (!value.trim()) error = "El tipo de documento es obligatorio";
+      if (!String(value).trim()) error = "El tipo de documento es obligatorio";
       break;
 
     case "documentnumber":
@@ -63,34 +63,25 @@ export const validateField = (
       }
       break;
 
+    // ✅ Eliminamos validación de contraseña para creación de usuario
     case "password":
-      if (!isEditMode && !value.trim()) {
-        error = "La contraseña es obligatoria";
-      } else if (value && value.length < 6) {
-        error = "La contraseña debe tener al menos 6 caracteres";
-      } else if (
-        value &&
-        formData.confirmPassword &&
-        value !== formData.confirmPassword
-      ) {
-        error = "Las contraseñas no coinciden";
-      }
-      break;
-
     case "confirmPassword":
-      if (!isEditMode && !value.trim()) {
-        error = "Debe confirmar la contraseña";
-      } else if (
-        value &&
-        formData.password &&
-        value !== formData.password
-      ) {
-        error = "Las contraseñas no coinciden";
+      // Solo se valida si estamos en modo edición y el campo viene con valor
+      if (isEditMode && value.trim()) {
+        if (value.length < 6) {
+          error = "La contraseña debe tener al menos 6 caracteres";
+        } else if (
+          value &&
+          formData.confirmPassword &&
+          value !== formData.confirmPassword
+        ) {
+          error = "Las contraseñas no coinciden";
+        }
       }
       break;
 
     case "stateid":
-      if (!value.trim()) error = "El estado es obligatorio";
+      if (!String(value).trim()) error = "El estado es obligatorio";
       break;
 
     default:
@@ -100,7 +91,7 @@ export const validateField = (
   return error;
 };
 
-
+// 🧩 Validación de todo el formulario
 export const validateAllFields = (
   formData: User,
   isEditMode: boolean = false
@@ -129,12 +120,12 @@ export const validateAllFields = (
   return errors;
 };
 
-
+// 🧩 Verifica si hay errores
 export const hasErrors = (errors: FormErrors): boolean => {
   return Object.values(errors).some((e) => e !== "");
 };
 
-
+// 🧩 Valida todo el formulario con notificación
 export const validateFormWithNotification = (
   formData: User,
   setErrors: (errors: FormErrors) => void,
@@ -142,8 +133,8 @@ export const validateFormWithNotification = (
   isEditMode: boolean = false
 ): boolean => {
   const validationData = isEditMode
-    ? { ...formData, password: "", confirmPassword: "" }
-    : formData;
+    ? { ...formData }
+    : { ...formData, password: "", confirmPassword: "" }; // 👈 No valida contraseñas en creación
 
   const newErrors = validateAllFields(validationData, isEditMode);
   setErrors(newErrors);
@@ -153,8 +144,8 @@ export const validateFormWithNotification = (
     name: true,
     lastname: true,
     email: true,
-    password: !isEditMode,
-    confirmPassword: !isEditMode,
+    password: isEditMode,
+    confirmPassword: isEditMode,
     phone: true,
     documentnumber: true,
     typeid: true,
@@ -170,63 +161,6 @@ export const validateFormWithNotification = (
     showWarning("Por favor complete los campos correctamente");
     const firstError = Object.values(newErrors).find((e) => e !== "");
     if (firstError) setTimeout(() => showWarning(firstError), 100);
-    return false;
-  }
-
-  return true;
-};
-
-
-export const validateSpecificFields = (
-  fields: string[],
-  formData: User,
-  isEditMode: boolean = false
-): Partial<FormErrors> => {
-  const errors: Partial<FormErrors> = {};
-  const formDataWithDefaults = {
-    ...formData,
-    lastname: formData.lastname || "",
-  };
-
-  fields.forEach((field) => {
-    if (field in formDataWithDefaults) {
-      const value = formDataWithDefaults[field as keyof User] as string;
-      errors[field as keyof FormErrors] = validateField(
-        field,
-        value,
-        formDataWithDefaults,
-        isEditMode
-      );
-    }
-  });
-
-  return errors;
-};
-
-
-export const validatePasswordWithNotification = (
-  formData: User,
-  setErrors: React.Dispatch<React.SetStateAction<FormErrors>>,
-  setTouched: React.Dispatch<React.SetStateAction<FormTouched>>
-): boolean => {
-  const passwordError = validateField("password", formData.password || "", formData, false);
-  const confirmError = validateField("confirmPassword", formData.confirmPassword || "", formData, false);
-
-  setErrors((prev) => ({
-    ...prev,
-    password: passwordError,
-    confirmPassword: confirmError,
-  }));
-
-  setTouched((prev) => ({
-    ...prev,
-    password: true,
-    confirmPassword: true,
-  }));
-
-  if (passwordError || confirmError) {
-    if (passwordError) showWarning(passwordError);
-    if (confirmError && confirmError !== passwordError) showWarning(confirmError);
     return false;
   }
 

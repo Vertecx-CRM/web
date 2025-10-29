@@ -289,39 +289,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             )}
           </div>
         </div>
-
-        {/* Contraseña y Confirmación */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              name="password"
-              placeholder="Ingrese una contraseña"
-              value={formData.password}
-              onChange={handleTextChange}
-              onBlur={() => handleBlur("password")}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Confirmar contraseña
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              placeholder="Confirme la contraseña"
-              value={formData.confirmPassword}
-              onChange={handleTextChange}
-              onBlur={() => handleBlur("confirmPassword")}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
-            />
-          </div>
-        </div>
       </form>
     </Modal>
   );

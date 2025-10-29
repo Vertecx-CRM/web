@@ -23,13 +23,10 @@ export const useUser = () => {
     const loadUsers = async () => {
       try {
         const response = await fetchUsers();
-        console.log("📦 Respuesta del servidor:", response);
 
-        // Verifica si viene en formato { success, data: [...] }
         if (response.success && Array.isArray(response.data)) {
           setUsers(response.data);
         } else if (Array.isArray(response)) {
-          // Si el backend devolviera directamente un array
           setUsers(response);
         } else {
           console.warn("⚠️ Estructura de respuesta inesperada:", response);
@@ -51,8 +48,6 @@ export const useUser = () => {
         name: userData.name,
         lastname: userData.lastname,
         email: userData.email,
-        password: userData.password,
-        confirmPassword: userData.confirmPassword,
         phone: userData.phone,
         documentnumber: userData.documentnumber,
         typeid: userData.typeid,
@@ -63,7 +58,7 @@ export const useUser = () => {
       const newUser = await createUser(payload);
       showSuccess("Usuario creado exitosamente");
 
-      // ✅ Actualiza el estado local sin esperar al backend
+      // Actualiza el estado local sin esperar al backend
       setUsers((prev) => [...prev, newUser]);
 
       // (opcional) vuelve a cargar en segundo plano
@@ -97,7 +92,7 @@ export const useUser = () => {
       const updatedUser = await updateUser(userData.userid, payload);
       showSuccess("Usuario actualizado exitosamente");
 
-      // ✅ Actualiza el estado local sin esperar a recargar todo
+      // Actualiza el estado local sin esperar a recargar todo
       setUsers((prev) =>
         prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
       );
