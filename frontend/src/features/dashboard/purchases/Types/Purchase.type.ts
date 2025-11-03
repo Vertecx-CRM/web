@@ -1,11 +1,24 @@
-export type IPurchase = {
-  id: number;
-  orderNumber: string;
-  invoiceNumber: string;
-  supplier: string;
-  registerDate: string;
+export interface ISupplier {
+  supplierid: number;
+  contactname: string;
+  servicetype: string;
+  nit: string;
+  address: string;
+  rating: number;
+}
+
+export interface IState {
+  stateid: number;
+  name: string;
+}
+
+export interface IPurchase {
+  purchaseorderid: number;
+  numberoforder: string;
+  reference: string;
+  supplier: ISupplier;
+  state: IState;
   amount: number;
-  status: "Aprobado" | "Anulado";
-  products?: any[];
-  tax?: number;
-};
+  createdat: string;
+  updatedat: string;
+}
