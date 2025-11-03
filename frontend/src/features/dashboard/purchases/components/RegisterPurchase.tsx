@@ -2,7 +2,6 @@
 import { useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { IPurchase } from "../Types/Purchase.type";
-import { usePurchases, months } from "../hooks/usePurchases";
 import {
   showSuccess,
   showWarning,
@@ -13,11 +12,27 @@ import {
   validatePurchaseField,
   PurchaseErrors,
 } from "../validations/purchasesValidations";
+import { usePurchases } from "../hooks/usePurchases";
 
 interface Props {
   onSave: (purchase: IPurchase) => void;
   purchases: IPurchase[];
 }
+
+const months = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -40,10 +55,10 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     total,
     handleChange,
     handleAddProduct,
-    handleSubmit,
     products,
     suppliers,
-  } = usePurchases(purchases, onSave);
+    handleAddPurchase, // ✅ usamos la función del hook
+  } = usePurchases();
 
   const [errors, setErrors] = useState<PurchaseErrors>({});
 
@@ -57,7 +72,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
   };
 
   /** ✅ Al enviar el formulario */
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (cart.length === 0) {
@@ -65,10 +80,15 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
       return;
     }
 
+    // Construimos el objeto que espera el backend
     const data = {
-      ...form,
+      numberoforder: form.orderNumber,
+      reference: form.invoiceNumber,
+      supplierid: Number(form.supplier),
+      stateid: 1, // Aprobado
       amount: total,
-      status: "Aprobado",
+      createdat: new Date().toISOString(),
+      updatedat: new Date().toISOString(),
     };
 
     const validationErrors = validatePurchaseForm(data, purchases);
@@ -80,9 +100,11 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     }
 
     try {
-      handleSubmit(e);
+      await handleAddPurchase(data); // ✅ usamos tu función
       showSuccess("✅ Compra registrada correctamente.");
-    } catch {
+      onSave(data as IPurchase);
+    } catch (error) {
+      console.error(error);
       showError("❌ Error al registrar la compra. Inténtalo de nuevo.");
     }
   };
@@ -102,11 +124,11 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             name="day"
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("registerDate", form.registerDate);
+              handleFieldValidation("createdAt", form.createdAt);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.registerDate ? "border-red-500" : "border-gray-300"
+              errors.createdAt ? "border-red-500" : "border-gray-300"
             }`}
           >
             <option value="">Día</option>
@@ -121,11 +143,11 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             name="month"
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("registerDate", form.registerDate);
+              handleFieldValidation("createdAt", form.createdAt);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.registerDate ? "border-red-500" : "border-gray-300"
+              errors.createdAt ? "border-red-500" : "border-gray-300"
             }`}
           >
             <option value="">Mes</option>
@@ -140,11 +162,11 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             name="year"
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("registerDate", form.registerDate);
+              handleFieldValidation("createdAt", form.createdAt);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.registerDate ? "border-red-500" : "border-gray-300"
+              errors.createdAt ? "border-red-500" : "border-gray-300"
             }`}
           >
             <option value="">Año</option>
@@ -155,8 +177,8 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
             ))}
           </select>
         </div>
-        {errors.registerDate && (
-          <p className="text-xs text-red-500 mt-1">{errors.registerDate}</p>
+        {errors.createdAt && (
+          <p className="text-xs text-red-500 mt-1">{errors.createdAt}</p>
         )}
       </div>
 

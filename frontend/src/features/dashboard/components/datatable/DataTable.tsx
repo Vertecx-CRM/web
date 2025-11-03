@@ -156,7 +156,6 @@ export function DataTable<T extends { id: number | string }>(
   const Row = useCallback(
     ({ row, index }: { row: T; index: number }) => (
       <tr
-        key={row.id}
         className="hover:bg-gray-50 text-center table-row"
         style={{
           top: `${(startIndex + index) * ROW_HEIGHT}px`,
@@ -180,7 +179,12 @@ export function DataTable<T extends { id: number | string }>(
           )
         )}
 
-        {(onView || onEdit || onDelete || onCancel || onCheck || renderActions) && (
+        {(onView ||
+          onEdit ||
+          onDelete ||
+          onCancel ||
+          onCheck ||
+          renderActions) && (
           <OptimizedTd header="Acciones">
             {renderActions ? (
               renderActions(row)
@@ -296,7 +300,13 @@ export function DataTable<T extends { id: number | string }>(
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
               {current.map((row) => (
                 <MobileCard
-                  key={row.id}
+                  key={
+                    row.id ??
+                    row.purchaseorderid ??
+                    row.numberoforder ??
+                    row.reference ??
+                    index
+                  }
                   row={row}
                   columns={columns}
                   onView={onView}
@@ -358,7 +368,17 @@ export function DataTable<T extends { id: number | string }>(
                 }}
               >
                 {visibleRows.map((row, index) => (
-                  <Row key={row.id} row={row} index={index} />
+                  <Row
+                    key={
+                      row.id ??
+                      row.purchaseorderid ??
+                      row.numberoforder ??
+                      row.reference ??
+                      index
+                    }
+                    row={row}
+                    index={index}
+                  />
                 ))}
               </tbody>
             </table>
