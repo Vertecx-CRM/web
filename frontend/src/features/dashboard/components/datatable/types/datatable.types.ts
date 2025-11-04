@@ -9,6 +9,7 @@ export type DataTableProps<T> = {
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
   onCancel?: (row: T) => void;
+  onCheck?: (row: T) => void;
   onCreate?: () => void;
   searchPlaceholder?: string;
   createButtonText?: string;
