@@ -1,15 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
-import { useAuth } from "@/features/auth/authcontext";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
-import CreateSuppliersModal, { ProviderSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
-import EditSupplierModal from "../components/EditSupplierModal";
-import ProviderDetailsModal from "@/features/dashboard/suppliers/components/ProviderDetailsModal";
-import { Column } from "../../components/datatable/types/column.types";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+import CreateSuppliersModal, {
+  SupplierSubmitPayload,
+} from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
+import EditSupplierModal from "@/features/dashboard/suppliers/components/EditSupplierModal";
+import SupplierDetailsModal from "@/features/dashboard/suppliers/components/SupplierDetailsModal";
+import {
+  useSuppliers,
+  useCreateSupplier,
+  useUpdateSupplier,
+} from "@/features/dashboard/suppliers/services/useSuppliers";
+import type {
+  SupplierDTO,
+  CreateSupplierInput,
+  UpdateSupplierInput,
+} from "@/features/dashboard/suppliers/services/suppliers.service";
+import { updateSupplier as updateSupplierSvc } from "@/features/dashboard/suppliers/services/suppliers.service";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Row = {
   id: number;
@@ -17,51 +29,76 @@ type Row = {
   nit: string;
   rating: number;
   contact: string;
-  category: string;
   status: "Activo" | "Inactivo";
   phone: string;
   email: string;
+  address: string;
   imageUrl?: string | null;
 };
 
-const MOCK: Row[] = [
-  { id: 1, name: "TechAndes S.A.S.", nit: "900123456-7", rating: 4.6, contact: "María Fernanda Ríos", category: "Servidores", status: "Activo", phone: "+57 3001234567", email: "contacto@techandes.com", imageUrl: null },
-  { id: 2, name: "Redes Pacífico Ltda.", nit: "800987321-4", rating: 4.1, contact: "Juan Pablo Cabal", category: "Redes", status: "Activo", phone: "+57 3019876543", email: "info@redespacifico.com", imageUrl: null },
-  { id: 3, name: "SecureVision Colombia", nit: "901457880-2", rating: 3.8, contact: "Sofía Valencia", category: "Seguridad", status: "Inactivo", phone: "+57 3102223344", email: "ventas@securevision.com.co", imageUrl: null },
-  { id: 4, name: "Andina Software Group", nit: "900741258-3", rating: 4.7, contact: "Carlos Ariza", category: "Software", status: "Activo", phone: "+57 3145566778", email: "contacto@andinasw.com", imageUrl: null },
-  { id: 5, name: "Energía & Respaldo S.A.", nit: "890112233-5", rating: 3.2, contact: "Daniel Castaño", category: "Energía", status: "Inactivo", phone: "+57 3128899001", email: "info@energiarespaldo.com", imageUrl: null },
-  { id: 6, name: "CloudLatam Proveedores", nit: "901203040-1", rating: 4.4, contact: "Ana Lucía Torres", category: "Nube", status: "Activo", phone: "+57 3013344556", email: "cloud@latam.com", imageUrl: null },
-  { id: 7, name: "Cableado Estructurado del Caribe", nit: "800456789-0", rating: 3.9, contact: "Hernán Bustos", category: "Redes", status: "Activo", phone: "+57 3167788990", email: "soporte@cableadocaribe.com", imageUrl: null },
-  { id: 8, name: "Almacenamiento Nevado", nit: "901334455-6", rating: 4.3, contact: "Laura Ramírez", category: "Almacenamiento", status: "Activo", phone: "+57 3134455667", email: "ventas@almacenamientonevado.co", imageUrl: null },
-  { id: 9, name: "Impresiones del Norte", nit: "830556677-8", rating: 2.9, contact: "Camilo Pérez", category: "Periféricos", status: "Inactivo", phone: "+57 3029988776", email: "contacto@impresionesnorte.com", imageUrl: null },
-  { id: 10, name: "Conectividad Andina", nit: "900998877-1", rating: 4.0, contact: "Daniela Hoyos", category: "Redes", status: "Activo", phone: "+57 3112233445", email: "info@conectividadandina.com", imageUrl: null },
-];
-
-function stars(r: number) {
-  const n = Math.round(r);
-  return "★".repeat(n).padEnd(5, "☆");
-}
-
 export default function SuppliersPage() {
-  const router = useRouter();
-  const { logout } = useAuth();
-  const [rows, setRows] = useState<Row[]>(MOCK);
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openDetails, setOpenDetails] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
 
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error } = useSuppliers();
+  const createMut = useCreateSupplier();
+  const updateMut = useUpdateSupplier(selected?.id ?? 0);
+
+  const rows: Row[] = useMemo(() => {
+    const list = Array.isArray(data) ? data : [];
+    return list.map((s: SupplierDTO) => ({
+      id: s.supplierid,
+      name: s.name,
+      nit: s.nit,
+      rating: s.rating ?? 0,
+      contact: s.contactname,
+      status: s.stateid === 1 ? "Activo" : "Inactivo",
+      phone: s.phone,
+      email: s.email,
+      address: s.address ?? "",
+      imageUrl: s.image || null,
+    }));
+  }, [data]);
+
   const columns: Column<Row>[] = [
     { key: "id", header: "Id" },
-    { key: "name", header: "Nombre", render: (r) => <span className="font-medium text-gray-900">{r.name}</span> },
+    {
+      key: "name",
+      header: "Nombre",
+      render: (r) => (
+        <span className="font-medium text-gray-900">{r.name}</span>
+      ),
+    },
     { key: "nit", header: "NIT" },
-    { key: "rating", header: "Calificación", render: (r) => (<span><span className="mr-1">{stars(r.rating)}</span><span className="text-xs text-gray-500">({r.rating.toFixed(1)})</span></span>) },
+    { key: "phone", header: "Teléfono" },
     { key: "contact", header: "Contacto" },
-    { key: "category", header: "Categoría" },
-    { key: "status", header: "Estado", render: (r) => (<span className={`rounded-full px-2 py-0.5 text-xs font-medium ${r.status === "Activo" ? "text-green-600" : "text-red-600"}`}>{r.status}</span>) },
+    {
+      key: "status",
+      header: "Estado",
+      render: (r) => (
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+            r.status === "Activo" ? "text-green-600" : "text-red-600"
+          }`}
+        >
+          {r.status}
+        </span>
+      ),
+    },
   ];
 
-  const searchableKeys: (keyof Row)[] = ["name", "contact", "category", "nit", "status", "phone", "email"];
+  const searchableKeys: (keyof Row)[] = [
+    "name",
+    "contact",
+    "nit",
+    "status",
+    "phone",
+    "email",
+  ];
 
   const onView = (row: Row) => {
     setSelected(row);
@@ -75,127 +112,140 @@ export default function SuppliersPage() {
 
   const onDelete = async (row: Row) => {
     const res = await Swal.fire({
-      title: "¿Eliminar proveedor?",
-      text: `Se eliminará "${row.name}". Esta acción no se puede deshacer.`,
+      title: "¿Inactivar proveedor?",
+      text: `Se marcará "${row.name}" como Inactivo (no se eliminará).`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Sí, eliminar",
+      confirmButtonText: "Sí, inactivar",
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#d33",
       reverseButtons: true,
       focusCancel: true,
     });
-    if (res.isConfirmed) {
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-      if (selected?.id === row.id) {
-        setOpenDetails(false);
-        setSelected(null);
-      }
-      await Swal.fire({ icon: "success", title: "Eliminado", text: "El proveedor fue eliminado correctamente.", timer: 1600, showConfirmButton: false });
+    if (!res.isConfirmed) return;
+
+    try {
+      const dto: UpdateSupplierInput = { stateid: 2 };
+      await updateSupplierSvc(row.id, dto);
+      setOpenDetails(false);
+      setSelected(null);
+      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      await Swal.fire({
+        icon: "success",
+        title: "Inactivado",
+        text: "El proveedor fue marcado como Inactivo.",
+        timer: 1400,
+        showConfirmButton: false,
+      });
+    } catch (e: any) {
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: e?.message || "No se pudo inactivar",
+      });
     }
   };
 
-  const handleSaveProvider = async (data: ProviderSubmitPayload) => {
-    setRows((prev) => {
-      const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
-      const newRow: Row = {
-        id: nextId,
-        name: data.name.trim(),
-        nit: data.nit.trim(),
-        rating: Number(data.rating) || 0,
-        contact: (data.contactName ?? "").trim(),
-        category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
-        status: data.status,
-        phone: data.phone ?? "",
-        email: data.email ?? "",
-        imageUrl: data.imageUrl ?? null,
-      };
-      return [...prev, newRow];
-    });
+  const handleSaveSupplier = async (form: SupplierSubmitPayload) => {
+    const dto: CreateSupplierInput = {
+      name: form.name.trim(),
+      nit: form.nit.trim(),
+      phone: form.phone?.trim() || "",
+      email: form.email?.trim() || "",
+      address: form.address?.trim() || "",
+      stateid: 1,
+      contactname: form.contactName?.trim() || "",
+      image: form.imageUrl?.trim() || "",
+      rating: Number(form.rating) || 0,
+    };
+    await createMut.mutateAsync(dto);
     setOpenCreate(false);
+    await Swal.fire({
+      icon: "success",
+      title: "Creado",
+      text: "Proveedor creado correctamente.",
+      timer: 1400,
+      showConfirmButton: false,
+    });
   };
 
-  const mapRowToProvider = (row: Row): ProviderSubmitPayload => {
-    return {
+  const handleUpdateSupplier = async (
+    form: SupplierSubmitPayload & { statusid?: 1 | 2 }
+  ) => {
+    if (!selected) return;
+    const stateid: 1 | 2 = form.statusid ?? (form.status === "Activo" ? 1 : 2);
+
+    const dto: UpdateSupplierInput = {
+      name: form.name?.trim(),
+      nit: form.nit?.trim(),
+      phone: form.phone?.trim() || "",
+      email: form.email?.trim() || "",
+      address: form.address?.trim() || "",
+      stateid,
+      contactname: form.contactName?.trim() || "",
+      image: form.imageUrl?.trim() || selected.imageUrl || "",
+      rating: Number(form.rating) || 0,
+    };
+
+    await updateMut.mutateAsync(dto);
+    setOpenEdit(false);
+    await Swal.fire({
+      icon: "success",
+      title: "Actualizado",
+      text: "Proveedor actualizado correctamente.",
+      timer: 1400,
+      showConfirmButton: false,
+    });
+  };
+
+  const mapRowToEditForm = (row: Row) =>
+    ({
       name: row.name,
       nit: row.nit,
       phone: row.phone ?? "",
       email: row.email ?? "",
-      contactName: row.contact,
+      address: row.address ?? "",
+      contactName: row.contact ?? "",
       status: row.status,
-      categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
-      rating: Math.round(row.rating),
+      statusid: row.status === "Activo" ? 1 : 2,
+      rating: Number(row.rating) || 0,
       imageFile: null,
       imageUrl: row.imageUrl ?? null,
-    };
-  };
+    } as unknown as SupplierSubmitPayload & { statusid: 1 | 2 });
 
-  const mapRowToDetails = (row: Row) => {
-    return {
-      id: row.id,
-      name: row.name,
-      nit: row.nit,
-      phone: row.phone ?? "",
-      email: row.email ?? "",
-      contactName: row.contact,
-      status: row.status,
-      categories: row.category ? row.category.split(",").map((s) => s.trim()).filter(Boolean) : [],
-      rating: Math.round(row.rating),
-      imageUrl: row.imageUrl ?? null,
-    };
-  };
+  const mapRowToDetails = (row: Row) => ({
+    id: row.id,
+    name: row.name,
+    nit: row.nit,
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    rating: Number(row.rating) || 0,
+    contactName: row.contact ?? "",
+    status: row.status,
+    imageUrl: row.imageUrl ?? null,
+    address: row.address ?? "",
+    stateid: row.status === "Activo" ? 1 : 2,
+  });
 
-  const handleUpdateProvider = async (data: ProviderSubmitPayload) => {
-    if (!selected) return;
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === selected.id
-          ? {
-              ...r,
-              name: data.name.trim(),
-              nit: data.nit.trim(),
-              rating: Number(data.rating) || 0,
-              contact: (data.contactName ?? "").trim(),
-              category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
-              status: data.status,
-              phone: data.phone ?? "",
-              email: data.email ?? "",
-              imageUrl: data.imageUrl ?? r.imageUrl ?? null,
-            }
-          : r
-      )
+  if (isLoading) {
+    return (
+      <RequireAuth>
+        <main className="flex-1 flex items-center justify-center bg-gray-100 p-8">
+          Cargando proveedores…
+        </main>
+      </RequireAuth>
     );
-    setOpenEdit(false);
-    setSelected((s) =>
-      s && s.id === selected.id
-        ? {
-            ...s,
-            name: data.name.trim(),
-            nit: data.nit.trim(),
-            rating: Number(data.rating) || 0,
-            contact: (data.contactName ?? "").trim(),
-            category: data.categories && data.categories.length ? data.categories.join(", ") : "—",
-            status: data.status,
-            phone: data.phone ?? "",
-            email: data.email ?? "",
-            imageUrl: data.imageUrl ?? s.imageUrl ?? null,
-          }
-        : s
+  }
+
+  if (error) {
+    return (
+      <RequireAuth>
+        <main className="flex-1 flex items-center justify-center bg-gray-100 p-8">
+          <div className="text-red-600">Error cargando proveedores</div>
+        </main>
+      </RequireAuth>
     );
-  };
-
-  const handleToggleStatusFromDetails = async () => {
-    if (!selected) return;
-    const nextStatus: Row["status"] = selected.status === "Activo" ? "Inactivo" : "Activo";
-    setRows((prev) => prev.map((r) => (r.id === selected.id ? { ...r, status: nextStatus } : r)));
-    setSelected((s) => (s ? { ...s, status: nextStatus } : s));
-  };
-
-  const handleEditFromDetails = () => {
-    if (!selected) return;
-    setOpenDetails(false);
-    setOpenEdit(true);
-  };
+  }
 
   return (
     <RequireAuth>
@@ -214,23 +264,26 @@ export default function SuppliersPage() {
         <CreateSuppliersModal
           isOpen={openCreate}
           onClose={() => setOpenCreate(false)}
-          onSave={handleSaveProvider}
+          onSave={handleSaveSupplier}
         />
         <EditSupplierModal
+          key={selected?.id ?? "new"}
           isOpen={openEdit}
-          onClose={() => {
-            setOpenEdit(false);
-          }}
-          onSave={handleUpdateProvider}
-          provider={selected ? mapRowToProvider(selected) : null}
+          onClose={() => setOpenEdit(false)}
+          supplier={selected ? mapRowToEditForm(selected) : null}
+          onSave={handleUpdateSupplier}
           title="Editar Proveedor"
         />
-        <ProviderDetailsModal
+
+        <SupplierDetailsModal
           isOpen={openDetails}
           onClose={() => setOpenDetails(false)}
-          provider={selected ? mapRowToDetails(selected) : null}
-          onEdit={handleEditFromDetails}
-          onToggleStatus={handleToggleStatusFromDetails}
+          supplier={selected ? mapRowToDetails(selected) : null}
+          onEdit={() => {
+            if (!selected) return;
+            setOpenDetails(false);
+            setOpenEdit(true);
+          }}
           title="Detalles del Proveedor"
         />
       </main>
