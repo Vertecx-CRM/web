@@ -25,6 +25,7 @@ export const useCreateUserForm = ({
     documentnumber: "",
     image: null,
     stateid: 1,
+    roleconfigurationid: 0,
   });
 
   const [errors, setErrors] = useState<FormErrors>({
@@ -39,6 +40,7 @@ export const useCreateUserForm = ({
     typeid: "",
     stateid: "",
     image: "",
+    roleconfigurationid: "",
   });
 
   const [touched, setTouched] = useState<FormTouched>({
@@ -53,6 +55,7 @@ export const useCreateUserForm = ({
     typeid: false,
     stateid: false,
     image: false,
+    roleconfigurationid: false
   });
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -149,6 +152,7 @@ export const useCreateUserForm = ({
         documentnumber: "",
         image: null,
         stateid: 1,
+        roleconfigurationid: 0
       });
       setPreviewImage(null);
     }

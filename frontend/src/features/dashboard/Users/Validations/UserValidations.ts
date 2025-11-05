@@ -84,6 +84,12 @@ export const validateField = (
       if (!String(value).trim()) error = "El estado es obligatorio";
       break;
 
+    case "roleconfigurationid":
+      if (!String(value).trim() || value === "0") {
+        error = "El rol es obligatorio";
+      }
+      break;
+
     default:
       break;
   }
@@ -115,7 +121,9 @@ export const validateAllFields = (
     typeid: validateField("typeid", String(formData.typeid || ""), formDataWithDefaults, isEditMode),
     stateid: validateField("stateid", String(formData.stateid || ""), formDataWithDefaults, isEditMode),
     image: "",
+    roleconfigurationid: validateField("roleconfigurationid", String(formData.roleconfigurationid || ""), formDataWithDefaults, isEditMode), // 👈 agregado
   };
+
 
   return errors;
 };
@@ -134,7 +142,7 @@ export const validateFormWithNotification = (
 ): boolean => {
   const validationData = isEditMode
     ? { ...formData }
-    : { ...formData, password: "", confirmPassword: "" }; // 👈 No valida contraseñas en creación
+    : { ...formData, password: "", confirmPassword: "" };
 
   const newErrors = validateAllFields(validationData, isEditMode);
   setErrors(newErrors);
@@ -151,6 +159,7 @@ export const validateFormWithNotification = (
     typeid: true,
     stateid: true,
     image: true,
+    roleconfigurationid: true,
   };
 
   setTouched(allTouched);

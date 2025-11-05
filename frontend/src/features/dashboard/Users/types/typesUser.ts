@@ -14,6 +14,7 @@ export interface User {
   confirmPassword?: string;  
   states?: any;              
   typeofdocuments?: any;     
+  roleconfigurationid: number;
 }
 
 export interface UserForTable extends User {
@@ -29,6 +30,7 @@ export interface CreateUserData {
   documentnumber: string;
   image?: string | File | null;
   stateid: number;
+  roleconfigurationid: number;
 }
 
 
@@ -42,6 +44,7 @@ export interface EditUser {
   typeid: number;
   image?: string | File | null;
   stateid: number;
+  roleconfigurationid: number;
 }
 
 export interface FormErrors {
@@ -56,6 +59,7 @@ export interface FormErrors {
   typeid: string;
   stateid: string;
   image: string;
+  roleconfigurationid: string;
 }
 
 export interface FormTouched {
@@ -70,6 +74,7 @@ export interface FormTouched {
   typeid: boolean;
   stateid: boolean;
   image: boolean;
+  roleconfigurationid: boolean;
 }
 
 

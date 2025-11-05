@@ -53,6 +53,7 @@ export const useUser = () => {
         typeid: userData.typeid,
         image: userData.image || null,
         stateid: userData.stateid,
+        roleconfigurationid: userData.roleconfigurationid,
       };
 
       const newUser = await createUser(payload);
@@ -61,7 +62,6 @@ export const useUser = () => {
       // Actualiza el estado local sin esperar al backend
       setUsers((prev) => [...prev, newUser]);
 
-      // (opcional) vuelve a cargar en segundo plano
       fetchUsers().then((fresh) => {
         if (Array.isArray(fresh.data)) setUsers(fresh.data);
       });
@@ -87,17 +87,16 @@ export const useUser = () => {
         typeid: userData.typeid,
         image: userData.image || null,
         stateid: userData.stateid,
+        roleconfigurationid: userData.roleconfigurationid,
       };
 
       const updatedUser = await updateUser(userData.userid, payload);
       showSuccess("Usuario actualizado exitosamente");
 
-      // Actualiza el estado local sin esperar a recargar todo
       setUsers((prev) =>
         prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
       );
 
-      // (opcional) vuelve a cargar en segundo plano para sincronizar
       fetchUsers().then((fresh) => {
         if (Array.isArray(fresh.data)) setUsers(fresh.data);
       });
@@ -140,7 +139,6 @@ export const useUser = () => {
       }
     );
   };
-
 
   const handleView = (u: User) => setViewingUser(u);
 

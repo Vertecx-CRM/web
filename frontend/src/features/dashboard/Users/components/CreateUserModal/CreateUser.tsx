@@ -7,6 +7,7 @@ import { CreateUserModalProps } from "../../types/typesUser";
 import { useCreateUserForm } from "../../hooks/useCreateUserForm";
 import { useDocumentTypes } from "../../hooks/useDocumentTypes";
 import Modal from "@/features/dashboard/components/Modal";
+import { useRoles } from "../../connection/rolesApi";
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({
   isOpen,
@@ -29,6 +30,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     onClose,
     onSave,
   });
+
+  const { roles } = useRoles();
 
   const { documentTypes, loading } = useDocumentTypes();
 
@@ -249,6 +252,30 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               </span>
             )}
           </div>
+        </div>
+
+        {/* Rol */}
+        <div>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Rol
+          </label>
+          <select
+            name="roleconfigurationid"
+            value={formData.roleconfigurationid}
+            onChange={handleSelectChange}
+            onBlur={() => handleBlur("roleconfigurationid")}
+            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+          >
+            <option value={0}>Seleccione un rol</option>
+            {roles.map((r) => (
+              <option key={r.roleconfigurationid} value={r.roleconfigurationid}>
+                {r.roles?.name || `Rol #${r.roleconfigurationid}`}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Imagen */}
