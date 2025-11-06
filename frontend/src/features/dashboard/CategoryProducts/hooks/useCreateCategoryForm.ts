@@ -1,148 +1,140 @@
 import { useState, useEffect } from "react";
 import {
-    CreateCategoryModalProps,
-    CreateCategoryData,
-    FormErrors,
-    FormTouched
+  CreateCategoryModalProps,
+  CreateCategoryData,
+  FormErrors,
+  FormTouched,
 } from "../types/typeCategoryProducts";
 import {
-    hasNumbers,
-    hasSpecialChars,
-    validateField,
-    validateFormWithNotification,
-    isDuplicateName
+  validateField,
+  validateFormWithNotification,
 } from "../validations/categoryValidations";
 import { showWarning, showSuccess } from "@/shared/utils/notifications";
 
-export const useCreateCategoryForm = ({ isOpen, onClose, onSave, categories }: CreateCategoryModalProps) => {
-    const [formData, setFormData] = useState<CreateCategoryData>({
-        name: "",
-        description: "",
-        icon: null,
-    });
+export const useCreateCategoryForm = ({
+  isOpen,
+  onClose,
+  onSave,
+  categories,
+}: CreateCategoryModalProps) => {
+  const [formData, setFormData] = useState<CreateCategoryData>({
+    name: "",
+    description: "",
+    icon: null,
+  });
 
-    const [errors, setErrors] = useState<FormErrors>({
-        name: "",
-        description: "",
-    });
+  const [errors, setErrors] = useState<FormErrors>({
+    name: "",
+    description: "",
+  });
 
-    const [touched, setTouched] = useState<FormTouched>({
-        name: false,
-        description: false,
-    });
+  const [touched, setTouched] = useState<FormTouched>({
+    name: false,
+    description: false,
+  });
 
-    // Reiniciar formulario al abrir modal
-    useEffect(() => {
-        if (isOpen) {
-            setFormData({ name: "", description: "", icon: null });
-            setErrors({ name: "", description: "" });
-            setTouched({ name: false, description: false });
-        }
-    }, [isOpen]);
+  // Reiniciar formulario al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({ name: "", description: "", icon: null });
+      setErrors({ name: "", description: "" });
+      setTouched({ name: false, description: false });
+    }
+  }, [isOpen]);
 
-    // Validación en tiempo real para nombre
-    useEffect(() => {
-        if (touched.name) {
-            const error = validateField("name", formData.name);
-            setErrors(prev => ({ ...prev, name: error }));
-            if (error) showWarning(error);
-        }
-    }, [formData.name, touched.name]);
+  // Validación en tiempo real (incluye nombre duplicado)
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
 
-    // Validación en tiempo real para descripción
-    useEffect(() => {
-        if (touched.description) {
-            const error = validateField("description", formData.description);
-            setErrors(prev => ({ ...prev, description: error }));
-            if (error) showWarning(error);
-        }
-    }, [formData.description, touched.description]);
+    setFormData((prev) => ({ ...prev, [name]: value }));
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
+    if (touched[name as keyof FormTouched]) {
+      const error = validateField(name, value, categories);
+      setErrors((prev) => ({ ...prev, [name]: error }));
+    }
+  };
 
-        if (name === "name" || name === "description") {
-            if (hasSpecialChars(value)) return;
-            if (name === "name" && hasNumbers(value)) return;
-        }
+  // Validación al salir del campo
+  const handleBlur = (
+    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
 
-        setFormData(prev => ({ ...prev, [name]: value }));
-        setTouched(prev => ({ ...prev, [name]: true }));
-    };
+    const error = validateField(name, value, categories);
+    setErrors((prev) => ({ ...prev, [name]: error }));
+  };
 
-    const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
-        setFormData(prev => ({ ...prev, icon: file }));
-    };
+  // Subir imagen a Cloudinary
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setFormData((prev) => ({ ...prev, icon: file }));
+  };
 
-    const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name } = e.target;
-        setTouched(prev => ({ ...prev, [name]: true }));
-    };
+  const uploadToCloudinary = async (file: File): Promise<string | null> => {
+    const CLOUD_NAME = "ditjhxzre";
+    const UPLOAD_PRESET = "Vertecx";
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", UPLOAD_PRESET);
 
-    // Subir imagen a Cloudinary
-    const uploadToCloudinary = async (file: File): Promise<string | null> => {
-        const CLOUD_NAME = "ditjhxzre";
-        const UPLOAD_PRESET = "Vertecx";
+    try {
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        { method: "POST", body: data }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message);
+      return json.secure_url;
+    } catch (error) {
+      console.error(error);
+      showWarning("Error al subir la imagen a Cloudinary");
+      return null;
+    }
+  };
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", UPLOAD_PRESET);
+  // Envío del formulario
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-        try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-                method: "POST",
-                body: formData,
-            });
-            const data = await response.json();
+    // Validación global con notificación (solo al guardar)
+    const valid = validateFormWithNotification(
+      formData,
+      setErrors,
+      setTouched,
+      categories
+    );
+    if (!valid) return;
 
-            if (!response.ok) throw new Error(data.error?.message || "Error al subir a Cloudinary");
+    try {
+      let iconUrl: string | null = null;
+      if (formData.icon instanceof File) {
+        iconUrl = await uploadToCloudinary(formData.icon);
+      }
 
-            return data.secure_url;
-        } catch (error) {
-            console.error("Error al subir imagen:", error);
-            showWarning("No se pudo subir la imagen a Cloudinary");
-            return null;
-        }
-    };
+      onSave({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        icon: iconUrl,
+      });
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+      showSuccess("Categoría creada exitosamente");
+      setTimeout(onClose, 800);
+    } catch (error) {
+      console.error(error);
+      showWarning("Error al guardar la categoría");
+    }
+  };
 
-        const isValid = validateFormWithNotification(formData, setErrors, setTouched);
-        if (!isValid) return;
-
-        if (isDuplicateName(formData.name, categories)) {
-            showWarning("Ya existe una categoría con ese nombre. Por favor, elige otro.");
-            return;
-        }
-
-        try {
-            let iconUrl: string | null = null;
-
-            if (formData.icon instanceof File) {
-                iconUrl = await uploadToCloudinary(formData.icon);
-            }
-
-            onSave({
-                name: formData.name.trim(),
-                description: formData.description.trim(),
-                icon: iconUrl,
-            });
-            setTimeout(onClose, 1000);
-        } catch (error) {
-            console.error("Error al procesar la imagen:", error);
-            showWarning("No se pudo procesar la imagen. Intenta nuevamente.");
-        }
-    };
-
-    return {
-        formData,
-        errors,
-        touched,
-        handleInputChange,
-        handleIconChange,
-        handleBlur,
-        handleSubmit,
-    };
+  return {
+    formData,
+    errors,
+    touched,
+    handleInputChange,
+    handleBlur,
+    handleIconChange,
+    handleSubmit,
+  };
 };

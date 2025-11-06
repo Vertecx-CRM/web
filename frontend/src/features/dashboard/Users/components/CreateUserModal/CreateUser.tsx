@@ -1,13 +1,12 @@
 "use client";
 import React from "react";
-
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
 import { CreateUserModalProps } from "../../types/typesUser";
 import { useCreateUserForm } from "../../hooks/useCreateUserForm";
 import { useDocumentTypes } from "../../hooks/useDocumentTypes";
+import { useRoles } from "../../hooks/useRoles";
 import Modal from "@/features/dashboard/components/Modal";
-import { useRoles } from "../../connection/rolesApi";
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({
   isOpen,
@@ -25,15 +24,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     handleBlur,
     handleSubmit,
     removeImage,
-  } = useCreateUserForm({
-    isOpen,
-    onClose,
-    onSave,
-  });
+  } = useCreateUserForm({ isOpen, onClose, onSave });
 
-  const { roles } = useRoles();
-
-  const { documentTypes, loading } = useDocumentTypes();
+  const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
+  const { roles, loading: loadingRoles } = useRoles();
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputChange(e.target.name as keyof typeof formData, e.target.value);
@@ -44,7 +38,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     handleInputChange(e.target.name as keyof typeof formData, value);
   };
 
-  // ✅ Footer con botones estándar
   const footer = (
     <>
       <button
@@ -84,22 +77,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       footer={footer}
       widthClass="max-w-md"
     >
-      <form
-        id="create-user-form"
-        onSubmit={handleSubmit}
-        className="space-y-5"
-      >
-        {/* Tipo y número de documento */}
+      <form id="create-user-form" onSubmit={handleSubmit} className="space-y-5">
+        {/* Documento */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Documento
-          </label>
-
+          <label className="block text-sm font-medium mb-1">Documento</label>
           <div className="flex flex-col sm:flex-row gap-2">
-            {/* Tipo */}
+            {/* Tipo de documento */}
             <select
               name="typeid"
               value={formData.typeid}
@@ -114,7 +97,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               }}
             >
               <option value={0}>Seleccione tipo</option>
-              {loading ? (
+              {loadingDocuments ? (
                 <option>Cargando...</option>
               ) : (
                 documentTypes.map((doc) => (
@@ -156,6 +139,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
         {/* Nombre y Apellido */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Nombre */}
           <div>
             <label className="block text-sm font-medium mb-1">Nombre</label>
             <input
@@ -172,12 +156,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               }}
             />
             {errors.name && touched.name && (
-              <span className="text-red-500 text-xs mt-1">
-                {errors.name}
-              </span>
+              <span className="text-red-500 text-xs mt-1">{errors.name}</span>
             )}
           </div>
 
+          {/* Apellido */}
           <div>
             <label className="block text-sm font-medium mb-1">Apellido</label>
             <input
@@ -205,6 +188,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
         {/* Teléfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Teléfono */}
           <div>
             <label className="block text-sm font-medium mb-1">Teléfono</label>
             <input
@@ -229,6 +213,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             )}
           </div>
 
+          {/* Correo */}
           <div>
             <label className="block text-sm font-medium mb-1">Correo</label>
             <input
@@ -256,26 +241,41 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
         {/* Rol */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Rol
-          </label>
+          <label className="block text-sm font-medium mb-1">Rol</label>
           <select
             name="roleconfigurationid"
             value={formData.roleconfigurationid}
             onChange={handleSelectChange}
             onBlur={() => handleBlur("roleconfigurationid")}
             className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+            style={{
+              borderColor:
+                errors.roleconfigurationid && touched.roleconfigurationid
+                  ? "red"
+                  : Colors.table.lines,
+            }}
           >
             <option value={0}>Seleccione un rol</option>
-            {roles.map((r) => (
-              <option key={r.roleconfigurationid} value={r.roleconfigurationid}>
-                {r.roles?.name || `Rol #${r.roleconfigurationid}`}
-              </option>
-            ))}
+            {loadingRoles ? (
+              <option>Cargando roles...</option>
+            ) : roles.length === 0 ? (
+              <option>No hay roles disponibles</option>
+            ) : (
+              roles.map((r) => (
+                <option
+                  key={r.roleconfigurationid}
+                  value={r.roleconfigurationid}
+                >
+                  {r.role?.name}
+                </option>
+              ))
+            )}
           </select>
+          {errors.roleconfigurationid && touched.roleconfigurationid && (
+            <span className="text-red-500 text-xs mt-1">
+              {errors.roleconfigurationid}
+            </span>
+          )}
         </div>
 
         {/* Imagen */}

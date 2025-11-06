@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3000/typeofdocuments";
+const API_URL = "http://localhost:3001/typeofdocuments";
 
 export const fetchDocumentTypes = async () => {
   const response = await fetch(API_URL);

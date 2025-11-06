@@ -6,10 +6,8 @@ import {
   FormTouched,
 } from "../types/typeCategoryProducts";
 import {
-  hasNumbers,
-  hasSpecialChars,
+  validateField,
   validateFormWithNotification,
-  isDuplicateName,
 } from "../validations/categoryValidations";
 import { showWarning, showSuccess } from "@/shared/utils/notifications";
 
@@ -18,7 +16,7 @@ export const useEditCategoryForm = ({
   category,
   onClose,
   onSave,
-  categories
+  categories,
 }: EditCategoryModalProps) => {
   const [formData, setFormData] = useState<EditCategoryData>({
     id: 0,
@@ -39,11 +37,20 @@ export const useEditCategoryForm = ({
   });
 
   const [previewIcon, setPreviewIcon] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ✅ Cargar datos al abrir el modal
   useEffect(() => {
-    if (category) {
-      setFormData({ ...category });
+    if (isOpen && category) {
+      setFormData({
+        id: category.id,
+        name: category.name,
+        description: category.description,
+        status: category.status,
+        icon: category.icon || null,
+      });
 
+      // Mostrar ícono actual
       if (category.icon) {
         if (typeof category.icon === "string") {
           setPreviewIcon(category.icon);
@@ -53,20 +60,39 @@ export const useEditCategoryForm = ({
       } else {
         setPreviewIcon(null);
       }
+
+      // Reiniciar validaciones
+      setErrors({ name: "", description: "" });
+      setTouched({ name: false, description: false });
     }
-  }, [category, isOpen]);
+  }, [isOpen, category]);
 
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  // ✅ Validación en tiempo real (incluye nombre duplicado)
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
-    if (name === "name" || name === "description") {
-      if (hasSpecialChars(value)) return;
-      if (name === "name" && hasNumbers(value)) return;
-    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
-    setTouched((prev) => ({ ...prev, [name]: true }));
+
+    if (touched[name as keyof FormTouched]) {
+      const error = validateField(name, value, categories, formData.id);
+      setErrors((prev) => ({ ...prev, [name]: error }));
+    }
   };
 
+  // ✅ Validación al salir del campo
+  const handleBlur = (
+    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
+
+    const error = validateField(name, value, categories, formData.id);
+    setErrors((prev) => ({ ...prev, [name]: error }));
+  };
+
+  // ✅ Cambiar ícono y vista previa
   const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     if (file) {
@@ -80,22 +106,19 @@ export const useEditCategoryForm = ({
     setPreviewIcon(null);
   };
 
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name } = e.target;
-    setTouched((prev) => ({ ...prev, [name]: true }));
-  };
-
+  // ☁️ Subir imagen a Cloudinary
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
     const data = new FormData();
     data.append("file", file);
     data.append("upload_preset", UPLOAD_PRESET);
+
     try {
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: "POST",
-        body: data,
-      });
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        { method: "POST", body: data }
+      );
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message);
       return json.secure_url;
@@ -106,30 +129,40 @@ export const useEditCategoryForm = ({
     }
   };
 
+  // 💾 Guardar cambios
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const isValid = validateFormWithNotification(formData, setErrors, setTouched);
-    if (!isValid) return;
 
-    if (isDuplicateName(formData.name, categories, formData.id)) {
-      showWarning("Ya existe una categoría con ese nombre. Por favor, elige otro.");
-      return;
+    const valid = validateFormWithNotification(
+      formData,
+      setErrors,
+      setTouched,
+      categories,
+      formData.id
+    );
+    if (!valid) return;
+
+    try {
+      setIsSubmitting(true);
+
+      let iconUrl: string | null = null;
+      if (formData.icon instanceof File) {
+        iconUrl = await uploadToCloudinary(formData.icon);
+      } else if (typeof formData.icon === "string") {
+        iconUrl = formData.icon;
+      }
+
+      await onSave({
+        ...formData,
+        icon: iconUrl,
+      });
+      setTimeout(onClose, 800);
+    } catch (error) {
+      console.error(error);
+      showWarning("Error al actualizar la categoría.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    let iconUrl: string | null = null;
-
-    if (formData.icon instanceof File) {
-      iconUrl = await uploadToCloudinary(formData.icon);
-    } else if (typeof formData.icon === "string") {
-      iconUrl = formData.icon;
-    }
-
-    onSave({
-      ...formData,
-      icon: iconUrl,
-    });
-
-    onClose();
   };
 
   return {
@@ -137,6 +170,7 @@ export const useEditCategoryForm = ({
     errors,
     touched,
     previewIcon,
+    isSubmitting,
     handleInputChange,
     handleIconChange,
     handleBlur,

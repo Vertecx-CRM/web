@@ -32,6 +32,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
 
 
   //Columnas del DataTable
+  // Columnas del DataTable
   const columns: Column<UserForTable>[] = [
     { key: "id", header: "#" },
     {
@@ -47,6 +48,12 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     },
     { key: "phone", header: "Teléfono" },
     { key: "email", header: "Correo Electrónico" },
+    {
+      key: "roleconfiguration",
+      header: "Rol",
+      render: (u) =>
+        u.roleconfiguration?.roles?.name || "Sin rol"
+    },
     {
       key: "stateid",
       header: "Estado",
@@ -68,6 +75,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       },
     },
   ];
+
 
   // Funciones adaptadoras
   const handleView = (u: UserForTable) => onView(u as User);

@@ -1,11 +1,11 @@
 "use client";
 import React from "react";
-
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
 import { EditUserModalProps } from "../../types/typesUser";
 import { useEditUserForm } from "../../hooks/useEditUserForm";
 import { useDocumentTypes } from "../../hooks/useDocumentTypes";
+import { useRoles } from "../../hooks/useRoles"; 
 import Modal from "@/features/dashboard/components/Modal";
 
 const EditUserModal: React.FC<EditUserModalProps> = ({
@@ -32,7 +32,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     user,
   });
 
-  const { documentTypes, loading } = useDocumentTypes();
+  const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
+  const { roles, loading: loadingRoles } = useRoles(); // ✅ HOOK DE ROLES
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputChange(e.target.name as keyof typeof formData, e.target.value);
@@ -43,7 +44,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     handleInputChange(e.target.name as keyof typeof formData, value);
   };
 
-  // ✅ Footer con botones estándar
+  // ✅ Footer
   const footer = (
     <>
       <button
@@ -83,11 +84,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
       footer={footer}
       widthClass="max-w-md"
     >
-      <form
-        id="edit-user-form"
-        onSubmit={handleSubmit}
-        className="space-y-5"
-      >
+      <form id="edit-user-form" onSubmit={handleSubmit} className="space-y-5">
         {/* Imagen */}
         <div>
           <label className="block text-sm font-medium mb-1">Imagen</label>
@@ -145,7 +142,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               }}
             >
               <option value={0}>Seleccione tipo</option>
-              {loading ? (
+              {loadingDocuments ? (
                 <option>Cargando...</option>
               ) : (
                 documentTypes.map((doc) => (
@@ -159,7 +156,6 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               )}
             </select>
 
-            {/* Número */}
             <div className="flex-1 flex flex-col">
               <input
                 type="text"
@@ -283,6 +279,40 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               </span>
             )}
           </div>
+        </div>
+
+        {/* Rol ✅ */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Rol</label>
+          <select
+            name="roleconfigurationid"
+            value={formData.roleconfigurationid}
+            onChange={handleSelectChange}
+            onBlur={() => handleBlur("roleconfigurationid")}
+            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+            style={{
+              borderColor:
+                errors.roleconfigurationid && touched.roleconfigurationid
+                  ? "red"
+                  : Colors.table.lines,
+            }}
+          >
+            <option value={0}>Seleccione un rol</option>
+            {loadingRoles ? (
+              <option>Cargando roles...</option>
+            ) : roles.length === 0 ? (
+              <option>No hay roles disponibles</option>
+            ) : (
+              roles.map((r) => (
+                <option
+                  key={r.roleconfigurationid}
+                  value={r.roleconfigurationid}
+                >
+                  {r.role?.name}
+                </option>
+              ))
+            )}
+          </select>
         </div>
 
         {/* Estado */}

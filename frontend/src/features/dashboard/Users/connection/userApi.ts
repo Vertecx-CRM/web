@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3000/users";
+const API_URL = "http://localhost:3001/users";
 
 export const fetchUsers = async () => {
   try {

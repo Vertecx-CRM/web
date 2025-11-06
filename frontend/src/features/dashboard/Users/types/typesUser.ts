@@ -1,24 +1,41 @@
 export interface User {
-  userid?: number;           
-  createat?: string | Date;  
-  updateat?: string | Date;  
-  stateid: number;           
-  typeid: number;            
-  phone: string;             
-  documentnumber: string;    
-  image?: string | null;     
-  name: string;              
-  lastname: string;          
-  email: string;             
-  password?: string;         
-  confirmPassword?: string;  
-  states?: any;              
-  typeofdocuments?: any;     
+  userid?: number;
+  createat?: string | Date;
+  updateat?: string | Date;
+  stateid: number;
+  typeid: number;
+  phone: string;
+  documentnumber: string;
+  image?: string | null;
+  name: string;
+  lastname: string;
+  email: string;
+  password?: string;
+  confirmPassword?: string;
+  states?: any;
+  typeofdocuments?: any;
   roleconfigurationid: number;
+
+  roleconfiguration?: {
+    roleconfigurationid: number;
+    roles?: {
+      id: number;
+      name: string;
+      status?: string;
+    };
+    permission?: {
+      id: number;
+      module: string;
+    };
+    privilege?: {
+      id: number;
+      name: string;
+    };
+  };
 }
 
 export interface UserForTable extends User {
-  id: number; 
+  id: number;
 }
 
 export interface CreateUserData {

@@ -125,8 +125,6 @@ export const useUser = () => {
 
           await deleteUser(userToDelete.userid);
 
-          showSuccess(`Usuario "${userToDelete.name}" eliminado exitosamente`);
-
           fetchUsers().then((fresh) => {
             if (fresh.success && Array.isArray(fresh.data)) {
               setUsers(fresh.data);

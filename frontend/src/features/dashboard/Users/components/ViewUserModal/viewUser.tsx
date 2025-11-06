@@ -145,6 +145,20 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         </div>
 
+        {/* Rol */}
+        <div>
+          <label
+            className="block text-sm font-medium mb-1"
+            style={{ color: Colors.texts.primary }}
+          >
+            Rol
+          </label>
+          <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+            {user.roleconfiguration?.roles?.name || "Sin rol"}
+          </div>
+        </div>
+
+
         {/* Estado */}
         <div>
           <label
@@ -155,11 +169,10 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </label>
           <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
             <span
-              className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                user.stateid === 1
+              className={`rounded-full px-2 py-1 text-xs font-semibold ${user.stateid === 1
                   ? "text-green-600 bg-green-100"
                   : "text-gray-500 bg-gray-100"
-              }`}
+                }`}
             >
               {stateMap[user.stateid] || "Desconocido"}
             </span>

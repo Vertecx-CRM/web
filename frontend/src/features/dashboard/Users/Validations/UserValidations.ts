@@ -1,20 +1,34 @@
-import { showWarning } from "@/shared/utils/notifications";
+import { showError, showWarning } from "@/shared/utils/notifications";
 import { User, FormErrors, FormTouched } from "../types/typesUser";
 
+/**
+ * Valida un campo individual con las reglas de negocio.
+ * @param fieldName - Nombre del campo
+ * @param value - Valor actual
+ * @param formData - Datos del formulario
+ * @param users - Lista de usuarios existentes (para verificar duplicados)
+ * @param isEditMode - true si es modo edición
+ */
 export const validateField = (
   fieldName: string,
   value: string,
   formData: User,
+  users: User[],
   isEditMode: boolean = false
 ): string => {
   let error = "";
   const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
 
+  // Normalizar valores para comparación
+  const trimmedValue = String(value).trim().toLowerCase();
+
   switch (fieldName) {
+    // Tipo de documento
     case "typeid":
       if (!String(value).trim()) error = "El tipo de documento es obligatorio";
       break;
 
+    // Documento
     case "documentnumber":
       if (!value.trim()) {
         error = "El número de documento es obligatorio";
@@ -22,9 +36,17 @@ export const validateField = (
         error = "El documento solo puede contener números";
       } else if (value.length < 5 || value.length > 20) {
         error = "El documento debe tener entre 5 y 20 dígitos";
+      } else {
+        const duplicate = users.find(
+          (u) =>
+            u.documentnumber.toLowerCase() === trimmedValue &&
+            (!isEditMode || u.userid !== formData.userid)
+        );
+        if (duplicate) error = "Ya existe un usuario con este número de documento";
       }
       break;
 
+    // Nombre
     case "name":
       if (!value.trim()) {
         error = "El nombre es obligatorio";
@@ -35,6 +57,7 @@ export const validateField = (
       }
       break;
 
+    // Apellido
     case "lastname":
       if (!value.trim()) {
         error = "El apellido es obligatorio";
@@ -45,28 +68,43 @@ export const validateField = (
       }
       break;
 
+    // Teléfono
     case "phone":
       if (!value.trim()) {
         error = "El teléfono es obligatorio";
       } else if (!/^\d+$/.test(value)) {
         error = "El teléfono solo puede contener números";
-      } else if (value.length < 7 || value.length > 15) {
-        error = "El teléfono debe tener entre 7 y 15 dígitos";
+      } else if (value.length !== 10) {
+        error = "El teléfono debe tener exactamente 10 dígitos";
+      } else {
+        const duplicate = users.find(
+          (u) =>
+            u.phone === value &&
+            (!isEditMode || u.userid !== formData.userid)
+        );
+        if (duplicate) error = "Ya existe un usuario con este número de teléfono";
       }
       break;
 
+    // Correo
     case "email":
       if (!value.trim()) {
         error = "El correo electrónico es obligatorio";
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         error = "El formato del correo no es válido";
+      } else {
+        const duplicate = users.find(
+          (u) =>
+            u.email.toLowerCase() === trimmedValue &&
+            (!isEditMode || u.userid !== formData.userid)
+        );
+        if (duplicate) error = "Ya existe un usuario con este correo electrónico";
       }
       break;
 
-    // ✅ Eliminamos validación de contraseña para creación de usuario
+    // Contraseña
     case "password":
     case "confirmPassword":
-      // Solo se valida si estamos en modo edición y el campo viene con valor
       if (isEditMode && value.trim()) {
         if (value.length < 6) {
           error = "La contraseña debe tener al menos 6 caracteres";
@@ -80,10 +118,12 @@ export const validateField = (
       }
       break;
 
+    // Estado
     case "stateid":
       if (!String(value).trim()) error = "El estado es obligatorio";
       break;
 
+    // Rol
     case "roleconfigurationid":
       if (!String(value).trim() || value === "0") {
         error = "El rol es obligatorio";
@@ -97,79 +137,64 @@ export const validateField = (
   return error;
 };
 
-// 🧩 Validación de todo el formulario
+/**
+ * Valida todos los campos del formulario completo.
+ */
 export const validateAllFields = (
   formData: User,
+  users: User[],
   isEditMode: boolean = false
 ): FormErrors => {
-  const formDataWithDefaults = {
+  const withDefaults = {
     ...formData,
     lastname: formData.lastname || "",
     password: formData.password || "",
     confirmPassword: formData.confirmPassword || "",
   };
 
-  const errors: FormErrors = {
+  return {
     userid: "",
-    name: validateField("name", formData.name, formDataWithDefaults, isEditMode),
-    lastname: validateField("lastname", formData.lastname || "", formDataWithDefaults, isEditMode),
-    email: validateField("email", formData.email, formDataWithDefaults, isEditMode),
-    password: validateField("password", formData.password || "", formDataWithDefaults, isEditMode),
-    confirmPassword: validateField("confirmPassword", formData.confirmPassword || "", formDataWithDefaults, isEditMode),
-    phone: validateField("phone", formData.phone, formDataWithDefaults, isEditMode),
-    documentnumber: validateField("documentnumber", formData.documentnumber, formDataWithDefaults, isEditMode),
-    typeid: validateField("typeid", String(formData.typeid || ""), formDataWithDefaults, isEditMode),
-    stateid: validateField("stateid", String(formData.stateid || ""), formDataWithDefaults, isEditMode),
+    name: validateField("name", withDefaults.name, withDefaults, users, isEditMode),
+    lastname: validateField("lastname", withDefaults.lastname, withDefaults, users, isEditMode),
+    email: validateField("email", withDefaults.email, withDefaults, users, isEditMode),
+    password: validateField("password", withDefaults.password, withDefaults, users, isEditMode),
+    confirmPassword: validateField("confirmPassword", withDefaults.confirmPassword, withDefaults, users, isEditMode),
+    phone: validateField("phone", withDefaults.phone, withDefaults, users, isEditMode),
+    documentnumber: validateField("documentnumber", withDefaults.documentnumber, withDefaults, users, isEditMode),
+    typeid: validateField("typeid", String(withDefaults.typeid || ""), withDefaults, users, isEditMode),
+    stateid: validateField("stateid", String(withDefaults.stateid || ""), withDefaults, users, isEditMode),
     image: "",
-    roleconfigurationid: validateField("roleconfigurationid", String(formData.roleconfigurationid || ""), formDataWithDefaults, isEditMode), // 👈 agregado
+    roleconfigurationid: validateField("roleconfigurationid", String(withDefaults.roleconfigurationid || ""), withDefaults, users, isEditMode),
   };
-
-
-  return errors;
 };
 
-// 🧩 Verifica si hay errores
-export const hasErrors = (errors: FormErrors): boolean => {
-  return Object.values(errors).some((e) => e !== "");
-};
+/**
+ * Verifica si existen errores
+ */
+export const hasErrors = (errors: FormErrors): boolean =>
+  Object.values(errors).some((e) => e !== "");
 
-// 🧩 Valida todo el formulario con notificación
+/**
+ * Valida formulario completo con notificación global (solo al guardar)
+ */
 export const validateFormWithNotification = (
   formData: User,
+  users: User[],
   setErrors: (errors: FormErrors) => void,
   setTouched: (touched: FormTouched) => void,
   isEditMode: boolean = false
 ): boolean => {
-  const validationData = isEditMode
-    ? { ...formData }
-    : { ...formData, password: "", confirmPassword: "" };
-
-  const newErrors = validateAllFields(validationData, isEditMode);
+  const newErrors = validateAllFields(formData, users, isEditMode);
   setErrors(newErrors);
 
-  const allTouched: FormTouched = {
-    userid: false,
-    name: true,
-    lastname: true,
-    email: true,
-    password: isEditMode,
-    confirmPassword: isEditMode,
-    phone: true,
-    documentnumber: true,
-    typeid: true,
-    stateid: true,
-    image: true,
-    roleconfigurationid: true,
-  };
-
+  const allTouched: FormTouched = Object.keys(newErrors).reduce(
+    (acc, key) => ({ ...acc, [key]: true }),
+    {} as FormTouched
+  );
   setTouched(allTouched);
 
-  const hasRelevantErrors = Object.values(newErrors).some((e) => e !== "");
-
-  if (hasRelevantErrors) {
-    showWarning("Por favor complete los campos correctamente");
-    const firstError = Object.values(newErrors).find((e) => e !== "");
-    if (firstError) setTimeout(() => showWarning(firstError), 100);
+  if (hasErrors(newErrors)) {
+    showError("Por favor complete los campos correctamente");
     return false;
   }
 
