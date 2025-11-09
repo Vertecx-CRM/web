@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import RequireAuth from "../../auth/requireauth";
-import { Column, DataTable } from "../components/DataTable";
 import Modal from "../components/Modal";
 import { mockSales } from "./mocks/mockSales";
 import CreateSaleModal from "./components/CreateSales/CreateSales";
 import ViewSaleModal from "./components/ViewSalesModal/ViewSales";
 import { Sale } from "./types/typesSales";
+import { Column } from "../components/datatable/types/column.types";
+import { DataTable } from "../components/datatable/DataTable";
 
 export default function SalesIndex() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -118,4 +119,3 @@ export default function SalesIndex() {
     </RequireAuth>
   );
 }
-
