@@ -1,16 +1,15 @@
 "use client";
-
 import { useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-
-type TipoServicio = "Mantenimiento" | "Instalacion";
+import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
 
 export type CreateRequestPayload = {
-  tipos: TipoServicio[];
+  tipos: ("Mantenimiento" | "Instalacion")[];
   servicio: string;
   descripcion: string;
-  cliente: string;
   direccion: string;
+  cliente: string;
+  programada?: string | null;
 };
 
 type Props = {
@@ -18,61 +17,48 @@ type Props = {
   onClose: () => void;
   onSave: (data: CreateRequestPayload) => void | Promise<void>;
   title?: string;
-  servicios?: string[];
-  clientes?: string[];
+  servicios?: Option[];
+  clientes?: Option[];
 };
-
-const DEFAULT_SERVICIOS = ["Cableado", "CCTV", "Servidor", "Red WiFi", "Impresora"];
-const DEFAULT_CLIENTES = ["Acme S.A.", "Innova LTDA", "SistemasPC", "Vertecx", "Cliente Demo"];
 
 export default function CreateRequestModal({
   isOpen,
   onClose,
   onSave,
-  title = "Crear solicitud",
-  servicios = DEFAULT_SERVICIOS,
-  clientes = DEFAULT_CLIENTES,
+  title = "Crear Solicitud",
+  servicios = [],
+  clientes = [],
 }: Props) {
-  const [tipos, setTipos] = useState<TipoServicio[]>([]);
+  const [tipo, setTipo] = useState<"Mantenimiento" | "Instalacion" | null>(null);
   const [servicio, setServicio] = useState("");
-  const [descripcion, setDescripcion] = useState("");
   const [cliente, setCliente] = useState("");
+  const [descripcion, setDescripcion] = useState("");
   const [direccion, setDireccion] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<Record<string, string | null>>({});
-
-  function toggleTipo(t: TipoServicio) {
-    setTipos((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  }
+  const [programada, setProgramada] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
 
   function validate() {
     const e: Record<string, string | null> = {};
-    e.tipos = tipos.length ? null : "Selecciona al menos un tipo.";
+    e.tipos = tipo ? null : "Selecciona un tipo.";
     e.servicio = servicio ? null : "Selecciona un servicio.";
-    e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
     e.cliente = cliente ? null : "Selecciona un cliente.";
+    e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
     e.direccion = direccion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
-    setErr(e);
+    setErrors(e);
     return Object.values(e).every((x) => !x);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
     if (!validate()) return;
-    try {
-      setSaving(true);
-      await onSave({ tipos, servicio, descripcion: descripcion.trim(), cliente, direccion: direccion.trim() });
-      setSaving(false);
-      onClose();
-      setTipos([]);
-      setServicio("");
-      setDescripcion("");
-      setCliente("");
-      setDireccion("");
-      setErr({});
-    } catch {
-      setSaving(false);
-    }
+    await onSave({
+      tipos: tipo ? [tipo] as ("Mantenimiento" | "Instalacion")[] : [],
+      servicio,
+      descripcion: descripcion.trim(),
+      direccion: direccion.trim(),
+      cliente,
+      programada,
+    });
+    onClose();
   }
 
   return (
@@ -81,96 +67,136 @@ export default function CreateRequestModal({
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <>
-          <button type="button" onClick={onClose} className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
             Cancelar
           </button>
-          <button type="submit" form="create-request-form" disabled={saving} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60">
-            {saving ? "Guardando..." : "Guardar"}
+          <button
+            type="button"
+            onClick={submit}
+            className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+          >
+            Guardar
           </button>
-        </>
+        </div>
       }
     >
-      <form id="create-request-form" onSubmit={handleSubmit} className="grid gap-4">
-        <hr className="border-gray-300" />
+      <div className="grid gap-3">
         <div>
-          <div className="text-sm text-gray-800 mb-2">Tipo de servicio</div>
-          <div className="flex items-center gap-6">
-            <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-              <input type="checkbox" checked={tipos.includes("Mantenimiento")} onChange={() => toggleTipo("Mantenimiento")} className="h-4 w-4 rounded border-gray-300" />
-              Mantenimiento
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-              <input type="checkbox" checked={tipos.includes("Instalacion")} onChange={() => toggleTipo("Instalacion")} className="h-4 w-4 rounded border-gray-300" />
-              Instalacion
-            </label>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
+            <span className="text-[11px] text-gray-500">Selecciona uno</span>
           </div>
-          {err.tipos && <p className="mt-1 text-xs text-red-600">{err.tipos}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Servicio</label>
-          <div className="relative">
-            <select
-              value={servicio}
-              onChange={(e) => setServicio(e.target.value)}
-              className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
+          <div className="inline-grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setTipo("Mantenimiento")}
+              className={[
+                "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
+                tipo === "Mantenimiento"
+                  ? "bg-black text-white border-black"
+                  : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
+              ].join(" ")}
             >
-              <option value="">Selecciona el servicio</option>
-              {servicios.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+              Mantenimiento
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipo("Instalacion")}
+              className={[
+                "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
+                tipo === "Instalacion"
+                  ? "bg-black text-white border-black"
+                  : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
+              ].join(" ")}
+            >
+              Instalación
+            </button>
           </div>
-          {err.servicio && <p className="mt-1 text-xs text-red-600">{err.servicio}</p>}
+          {errors.tipos && <p className="mt-1 text-xs text-red-600">{errors.tipos}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
+            <div className="relative">
+              <select
+                value={servicio}
+                onChange={(e) => setServicio(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              >
+                <option value="">Selecciona el servicio</option>
+                {servicios.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+            </div>
+            {errors.servicio && <p className="mt-1 text-xs text-red-600">{errors.servicio}</p>}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
+            <div className="relative">
+              <select
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              >
+                <option value="">Selecciona el cliente</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+            </div>
+            {errors.cliente && <p className="mt-1 text-xs text-red-600">{errors.cliente}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+            <input
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Ej. Calle 123 #45-67"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            {errors.direccion && <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
+            <input
+              type="date"
+              value={programada ?? ""}
+              onChange={(e) => setProgramada(e.target.value || null)}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700 mb-1">Descripción</label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
           <textarea
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Ingrese sus observaciones"
             rows={3}
-            className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
+            placeholder="Describe brevemente la solicitud"
+            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
           />
-          {err.descripcion && <p className="mt-1 text-xs text-red-600">{err.descripcion}</p>}
+          {errors.descripcion && <p className="mt-1 text-xs text-red-600">{errors.descripcion}</p>}
         </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Cliente</label>
-          <div className="relative">
-            <select
-              value={cliente}
-              onChange={(e) => setCliente(e.target.value)}
-              className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-            >
-              <option value="">Selecciona el cliente</option>
-              {clientes.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
-          </div>
-          {err.cliente && <p className="mt-1 text-xs text-red-600">{err.cliente}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-1">Dirección</label>
-          <input
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            placeholder="Ingrese su dirección"
-            className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {err.direccion && <p className="mt-1 text-xs text-red-600">{err.direccion}</p>}
-        </div>
-      </form>
+      </div>
     </Modal>
   );
 }
