@@ -26,11 +26,66 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Dashboard", permissions: ["Ver"] },
 ];
 
+/** Traducciones defensivas Backend -> UI (privilegios y módulos) */
+const PRIV_BACK_TO_UI: Record<string, "Crear" | "Ver" | "Editar" | "Eliminar"> = {
+  create: "Crear",
+  read: "Ver",
+  update: "Editar",
+  delete: "Eliminar",
+};
+
+const MODULE_BACK_TO_UI: Record<string, string> = {
+  Roles: "Roles",
+  Users: "Usuarios",
+  User: "Usuarios",
+  Products: "Productos",
+  Product: "Productos",
+  Suppliers: "Proveedores",
+  Supplier: "Proveedores",
+  Purchases: "Compras",
+  Purchase: "Compras",
+  purcharse: "Compras", // typo común visto en tu backend
+  "Órdenes de Compra": "Órdenes de Compra",
+  Orders: "Órdenes de Compra",
+  "Service Request": "Solicitud de Servicio",
+  "Service Requests": "Solicitud de Servicio",
+  Requests: "Solicitud de Servicio",
+  "Service Orders": "Orden de Servicio",
+  "Service Order": "Orden de Servicio",
+  Technicians: "Técnicos",
+  Technician: "Técnicos",
+  "Technicians Schedules": "Horarios de los técnicos",
+  Schedules: "Horarios de los técnicos",
+  Clients: "Clientes",
+  Client: "Clientes",
+  Quotes: "Cotización de Servicio",
+  Quotation: "Cotización de Servicio",
+  Appointments: "Citas",
+  Appointment: "Citas",
+  Dashboard: "Dashboard",
+  Categories: "Categoría de Productos",
+  Category: "Categoría de Productos",
+};
+
+function normalizeTokenToUI(token: string): string {
+  // token puede venir "Modulo-Privilegio" en español (ideal) o "module-privilege" desde el backend
+  const idx = token.lastIndexOf("-");
+  if (idx === -1) return token;
+  const rawModule = token.slice(0, idx);
+  const rawPriv = token.slice(idx + 1);
+
+  const modUI = MODULE_BACK_TO_UI[rawModule] ?? rawModule;
+  const privLower = rawPriv.toLowerCase();
+  const privUI = PRIV_BACK_TO_UI[privLower] ?? (rawPriv as any);
+
+  return `${modUI}-${privUI}`;
+}
+
 interface EditRoleModalProps {
   isOpen: boolean;
   role: EditRoleData | null;
   onClose: () => void;
-  onSave: (id: number, data: EditRoleData) => void;
+  onSave: (id: number, data: EditRoleData) => void | Promise<void>;
   existingRoles: Role[];
 }
 
@@ -50,14 +105,17 @@ export default function EditRoleModal({
     if (role) {
       setName(role.name);
       setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
-      const mappedPermissions: Record<string, string[]> = {};
-      const rolePerms = role.permissions ?? [];
+
+      // Normaliza tokens a los labels de la UI para que los checkboxes coincidan
+      const normalized = (role.permissions ?? []).map(normalizeTokenToUI);
+
+      const mapped: Record<string, string[]> = {};
       permissionGroups.forEach((group) => {
-        mappedPermissions[group.title] = group.permissions.filter((perm) =>
-          rolePerms.includes(`${group.title}-${perm}`)
+        mapped[group.title] = group.permissions.filter((perm) =>
+          normalized.includes(`${group.title}-${perm}`)
         );
       });
-      setPermissions(mappedPermissions);
+      setPermissions(mapped);
       setErrors({});
     }
   }, [role]);
@@ -98,10 +156,11 @@ export default function EditRoleModal({
   };
 
   const handleToggleModuleAll = (module: string) => {
-    if (module === "Dashboard") return;
+    if (module === "Dashboard") return; // Dashboard solo tiene "Ver"
     setPermissions((prev) => {
       const current = prev[module] || [];
-      const allSelected = current.length === permissionGroups.find((g) => g.title === module)?.permissions.length;
+      const total = permissionGroups.find((g) => g.title === module)?.permissions.length ?? 0;
+      const allSelected = current.length === total;
       const updated = allSelected ? [] : [...(permissionGroups.find((g) => g.title === module)?.permissions || [])];
       const newPermissions = { ...prev, [module]: updated };
       validateForm(undefined, newPermissions);
@@ -110,23 +169,24 @@ export default function EditRoleModal({
   };
 
   const handleToggleAllPermissions = () => {
-    const allSelected =
-      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
-      permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
+    const selectedNow = Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0);
+    const totalAll = permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
+    const allSelected = selectedNow === totalAll;
 
     if (allSelected) {
       setPermissions({});
+      validateForm(undefined, {});
     } else {
       const fullSelection: Record<string, string[]> = {};
       permissionGroups.forEach((group) => {
         fullSelection[group.title] = [...group.permissions];
       });
       setPermissions(fullSelection);
+      validateForm(undefined, fullSelection);
     }
-    validateForm(undefined, permissions);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const formattedPermissions: string[] = [];
     Object.entries(permissions).forEach(([module, perms]) =>
       perms.forEach((perm) => formattedPermissions.push(`${module}-${perm}`))
@@ -137,8 +197,13 @@ export default function EditRoleModal({
       return;
     }
 
-    onSave(role.id, { id: role.id, name: name.trim(), state: status, permissions: formattedPermissions });
-    onClose();
+    // No cerramos aquí. El hook cierra el modal cuando el guardado finaliza OK.
+    await onSave(role.id, {
+      id: role.id,
+      name: name.trim(),
+      state: status,
+      permissions: formattedPermissions,
+    });
   };
 
   const Checkbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
@@ -147,6 +212,7 @@ export default function EditRoleModal({
       onClick={onChange}
       className={`w-5 h-5 rounded-md border border-gray-400 flex items-center justify-center transition-all duration-150 
         ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
+      aria-pressed={checked}
     >
       <CheckIcon
         className={`w-3 h-3 text-white transition-opacity duration-150 ${
@@ -173,7 +239,7 @@ export default function EditRoleModal({
           >
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2 className="text-lg font-semibold">Editar Rol</h2>
-              <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black">
+              <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black" aria-label="Cerrar">
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
@@ -273,7 +339,6 @@ export default function EditRoleModal({
               </div>
             </div>
 
-            {/* Footer actualizado */}
             <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
                 type="button"

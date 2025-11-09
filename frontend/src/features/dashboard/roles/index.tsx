@@ -9,7 +9,7 @@ import { useRoles } from "./hooks/useRoles";
 import RolesTable from "./components/RolesTable";
 import CreateRoleModal from "./components/CreateRoleModal/CreateRoleModal";
 import EditRoleModal from "./components/EditRoleModal/EditRoleModal";
-import ViewRoleModal from "./components/ViewRoleModal/ViewRole"; // ✅ Import corregido
+import ViewRoleModal from "./components/ViewRoleModal/ViewRole";
 
 export default function Index() {
   const {
