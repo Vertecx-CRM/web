@@ -61,6 +61,7 @@ export function DataTable<T extends { id: number | string }>(
     onEdit,
     onDelete,
     onCancel,
+    onCheck,
     onCreate,
     searchPlaceholder = "Buscar…",
     createButtonText = "Crear",
@@ -155,7 +156,6 @@ export function DataTable<T extends { id: number | string }>(
   const Row = useCallback(
     ({ row, index }: { row: T; index: number }) => (
       <tr
-        key={row.id}
         className="hover:bg-gray-50 text-center table-row"
         style={{
           top: `${(startIndex + index) * ROW_HEIGHT}px`,
@@ -179,7 +179,12 @@ export function DataTable<T extends { id: number | string }>(
           )
         )}
 
-        {(onView || onEdit || onDelete || onCancel || renderActions) && (
+        {(onView ||
+          onEdit ||
+          onDelete ||
+          onCancel ||
+          onCheck ||
+          renderActions) && (
           <OptimizedTd header="Acciones">
             {renderActions ? (
               renderActions(row)
@@ -190,6 +195,7 @@ export function DataTable<T extends { id: number | string }>(
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onCancel={onCancel}
+                onCheck={onCheck}
                 renderExtraActions={renderExtraActions}
               />
             )}
@@ -213,6 +219,7 @@ export function DataTable<T extends { id: number | string }>(
       onEdit,
       onDelete,
       onCancel,
+      onCheck,
       renderActions,
       renderExtraActions,
       renderTail,
@@ -293,13 +300,20 @@ export function DataTable<T extends { id: number | string }>(
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
               {current.map((row) => (
                 <MobileCard
-                  key={row.id}
+                  key={
+                    row.id ??
+                    row.purchaseorderid ??
+                    row.numberoforder ??
+                    row.reference ??
+                    index
+                  }
                   row={row}
                   columns={columns}
                   onView={onView}
                   onEdit={onEdit}
                   onDelete={onDelete}
                   onCancel={onCancel}
+                  onCheck={onCheck}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
                   renderTail={renderTail}
@@ -339,6 +353,7 @@ export function DataTable<T extends { id: number | string }>(
                     onEdit ||
                     onDelete ||
                     onCancel ||
+                    onCheck ||
                     renderActions) && <Th>Acciones</Th>}
                   {renderTail && (
                     <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
@@ -353,7 +368,17 @@ export function DataTable<T extends { id: number | string }>(
                 }}
               >
                 {visibleRows.map((row, index) => (
-                  <Row key={row.id} row={row} index={index} />
+                  <Row
+                    key={
+                      row.id ??
+                      row.purchaseorderid ??
+                      row.numberoforder ??
+                      row.reference ??
+                      index
+                    }
+                    row={row}
+                    index={index}
+                  />
                 ))}
               </tbody>
             </table>

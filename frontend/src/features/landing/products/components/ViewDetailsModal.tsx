@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaShoppingCart } from "react-icons/fa";
-import { showSuccess } from "@/shared/utils/notifications";
+import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { useCart } from "../../contexts/CartContext";
 
 interface Product {
@@ -26,21 +26,20 @@ export default function ViewDetailsModal({
   isOpen,
   onClose,
 }: ViewDetailsModalProps) {
-  const { addToCart, updateQuantity } = useCart();
-  const [quantity, setQuantity] = useState(1);
-
-  const increase = () => setQuantity((prev) => prev + 1);
-  const decrease = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
+  const { addToCart } = useCart();
 
   const handleAddToCart = (product: Product) => {
-    for (let i = 0; i < quantity; i++) {
-      addToCart({
-        id: product.id,
-        name: product.title,
-        price: product.price,
-        image: product.image || "/assets/imgs/default-product.png",
-      });
+    if (!product.price || product.price <= 0) {
+      showWarning("Este producto no tiene un precio válido");
+      return;
     }
+
+    addToCart({
+      id: product.id,
+      name: product.title,
+      price: product.price,
+      image: product.image || "/assets/imgs/default-product.png",
+    });
     showSuccess("Producto agregado al carrito");
   };
 
@@ -56,27 +55,29 @@ export default function ViewDetailsModal({
           onClick={onClose}
         >
           <motion.div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row font-montserrat overflow-hidden"
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row font-montserrat overflow-hidden relative"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 25 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Imagen */}
-            {product.image && (
-              <div className="md:w-1/2 flex-shrink-0 flex justify-center items-center relative">
-                <div className="w-full h-full absolute inset-0 overflow-hidden">
+            {/* Imagen del producto (como las cards) */}
+            <div className="md:w-1/2 flex justify-center items-center bg-white">
+              {product.image ? (
+                <div className="w-full h-full flex items-center justify-center bg-white">
                   <img
                     src={product.image}
                     alt={product.title}
-                    className="w-full h-full object-cover"
+                    className="max-w-full max-h-[400px] object-contain bg-white"
                   />
                 </div>
-              </div>
-            )}
+              ) : (
+                <span className="text-gray-400 text-sm">Sin imagen</span>
+              )}
+            </div>
 
-            {/* Información con scroll en descripción */}
+            {/* Información */}
             <div className="md:w-1/2 flex flex-col justify-between p-6 relative">
               <div className="overflow-y-auto max-h-[calc(90vh-120px)] pr-2">
                 <h2 className="text-4xl font-extrabold mb-2 break-words text-gray-900">
@@ -90,30 +91,8 @@ export default function ViewDetailsModal({
                 </p>
               </div>
 
-              {/* Pie de página con precio, cantidad y botón */}
+              {/* Precio y botón de carrito */}
               <div className="sticky bottom-0 bg-white pt-4 flex flex-col gap-3">
-                {/* Control de cantidad con el estilo y tamaño preciso */}
-                <div className="flex items-center">
-                  <motion.button
-                    onClick={decrease}
-                    className="bg-gray-100 px-4 py-2 rounded-l-full hover:bg-gray-200 transition-colors duration-200"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    -
-                  </motion.button>
-                  <span className="bg-gray-100 px-4 py-2 font-semibold">
-                    {quantity}
-                  </span>
-                  <motion.button
-                    onClick={increase}
-                    className="bg-gray-100 px-4 py-2 rounded-r-full hover:bg-gray-200 transition-colors duration-200"
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    +
-                  </motion.button>
-                </div>
-
-                {/* Precio y botón de carrito */}
                 <div className="flex items-center justify-between">
                   {product.price !== undefined && (
                     <p className="text-[#B20000] font-bold text-2xl">
@@ -125,9 +104,13 @@ export default function ViewDetailsModal({
                     className="bg-[#B20000] text-white rounded-full px-6 py-3 flex items-center justify-center gap-3 shadow-lg hover:bg-red-700"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    transition={{ type: "spring", stiffness: 250, damping: 15 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 250,
+                      damping: 15,
+                    }}
                     onClick={() => {
-                      handleAddToCart(product, 0);
+                      handleAddToCart(product);
                       onClose();
                     }}
                   >

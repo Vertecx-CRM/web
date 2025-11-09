@@ -229,6 +229,7 @@ const AsideNav = ({
           { href: routes.dashboard.requestsServices, label: "Solicitudes" },
           { href: routes.dashboard.ordersServices, label: "Órdenes" },
           { href: routes.dashboard.appointments, label: "Citas" },
+          { href: routes.dashboard.quotes, label: "Cotizaciones" },
         ],
       },
     ],

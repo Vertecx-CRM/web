@@ -8,6 +8,7 @@ export function ActionButtonsComponent({
   onEdit,
   onDelete,
   onCancel,
+  onCheck,
   renderExtraActions,
   compact = false,
 }: {
@@ -16,6 +17,7 @@ export function ActionButtonsComponent({
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
   onCancel?: (row: any) => void;
+  onCheck?: (row: any) => void;
   renderExtraActions?: (row: any) => React.ReactNode;
   compact?: boolean;
 }) {
@@ -78,6 +80,19 @@ export function ActionButtonsComponent({
                 Anular
               </button>
             )}
+            {
+              onCheck && (
+                <button
+                  onClick={() => {
+                    onCheck(row);
+                    setShowDropdown(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                >
+                  Marcar
+                </button>
+              )
+            }
           </div>
         )}
       </div>
@@ -112,6 +127,13 @@ export function ActionButtonsComponent({
           icon="/icons/X.svg"
           title="Anular"
           onClick={() => onCancel(row)}
+        />
+      )}
+      {onCheck && (
+        <ActionButton
+          icon="/assets/imgs/check-circle.png"
+          title="Marcar"
+          onClick={() => onCheck(row)}
         />
       )}
       {renderExtraActions && renderExtraActions(row)}
