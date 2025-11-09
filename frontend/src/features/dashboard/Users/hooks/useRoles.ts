@@ -31,14 +31,18 @@ export const useRoles = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // useRoles.ts
+
   useEffect(() => {
     const loadRoles = async () => {
       setLoading(true);
       try {
         const data = await fetchRoles();
-        console.log(data);
-        
-        setRoles(data);
+
+        // Filtramos solo los roles activos
+        const activeRoles = data.filter((item: Role) => item.role?.status === 'Activo');
+
+        setRoles(activeRoles);
       } catch (error) {
         console.error("Error al cargar roles:", error);
       } finally {
