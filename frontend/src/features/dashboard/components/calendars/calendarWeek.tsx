@@ -28,7 +28,6 @@ import { confirmCancelAppointment } from '../../../../shared/utils/confirmCancel
 import { GroupedAppointmentsModal } from '../../appointments/components/GroupedAppointmentsModal/GroupedAppointments';
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
-import { ToastContainer } from "react-toastify";
 import { FiltersState } from '../../appointments/components/filtro/filtro';
 import { ReprogramAppointmentModal } from '../../appointments/components/rescheduleModal/rescheduleModal';
 import { useAppointments } from '../../appointments/hooks/useAppointment';
@@ -332,13 +331,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     setEditingAppointment(null);
   };
 
-
-  const ToastContainer = dynamic(
-    () => import("react-toastify").then((mod) => mod.ToastContainer),
-    { ssr: false }
-  );
-
-
   const handleViewAppointment = (appointment: AppointmentEvent) => {
     setViewingAppointment(appointment);
     setIsDetailsModalOpen(false);
@@ -526,22 +518,13 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
             onClose={() => setIsReprogramModalOpen(false)}
             appointment={appointmentToReprogram}
             onReprogramSave={(start, end) => {
-              const slot: SlotDateTime = {
-                horaInicio: start.getHours().toString().padStart(2, "0"),
-                minutoInicio: start.getMinutes().toString().padStart(2, "0"),
-                horaFin: end.getHours().toString().padStart(2, "0"),
-                minutoFin: end.getMinutes().toString().padStart(2, "0"),
-                dia: start.getDate().toString(),
-                mes: (start.getMonth() + 1).toString(),
-                año: start.getFullYear().toString(),
-              };
-
               if (appointmentToReprogram) {
-                handleReprogramAppointment(appointmentToReprogram, slot);
+                // ✅ Pasar directamente los objetos Date al hook
+                handleReprogramAppointment(appointmentToReprogram, { start, end });
               }
-
               setIsReprogramModalOpen(false);
             }}
+
           />
 
           <ViewAppointmentModal
@@ -577,11 +560,9 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
               setIsCreateModalOpen(true);
             }}
           />
-          <ToastContainer />
+
         </DndProvider>
       </div>
-
-
     </div>
   );
 };

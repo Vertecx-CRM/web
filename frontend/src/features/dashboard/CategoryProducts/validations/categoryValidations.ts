@@ -1,148 +1,92 @@
 import { CategoryBase, FormErrors } from "../types/typeCategoryProducts";
-import { showWarning } from "@/shared/utils/notifications";
+import { showError, showWarning } from "@/shared/utils/notifications";
 
-export const validateField = (fieldName: string, value: string): string => {
-  if (fieldName === 'nombre') {
-    if (!value.trim()) return 'Este campo es requerido';
-    if (value.length < 2) return 'El nombre debe tener al menos 2 caracteres';
-    if (/[0-9]/.test(value)) return 'El nombre no puede contener números';
-  }
-  
-  if (fieldName === 'descripcion') {
-    // Solo validar si hay contenido, pero no es obligatorio
-    if (value.trim() && value.length < 10) return 'La descripción debe tener al menos 10 caracteres si se proporciona';
-  }
-  
-  const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
-  if (specialChars.test(value)) return 'No se permiten caracteres especiales';
-  
-  return '';
+/**
+ * 🔎 Valida si un nombre de categoría ya existe (case insensitive)
+ */
+export const isDuplicateName = (
+  name: string,
+  categories: { name: string; id?: number }[],
+  currentId?: number
+): boolean => {
+  const normalizedName = name.trim().toLowerCase();
+  return categories.some(
+    (cat) =>
+      cat.name.trim().toLowerCase() === normalizedName &&
+      cat.id !== currentId
+  );
 };
 
-export const validateAllFields = (data: CategoryBase): FormErrors => {
+/**
+ * ✅ Valida campos individuales de la categoría
+ */
+export const validateField = (
+  fieldName: string,
+  value: string,
+  categories?: { name: string; id?: number }[],
+  currentId?: number
+): string => {
+  if (fieldName === "name") {
+    if (!value.trim()) return "El nombre es obligatorio";
+    if (value.length < 2) return "El nombre debe tener al menos 2 caracteres";
+    if (/[0-9]/.test(value)) return "El nombre no puede contener números";
+    if (/[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/.test(value))
+      return "El nombre no puede contener caracteres especiales";
+
+    // 🔁 Validación de duplicado en tiempo real
+    if (categories && isDuplicateName(value, categories, currentId)) {
+      return "Ya existe una categoría con ese nombre";
+    }
+  }
+
+  if (fieldName === "description") {
+    // ✅ Solo validamos longitud (no caracteres especiales)
+    if (value.trim() && value.length > 255)
+      return "La descripción no puede superar los 255 caracteres";
+  }
+
+  return "";
+};
+
+/**
+ * ✅ Valida todos los campos de la categoría
+ */
+export const validateAllFields = (
+  data: CategoryBase,
+  categories?: { name: string; id?: number }[],
+  currentId?: number
+): FormErrors => {
   return {
-    nombre: validateField('nombre', data.nombre),
-    descripcion: validateField('descripcion', data.descripcion)
+    name: validateField("name", data.name, categories, currentId),
+    description: validateField("description", data.description),
   };
 };
 
-export const hasSpecialChars = (value: string): boolean => {
-  const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/;
-  return specialChars.test(value);
-};
+/**
+ * ⚠️ Detecta si hay errores
+ */
+export const hasErrors = (errors: FormErrors): boolean =>
+  Object.values(errors).some((e) => e !== "");
 
-export const hasNumbers = (value: string): boolean => {
-  return /[0-9]/.test(value);
-};
-
-// ==================== VALIDACIONES CON NOTIFICACIONES ====================
-
+/**
+ * ✅ Validación completa con notificación al guardar
+ */
 export const validateFormWithNotification = (
-  formData: CategoryBase, 
+  formData: CategoryBase,
   setErrors: (errors: FormErrors) => void,
-  setTouched: (touched: { nombre: boolean; descripcion: boolean }) => void
+  setTouched: (touched: { name: boolean; description: boolean }) => void,
+  categories?: { name: string; id?: number }[],
+  currentId?: number
 ): boolean => {
-  const newErrors = validateAllFields(formData);
-  
+  const newErrors = validateAllFields(formData, categories, currentId);
   setErrors(newErrors);
-  
-  // Marcar todos los campos como tocados
-  const allTouched = {
-    nombre: true,
-    descripcion: true
-  };
-  
-  setTouched(allTouched);
-  
-  // Solo considerar errores del nombre como relevantes (la descripción es opcional)
-  const hasRelevantErrors = newErrors.nombre !== '';
-  
+  setTouched({ name: true, description: true });
+
+  const hasRelevantErrors = hasErrors(newErrors);
   if (hasRelevantErrors) {
-    // Mostrar notificación general
-    showWarning('Por favor complete los campos correctamente');
-    
-    // Mostrar el error específico del nombre
-    if (newErrors.nombre) {
-      setTimeout(() => {
-        showWarning(newErrors.nombre);
-      }, 100);
-    }
-    
+    showError("Por favor complete los campos correctamente");
     return false;
   }
-  
-  return true;
-};
 
-// ==================== VALIDACIONES ESPECÍFICAS CON NOTIFICACIONES ====================
-
-export const validateNombreWithNotification = (
-  formData: CategoryBase,
-  setErrors: React.Dispatch<React.SetStateAction<FormErrors>>,
-  setTouched: React.Dispatch<React.SetStateAction<{ nombre: boolean; descripcion: boolean }>>
-): boolean => {
-  const nombreError = validateField('nombre', formData.nombre);
-  
-  setErrors(prev => ({ ...prev, nombre: nombreError }));
-  setTouched(prev => ({ ...prev, nombre: true }));
-  
-  if (nombreError) {
-    showWarning(nombreError);
-    return false;
-  }
-  
-  return true;
-};
-
-export const validateDescripcionWithNotification = (
-  formData: CategoryBase,
-  setErrors: React.Dispatch<React.SetStateAction<FormErrors>>,
-  setTouched: React.Dispatch<React.SetStateAction<{ nombre: boolean; descripcion: boolean }>>
-): boolean => {
-  const descripcionError = validateField('descripcion', formData.descripcion);
-  
-  setErrors(prev => ({ ...prev, descripcion: descripcionError }));
-  setTouched(prev => ({ ...prev, descripcion: true }));
-  
-  if (descripcionError) {
-    showWarning(descripcionError);
-    return false;
-  }
-  
-  return true;
-};
-
-// Función para validar campos requeridos básicos
-export const validateRequiredFieldsWithNotification = (
-  formData: CategoryBase,
-  setErrors: React.Dispatch<React.SetStateAction<FormErrors>>,
-  setTouched: React.Dispatch<React.SetStateAction<{ nombre: boolean; descripcion: boolean }>>,
-  fields: (keyof FormErrors)[]
-): boolean => {
-  const newErrors: Partial<FormErrors> = {};
-  const newTouched: Partial<{ nombre: boolean; descripcion: boolean }> = {};
-  
-  fields.forEach(field => {
-    // Solo validar nombre como requerido, descripción es opcional
-    if (field === 'nombre') {
-      const value = formData[field as keyof CategoryBase] as string;
-      const error = validateField(field as string, value || '');
-      
-      if (error) {
-        newErrors[field] = error;
-        newTouched[field] = true;
-      }
-    }
-  });
-  
-  // Actualizar estados
-  setErrors(prev => ({ ...prev, ...newErrors }));
-  setTouched(prev => ({ ...prev, ...newTouched } as { nombre: boolean; descripcion: boolean }));
-  
-  if (Object.keys(newErrors).length > 0) {
-    showWarning('Por favor complete los campos requeridos');
-    return false;
-  }
-  
   return true;
 };
