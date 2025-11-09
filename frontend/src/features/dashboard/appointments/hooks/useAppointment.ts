@@ -93,23 +93,20 @@ export const useAppointments = () => {
 
     const handleReprogramAppointment = (
         originalAppointment: AppointmentEvent,
-        newDate: SlotDateTime
+        newDate: { start: Date; end: Date }
     ) => {
-        const startDate = new Date(
-            parseInt(newDate.año),
-            parseInt(newDate.mes) - 1,
-            parseInt(newDate.dia),
-            parseInt(newDate.horaInicio),
-            parseInt(newDate.minutoInicio)
-        );
+        const startDate = newDate.start;
+        const endDate = newDate.end;
 
-        const endDate = new Date(
-            parseInt(newDate.año),
-            parseInt(newDate.mes) - 1,
-            parseInt(newDate.dia),
-            parseInt(newDate.horaFin),
-            parseInt(newDate.minutoFin)
-        );
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStart = new Date(tomorrow.setHours(0, 0, 0, 0));
+
+        if (startDate < tomorrowStart) {
+            showError("No se puede reprogramar una cita para hoy o mañana");
+            return;
+        }
 
         const newTitle =
             /\(Cancelada\)/i.test(originalAppointment.title)
@@ -121,13 +118,13 @@ export const useAppointments = () => {
             id: Math.max(...events.map((a) => a.id), 0) + 1,
             start: startDate,
             end: endDate,
-            dia: newDate.dia,
-            mes: newDate.mes,
-            año: newDate.año,
-            horaInicio: newDate.horaInicio,
-            minutoInicio: newDate.minutoInicio,
-            horaFin: newDate.horaFin,
-            minutoFin: newDate.minutoFin,
+            dia: startDate.getDate().toString(),
+            mes: (startDate.getMonth() + 1).toString(),
+            año: startDate.getFullYear().toString(),
+            horaInicio: startDate.getHours().toString().padStart(2, "0"),
+            minutoInicio: startDate.getMinutes().toString().padStart(2, "0"),
+            horaFin: endDate.getHours().toString().padStart(2, "0"),
+            minutoFin: endDate.getMinutes().toString().padStart(2, "0"),
             estado: "Pendiente",
             subestado: "Reprogramada",
             motivoCancelacion: undefined,
@@ -135,7 +132,7 @@ export const useAppointments = () => {
         };
 
         setEvents((prev) => [...prev, newAppointment]);
-        showSuccess("Cita reprogramada exitosamente!");
+        showSuccess("Cita reprogramada exitosamente")
     };
 
     const handleCancelAppointment = (appointment: AppointmentEvent, reason: string) => {
@@ -683,8 +680,6 @@ export const useCreateAppointmentForm = ({
             title: title,
             comprobantePago: comprobantePago,
         });
-
-        showSuccess("Cita creada exitosamente");
         onClose();
     };
 
@@ -765,7 +760,6 @@ export const useEditAppointmentForm = ({
 
     const prevTipoCita = useRef<string | undefined>(undefined);
 
-    // EFECT 7: Efecto para inicializar los datos cuando llega el appointment (CORREGIDO)
     useEffect(() => {
         if (appointment && appointment.id) {
             console.log("=== INICIALIZANDO EDITAR CITA - EFECT 7 ===");
@@ -773,7 +767,6 @@ export const useEditAppointmentForm = ({
             let initialSolicitud: SolicitudOrden | null = null;
             let initialOrdenServicio: OrdenServicio | null = null;
 
-            // 1. BUSCAR LA ORDEN VINCULADA
             if (appointment.orden && appointment.orden.id) {
                 const orderId = appointment.orden.id.toString();
 
@@ -789,12 +782,9 @@ export const useEditAppointmentForm = ({
                 }
             }
 
-            // 2. INICIALIZAR formData con TODOS los campos del appointment
             setFormData({
-                // Copia todos los campos, incluyendo nombreCliente, direccion, etc.
                 ...appointment,
 
-                // Aseguramos que los campos de fecha/hora sean strings
                 horaInicio: appointment.horaInicio || "",
                 minutoInicio: appointment.minutoInicio || "",
                 horaFin: appointment.horaFin || "",
@@ -803,15 +793,12 @@ export const useEditAppointmentForm = ({
                 mes: appointment.mes || "",
                 año: appointment.año || "",
 
-                // El campo 'orden' se inicializa con el objeto Order que trae el appointment
                 orden: appointment.orden || null,
             });
 
-            // 3. INICIALIZAR selectedSolicitud/selectedOrdenServicio
             setSelectedSolicitud(initialSolicitud);
             setSelectedOrdenServicio(initialOrdenServicio);
 
-            // 4. INICIALIZAR otros estados
             setSelectedTechnicians(appointment.tecnicos || []);
             setEvidencia(appointment.evidencia || null);
             setComprobantePago(appointment.comprobantePago || null);
@@ -820,14 +807,12 @@ export const useEditAppointmentForm = ({
             setTechnicianError(null);
             setTouched({});
 
-            // CAMBIO 2: Inicializar la referencia para evitar limpieza inmediata
             if (appointment.tipoCita) {
                 prevTipoCita.current = appointment.tipoCita;
             }
         }
     }, [appointment, solicitudesOrden, ordenesServicio]);
 
-    // EFECT 8: Efecto para calcular hora final automáticamente (SIN CAMBIOS)
     useEffect(() => {
         if (
             (!formData.horaFin || !formData.minutoFin) &&
@@ -847,7 +832,6 @@ export const useEditAppointmentForm = ({
         }
     }, [formData.horaInicio, formData.minutoInicio]);
 
-    // EFECT 9: Efecto para resetear tipoMantenimientoSolicitud cuando cambia tipoServicioSolicitud (SIN CAMBIOS)
     useEffect(() => {
         if (formData.tipoServicioSolicitud !== "mantenimiento") {
             setFormData((prev) => ({
@@ -857,10 +841,7 @@ export const useEditAppointmentForm = ({
         }
     }, [formData.tipoServicioSolicitud]);
 
-    // EFECT 10: Limpieza al cambiar el tipo de cita (SIN CAMBIOS en la lógica, solo depende de la inicialización correcta de useRef en el EFECT 7)
     useEffect(() => {
-        // Si la referencia (prevTipoCita) no coincide con el tipoCita actual,
-        // significa que el usuario lo cambió y hay que limpiar.
         if (prevTipoCita.current !== formData.tipoCita) {
             setSelectedSolicitud(null);
             setSelectedOrdenServicio(null);

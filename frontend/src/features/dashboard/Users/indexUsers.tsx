@@ -1,11 +1,11 @@
 "use client";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { useUsers } from "./hooks/useUsers";
 import CreateUserModal from "./components/CreateUserModal/CreateUser";
 import UsersTable from "./components/UsersTable/Usertable";
 import EditUserModal from "./components/EditUserModal/EditUser";
 import ViewUserModal from "./components/ViewUserModal/viewUser";
+import { useUser } from "./hooks/useUsers";
 
 export default function UsersPage() {
   const {
@@ -20,7 +20,7 @@ export default function UsersPage() {
     handleEdit,
     handleDelete, 
     closeModals
-  } = useUsers();
+  } = useUser();
 
   // Determinar si los modales están abiertos basado en el estado
   const isEditModalOpen = !!editingUser;
@@ -69,7 +69,7 @@ export default function UsersPage() {
             {/* SweetAlert2 se encargará del modal de confirmación */}
 
             <UsersTable
-              users={users}
+              users={Array.isArray(users) ? users : []}
               onView={handleView}
               onEdit={handleEdit}
               onDelete={handleDelete}

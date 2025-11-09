@@ -5,11 +5,16 @@ import Modal from "@/features/dashboard/components/Modal";
 type TipoServicio = "Mantenimiento" | "Instalacion";
 
 export type RequestData = {
-  tipos: TipoServicio[];
+  tipos: ("Mantenimiento" | "Instalacion")[];
+  tipo?: string;
   servicio: string;
   descripcion: string;
-  cliente: string;
   direccion: string;
+  cliente: string;
+  fecha?: string | Date;
+  estado?: string;
+  codigo?: string;
+  programada?: string | null;
 };
 
 type Props = {
@@ -20,6 +25,8 @@ type Props = {
     codigo?: string;
     estado?: string;
     fecha?: string | Date;
+    serviceId?: number;
+    clientId?: number;
   };
 };
 
@@ -30,6 +37,8 @@ export default function ViewRequestModal({ isOpen, onClose, title = "Detalles de
       : data.fecha
       ? new Date(data.fecha).toLocaleString()
       : undefined;
+
+  const programadaTxt = data.programada ? new Date(data.programada).toLocaleDateString("es-CO") : "—";
 
   return (
     <Modal
@@ -68,44 +77,54 @@ export default function ViewRequestModal({ isOpen, onClose, title = "Detalles de
             </div>
           )}
         </div>
-        <div>
-          <div className="text-sm text-gray-700 mb-1">Tipo de servicio</div>
-          <div className="flex flex-wrap gap-2">
-            {data.tipos.length ? (
-              data.tipos.map((t) => (
-                <span key={t} className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs text-gray-800">
-                  {t}
-                </span>
-              ))
-            ) : (
-              <span className="text-sm text-gray-500">Sin tipos seleccionados</span>
-            )}
-          </div>
-        </div>
+
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-700 mb-1">Servicio</div>
             <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-              {data.servicio || "—"}
+              {data.servicio || "—"} {data.serviceId ? `(#${data.serviceId})` : ""}
             </div>
           </div>
           <div>
             <div className="text-sm text-gray-700 mb-1">Cliente</div>
             <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-              {data.cliente || "—"}
+              {data.cliente || "—"} {data.clientId ? `(#${data.clientId})` : ""}
             </div>
           </div>
         </div>
-        <div>
-          <div className="text-sm text-gray-700 mb-1">Dirección</div>
-          <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-            {data.direccion || "—"}
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-gray-700 mb-1">Dirección</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
+              {data.direccion || "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-700 mb-1">Programada</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
+              {programadaTxt}
+            </div>
           </div>
         </div>
+
         <div>
           <div className="text-sm text-gray-700 mb-1">Descripción</div>
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 min-h-12">
             {data.descripcion?.trim() || "—"}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-sm text-gray-700 mb-1">Tipos</div>
+          <div className="flex flex-wrap gap-2">
+            {data.tipos?.length
+              ? data.tipos.map((t) => (
+                  <span key={t} className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs text-gray-800">
+                    {t}
+                  </span>
+                ))
+              : "—"}
           </div>
         </div>
       </div>
