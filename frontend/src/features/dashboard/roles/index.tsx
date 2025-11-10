@@ -27,7 +27,6 @@ export default function Index() {
     handleView,
     handleEdit,
     handleDelete,
-    closeModals,
   } = useRoles();
 
   return (
