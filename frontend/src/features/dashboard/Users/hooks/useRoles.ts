@@ -40,7 +40,7 @@ export const useRoles = () => {
         const data = await fetchRoles();
 
         // Filtramos solo los roles activos
-        const activeRoles = data.filter((item: Role) => item.role?.status === 'Activo');
+        const activeRoles = data.filter((item: Role) => item.role?.status === 'active');
 
         setRoles(activeRoles);
       } catch (error) {

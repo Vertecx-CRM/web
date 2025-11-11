@@ -1,4 +1,4 @@
-import { showError, showWarning } from "@/shared/utils/notifications";
+import { showError } from "@/shared/utils/notifications";
 import { User, FormErrors, FormTouched } from "../types/typesUser";
 
 /**
@@ -18,6 +18,9 @@ export const validateField = (
 ): string => {
   let error = "";
   const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
+
+  // Obtener el rol para validaciones condicionales
+  const roleName = formData.roleconfiguration?.roles?.name?.toLowerCase() || '';
 
   // Normalizar valores para comparación
   const trimmedValue = String(value).trim().toLowerCase();
@@ -130,6 +133,67 @@ export const validateField = (
       }
       break;
 
+    case "CV":
+      if (roleName === 'tecnico') {
+        const cvValue =
+          (formData as any).CV ||
+          formData.technicians?.[0]?.CV ||
+          '';
+        const hasFile =
+          cvValue instanceof File ||
+          (typeof cvValue === "string" && cvValue.trim() !== "");
+
+        if (!hasFile) {
+          error = "El CV es obligatorio para técnicos";
+        }
+      }
+      break;
+
+    // Validación para tipos de técnico
+    case "techniciantypeids":
+      if (roleName === 'tecnico') {
+        const typeIds =
+          (formData as any).techniciantypeids ||
+          formData.technicians?.[0]?.technicianTypeMaps?.map(
+            (tm) => tm.techniciantypeid
+          ) ||
+          [];
+        if (!typeIds || typeIds.length === 0) {
+          error = "Debe seleccionar al menos un tipo de técnico";
+        }
+      }
+      break;
+
+
+    // Validación para ciudad (cliente)
+    case "customercity":
+      if (roleName === 'cliente') {
+        // Soportar tanto el flujo de edición (customers[0]) como el de creación (prop directa)
+        const city =
+          formData.customers?.[0]?.customercity ??
+          (formData as any).customercity ??
+          '';
+        if (!city.trim()) {
+          error = "La ciudad es obligatoria para clientes";
+        }
+      }
+      break;
+
+    // Validación para código postal (cliente)
+    case "customerzipcode":
+      if (roleName === 'cliente') {
+        const zip =
+          formData.customers?.[0]?.customerzipcode ??
+          (formData as any).customerzipcode ??
+          '';
+        if (!zip.trim()) {
+          error = "El código postal es obligatorio para clientes";
+        } else if (!/^\d+$/.test(zip)) {
+          error = "El código postal debe contener solo números";
+        }
+      }
+      break;
+
     default:
       break;
   }
@@ -150,6 +214,17 @@ export const validateAllFields = (
     lastname: formData.lastname || "",
     password: formData.password || "",
     confirmPassword: formData.confirmPassword || "",
+    //Asegurar valores por defecto para nuevos campos
+    CV: (formData as any).CV || formData.technicians?.[0]?.CV || "",
+    customercity:
+      (formData as any).customercity ||
+      formData.customers?.[0]?.customercity ||
+      "",
+    customerzipcode:
+      (formData as any).customerzipcode ||
+      formData.customers?.[0]?.customerzipcode ||
+      "",
+
   };
 
   return {
@@ -165,6 +240,11 @@ export const validateAllFields = (
     stateid: validateField("stateid", String(withDefaults.stateid || ""), withDefaults, users, isEditMode),
     image: "",
     roleconfigurationid: validateField("roleconfigurationid", String(withDefaults.roleconfigurationid || ""), withDefaults, users, isEditMode),
+    // Validaciones nuevas
+    CV: validateField("CV", withDefaults.CV, withDefaults, users, isEditMode),
+    techniciantypeids: validateField("techniciantypeids", "", withDefaults, users, isEditMode),
+    customercity: validateField("customercity", withDefaults.customercity, withDefaults, users, isEditMode),
+    customerzipcode: validateField("customerzipcode", withDefaults.customerzipcode, withDefaults, users, isEditMode),
   };
 };
 

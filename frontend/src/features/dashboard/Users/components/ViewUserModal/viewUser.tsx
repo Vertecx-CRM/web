@@ -25,7 +25,16 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
   const documentTypeName =
     user.typeofdocuments?.name || "Sin tipo de documento";
 
-  // ✅ Footer del modal
+  // Detectar rol
+  const roleName = user.roleconfiguration?.roles?.name?.toLowerCase() || '';
+  const isTecnico = roleName === 'tecnico';
+  const isCliente = roleName === 'cliente';
+
+  // Extraer datos
+  const technician = user.technicians?.[0];
+  const customer = user.customers?.[0];
+
+  // Footer del modal
   const footer = (
     <button
       type="button"
@@ -45,7 +54,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
       title="Ver Usuario"
       isOpen={isOpen}
       onClose={onClose}
-      widthClass="max-w-md"
+      widthClass="max-w-2xl"
       footer={footer}
     >
       <div className="space-y-5">
@@ -82,11 +91,9 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
             Documento
           </label>
           <div className="flex flex-col sm:flex-row gap-2">
-            {/* Tipo */}
             <div className="w-full sm:w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
               {documentTypeName}
             </div>
-            {/* Número */}
             <div className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
               {user.documentnumber}
             </div>
@@ -158,6 +165,71 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         </div>
 
+        {/* 🛠 Información adicional para Técnico */}
+        {isTecnico && technician && (
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-sm font-medium text-gray-700">Información de Técnico</h3>
+
+            {/* CV */}
+            {/* CV */}
+            {technician.CV && (
+              <div>
+                <label className="block text-sm font-medium mb-1">CV</label>
+                <a
+                  href={`${technician.CV}?dl=1`} // 👈 Añade ?dl=1
+                  download // 👈 Atributo HTML5 para descarga
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Descargar currículum
+                </a>
+              </div>
+            )}
+
+            {/* Tipos de Técnico */}
+            {Array.isArray(technician.technicianTypeMaps) && technician.technicianTypeMaps.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Tipos de Técnico</label>
+                <div className="flex flex-wrap gap-2">
+                  {technician.technicianTypeMaps.map((tm, index) => (
+                    <span
+                      key={`${tm.techniciantypeid}-${index}`}
+                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                    >
+                      {tm.techniciantype?.name || `Tipo ID: ${tm.techniciantypeid}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 🏠 Información adicional para Cliente */}
+        {isCliente && customer && (
+          <div className="border-t pt-4 space-y-4">
+            <h3 className="text-sm font-medium text-gray-700">Información de Cliente</h3>
+
+            {customer.customercity && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Ciudad</label>
+                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                  {customer.customercity}
+                </div>
+              </div>
+            )}
+
+            {customer.customerzipcode && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Código Postal</label>
+                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                  {customer.customerzipcode}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Estado */}
         <div>
@@ -171,7 +243,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
             <span
               className={`rounded-full px-2 py-1 text-xs font-semibold ${user.stateid === 1
                   ? "text-green-600 bg-green-100"
-                  : "text-gray-500 bg-gray-100"
+                  : "text-gray-600 bg-gray-100"
                 }`}
             >
               {stateMap[user.stateid] || "Desconocido"}
@@ -190,7 +262,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                 Creado el
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {new Date(user.createat).toLocaleString()}
+                {new Date(user.createat).toLocaleString('es-ES')}
               </div>
             </div>
           )}
@@ -203,7 +275,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                 Actualizado el
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {new Date(user.updateat).toLocaleString()}
+                {new Date(user.updateat).toLocaleString('es-ES')}
               </div>
             </div>
           )}
