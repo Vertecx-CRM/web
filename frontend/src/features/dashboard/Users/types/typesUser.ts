@@ -8,7 +8,7 @@ export interface User {
   documentnumber: string;
   image?: string | null;
   name: string;
-  lastname: string;
+  lastname?: string | null;
   email: string;
   password?: string;
   confirmPassword?: string;
@@ -54,7 +54,7 @@ export interface UserForTable extends User {
 
 export interface CreateUserData {
   name: string;
-  lastname: string;
+  lastname?: string | null;
   email: string;
   phone: string;
   typeid: number;
@@ -78,7 +78,7 @@ export interface CreateUserData {
 export interface EditUser {
   userid: number;
   name: string;
-  lastname: string;
+  lastname: string | null;
   email: string;
   phone: string;
   documentnumber: string;

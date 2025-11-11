@@ -7,7 +7,7 @@ export interface Role {
   permissionid?: number;
   privilegeid?: number;
 
-  roles?: {
+  role?: {
     id: number;
     name: string;
     status?: string;
