@@ -32,6 +32,20 @@ export interface User {
       name: string;
     };
   };
+
+  technicians?: {
+    technicianid: number;
+    CV: string;
+    technicianTypeMaps?: {
+      techniciantypeid: number;
+      techniciantype?: { name: string };
+    }[];
+  }[];
+  customers?: {
+    customerid: number;
+    customercity: string | null;
+    customerzipcode: string | null;
+  }[];
 }
 
 export interface UserForTable extends User {
@@ -48,8 +62,18 @@ export interface CreateUserData {
   image?: string | File | null;
   stateid: number;
   roleconfigurationid: number;
+  CV?: string | File | null;
+  techniciantypeids?: number[];
+  customercity?: string;
+  customerzipcode?: string;
+  roleconfiguration?: {
+    roleconfigurationid: number;
+    roles?: {
+      id?: number;
+      name?: string;
+    };
+  };
 }
-
 
 export interface EditUser {
   userid: number;
@@ -62,6 +86,10 @@ export interface EditUser {
   image?: string | File | null;
   stateid: number;
   roleconfigurationid: number;
+  CV?: string | File | null;
+  techniciantypeids?: number[];
+  customercity?: string;
+  customerzipcode?: string;
 }
 
 export interface FormErrors {
@@ -77,6 +105,10 @@ export interface FormErrors {
   stateid: string;
   image: string;
   roleconfigurationid: string;
+  CV: string;
+  techniciantypeids: string;
+  customercity: string;
+  customerzipcode: string;
 }
 
 export interface FormTouched {
@@ -92,7 +124,12 @@ export interface FormTouched {
   stateid: boolean;
   image: boolean;
   roleconfigurationid: boolean;
+  CV: boolean;
+  techniciantypeids: boolean;
+  customercity: boolean;
+  customerzipcode: boolean;
 }
+
 
 
 export interface CreateUserModalProps {
@@ -103,7 +140,7 @@ export interface CreateUserModalProps {
 
 export interface EditUserModalProps {
   isOpen: boolean;
-  user: EditUser | null;
+  user: User | null;
   onClose: () => void;
   onSave: (userData: EditUser) => void;
 }

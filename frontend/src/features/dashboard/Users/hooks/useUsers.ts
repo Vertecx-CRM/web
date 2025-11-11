@@ -54,6 +54,11 @@ export const useUser = () => {
         image: userData.image || null,
         stateid: userData.stateid,
         roleconfigurationid: userData.roleconfigurationid,
+        // Campos condicionales
+        ...(userData.CV !== undefined && { CV: userData.CV }),
+        ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
+        ...(userData.customercity !== undefined && { customercity: userData.customercity }),
+        ...(userData.customerzipcode !== undefined && { customerzipcode: userData.customerzipcode }),
       };
 
       const newUser = await createUser(payload);
@@ -88,6 +93,10 @@ export const useUser = () => {
         image: userData.image || null,
         stateid: userData.stateid,
         roleconfigurationid: userData.roleconfigurationid,
+        ...(userData.CV !== undefined && { CV: userData.CV }),
+        ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
+        ...(userData.customercity !== undefined && { customercity: userData.customercity }),
+        ...(userData.customerzipcode !== undefined && { customerzipcode: userData.customerzipcode }),
       };
 
       const updatedUser = await updateUser(userData.userid, payload);
@@ -107,7 +116,6 @@ export const useUser = () => {
       showWarning(error.message || "Error al actualizar usuario");
     }
   };
-
 
   const handleDelete = async (userToDelete: User) => {
     return confirmDelete(
