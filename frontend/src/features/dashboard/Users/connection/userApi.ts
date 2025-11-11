@@ -10,7 +10,7 @@ export const fetchUsers = async () => {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("❌ Error en fetchUsers:", error);
+    console.error("Error en fetchUsers:", error);
     throw error;
   }
 };

@@ -176,8 +176,8 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               <div>
                 <label className="block text-sm font-medium mb-1">CV</label>
                 <a
-                  href={`${technician.CV}?dl=1`} // 👈 Añade ?dl=1
-                  download // 👈 Atributo HTML5 para descarga
+                  href={`${technician.CV}?dl=1`} 
+                  download 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline"
@@ -206,7 +206,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         )}
 
-        {/* 🏠 Información adicional para Cliente */}
+        {/* Información adicional para Cliente */}
         {isCliente && customer && (
           <div className="border-t pt-4 space-y-4">
             <h3 className="text-sm font-medium text-gray-700">Información de Cliente</h3>
