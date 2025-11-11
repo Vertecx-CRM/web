@@ -21,6 +21,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     previewImage,
     previewCV,
     isSubmitting,
+    isNit,
     handleInputChange,
     handleImageChange,
     handleCVChange,
@@ -33,41 +34,26 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
   const { roles, loading: loadingRoles } = useRoles();
-  const { technicianTypes, loading: loadingTechnicianTypes } = useTechnicianTypes();
+  const { technicianTypes, loading: loadingTechnicianTypes } =
+    useTechnicianTypes();
 
   // Determinar el rol seleccionado
-  const selectedRole = roles.find(
-    (r) => r.roleconfigurationid === formData.roleconfigurationid
-  )?.role?.name || "";
+  const selectedRole =
+    roles.find((r) => r.roleconfigurationid === formData.roleconfigurationid)
+      ?.role?.name || "";
   const isTecnico = selectedRole.toLowerCase() === "tecnico";
   const isCliente = selectedRole.toLowerCase() === "cliente";
 
-  // 🔹 Manejar inputs de texto
+  // Manejo inputs texto
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputChange(e.target.name as keyof typeof formData, e.target.value);
   };
 
-  // 🔹 Manejar selects (especialmente el rol)
+  // Manejo selects
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const field = e.target.name as keyof typeof formData;
     const value = Number(e.target.value);
-
-    // Si el campo es "roleconfigurationid", guarda también el nombre del rol
-    if (field === "roleconfigurationid") {
-      const selected = roles.find((r) => r.roleconfigurationid === value);
-
-      // Guardar ID y nombre dentro de roleconfiguration
-      handleInputChange("roleconfigurationid", value);
-      handleInputChange(
-        "roleconfiguration",
-        {
-          roleconfigurationid: value,
-          roles: { name: selected?.role?.name || "" },
-        } as any
-      );
-    } else {
-      handleInputChange(field, value);
-    }
+    handleInputChange(field, value);
   };
 
   const footer = (
@@ -114,7 +100,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         <div>
           <label className="block text-sm font-medium mb-1">Documento</label>
           <div className="flex flex-col sm:flex-row gap-2">
-            {/* Tipo de documento */}
+            {/* Tipo */}
             <select
               name="typeid"
               value={formData.typeid}
@@ -123,9 +109,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               className="w-full sm:w-32 px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
               style={{
                 borderColor:
-                  errors.typeid && touched.typeid
-                    ? "red"
-                    : Colors.table.lines,
+                  errors.typeid && touched.typeid ? "red" : Colors.table.lines,
               }}
             >
               <option value={0}>Seleccione tipo</option>
@@ -148,7 +132,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               <input
                 type="text"
                 name="documentnumber"
-                placeholder="Número de documento"
+                placeholder={isNit ? "Número de NIT" : "Número de documento"}
                 value={formData.documentnumber}
                 onChange={handleTextChange}
                 onBlur={() => handleBlur("documentnumber")}
@@ -169,14 +153,21 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </div>
         </div>
 
+
         {/* Nombre y Apellido */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre</label>
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-${isNit ? "1" : "2"} gap-4 transition-all duration-300`}
+        >
+          <div className={isNit ? "col-span-2" : ""}>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Nombre de la empresa" : "Nombre"}
+            </label>
             <input
               type="text"
               name="name"
-              placeholder="Ingrese su nombre"
+              placeholder={
+                isNit ? "Ingrese el nombre de la empresa" : "Ingrese su nombre"
+              }
               value={formData.name}
               onChange={handleTextChange}
               onBlur={() => handleBlur("name")}
@@ -191,78 +182,77 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Apellido</label>
-            <input
-              type="text"
-              name="lastname"
-              placeholder="Ingrese su apellido"
-              value={formData.lastname}
-              onChange={handleTextChange}
-              onBlur={() => handleBlur("lastname")}
-              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
-              style={{
-                borderColor:
-                  errors.lastname && touched.lastname
-                    ? "red"
-                    : Colors.table.lines,
-              }}
-            />
-            {errors.lastname && touched.lastname && (
-              <span className="text-red-500 text-xs mt-1">
-                {errors.lastname}
-              </span>
-            )}
-          </div>
+          {/* Apellido oculto si es NIT */}
+          {!isNit && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Apellido</label>
+              <input
+                type="text"
+                name="lastname"
+                placeholder="Ingrese su apellido"
+                value={formData.lastname || ""}
+                onChange={handleTextChange}
+                onBlur={() => handleBlur("lastname")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor:
+                    errors.lastname && touched.lastname
+                      ? "red"
+                      : Colors.table.lines,
+                }}
+              />
+              {errors.lastname && touched.lastname && (
+                <span className="text-red-500 text-xs mt-1">
+                  {errors.lastname}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Teléfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Teléfono</label>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Teléfono de la empresa" : "Teléfono"}
+            </label>
             <input
               type="tel"
               name="phone"
-              placeholder="Ingrese su teléfono"
+              placeholder={isNit ? "Ingrese teléfono de la empresa" : "Ingrese su teléfono"}
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
               className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
               style={{
                 borderColor:
-                  errors.phone && touched.phone
-                    ? "red"
-                    : Colors.table.lines,
+                  errors.phone && touched.phone ? "red" : Colors.table.lines,
               }}
             />
             {errors.phone && touched.phone && (
-              <span className="text-red-500 text-xs mt-1">
-                {errors.phone}
-              </span>
+              <span className="text-red-500 text-xs mt-1">{errors.phone}</span>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Correo</label>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Correo de la empresa" : "Correo"}
+            </label>
             <input
               type="email"
               name="email"
-              placeholder="Ingrese su correo"
+              placeholder={isNit ? "Ingrese correo de la empresa" : "Ingrese su correo"}
               value={formData.email}
               onChange={handleTextChange}
               onBlur={() => handleBlur("email")}
               className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
               style={{
                 borderColor:
-                  errors.email && touched.email
-                    ? "red"
-                    : Colors.table.lines,
+                  errors.email && touched.email ? "red" : Colors.table.lines,
               }}
             />
             {errors.email && touched.email && (
-              <span className="text-red-500 text-xs mt-1">
-                {errors.email}
-              </span>
+              <span className="text-red-500 text-xs mt-1">{errors.email}</span>
             )}
           </div>
         </div>
@@ -275,7 +265,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             value={formData.roleconfigurationid}
             onChange={handleSelectChange}
             onBlur={() => handleBlur("roleconfigurationid")}
-            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+            disabled={isNit} // 🔹 Bloqueamos el rol si es NIT (cliente forzado)
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
+              }`}
             style={{
               borderColor:
                 errors.roleconfigurationid && touched.roleconfigurationid
@@ -290,10 +282,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               <option>No hay roles disponibles</option>
             ) : (
               roles.map((r) => (
-                <option
-                  key={r.roleconfigurationid}
-                  value={r.roleconfigurationid}
-                >
+                <option key={r.roleconfigurationid} value={r.roleconfigurationid}>
                   {r.role?.name}
                 </option>
               ))
@@ -345,7 +334,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </div>
         </div>
 
-        {/* 🛠 Campos para Técnico */}
+        {/* 🛠 Técnico */}
         {isTecnico && (
           <>
             {/* CV */}
@@ -443,16 +432,11 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   ))}
                 </div>
               )}
-              {errors.techniciantypeids && touched.techniciantypeids && (
-                <span className="text-red-500 text-xs mt-1">
-                  {errors.techniciantypeids}
-                </span>
-              )}
             </div>
           </>
         )}
 
-        {/* 🏠 Campos para Cliente */}
+        {/* 🏠 Cliente */}
         {isCliente && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -462,7 +446,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 name="customercity"
                 placeholder="Ciudad"
                 value={formData.customercity || ""}
-                onChange={(e) => handleInputChange("customercity", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("customercity", e.target.value)
+                }
                 onBlur={() => handleBlur("customercity")}
                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
                 style={{
@@ -472,12 +458,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                       : Colors.table.lines,
                 }}
               />
-              {errors.customercity && touched.customercity && (
-                <span className="text-red-500 text-xs mt-1">
-                  {errors.customercity}
-                </span>
-              )}
             </div>
+
             <div>
               <label className="block text-sm font-medium mb-1">
                 Código Postal
@@ -487,7 +469,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 name="customerzipcode"
                 placeholder="Código postal"
                 value={formData.customerzipcode || ""}
-                onChange={(e) => handleInputChange("customerzipcode", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("customerzipcode", e.target.value)
+                }
                 onBlur={() => handleBlur("customerzipcode")}
                 className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
                 style={{
@@ -497,11 +481,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                       : Colors.table.lines,
                 }}
               />
-              {errors.customerzipcode && touched.customerzipcode && (
-                <span className="text-red-500 text-xs mt-1">
-                  {errors.customerzipcode}
-                </span>
-              )}
             </div>
           </div>
         )}

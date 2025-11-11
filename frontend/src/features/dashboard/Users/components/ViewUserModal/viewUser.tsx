@@ -25,16 +25,21 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
   const documentTypeName =
     user.typeofdocuments?.name || "Sin tipo de documento";
 
+  // Detectar si es NIT (empresa)
+  const isNit =
+    documentTypeName?.toLowerCase().includes("nit") ||
+    user.lastname === null ||
+    user.lastname === "";
+
   // Detectar rol
-  const roleName = user.roleconfiguration?.roles?.name?.toLowerCase() || '';
-  const isTecnico = roleName === 'tecnico';
-  const isCliente = roleName === 'cliente';
+  const roleName = user.roleconfiguration?.roles?.name?.toLowerCase() || "";
+  const isTecnico = roleName === "tecnico";
+  const isCliente = roleName === "cliente";
 
   // Extraer datos
   const technician = user.technicians?.[0];
   const customer = user.customers?.[0];
 
-  // Footer del modal
   const footer = (
     <button
       type="button"
@@ -58,7 +63,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
       footer={footer}
     >
       <div className="space-y-5">
-        {/* Imagen del usuario */}
+        {/* Imagen */}
         <div className="flex flex-col items-center">
           {imageUrl ? (
             <div className="w-24 h-24 rounded-full border-2 border-gray-300 flex items-center justify-center bg-gray-50 mb-2 overflow-hidden">
@@ -73,13 +78,25 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
             <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 mb-2">
               <span className="text-gray-500 text-xl font-medium">
                 {user.name.charAt(0)}
-                {user.lastname.charAt(0)}
+                {user.lastname?.charAt(0) || ""}
               </span>
             </div>
           )}
           <p className="text-xs text-gray-500">
             {imageUrl ? "Foto de perfil" : "Sin imagen"}
           </p>
+
+          {/* Badge tipo de persona */}
+          <div className="mt-2">
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-semibold ${isNit
+                  ? "bg-yellow-100 text-yellow-800"
+                  : "bg-green-100 text-green-800"
+                }`}
+            >
+              {isNit ? "Empresa (NIT)" : "Persona natural"}
+            </span>
+          </div>
         </div>
 
         {/* Documento */}
@@ -101,29 +118,34 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
         </div>
 
         {/* Nombre y Apellido */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-${isNit ? "1" : "2"} gap-4 transition-all duration-300`}
+        >
+          <div className={isNit ? "col-span-2" : ""}>
             <label
               className="block text-sm font-medium mb-1"
               style={{ color: Colors.texts.primary }}
             >
-              Nombre
+              {isNit ? "Nombre de la empresa" : "Nombre"}
             </label>
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-              {user.name}
+              {user.name || "—"}
             </div>
           </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Apellido
-            </label>
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-              {user.lastname}
+
+          {!isNit && (
+            <div>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
+                Apellido
+              </label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                {user.lastname || "—"}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Teléfono y Correo */}
@@ -133,7 +155,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               className="block text-sm font-medium mb-1"
               style={{ color: Colors.texts.primary }}
             >
-              Teléfono
+              {isNit ? "Teléfono de la empresa" : "Teléfono"}
             </label>
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
               {user.phone}
@@ -144,9 +166,9 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               className="block text-sm font-medium mb-1"
               style={{ color: Colors.texts.primary }}
             >
-              Correo Electrónico
+              {isNit ? "Correo de la empresa" : "Correo electrónico"}
             </label>
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 break-all">
               {user.email}
             </div>
           </div>
@@ -165,51 +187,55 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         </div>
 
-        {/* 🛠 Información adicional para Técnico */}
+        {/* Información para Técnico */}
         {isTecnico && technician && (
           <div className="border-t pt-4 space-y-4">
-            <h3 className="text-sm font-medium text-gray-700">Información de Técnico</h3>
+            <h3 className="text-sm font-medium text-gray-700">
+              Información de Técnico
+            </h3>
 
-            {/* CV */}
-            {/* CV */}
             {technician.CV && (
               <div>
                 <label className="block text-sm font-medium mb-1">CV</label>
                 <a
-                  href={`${technician.CV}?dl=1`} 
-                  download 
+                  href={technician.CV}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline"
                 >
-                  Descargar currículum
+                  Ver currículum
                 </a>
               </div>
             )}
 
-            {/* Tipos de Técnico */}
-            {Array.isArray(technician.technicianTypeMaps) && technician.technicianTypeMaps.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Tipos de Técnico</label>
-                <div className="flex flex-wrap gap-2">
-                  {technician.technicianTypeMaps.map((tm, index) => (
-                    <span
-                      key={`${tm.techniciantypeid}-${index}`}
-                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
-                    >
-                      {tm.techniciantype?.name || `Tipo ID: ${tm.techniciantypeid}`}
-                    </span>
-                  ))}
+            {Array.isArray(technician.technicianTypeMaps) &&
+              technician.technicianTypeMaps.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Tipos de Técnico
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {technician.technicianTypeMaps.map((tm, index) => (
+                      <span
+                        key={`${tm.techniciantypeid}-${index}`}
+                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                      >
+                        {tm.techniciantype?.name ||
+                          `Tipo ID: ${tm.techniciantypeid}`}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         )}
 
-        {/* Información adicional para Cliente */}
+        {/* Información para Cliente */}
         {isCliente && customer && (
           <div className="border-t pt-4 space-y-4">
-            <h3 className="text-sm font-medium text-gray-700">Información de Cliente</h3>
+            <h3 className="text-sm font-medium text-gray-700">
+              Información de Cliente
+            </h3>
 
             {customer.customercity && (
               <div>
@@ -222,7 +248,9 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
 
             {customer.customerzipcode && (
               <div>
-                <label className="block text-sm font-medium mb-1">Código Postal</label>
+                <label className="block text-sm font-medium mb-1">
+                  Código Postal
+                </label>
                 <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
                   {customer.customerzipcode}
                 </div>
@@ -262,7 +290,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                 Creado el
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {new Date(user.createat).toLocaleString('es-ES')}
+                {new Date(user.createat).toLocaleString("es-ES")}
               </div>
             </div>
           )}
@@ -275,7 +303,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                 Actualizado el
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {new Date(user.updateat).toLocaleString('es-ES')}
+                {new Date(user.updateat).toLocaleString("es-ES")}
               </div>
             </div>
           )}
