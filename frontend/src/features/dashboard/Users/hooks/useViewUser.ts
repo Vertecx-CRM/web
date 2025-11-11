@@ -6,7 +6,6 @@ export const useViewUser = (selectedUser: User | null) => {
 
   useEffect(() => {
     if (selectedUser) {
-      // Si la imagen existe y es una URL string, la guardamos
       setCurrentImage(selectedUser.image || null);
     } else {
       setCurrentImage(null);
