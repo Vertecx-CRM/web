@@ -31,8 +31,6 @@ export const useRoles = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // useRoles.ts
-
   useEffect(() => {
     const loadRoles = async () => {
       setLoading(true);
