@@ -14,7 +14,7 @@ export const validateField = (
   const roleName = formData.roleconfiguration?.roles?.name?.toLowerCase() || "";
   const trimmedValue = String(value).trim().toLowerCase();
 
-  // 🔹 Detectar si el documento es NIT (por ID)
+  // Detectar si el documento es NIT (por ID)
   const isNit = Number(formData.typeid) === 4;
 
   switch (fieldName) {

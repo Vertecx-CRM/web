@@ -265,7 +265,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             value={formData.roleconfigurationid}
             onChange={handleSelectChange}
             onBlur={() => handleBlur("roleconfigurationid")}
-            disabled={isNit} // 🔹 Bloqueamos el rol si es NIT (cliente forzado)
+            disabled={isNit}
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
               }`}
             style={{
@@ -334,7 +334,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </div>
         </div>
 
-        {/* 🛠 Técnico */}
+        {/* Técnico */}
         {isTecnico && (
           <>
             {/* CV */}
@@ -436,7 +436,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </>
         )}
 
-        {/* 🏠 Cliente */}
+        {/* Cliente */}
         {isCliente && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

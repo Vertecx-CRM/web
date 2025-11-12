@@ -303,7 +303,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             value={formData.roleconfigurationid}
             onChange={handleSelectChange}
             onBlur={() => handleBlur("roleconfigurationid")}
-            disabled={isNit} // 🚫 no se permite cambiar rol si es NIT
+            disabled={isNit} 
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
               }`}
             style={{

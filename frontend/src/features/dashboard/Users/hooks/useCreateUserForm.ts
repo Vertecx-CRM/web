@@ -88,7 +88,7 @@ export const useCreateUserForm = ({
     return found?.role?.name.toLowerCase() || "";
   };
 
-  /** 🔹 Detectar si el tipo de documento seleccionado es NIT */
+  /** Detectar si el tipo de documento seleccionado es NIT */
   useEffect(() => {
     if (formData.typeid !== 0 && documentTypes.length > 0) {
       const selectedDoc = documentTypes.find(
@@ -100,7 +100,7 @@ export const useCreateUserForm = ({
     }
   }, [formData.typeid, documentTypes]);
 
-  /** 🔹 Aplicar ajustes automáticos si es NIT */
+  /** Aplicar ajustes automáticos si es NIT */
   useEffect(() => {
     if (isNit) {
       const clienteRole = roles.find(
@@ -116,7 +116,7 @@ export const useCreateUserForm = ({
     }
   }, [isNit, roles]);
 
-  /** 🔹 Subida de imagen a Cloudinary */
+  /** Subida de imagen a Cloudinary */
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -139,7 +139,7 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** 🔹 Subida de CV */
+  /** Subida de CV */
   const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -162,7 +162,7 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** 🔹 Manejar cambios */
+  /** Manejar cambios */
   const handleInputChange = (
     field: keyof CreateUserData,
     value: string | number | File | null
@@ -213,7 +213,7 @@ export const useCreateUserForm = ({
     setPreviewCV(null);
   };
 
-  /** 🔹 Validación individual */
+  /** Validación individual */
   const handleBlur = (field: keyof FormTouched) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value = formData[field as keyof CreateUserData];
@@ -232,7 +232,7 @@ export const useCreateUserForm = ({
       value,
       {
         ...formData,
-        typeofdocuments: { name: selectedDoc?.name || "" }, // 👈 importante para detectar NIT
+        typeofdocuments: { name: selectedDoc?.name || "" },
         roleconfiguration: {
           roleconfigurationid: formData.roleconfigurationid,
           roles: { name: getRoleName(formData.roleconfigurationid) },
@@ -245,7 +245,7 @@ export const useCreateUserForm = ({
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  /** 🔹 Envío del formulario */
+  /** Envío del formulario */
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
@@ -303,7 +303,7 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** 🔹 Reset al abrir modal */
+  /** Reset al abrir modal */
   useEffect(() => {
     if (isOpen) {
       setFormData({
