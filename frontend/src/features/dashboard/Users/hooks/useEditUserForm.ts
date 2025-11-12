@@ -13,7 +13,7 @@ import {
 import { showWarning } from "@/shared/utils/notifications";
 import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
-import { useDocumentTypes } from "./useDocumentTypes"; // ✅ se agrega
+import { useDocumentTypes } from "./useDocumentTypes";
 
 export const useEditUserForm = ({
   isOpen,
@@ -23,7 +23,7 @@ export const useEditUserForm = ({
 }: EditUserModalProps) => {
   const { users } = useUser();
   const { roles } = useRoles();
-  const { documentTypes } = useDocumentTypes(); // ✅ lista real de tipos de documento
+  const { documentTypes } = useDocumentTypes();
 
   const [originalCV, setOriginalCV] = useState<string | null>(null);
   const [isNit, setIsNit] = useState<boolean>(false);
@@ -50,7 +50,7 @@ export const useEditUserForm = ({
   const [previewCV, setPreviewCV] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ Detectar si el tipo de documento seleccionado es NIT
+  // Detectar si el tipo de documento seleccionado es NIT
   const checkIfNit = (typeId: number): boolean => {
     const doc = documentTypes.find((d) => d.typeofdocumentid === typeId);
     return doc?.name?.toUpperCase() === "NIT";
@@ -61,7 +61,7 @@ export const useEditUserForm = ({
     return found?.role?.name?.toLowerCase() || "";
   };
 
-  // 🔹 Subida de imagen a Cloudinary
+  // Subida de imagen a Cloudinary
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -85,7 +85,7 @@ export const useEditUserForm = ({
     }
   };
 
-  // 🔹 Subida de CV a Cloudinary
+  // Subida de CV a Cloudinary
   const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -108,7 +108,7 @@ export const useEditUserForm = ({
     }
   };
 
-  // 🔹 Manejar cambios en inputs
+  // Manejar cambios en inputs
   const handleInputChange = (
     field: keyof EditUser,
     value: string | number | File | null
@@ -116,7 +116,7 @@ export const useEditUserForm = ({
     setFormData((prev) => {
       const newData = { ...prev, [field]: value };
 
-      // ✅ Detectar cambio de tipo de documento → verificar si es NIT
+      // Detectar cambio de tipo de documento → verificar si es NIT
       if (field === "typeid" && typeof value === "number") {
         const isNitDoc = checkIfNit(value);
         setIsNit(isNitDoc);

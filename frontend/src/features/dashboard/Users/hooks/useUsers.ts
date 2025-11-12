@@ -29,7 +29,7 @@ export const useUser = () => {
         } else if (Array.isArray(response)) {
           setUsers(response);
         } else {
-          console.warn("⚠️ Estructura de respuesta inesperada:", response);
+          console.warn("Estructura de respuesta inesperada:", response);
           setUsers([]);
         }
       } catch (error) {
