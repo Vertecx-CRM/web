@@ -13,7 +13,6 @@ import {
 } from "../Validations/UserValidations";
 import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
-import { useDocumentTypes } from "./useDocumentTypes";
 
 export const useCreateUserForm = ({
   isOpen,
@@ -22,7 +21,6 @@ export const useCreateUserForm = ({
 }: CreateUserModalProps) => {
   const { users } = useUser();
   const { roles } = useRoles();
-  const { documentTypes } = useDocumentTypes();
 
   const [formData, setFormData] = useState<CreateUserData>({
     name: "",
@@ -83,24 +81,18 @@ export const useCreateUserForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNit, setIsNit] = useState(false);
 
+  /** Detectar el nombre del rol actual */
   const getRoleName = (roleId: number): string => {
     const found = roles.find((r) => r.roleconfigurationid === roleId);
-    return found?.role?.name.toLowerCase() || "";
+    return found?.role?.name?.toLowerCase() || "";
   };
 
-  /** Detectar si el tipo de documento seleccionado es NIT */
+  /** Detectar si el documento seleccionado es NIT */
   useEffect(() => {
-    if (formData.typeid !== 0 && documentTypes.length > 0) {
-      const selectedDoc = documentTypes.find(
-        (d) => d.typeofdocumentid === formData.typeid
-      );
-      setIsNit(selectedDoc?.name?.toUpperCase() === "NIT");
-    } else {
-      setIsNit(false);
-    }
-  }, [formData.typeid, documentTypes]);
+    setIsNit(formData.typeid === 4); 
+  }, [formData.typeid]);
 
-  /** Aplicar ajustes automáticos si es NIT */
+  /** Ajustes automáticos si es NIT */
   useEffect(() => {
     if (isNit) {
       const clienteRole = roles.find(
@@ -116,7 +108,7 @@ export const useCreateUserForm = ({
     }
   }, [isNit, roles]);
 
-  /** Subida de imagen a Cloudinary */
+  /** Subida de imagen */
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -162,14 +154,14 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** Manejar cambios */
+  /** Manejadores de cambio */
   const handleInputChange = (
     field: keyof CreateUserData,
     value: string | number | File | null
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
-    if (touched[field as keyof FormTouched]) {
+    if (touched[field]) {
       const strValue = typeof value === "string" ? value : String(value ?? "");
       validateFieldOnChange(field as string, strValue);
     }
@@ -217,22 +209,17 @@ export const useCreateUserForm = ({
   const handleBlur = (field: keyof FormTouched) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value = formData[field as keyof CreateUserData];
-    if (typeof value === "string") {
-      validateFieldOnChange(field as string, value);
+    if (typeof value === "string" || typeof value === "number") {
+      validateFieldOnChange(field as string, String(value));
     }
   };
 
   const validateFieldOnChange = (field: string, value: string) => {
-    const selectedDoc = documentTypes.find(
-      (d) => d.typeofdocumentid === formData.typeid
-    );
-
     const error = validateField(
       field,
       value,
       {
         ...formData,
-        typeofdocuments: { name: selectedDoc?.name || "" },
         roleconfiguration: {
           roleconfigurationid: formData.roleconfigurationid,
           roles: { name: getRoleName(formData.roleconfigurationid) },
@@ -249,14 +236,9 @@ export const useCreateUserForm = ({
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    const selectedDoc = documentTypes.find(
-      (d) => d.typeofdocumentid === formData.typeid
-    );
-
     const valid = validateFormWithNotification(
       {
         ...formData,
-        typeofdocuments: { name: selectedDoc?.name || "" },
         roleconfiguration: {
           roleconfigurationid: formData.roleconfigurationid,
           roles: { name: getRoleName(formData.roleconfigurationid) },

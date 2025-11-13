@@ -26,15 +26,46 @@ export const validateField = (
       if (!value.trim()) {
         error = "El número de documento es obligatorio";
       }
+
       // Validación especial para NIT
       else if (isNit) {
-        // NIT colombiano: 5 a 12 números, guion y 1 dígito de verificación
         if (!/^\d{5,12}-\d{1}$/.test(value)) {
           error = "El NIT debe tener formato válido (Ejemplo: 900123456-7)";
         } else if (!value.includes("-")) {
           error = "El NIT debe incluir un guion (-)";
         }
       }
+
+      // Validación para PPT (7 dígitos exactos)
+      else if (Number(formData.typeid) === 2) {
+        if (!/^\d{7}$/.test(value)) {
+          error = "El número de PPT debe tener exactamente 7 dígitos numéricos";
+        }
+      }
+
+      // Validación para Pasaporte (2 letras + 6 números)
+      else if (Number(formData.typeid) === 3) {
+        if (!/^[A-Za-z]{2}\d{6}$/.test(value)) {
+          error =
+            "El pasaporte debe tener 2 letras seguidas de 6 números (Ejemplo: AB123456)";
+        }
+      }
+
+      // Validación para Cédula de Extranjería (9 dígitos exactos)
+      else if (Number(formData.typeid) === 5) {
+        if (!/^\d{9}$/.test(value)) {
+          error =
+            "La Cédula de Extranjería debe tener exactamente 9 dígitos numéricos";
+        }
+      }
+
+      // Validación para Visa (VI) - 12 dígitos exactos
+      else if (Number(formData.typeid) === 6) {
+        if (!/^\d{12}$/.test(value)) {
+          error = "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
+        }
+      }
+
       // Validación para documentos normales
       else {
         if (!/^\d+$/.test(value)) {
@@ -55,6 +86,7 @@ export const validateField = (
           error = "Ya existe un usuario con este número de documento";
       }
       break;
+
 
     case "name":
       if (!value.trim()) {
