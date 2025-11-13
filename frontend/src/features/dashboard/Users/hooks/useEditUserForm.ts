@@ -50,18 +50,18 @@ export const useEditUserForm = ({
   const [previewCV, setPreviewCV] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Detectar si el tipo de documento seleccionado es NIT
+  /** Detectar si el tipo de documento seleccionado es NIT */
   const checkIfNit = (typeId: number): boolean => {
-    const doc = documentTypes.find((d) => d.typeofdocumentid === typeId);
-    return doc?.name?.toUpperCase() === "NIT";
+    return typeId === 4; // 4 = NIT
   };
 
+  /** Obtener nombre del rol */
   const getRoleName = (roleId: number): string => {
     const found = roles.find((r) => r.roleconfigurationid === roleId);
     return found?.role?.name?.toLowerCase() || "";
   };
 
-  // Subida de imagen a Cloudinary
+  /** Subida de imagen a Cloudinary */
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -85,7 +85,7 @@ export const useEditUserForm = ({
     }
   };
 
-  // Subida de CV a Cloudinary
+  /** Subida de CV a Cloudinary */
   const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -108,7 +108,7 @@ export const useEditUserForm = ({
     }
   };
 
-  // Manejar cambios en inputs
+  /** Manejador de cambios */
   const handleInputChange = (
     field: keyof EditUser,
     value: string | number | File | null
@@ -142,6 +142,7 @@ export const useEditUserForm = ({
     }
   };
 
+  /** Manejador de cambio de tipos de técnico */
   const handleTechnicianTypeChange = (typeId: number, checked: boolean) => {
     setFormData((prev) => {
       const current = prev.techniciantypeids || [];
@@ -154,6 +155,7 @@ export const useEditUserForm = ({
     });
   };
 
+  /** Imagen y CV */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     if (file) {
@@ -180,16 +182,19 @@ export const useEditUserForm = ({
     setPreviewCV(null);
   };
 
+  /** Validación al perder foco */
   const handleBlur = (field: keyof FormTouched) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value = formData[field as keyof EditUser];
-    if (typeof value === "string") {
-      validateFieldOnChange(field as string, value);
+    if (typeof value === "string" || typeof value === "number") {
+      validateFieldOnChange(field as string, String(value));
     }
   };
 
+  /** Validación individual con reglas por documento */
   const validateFieldOnChange = (field: string, value: string) => {
     if (isNit && field === "lastname") return;
+
     const error = validateField(
       field,
       value,
@@ -201,11 +206,13 @@ export const useEditUserForm = ({
         },
       } as unknown as User,
       users,
-      true
+      true 
     );
+
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
+  /** Envío del formulario */
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
@@ -220,7 +227,7 @@ export const useEditUserForm = ({
       users,
       setErrors,
       setTouched,
-      true
+      true 
     );
 
     if (!valid) return;
@@ -257,6 +264,7 @@ export const useEditUserForm = ({
     }
   };
 
+  /** Inicializar datos al abrir modal */
   useEffect(() => {
     if (isOpen && user) {
       const technician = user.technicians?.[0];
@@ -264,7 +272,7 @@ export const useEditUserForm = ({
       const currentCV = technician?.CV || null;
 
       setOriginalCV(currentCV);
-      setIsNit(user.typeofdocuments?.name?.toUpperCase() === "NIT");
+      setIsNit(user.typeid === 4); 
 
       setFormData({
         userid: user.userid!,
@@ -284,11 +292,13 @@ export const useEditUserForm = ({
         customerzipcode: customer?.customerzipcode || "",
       });
 
-      if (currentCV && typeof currentCV === "string") {
-        setPreviewCV(currentCV);
+      // Mostrar imagen previa si existe
+      if (user.image && typeof user.image === "string") {
+        setPreviewImage(user.image);
       } else {
-        setPreviewCV(null);
+        setPreviewImage(null);
       }
+
     }
   }, [isOpen, user]);
 
