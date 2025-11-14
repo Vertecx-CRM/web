@@ -1,4 +1,3 @@
-// hooks/useTechnicianTypes.ts
 import { useState, useEffect } from "react";
 
 export const useTechnicianTypes = () => {

@@ -1,14 +1,6 @@
 import { showError } from "@/shared/utils/notifications";
 import { User, FormErrors, FormTouched } from "../types/typesUser";
 
-/**
- * Valida un campo individual con las reglas de negocio.
- * @param fieldName - Nombre del campo
- * @param value - Valor actual
- * @param formData - Datos del formulario
- * @param users - Lista de usuarios existentes (para verificar duplicados)
- * @param isEditMode - true si es modo edición
- */
 export const validateField = (
   fieldName: string,
   value: string,
@@ -17,51 +9,100 @@ export const validateField = (
   isEditMode: boolean = false
 ): string => {
   let error = "";
-  const specialChars = /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
+  const specialChars = /[@,.;:\_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
 
-  // Obtener el rol para validaciones condicionales
-  const roleName = formData.roleconfiguration?.roles?.name?.toLowerCase() || '';
-
-  // Normalizar valores para comparación
+  const roleName = formData.roleconfiguration?.roles?.name?.toLowerCase() || "";
   const trimmedValue = String(value).trim().toLowerCase();
 
+  // Detectar si el documento es NIT (por ID)
+  const isNit = Number(formData.typeid) === 4;
+
   switch (fieldName) {
-    // Tipo de documento
     case "typeid":
       if (!String(value).trim()) error = "El tipo de documento es obligatorio";
       break;
 
-    // Documento
     case "documentnumber":
       if (!value.trim()) {
         error = "El número de documento es obligatorio";
-      } else if (!/^\d+$/.test(value)) {
-        error = "El documento solo puede contener números";
-      } else if (value.length < 5 || value.length > 20) {
-        error = "El documento debe tener entre 5 y 20 dígitos";
-      } else {
+      }
+
+      // Validación especial para NIT
+      else if (isNit) {
+        if (!/^\d{5,12}-\d{1}$/.test(value)) {
+          error = "El NIT debe tener formato válido (Ejemplo: 900123456-7)";
+        } else if (!value.includes("-")) {
+          error = "El NIT debe incluir un guion (-)";
+        }
+      }
+
+      // Validación para PPT (7 dígitos exactos)
+      else if (Number(formData.typeid) === 2) {
+        if (!/^\d{7}$/.test(value)) {
+          error = "El número de PPT debe tener exactamente 7 dígitos numéricos";
+        }
+      }
+
+      // Validación para Pasaporte (2 letras + 6 números)
+      else if (Number(formData.typeid) === 3) {
+        if (!/^[A-Za-z]{2}\d{6}$/.test(value)) {
+          error =
+            "El pasaporte debe tener 2 letras seguidas de 6 números (Ejemplo: AB123456)";
+        }
+      }
+
+      // Validación para Cédula de Extranjería (9 dígitos exactos)
+      else if (Number(formData.typeid) === 5) {
+        if (!/^\d{9}$/.test(value)) {
+          error =
+            "La Cédula de Extranjería debe tener exactamente 9 dígitos numéricos";
+        }
+      }
+
+      // Validación para Visa (VI) - 12 dígitos exactos
+      else if (Number(formData.typeid) === 6) {
+        if (!/^\d{12}$/.test(value)) {
+          error = "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
+        }
+      }
+
+      // Validación para documentos normales
+      else {
+        if (!/^\d+$/.test(value)) {
+          error = "El documento solo puede contener números";
+        } else if (value.length > 10) {
+          error = "El número de documento no puede tener más de 10 caracteres";
+        }
+      }
+
+      // Validar duplicado
+      if (!error) {
         const duplicate = users.find(
           (u) =>
             u.documentnumber.toLowerCase() === trimmedValue &&
             (!isEditMode || u.userid !== formData.userid)
         );
-        if (duplicate) error = "Ya existe un usuario con este número de documento";
+        if (duplicate)
+          error = "Ya existe un usuario con este número de documento";
       }
       break;
 
-    // Nombre
+
     case "name":
       if (!value.trim()) {
-        error = "El nombre es obligatorio";
-      } else if (/[0-9]/.test(value)) {
+        error = isNit
+          ? "El nombre de la empresa es obligatorio"
+          : "El nombre es obligatorio";
+      } else if (/[0-9]/.test(value) && !isNit) {
         error = "El nombre no puede contener números";
       } else if (specialChars.test(value)) {
         error = "El nombre no puede contener caracteres especiales";
       }
       break;
 
-    // Apellido
+    // Apellido: se ignora si es NIT
     case "lastname":
+      if (isNit) break;
       if (!value.trim()) {
         error = "El apellido es obligatorio";
       } else if (/[0-9]/.test(value)) {
@@ -71,28 +112,29 @@ export const validateField = (
       }
       break;
 
-    // Teléfono
     case "phone":
       if (!value.trim()) {
-        error = "El teléfono es obligatorio";
+        error = isNit
+          ? "El teléfono de la empresa es obligatorio"
+          : "El teléfono es obligatorio";
       } else if (!/^\d+$/.test(value)) {
         error = "El teléfono solo puede contener números";
       } else if (value.length !== 10) {
         error = "El teléfono debe tener exactamente 10 dígitos";
       } else {
         const duplicate = users.find(
-          (u) =>
-            u.phone === value &&
-            (!isEditMode || u.userid !== formData.userid)
+          (u) => u.phone === value && (!isEditMode || u.userid !== formData.userid)
         );
-        if (duplicate) error = "Ya existe un usuario con este número de teléfono";
+        if (duplicate)
+          error = "Ya existe un usuario con este número de teléfono";
       }
       break;
 
-    // Correo
     case "email":
       if (!value.trim()) {
-        error = "El correo electrónico es obligatorio";
+        error = isNit
+          ? "El correo de la empresa es obligatorio"
+          : "El correo electrónico es obligatorio";
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
         error = "El formato del correo no es válido";
       } else {
@@ -101,11 +143,11 @@ export const validateField = (
             u.email.toLowerCase() === trimmedValue &&
             (!isEditMode || u.userid !== formData.userid)
         );
-        if (duplicate) error = "Ya existe un usuario con este correo electrónico";
+        if (duplicate)
+          error = "Ya existe un usuario con este correo electrónico";
       }
       break;
 
-    // Contraseña
     case "password":
     case "confirmPassword":
       if (isEditMode && value.trim()) {
@@ -121,12 +163,10 @@ export const validateField = (
       }
       break;
 
-    // Estado
     case "stateid":
       if (!String(value).trim()) error = "El estado es obligatorio";
       break;
 
-    // Rol
     case "roleconfigurationid":
       if (!String(value).trim() || value === "0") {
         error = "El rol es obligatorio";
@@ -134,24 +174,20 @@ export const validateField = (
       break;
 
     case "CV":
-      if (roleName === 'tecnico') {
+      if (roleName === "tecnico") {
         const cvValue =
-          (formData as any).CV ||
-          formData.technicians?.[0]?.CV ||
-          '';
+          (formData as any).CV || formData.technicians?.[0]?.CV || "";
         const hasFile =
           cvValue instanceof File ||
           (typeof cvValue === "string" && cvValue.trim() !== "");
-
         if (!hasFile) {
           error = "El CV es obligatorio para técnicos";
         }
       }
       break;
 
-    // Validación para tipos de técnico
     case "techniciantypeids":
-      if (roleName === 'tecnico') {
+      if (roleName === "tecnico") {
         const typeIds =
           (formData as any).techniciantypeids ||
           formData.technicians?.[0]?.technicianTypeMaps?.map(
@@ -164,28 +200,24 @@ export const validateField = (
       }
       break;
 
-
-    // Validación para ciudad (cliente)
     case "customercity":
-      if (roleName === 'cliente') {
-        // Soportar tanto el flujo de edición (customers[0]) como el de creación (prop directa)
+      if (roleName === "cliente") {
         const city =
           formData.customers?.[0]?.customercity ??
           (formData as any).customercity ??
-          '';
+          "";
         if (!city.trim()) {
           error = "La ciudad es obligatoria para clientes";
         }
       }
       break;
 
-    // Validación para código postal (cliente)
     case "customerzipcode":
-      if (roleName === 'cliente') {
+      if (roleName === "cliente") {
         const zip =
           formData.customers?.[0]?.customerzipcode ??
           (formData as any).customerzipcode ??
-          '';
+          "";
         if (!zip.trim()) {
           error = "El código postal es obligatorio para clientes";
         } else if (!/^\d+$/.test(zip)) {
@@ -214,7 +246,6 @@ export const validateAllFields = (
     lastname: formData.lastname || "",
     password: formData.password || "",
     confirmPassword: formData.confirmPassword || "",
-    //Asegurar valores por defecto para nuevos campos
     CV: (formData as any).CV || formData.technicians?.[0]?.CV || "",
     customercity:
       (formData as any).customercity ||
@@ -224,7 +255,6 @@ export const validateAllFields = (
       (formData as any).customerzipcode ||
       formData.customers?.[0]?.customerzipcode ||
       "",
-
   };
 
   return {
@@ -240,7 +270,6 @@ export const validateAllFields = (
     stateid: validateField("stateid", String(withDefaults.stateid || ""), withDefaults, users, isEditMode),
     image: "",
     roleconfigurationid: validateField("roleconfigurationid", String(withDefaults.roleconfigurationid || ""), withDefaults, users, isEditMode),
-    // Validaciones nuevas
     CV: validateField("CV", withDefaults.CV, withDefaults, users, isEditMode),
     techniciantypeids: validateField("techniciantypeids", "", withDefaults, users, isEditMode),
     customercity: validateField("customercity", withDefaults.customercity, withDefaults, users, isEditMode),
