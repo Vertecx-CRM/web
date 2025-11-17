@@ -1,18 +1,45 @@
 "use client";
 
 import { useState } from "react";
-import { Technician, CreateTechnicianData, EditTechnicianData, TechnicianState } from "../types/typesTechnicians";
+import {
+  Technician,
+  CreateTechnicianData,
+  EditTechnicianData,
+  TechnicianState,
+} from "../types/typesTechnicians";
 import { toast } from "react-toastify";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 
-const validateTechnician = (data: Omit<Technician, "id" | "state"> & { password?: string; confirmPassword?: string }) => {
-  if (!data.name.trim()) { toast.warning("El nombre es obligatorio"); return false; }
-  if (!data.lastName.trim()) { toast.warning("El apellido es obligatorio"); return false; }
-  if (!data.documentType) { toast.warning("El tipo de documento es obligatorio"); return false; }
-  if (!data.documentNumber.trim()) { toast.warning("El número de documento es obligatorio"); return false; }
-  if (!data.phone.trim()) { toast.warning("El teléfono es obligatorio"); return false; }
-  if (!data.email.trim()) { toast.warning("El correo es obligatorio"); return false; }
-  if (data.password && data.password !== data.confirmPassword) { toast.warning("Las contraseñas no coinciden"); return false; }
+type MinimalTechForValidate = Pick<
+  Technician,
+  "name" | "lastName" | "documentType" | "documentNumber" | "phone" | "email"
+>;
+
+const validateTechnician = (data: MinimalTechForValidate) => {
+  if (!data.name.trim()) {
+    toast.warning("El nombre es obligatorio");
+    return false;
+  }
+  if (!data.lastName.trim()) {
+    toast.warning("El apellido es obligatorio");
+    return false;
+  }
+  if (!data.documentType) {
+    toast.warning("El tipo de documento es obligatorio");
+    return false;
+  }
+  if (!data.documentNumber.trim()) {
+    toast.warning("El número de documento es obligatorio");
+    return false;
+  }
+  if (!data.phone.trim()) {
+    toast.warning("El teléfono es obligatorio");
+    return false;
+  }
+  if (!data.email.trim()) {
+    toast.warning("El correo es obligatorio");
+    return false;
+  }
   return true;
 };
 
@@ -22,29 +49,89 @@ export const useTechnicians = (initialTechnicians: Technician[]) => {
   const [editingTechnician, setEditingTechnician] = useState<Technician | null>(null);
 
   const isEditModalOpen = editingTechnician !== null;
-
   const ACTIVE_STATE: TechnicianState = "Activo";
-  const INACTIVE_STATE: TechnicianState = "Inactivo";
 
   const handleCreateTechnician = (data: CreateTechnicianData) => {
-    if (!validateTechnician(data)) return;
+    const { resumePdf, ...rest } = data;
 
-    const nextId = technicians.length ? Math.max(...technicians.map(t => t.id)) + 1 : 1;
-    const { password, confirmPassword, ...rest } = data;
-    const newTech: Technician = { id: nextId, state: ACTIVE_STATE, ...rest };
+    if (
+      !validateTechnician({
+        name: rest.name,
+        lastName: rest.lastName,
+        documentType: rest.documentType,
+        documentNumber: rest.documentNumber,
+        phone: rest.phone,
+        email: rest.email,
+      })
+    )
+      return;
 
-    setTechnicians(prev => [...prev, newTech]);
+    const nextId = technicians.length
+      ? Math.max(...technicians.map((t) => t.id)) + 1
+      : 1;
+
+    const resumeUrl = resumePdf ? URL.createObjectURL(resumePdf) : undefined;
+
+    const newTech: Technician = {
+      id: nextId,
+      state: ACTIVE_STATE,
+      name: rest.name,
+      lastName: rest.lastName,
+      documentType: rest.documentType,
+      documentNumber: rest.documentNumber,
+      phone: rest.phone,
+      email: rest.email,
+      image: rest.image,
+      types: rest.types,
+      // ❌ sin startedAt
+      resumeUrl,
+    };
+
+    setTechnicians((prev) => [...prev, newTech]);
     setIsCreateModalOpen(false);
     toast.success("Técnico creado exitosamente");
   };
 
   const handleEditTechnician = (id: number, data: EditTechnicianData) => {
-    if (!validateTechnician(data)) return;
+    const { resumePdf, ...rest } = data;
 
-    const { password, confirmPassword, ...rest } = data;
-    setTechnicians(prev =>
-      prev.map(t => t.id === id ? { ...t, ...rest } : t)
+    if (
+      !validateTechnician({
+        name: rest.name,
+        lastName: rest.lastName,
+        documentType: rest.documentType,
+        documentNumber: rest.documentNumber,
+        phone: rest.phone,
+        email: rest.email,
+      })
+    )
+      return;
+
+    setTechnicians((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+
+        const updatedResumeUrl = resumePdf
+          ? URL.createObjectURL(resumePdf)
+          : t.resumeUrl;
+
+        return {
+          ...t,
+          name: rest.name,
+          lastName: rest.lastName,
+          documentType: rest.documentType,
+          documentNumber: rest.documentNumber,
+          phone: rest.phone,
+          email: rest.email,
+          image: rest.image ?? t.image,
+          state: rest.state ?? t.state,
+          types: rest.types ?? t.types,
+          // ❌ sin startedAt
+          resumeUrl: updatedResumeUrl,
+        };
+      })
     );
+
     setEditingTechnician(null);
     toast.success("Técnico actualizado correctamente");
   };
@@ -57,9 +144,7 @@ export const useTechnicians = (initialTechnicians: Technician[]) => {
         successMessage: `El técnico "${tech.name} ${tech.lastName}" ha sido eliminado correctamente.`,
         errorMessage: "No se pudo eliminar el técnico. Intenta nuevamente.",
       },
-      () => {
-        setTechnicians(prev => prev.filter(t => t.id !== tech.id));
-      }
+      () => setTechnicians((prev) => prev.filter((t) => t.id !== tech.id))
     );
   };
 
