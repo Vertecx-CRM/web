@@ -29,45 +29,46 @@ export interface Technician {
   email: string;
   image?: string;
   state?: TechnicianState;
+  types: string[];       // ["Cableado estructurado", "Electricista", "Redes"]
+  resumeUrl?: string;    // URL al PDF (cuando exista)
 }
 
 export interface CreateTechnicianData {
   name: string;
   lastName: string;
-  password: string;
-  confirmPassword: string;
   documentType: DocumentType;
   documentNumber: string;
   phone: string;
   email: string;
   image?: string;
   state?: TechnicianState;
+  types: string[];
+  resumePdf: File;
 }
 
 export interface EditTechnicianData {
   id: number;
   name: string;
   lastName: string;
-  password?: string;
-  confirmPassword?: string;
   documentType: DocumentType;
   documentNumber: string;
   phone: string;
   email: string;
   image?: string;
   state?: TechnicianState;
+  types: string[];
+  resumePdf?: File;
 }
 
-// 👇 Nuevo type para evitar el error de "image no existe en TechnicianErrors"
 export type TechnicianErrors = {
   name?: string;
   lastName?: string;
-  password?: string;
-  confirmPassword?: string;
   documentType?: string;
   documentNumber?: string;
   phone?: string;
   email?: string;
   image?: string;
   state?: string;
+  types?: string;
+  resumePdf?: string;
 };

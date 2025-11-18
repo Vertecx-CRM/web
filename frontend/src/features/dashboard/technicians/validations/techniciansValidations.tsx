@@ -3,19 +3,26 @@ import { Technician, CreateTechnicianData } from "@/features/dashboard/technicia
 export interface TechnicianErrors {
   name?: string;
   lastName?: string;
-  password?: string;
-  confirmPassword?: string;
   documentType?: string;
   documentNumber?: string;
   phone?: string;
   email?: string;
+  image?: string;
+  state?: string;
+  types?: string;
+  resumePdf?: string;
 }
 
+// Helpers de normalización
+const normEmail = (v: string) => String(v || "").trim().toLowerCase();
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+const normDoc = (v: string) => String(v || "").trim().toLowerCase();
+
 export const validateTechnicianField = (
-  field: keyof Omit<CreateTechnicianData, "id" | "image" | "state">,
+  field: keyof Omit<CreateTechnicianData, "image" | "state">,
   value: any,
   technicians: Technician[],
-  extra?: { password?: string; documentType?: string; id?: number; excludeId?: number }
+  extra?: { documentType?: string; id?: number; excludeId?: number }
 ): string | undefined => {
   const currentId = extra?.excludeId ?? extra?.id;
 
@@ -28,134 +35,140 @@ export const validateTechnicianField = (
       if (!String(value).trim()) return "El apellido es obligatorio";
       return;
 
-    case "password":
-      if (currentId) {
-        // ✅ Modo edición: solo valida si el usuario escribió algo
-        if (String(value).length > 0 && String(value).length < 6)
-          return "La contraseña debe tener al menos 6 caracteres";
-        return;
-      }
-      // ✅ Modo creación: siempre obligatorio
-      if (!String(value)) return "La contraseña es obligatoria";
-      if (String(value).length < 6)
-        return "La contraseña debe tener al menos 6 caracteres";
-      return;
-
-    case "confirmPassword":
-      if (currentId) {
-        // ✅ En edición: solo valida si password fue tocada
-        if (extra?.password && extra.password.length > 0 && !String(value))
-          return "Debe confirmar la nueva contraseña";
-        if (extra?.password && extra.password !== value)
-          return "Las contraseñas no coinciden";
-        return;
-      }
-      // ✅ En creación: obligatorio
-      if (!String(value)) return "Confirmar contraseña es obligatorio";
-      if (extra?.password !== value) return "Las contraseñas no coinciden";
-      return;
-
     case "documentType":
       if (!String(value)) return "El tipo de documento es obligatorio";
       return;
 
-    case "documentNumber":
+    case "documentNumber": {
       if (!value || String(value).trim() === "")
         return "El número de documento es obligatorio";
+
+      const docValRaw = String(value).trim();
+      const tipo = extra?.documentType;
+
+      // Reglas por tipo de documento
+      if (tipo === "TI") {
+        if (!/^\d{10}$/.test(docValRaw))
+          return "La tarjeta de identidad debe tener 10 dígitos";
+      } else if (tipo === "CC") {
+        if (!/^\d{7,10}$/.test(docValRaw))
+          return "La cédula debe tener entre 7 y 10 dígitos";
+      } else if (tipo === "CE") {
+        if (!/^\d{10,11}$/.test(docValRaw))
+          return "La cédula de extranjería debe tener 10 u 11 dígitos";
+      } else if (tipo === "PPT") {
+        if (!/^[A-Za-z0-9]{5,15}$/.test(docValRaw))
+          return "El PPT debe tener entre 5 y 15 caracteres alfanuméricos";
+      } else if (tipo === "Pasaporte") {
+        if (!/^[A-Za-z0-9]{5,20}$/.test(docValRaw))
+          return "El pasaporte debe tener entre 5 y 20 caracteres alfanuméricos";
+      }
+
+      // Duplicados (normalizado)
+      const docKey = normDoc(docValRaw);
       if (
         technicians.some(
           (t) =>
-            t.documentNumber.trim().toLowerCase() ===
-              String(value).trim().toLowerCase() && t.id !== currentId
+            normDoc(t.documentNumber) === docKey &&
+            t.id !== currentId
         )
       ) {
         return "Ya existe un técnico con este número de documento";
       }
-
-      if (extra?.documentType) {
-        const tipo = extra.documentType;
-        const num = String(value).trim();
-        if (tipo === "TI") {
-          if (!/^\d{10}$/.test(num))
-            return "La tarjeta de identidad debe tener 10 dígitos";
-        } else if (tipo === "CC") {
-          if (!/^\d{7,10}$/.test(num))
-            return "La cédula debe tener entre 7 y 10 dígitos";
-        } else if (tipo === "CE") {
-          if (!/^\d{10,11}$/.test(num))
-            return "La cédula de extranjería debe tener 10 u 11 dígitos";
-        } else if (tipo === "PPT") {
-          if (!/^[A-Za-z0-9]{5,15}$/.test(num))
-            return "El PPT debe tener entre 5 y 15 caracteres alfanuméricos";
-        } else if (tipo === "Pasaporte") {
-          if (!/^[A-Za-z0-9]{5,20}$/.test(num))
-            return "El pasaporte debe tener entre 5 y 20 caracteres alfanuméricos";
-        }
-      }
       return;
+    }
 
-    case "phone":
+    case "phone": {
       if (!String(value).trim()) return "El teléfono es obligatorio";
-      if (!/^\d{10}$/.test(String(value).trim()))
+      const phoneDigits = onlyDigits(String(value));
+      if (!/^\d{10}$/.test(phoneDigits))
         return "El teléfono debe tener exactamente 10 dígitos";
+
       if (
         technicians.some(
-          (t) => t.phone.trim() === String(value).trim() && t.id !== currentId
+          (t) => onlyDigits(t.phone) === phoneDigits && t.id !== currentId
         )
       ) {
         return "Ya existe un técnico con este teléfono";
       }
       return;
+    }
 
-    case "email":
-      if (!String(value).trim())
-        return "El correo electrónico es obligatorio";
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim()))
+    case "email": {
+      if (!String(value).trim()) return "El correo electrónico es obligatorio";
+      const emailNorm = normEmail(value);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm))
         return "El correo no es válido";
+
       if (
         technicians.some(
-          (t) =>
-            t.email.trim().toLowerCase() ===
-              String(value).trim().toLowerCase() && t.id !== currentId
+          (t) => normEmail(t.email) === emailNorm && t.id !== currentId
         )
-      ) {
+      )
         return "Ya existe un técnico con este correo";
-      }
       return;
+    }
+
+    case "types": {
+      const arr = Array.isArray(value) ? value : [];
+      if (!arr.length) return "Seleccione al menos un tipo de técnico";
+      return;
+    }
+
+    case "resumePdf": {
+      const file = value as File | undefined;
+      if (!file) return "La hoja de vida (PDF) es obligatoria";
+      if (file.type !== "application/pdf") return "El archivo debe ser un PDF";
+      const max = 10 * 1024 * 1024;
+      if (file.size > max) return "El PDF no debe superar 10MB";
+      return;
+    }
 
     default:
       return;
   }
 };
 
+type ValidateFormOpts = {
+  excludeId?: number;
+  requirePdf?: boolean;        // por defecto true en crear
+  hasExistingResume?: boolean; // true si en edición ya hay resumeUrl
+};
+
 export const validateTechnicianForm = (
   data: Partial<CreateTechnicianData> & { id?: number },
   technicians: Technician[],
-  excludeId?: number
+  opts?: ValidateFormOpts
 ): TechnicianErrors => {
   const errors: TechnicianErrors = {};
-
-  const fields: (keyof TechnicianErrors)[] = [
+  const baseFields: (keyof TechnicianErrors)[] = [
     "name",
     "lastName",
-    "password",
-    "confirmPassword",
     "documentType",
     "documentNumber",
     "phone",
     "email",
+    "types",
   ];
+
+  const includeResume =
+    typeof opts?.requirePdf === "boolean"
+      ? opts.requirePdf
+      : !opts?.hasExistingResume;
+
+  const fields: (keyof TechnicianErrors)[] = includeResume
+    ? [...baseFields, "resumePdf"]
+    : baseFields;
 
   fields.forEach((field) => {
     const error = validateTechnicianField(
-      field as keyof Omit<CreateTechnicianData, "id" | "image" | "state">,
+      field as keyof Omit<CreateTechnicianData, "image" | "state">,
       (data as any)[field],
       technicians,
       {
-        password: data.password,
         documentType: data.documentType,
         id: data.id,
-        excludeId,
+        excludeId: opts?.excludeId,
       }
     );
     if (error) errors[field] = error;
