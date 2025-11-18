@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, JSX } from "react";
 import { motion } from "framer-motion";
 
-
 // Íconos por defecto si el backend no trae icono
 import { Monitor, Camera, HardDrive, Cpu, Router } from "lucide-react";
 import { fetchCategories } from "@/features/dashboard/categoryProducts/connection/categoryApi";
@@ -21,11 +20,11 @@ interface Category {
   name: string;
   description: string;
   icon: string | null;
+  status: boolean;
 }
 
 const cardsPerView = 3;
 const buffer = cardsPerView;
-
 const ANIMATION_MS = 400;
 
 const CategoryCarousel: React.FC = () => {
@@ -36,7 +35,7 @@ const CategoryCarousel: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [slideWidth, setSlideWidth] = useState<number>(0);
 
-  // Cargar categorías desde tu backend
+  // Cargar categorías desde backend
   useEffect(() => {
     const load = async () => {
       try {
@@ -44,13 +43,16 @@ const CategoryCarousel: React.FC = () => {
         const arr = Array.isArray(data) ? data : data.data;
 
         if (Array.isArray(arr)) {
-          setCategories(arr);
+          // SOLO CATEGORÍAS ACTIVAS
+          const active = arr.filter((c) => c.status === true);
 
-          // Crear lista extendida para el carrusel infinito
+          setCategories(active);
+
+          // Extender lista para efecto infinito
           setExtended([
-            ...arr.slice(-buffer),
-            ...arr,
-            ...arr.slice(0, buffer),
+            ...active.slice(-buffer),
+            ...active,
+            ...active.slice(0, buffer),
           ]);
 
           setIndex(buffer);
@@ -59,10 +61,11 @@ const CategoryCarousel: React.FC = () => {
         console.error("Error cargando categorías:", err);
       }
     };
+
     load();
   }, []);
 
-  // medida del slide
+  // Medir ancho dinámico
   useEffect(() => {
     const measure = () => {
       if (!viewportRef.current) return;
@@ -84,7 +87,7 @@ const CategoryCarousel: React.FC = () => {
     setIndex((prev) => prev - 1);
   };
 
-  // efecto de "carrusel infinito"
+  // Carrusel infinito
   useEffect(() => {
     if (extended.length === 0) return;
 
@@ -141,7 +144,18 @@ const CategoryCarousel: React.FC = () => {
                 >
                   <div className="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center text-center gap-4 min-h-[220px] mx-2">
                     <div className="bg-gray-100 rounded-full p-4 flex items-center justify-center shadow-inner w-14 h-14">
-                      {iconMap[cat.icon || "monitor"] || iconMap["monitor"]}
+                      {cat.icon && cat.icon.startsWith("http")
+                        ? (
+                          <img
+                            src={cat.icon}
+                            alt={cat.name}
+                            className="w-12 h-12 object-contain"
+                          />
+                        )
+                        : (
+                          iconMap[cat.icon || "monitor"] || iconMap["monitor"]
+                        )
+                      }
                     </div>
                     <h3 className="text-lg md:text-xl font-semibold text-gray-800">
                       {cat.name}
