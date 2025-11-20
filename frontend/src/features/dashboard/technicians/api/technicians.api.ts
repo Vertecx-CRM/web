@@ -95,12 +95,12 @@ export const createTechnician = async (
     body.roleconfigurationid = payload.roleconfigurationid;
 
   try {
-    console.log("📤 POST /technicians body:", body);
+    console.log("POST /technicians body:", body);
     const { data } = await api.post<TechnicianFromApi>("/technicians", body);
-    console.log("✅ Respuesta /technicians:", data);
+    console.log("Respuesta /technicians:", data);
     return data;
   } catch (error: any) {
-    console.error("❌ Error Axios en POST /technicians");
+    console.error("Error Axios en POST /technicians");
     if (error?.response) {
       console.error("Status:", error.response.status);
       console.error("Respuesta del backend:", error.response.data);
