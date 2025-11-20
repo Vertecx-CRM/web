@@ -23,7 +23,6 @@ export default function TechniciansIndex() {
     handleDeleteTechnician,
   } = useTechnicians(mockTechnicians);
 
-  // ✅ Estado para ver técnico
   const [viewingTechnician, setViewingTechnician] = useState<Technician | null>(null);
 
   return (
@@ -32,7 +31,7 @@ export default function TechniciansIndex() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
-            {/* Modal Crear */}
+            
             <CreateTechnicianModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
@@ -40,7 +39,6 @@ export default function TechniciansIndex() {
               technicians={technicians}
             />
 
-            {/* Modal Editar */}
             {editingTechnician && (
               <EditTechnicianModal
                 isOpen={true}
@@ -51,14 +49,12 @@ export default function TechniciansIndex() {
               />
             )}
 
-            {/* ✅ Modal Ver */}
             <ViewTechnicianModal
               isOpen={!!viewingTechnician}
               technician={viewingTechnician}
               onClose={() => setViewingTechnician(null)}
             />
 
-            {/* Tabla de técnicos */}
             <TableTechnicians
               technicians={technicians}
               onView={(t) => setViewingTechnician(t)} // ✅ abre modal en vez de alert

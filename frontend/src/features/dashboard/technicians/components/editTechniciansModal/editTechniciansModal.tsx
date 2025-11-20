@@ -200,7 +200,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     }
     setImageError(null);
     setImageFile(file);
-    setPreviewImage(file ? URL.createObjectURL(file) : undefined);
+    setPreviewImage(file ? URL.createObjectURL(file) : technician.image);
   };
 
   const handlePdfChange = (file: File | null) => {
@@ -245,9 +245,8 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       phone,
       email,
       state,
-      image: imageFile ? URL.createObjectURL(imageFile) : previewImage,
+      image: imageFile || undefined,
       types,
-      // startedAt eliminado
       resumePdf: resumePdf ?? undefined,
     };
 
@@ -427,7 +426,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
             {errors.types && <p className="mt-1 text-xs text-red-600">{errors.types}</p>}
           </div>
 
-          {/* PDF */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Hoja de vida (PDF)
@@ -464,7 +462,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
             )}
           </div>
 
-          {/* Imagen */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Imagen
@@ -475,6 +472,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
                 className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
               >
                 {previewImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={previewImage} alt="preview" className="h-full w-full object-cover" />
                 ) : (
                   <Upload size={16} />

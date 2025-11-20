@@ -29,8 +29,8 @@ export interface Technician {
   email: string;
   image?: string;
   state?: TechnicianState;
-  types: string[];       // ["Cableado estructurado", "Electricista", "Redes"]
-  resumeUrl?: string;    // URL al PDF (cuando exista)
+  types: string[];
+  resumeUrl?: string;
 }
 
 export interface CreateTechnicianData {
@@ -40,7 +40,7 @@ export interface CreateTechnicianData {
   documentNumber: string;
   phone: string;
   email: string;
-  image?: string;
+  image?: File;
   state?: TechnicianState;
   types: string[];
   resumePdf: File;
@@ -54,7 +54,7 @@ export interface EditTechnicianData {
   documentNumber: string;
   phone: string;
   email: string;
-  image?: string;
+  image?: File;
   state?: TechnicianState;
   types: string[];
   resumePdf?: File;

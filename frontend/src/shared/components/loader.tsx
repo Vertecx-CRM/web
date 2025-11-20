@@ -5,6 +5,7 @@ import {
   ReactNode,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -37,11 +38,57 @@ type LoaderContextType = {
 
 const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
 
+// Tiempo mínimo que el loader debe estar visible (en ms)
+const MIN_LOADER_TIME = 600;
+
 export function LoaderProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
+  const startRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showLoader = () => setLoading(true);
-  const hideLoader = () => setLoading(false);
+  const showLoader = () => {
+    // Cancelar cualquier hide pendiente
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    if (!loading) {
+      startRef.current = Date.now();
+      setLoading(true);
+    }
+  };
+
+  const hideLoader = () => {
+    if (!loading) return;
+
+    const start = startRef.current;
+    if (!start) {
+      setLoading(false);
+      return;
+    }
+
+    const elapsed = Date.now() - start;
+    const remaining = MIN_LOADER_TIME - elapsed;
+
+    if (remaining <= 0) {
+      setLoading(false);
+      startRef.current = null;
+    } else {
+      timeoutRef.current = setTimeout(() => {
+        setLoading(false);
+        startRef.current = null;
+        timeoutRef.current = null;
+      }, remaining);
+    }
+  };
+
+  // Limpiar timeout al desmontar el provider
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   return (
     <LoaderContext.Provider value={{ showLoader, hideLoader }}>
@@ -57,21 +104,15 @@ export function useLoader() {
   return ctx;
 }
 
+// Opcional: para esconder el loader cuando cambias de ruta
 export function LoaderGate() {
   const { hideLoader } = useLoader();
   const pathname = usePathname();
 
   useEffect(() => {
-    const raw = sessionStorage.getItem("__loader_min_until__");
-    const minUntil = raw ? Number(raw) : 0;
-    const delay = pathname.startsWith("/auth")
-      ? 0
-      : Math.max(0, minUntil - Date.now());
-    const t = setTimeout(() => {
-      hideLoader();
-      sessionStorage.removeItem("__loader_min_until__");
-    }, delay);
-    return () => clearTimeout(t);
+    // En cada cambio de ruta pedimos ocultar loader;
+    // el propio hideLoader respeta el tiempo mínimo.
+    hideLoader();
   }, [hideLoader, pathname]);
 
   return null;
