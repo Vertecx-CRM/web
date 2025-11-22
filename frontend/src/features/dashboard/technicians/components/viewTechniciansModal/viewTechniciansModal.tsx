@@ -61,6 +61,7 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
             style={{ backgroundColor: technician.image ? "transparent" : "#f3f4f6" }}
           >
             {technician.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={technician.image}
                 alt={`${technician.name} ${technician.lastName}`}

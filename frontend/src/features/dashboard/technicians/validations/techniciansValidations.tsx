@@ -13,7 +13,6 @@ export interface TechnicianErrors {
   resumePdf?: string;
 }
 
-// Helpers de normalización
 const normEmail = (v: string) => String(v || "").trim().toLowerCase();
 const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
 const normDoc = (v: string) => String(v || "").trim().toLowerCase();
@@ -46,22 +45,26 @@ export const validateTechnicianField = (
       const docValRaw = String(value).trim();
       const tipo = extra?.documentType;
 
-      // Reglas por tipo de documento
-      if (tipo === "TI") {
-        if (!/^\d{10}$/.test(docValRaw))
-          return "La tarjeta de identidad debe tener 10 dígitos";
-      } else if (tipo === "CC") {
+      // -------- VALIDACIONES SEGÚN TIPO DE DOCUMENTO ----------
+      if (tipo === "CC") {
         if (!/^\d{7,10}$/.test(docValRaw))
           return "La cédula debe tener entre 7 y 10 dígitos";
-      } else if (tipo === "CE") {
-        if (!/^\d{10,11}$/.test(docValRaw))
-          return "La cédula de extranjería debe tener 10 u 11 dígitos";
-      } else if (tipo === "PPT") {
-        if (!/^[A-Za-z0-9]{5,15}$/.test(docValRaw))
-          return "El PPT debe tener entre 5 y 15 caracteres alfanuméricos";
-      } else if (tipo === "Pasaporte") {
-        if (!/^[A-Za-z0-9]{5,20}$/.test(docValRaw))
-          return "El pasaporte debe tener entre 5 y 20 caracteres alfanuméricos";
+      } 
+      else if (tipo === "PPT") {
+        if (!/^\d{7}$/.test(docValRaw))
+          return "El PPT debe tener exactamente 7 dígitos numéricos";
+      } 
+      else if (tipo === "PA") {
+        if (!/^[A-Za-z]{2}\d{6}$/.test(docValRaw))
+          return "El pasaporte debe tener 2 letras seguidas de 6 números (Ejemplo: AB123456)";
+      } 
+      else if (tipo === "CE") {
+        if (!/^\d{9}$/.test(docValRaw))
+          return "La Cédula de Extranjería debe tener exactamente 9 dígitos";
+      } 
+      else if (tipo === "VI") {
+        if (!/^\d{12}$/.test(docValRaw))
+          return "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
       }
 
       // Duplicados (normalizado)
@@ -131,8 +134,8 @@ export const validateTechnicianField = (
 
 type ValidateFormOpts = {
   excludeId?: number;
-  requirePdf?: boolean;        // por defecto true en crear
-  hasExistingResume?: boolean; // true si en edición ya hay resumeUrl
+  requirePdf?: boolean;        
+  hasExistingResume?: boolean;
 };
 
 export const validateTechnicianForm = (

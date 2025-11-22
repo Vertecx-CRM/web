@@ -15,6 +15,7 @@ import {
 } from "@/features/dashboard/technicians/validations/techniciansValidations";
 import { showWarning } from "@/shared/utils/notifications";
 import { Upload, X } from "lucide-react";
+import { getDocumentTypes } from "../../api/typeofdocuments.api";
 
 type TechnicianField =
   | "documentType"
@@ -33,16 +34,6 @@ interface CreateTechnicianModalProps {
   technicians: Technician[];
 }
 
-const documentTypes: DocumentType[] = [
-  "CC",
-  "CE",
-  "TI",
-  "Pasaporte",
-  "PPT",
-  "PEP",
-  "Otro",
-];
-
 const TECH_TYPES = ["Cableado estructurado", "Electricista", "Redes"];
 
 const removeBtnClass =
@@ -56,7 +47,10 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
 }) => {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
-  const [tipoDocumento, setTipoDocumento] = useState<DocumentType>("CC");
+  const [tipoDocumento, setTipoDocumento] = useState<string>("");
+  const [tipoDocumentoId, setTipoDocumentoId] = useState<number>(0);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [telefono, setTelefono] = useState("");
   const [correo, setCorreo] = useState("");
@@ -77,7 +71,8 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   const resetForm = () => {
     setNombre("");
     setApellido("");
-    setTipoDocumento("CC");
+    setTipoDocumento("");
+    setTipoDocumentoId(0);
     setNumeroDocumento("");
     setTelefono("");
     setCorreo("");
@@ -92,41 +87,54 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen) resetForm();
+    if (!isOpen) return;
+
+    resetForm();
+    
+    getDocumentTypes().then((data) => {
+      const filtered = data.filter((d) => d.name !== "NIT");
+      setDocumentTypes(filtered);
+
+      if (filtered.length > 0) {
+        setTipoDocumentoId(filtered[0].typeofdocumentid);
+        setTipoDocumento(filtered[0].name);
+      }
+    });
+
   }, [isOpen]);
 
   const handleFieldChange = (field: TechnicianField, rawValue: any) => {
     let value = rawValue;
     const hasDigits = typeof rawValue === "string" && /\d/.test(rawValue);
 
+    if (field === "documentType") {
+      const id = Number(rawValue);
+      const doc = documentTypes.find((d) => d.typeofdocumentid === id);
+
+      setTipoDocumentoId(id);
+      setTipoDocumento(doc?.name ?? "");
+
+      const docTypeError = validateTechnicianField(
+        "documentType",
+        doc?.name ?? "",
+        technicians,
+        { documentType: doc?.name ?? "" }
+      );
+      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
+
+      return;
+    }
+
     if (field === "name" || field === "lastName")
       value = String(rawValue).replace(/\d/g, "");
+
     if (field === "phone") value = String(rawValue).replace(/\D/g, "");
+
     if (field === "documentNumber") {
       value =
         tipoDocumento === "PPT" || tipoDocumento === "Pasaporte"
           ? String(rawValue).replace(/[^a-zA-Z0-9]/g, "")
           : String(rawValue).replace(/\D/g, "");
-    }
-
-    if (field === "documentType") {
-      const dt = rawValue as DocumentType;
-      setTipoDocumento(dt);
-      const numError = validateTechnicianField(
-        "documentNumber",
-        numeroDocumento,
-        technicians,
-        { documentType: dt }
-      );
-      setErrors((prev) => ({ ...prev, documentNumber: numError }));
-      const docTypeError = validateTechnicianField(
-        "documentType",
-        dt,
-        technicians,
-        { documentType: dt }
-      );
-      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
-      return;
     }
 
     switch (field) {
@@ -153,12 +161,11 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         break;
     }
 
-    const extra = { documentType: tipoDocumento };
     let fieldError = validateTechnicianField(
-      field as any,
+      field,
       value,
       technicians,
-      extra
+      { documentType: tipoDocumento }
     );
 
     if ((field === "name" || field === "lastName") && hasDigits) {
@@ -167,6 +174,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
           ? "El nombre no puede contener números"
           : "El apellido no puede contener números";
     }
+
     setErrors((prev) => ({ ...prev, [field]: fieldError }));
   };
 
@@ -228,17 +236,19 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
 
   const handleToggleType = (option: string) => {
     setTypes((prev) =>
-      prev.includes(option) ? prev.filter((t) => t !== option) : [...prev, option]
+      prev.includes(option)
+        ? prev.filter((t) => t !== option)
+        : [...prev, option]
     );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const formData: CreateTechnicianData = {
       name: nombre,
       lastName: apellido,
       documentType: tipoDocumento,
+      typeid: tipoDocumentoId,
       documentNumber: numeroDocumento,
       phone: telefono,
       email: correo,
@@ -299,23 +309,31 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
             >
               Tipo de Documento <span className="text-red-500">*</span>
             </label>
+
             <select
-              value={tipoDocumento}
-              onChange={(e) => handleFieldChange("documentType", e.target.value)}
-              onBlur={() => handleFieldChange("documentType", tipoDocumento)}
+              value={tipoDocumentoId}
+              onChange={(e) =>
+                handleFieldChange("documentType", e.target.value)
+              }
               className="w-full px-2 py-1 border rounded-md"
               style={{
                 borderColor: errors.documentType ? "red" : Colors.table.lines,
               }}
             >
               {documentTypes.map((doc) => (
-                <option key={doc} value={doc}>
-                  {doc}
+                <option
+                  key={doc.typeofdocumentid}
+                  value={doc.typeofdocumentid}
+                >
+                  {doc.name}
                 </option>
               ))}
             </select>
+
             {errors.documentType && (
-              <p className="mt-1 text-xs text-red-600">{errors.documentType}</p>
+              <p className="mt-1 text-xs text-red-600">
+                {errors.documentType}
+              </p>
             )}
           </div>
 
@@ -390,7 +408,9 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               }}
             />
             {errors.lastName && (
-              <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+              <p className="mt-1 text-xs text-red-600">
+                {errors.lastName}
+              </p>
             )}
           </div>
 
@@ -408,7 +428,9 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               onChange={(e) => handleFieldChange("phone", e.target.value)}
               onBlur={() => handleFieldChange("phone", telefono)}
               className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: errors.phone ? "red" : Colors.table.lines }}
+              style={{
+                borderColor: errors.phone ? "red" : Colors.table.lines,
+              }}
             />
             {errors.phone && (
               <p className="mt-1 text-xs text-red-600">{errors.phone}</p>
@@ -429,7 +451,9 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               onChange={(e) => handleFieldChange("email", e.target.value)}
               onBlur={() => handleFieldChange("email", correo)}
               className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: errors.email ? "red" : Colors.table.lines }}
+              style={{
+                borderColor: errors.email ? "red" : Colors.table.lines,
+              }}
             />
             {errors.email && (
               <p className="mt-1 text-xs text-red-600">{errors.email}</p>
@@ -463,11 +487,10 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
                         0
                       );
                     }}
-                    className={`px-3 py-1 rounded-full border text-sm transition ${
-                      active
-                        ? "bg-red-600 text-white border-red-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                    }`}
+                    className={`px-3 py-1 rounded-full border text-sm transition ${active
+                      ? "bg-red-600 text-white border-red-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                      }`}
                   >
                     {opt}
                   </button>

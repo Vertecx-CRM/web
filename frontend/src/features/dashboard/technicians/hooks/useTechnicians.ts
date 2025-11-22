@@ -5,7 +5,6 @@ import {
   Technician,
   CreateTechnicianData,
   EditTechnicianData,
-  TechnicianState,
 } from "../types/typesTechnicians";
 import { toast } from "react-toastify";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
@@ -69,7 +68,6 @@ const validateTechnician = (data: MinimalTechForValidate) => {
   return true;
 };
 
-// Tiempo extra para dejar el loader mientras React pinta el cierre del modal, tabla, toast, etc.
 const EXTRA_LOADER_DELAY_MS = 300;
 
 export const useTechnicians = (_initialTechnicians: Technician[]) => {
@@ -97,7 +95,7 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
   }, []);
 
   const handleCreateTechnician = async (data: CreateTechnicianData) => {
-    const { resumePdf, ...rest } = data;
+    const { resumePdf, typeid, ...rest } = data;
 
     if (
       !validateTechnician({
@@ -117,9 +115,11 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       const imageUrl = rest.image
         ? await uploadImageToCloudinary(rest.image)
         : undefined;
+
       const resumeUrl = resumePdf
         ? await uploadPdfToCloudinary(resumePdf)
         : undefined;
+
       const techniciantypeids = mapTechTypesToIds(rest.types);
 
       const payload: CreateTechnicianPayload = {
@@ -132,10 +132,10 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         CV: resumeUrl ?? null,
         image: imageUrl ?? null,
         roleconfigurationid: TECHNICIAN_ROLECONFIG_ID,
+        typeid: typeid,
       };
 
       await createTechnicianApi(payload);
-
       await loadTechnicians();
       setIsCreateModalOpen(false);
       toast.success("Técnico creado exitosamente");
@@ -143,8 +143,6 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       console.error(error);
       toast.error("No se pudo crear el técnico. Intenta nuevamente.");
     } finally {
-      // Dejamos un pequeño margen para que React cierre el modal,
-      // actualice la tabla y muestre la alerta mientras el loader sigue visible.
       await new Promise((resolve) =>
         setTimeout(resolve, EXTRA_LOADER_DELAY_MS)
       );
@@ -179,9 +177,11 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       const imageUrl = rest.image
         ? await uploadImageToCloudinary(rest.image)
         : existing.image;
+
       const resumeUrl = resumePdf
         ? await uploadPdfToCloudinary(resumePdf)
         : existing.resumeUrl;
+
       const techniciantypeids = rest.types
         ? mapTechTypesToIds(rest.types)
         : undefined;
@@ -189,10 +189,17 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       const body: UpdateTechnicianPayload = {
         name: rest.name,
         lastname: rest.lastName,
-        email: rest.email,
         documentnumber: rest.documentNumber,
         phone: rest.phone,
       };
+
+      // ✔ SOLO enviar email si cambió
+      if (rest.email !== existing.email) {
+        body.email = rest.email;
+      }
+
+      // Enviar typeid
+      body.typeid = rest.typeid;
 
       if (imageUrl && imageUrl !== existing.image) body.image = imageUrl;
       if (resumeUrl && resumeUrl !== existing.resumeUrl) body.CV = resumeUrl;

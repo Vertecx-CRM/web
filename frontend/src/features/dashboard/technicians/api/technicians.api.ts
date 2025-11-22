@@ -3,8 +3,7 @@
 import { api } from "@/shared/utils/apiClient";
 import {
   Technician,
-  TechnicianState,
-  DocumentType,
+  TechnicianState
 } from "../types/typesTechnicians";
 
 type TechnicianFromApi = {
@@ -32,27 +31,23 @@ const toUiState = (s?: string): TechnicianState => {
   return "Activo";
 };
 
-const toDocumentType = (name?: string): DocumentType => {
-  const n = (name ?? "CC") as DocumentType;
-  return n;
-};
-
 export const getTechnicians = async (): Promise<Technician[]> => {
   const { data } = await api.get<TechnicianFromApi[]>("/technicians");
 
   return data.map((t) => {
     const docTypeName = t.users.typeofdocuments?.name;
     const stateName = t.users.states?.name;
+
     const types = t.technicianTypeMaps
       .map((m) => m.techniciantype?.name ?? "")
       .filter((x) => !!x);
 
-    const technician: Technician = {
+    return {
       id: t.technicianid,
       state: toUiState(stateName),
       name: t.users.name,
       lastName: t.users.lastname,
-      documentType: toDocumentType(docTypeName),
+      documentType: docTypeName ?? "",
       documentNumber: t.users.documentnumber,
       phone: t.users.phone,
       email: t.users.email,
@@ -60,8 +55,6 @@ export const getTechnicians = async (): Promise<Technician[]> => {
       types,
       resumeUrl: t.CV ?? undefined,
     };
-
-    return technician;
   });
 };
 
@@ -75,6 +68,8 @@ export type CreateTechnicianPayload = {
   CV?: string | null;
   image?: string | null;
   roleconfigurationid?: number;
+
+  typeid: number;
 };
 
 export const createTechnician = async (
@@ -88,28 +83,18 @@ export const createTechnician = async (
     phone: payload.phone,
     techniciantypeids: payload.techniciantypeids,
     CV: payload.CV ?? null,
+
+    typeid: payload.typeid,  
   };
 
   if (payload.image) body.image = payload.image;
   if (payload.roleconfigurationid)
     body.roleconfigurationid = payload.roleconfigurationid;
 
-  try {
-    console.log("POST /technicians body:", body);
-    const { data } = await api.post<TechnicianFromApi>("/technicians", body);
-    console.log("Respuesta /technicians:", data);
-    return data;
-  } catch (error: any) {
-    console.error("Error Axios en POST /technicians");
-    if (error?.response) {
-      console.error("Status:", error.response.status);
-      console.error("Respuesta del backend:", error.response.data);
-    } else {
-      console.error("Error sin response:", error);
-    }
-    throw error;
-  }
+  const { data } = await api.post<TechnicianFromApi>("/technicians", body);
+  return data;
 };
+
 
 export type UpdateTechnicianPayload = {
   name?: string;
@@ -121,12 +106,10 @@ export type UpdateTechnicianPayload = {
   CV?: string | null;
   image?: string | null;
   roleconfigurationid?: number;
+  typeid?: number;
 };
 
-export const updateTechnician = async (
-  id: number,
-  payload: UpdateTechnicianPayload
-) => {
+export const updateTechnician = async (id: number, payload: UpdateTechnicianPayload) => {
   const { data } = await api.patch(`/technicians/${id}`, payload);
   return data;
 };

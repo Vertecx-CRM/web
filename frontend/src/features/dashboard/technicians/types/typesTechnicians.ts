@@ -1,21 +1,9 @@
-export type DocumentType =
-  | "CC"
-  | "CE"
-  | "TI"
-  | "Pasaporte"
-  | "PPT"
-  | "PEP"
-  | "Otro";
+export interface DocumentType {
+  typeofdocumentid: number;
+  name: string;
+}
 
-export const DOCUMENT_TYPES: DocumentType[] = [
-  "CC",
-  "CE",
-  "TI",
-  "Pasaporte",
-  "PPT",
-  "PEP",
-  "Otro",
-];
+export const DOCUMENT_TYPES: DocumentType[] = [];
 
 export type TechnicianState = "Activo" | "Inactivo";
 
@@ -23,7 +11,9 @@ export interface Technician {
   id: number;
   name: string;
   lastName: string;
-  documentType: DocumentType;
+
+  documentType: string;
+
   documentNumber: string;
   phone: string;
   email: string;
@@ -36,13 +26,19 @@ export interface Technician {
 export interface CreateTechnicianData {
   name: string;
   lastName: string;
-  documentType: DocumentType;
+
+  documentType: string;
+
+  typeid: number;
+
   documentNumber: string;
   phone: string;
   email: string;
+
   image?: File;
   state?: TechnicianState;
   types: string[];
+
   resumePdf: File;
 }
 
@@ -50,13 +46,18 @@ export interface EditTechnicianData {
   id: number;
   name: string;
   lastName: string;
-  documentType: DocumentType;
+
+  documentType: string;
+  typeid: number;
+
   documentNumber: string;
   phone: string;
   email: string;
+
   image?: File;
   state?: TechnicianState;
   types: string[];
+
   resumePdf?: File;
 }
 
