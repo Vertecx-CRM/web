@@ -15,6 +15,5 @@ export const getDocumentTypes = async (): Promise<DocumentTypeResponse[]> => {
 
   const result = await response.json();
 
-  // El backend trae todo dentro de "data"
   return result.data || [];
 };

@@ -57,7 +57,7 @@ export default function TechniciansIndex() {
 
             <TableTechnicians
               technicians={technicians}
-              onView={(t) => setViewingTechnician(t)} // ✅ abre modal en vez de alert
+              onView={(t) => setViewingTechnician(t)} 
               onEdit={(t) => setEditingTechnician(t)}
               onDelete={handleDeleteTechnician}
               onCreate={() => setIsCreateModalOpen(true)}

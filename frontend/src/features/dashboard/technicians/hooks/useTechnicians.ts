@@ -193,12 +193,10 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         phone: rest.phone,
       };
 
-      // ✔ SOLO enviar email si cambió
       if (rest.email !== existing.email) {
         body.email = rest.email;
       }
 
-      // Enviar typeid
       body.typeid = rest.typeid;
 
       if (imageUrl && imageUrl !== existing.image) body.image = imageUrl;

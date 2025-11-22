@@ -72,7 +72,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
-  // ========= Cargar documento y ocultar NIT =========
   useEffect(() => {
     if (!isOpen) return;
 
@@ -92,7 +91,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     });
   }, [isOpen, technician]);
 
-  // ========== Reset ==========
   const resetForm = () => {
     setName(technician.name);
     setLastName(technician.lastName);
@@ -185,7 +183,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     setErrors((prev) => ({ ...prev, [field]: fieldError }));
   };
 
-  // ========== Toggle tipos ==========
   const handleToggleType = (opt: string) => {
     const next = types.includes(opt)
       ? types.filter((t) => t !== opt)
@@ -195,7 +192,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     setTimeout(() => handleFieldChange("types", next), 0);
   };
 
-  // ========== Validación de imagen ==========
   const validateImage = (file: File | null) => {
     if (!file) return null;
     if (!file.type.startsWith("image/")) return "El archivo debe ser una imagen";
@@ -235,7 +231,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     setResumeName(file.name);
   };
 
-  // ========== Submit ==========
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -244,7 +239,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
       name,
       lastName,
       documentType: documentTypeName,
-      typeid: documentTypeId, // 🔥 IMPORTANTE: ahora se envía typeid
+      typeid: documentTypeId, 
       documentNumber,
       phone,
       email,
@@ -301,7 +296,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
     >
       <form id="edit-technician-form" onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
         
-        {/* Tipo de documento */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Tipo de Documento <span className="text-red-500">*</span>
@@ -322,7 +316,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Document number */}
         <div>
           <label className="block text-sm font-medium mb-1">Número de Documento *</label>
           <input
@@ -336,7 +329,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Name */}
         <div>
           <label className="block text-sm font-medium mb-1">Nombre *</label>
           <input
@@ -350,7 +342,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* LastName */}
         <div>
           <label className="block text-sm font-medium mb-1">Apellido *</label>
           <input
@@ -364,7 +355,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Phone */}
         <div>
           <label className="block text-sm font-medium mb-1">Teléfono *</label>
           <input
@@ -378,7 +368,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Email */}
         <div>
           <label className="block text-sm font-medium mb-1">Correo *</label>
           <input
@@ -392,7 +381,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Estado */}
         <div className="col-span-2">
           <label className="block text-sm font-medium mb-1">Estado</label>
           <select
@@ -408,7 +396,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           </select>
         </div>
 
-        {/* Types */}
         <div className="col-span-2">
           <label className="block text-sm font-medium mb-1">
             Tipos de técnico *
@@ -440,7 +427,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           )}
         </div>
 
-        {/* Resume PDF */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Hoja de vida (PDF)
@@ -469,7 +455,6 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           {pdfError && <p className="text-xs text-red-600 mt-1">{pdfError}</p>}
         </div>
 
-        {/* Imagen */}
         <div>
           <label className="block text-sm font-medium mb-1">Imagen</label>
           <div className="flex items-center gap-2">

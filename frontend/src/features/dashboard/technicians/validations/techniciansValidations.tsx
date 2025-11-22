@@ -45,7 +45,6 @@ export const validateTechnicianField = (
       const docValRaw = String(value).trim();
       const tipo = extra?.documentType;
 
-      // -------- VALIDACIONES SEGÚN TIPO DE DOCUMENTO ----------
       if (tipo === "CC") {
         if (!/^\d{7,10}$/.test(docValRaw))
           return "La cédula debe tener entre 7 y 10 dígitos";
@@ -67,7 +66,6 @@ export const validateTechnicianField = (
           return "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
       }
 
-      // Duplicados (normalizado)
       const docKey = normDoc(docValRaw);
       if (
         technicians.some(
