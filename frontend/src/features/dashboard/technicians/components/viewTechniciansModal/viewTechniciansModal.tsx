@@ -54,13 +54,13 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
       }
     >
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 p-1">
-        {/* Avatar */}
         <div className="col-span-2 lg:col-span-3 flex justify-center mb-1">
           <div
             className="w-16 h-16 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-semibold text-base"
             style={{ backgroundColor: technician.image ? "transparent" : "#f3f4f6" }}
           >
             {technician.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={technician.image}
                 alt={`${technician.name} ${technician.lastName}`}
@@ -96,7 +96,6 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
           </div>
         </div>
 
-        {/* Fila 2 */}
         <div>
           <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Teléfono
@@ -118,7 +117,6 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
           <div className={rowBox}>{technician.state}</div>
         </div>
 
-        {/* Tipos de técnico (centrado) */}
         <div className="col-span-2 lg:col-span-3 flex flex-col items-center">
           <label
             className={`${rowLabel} text-center`}
@@ -139,7 +137,6 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
           </div>
         </div>
 
-        {/* Fila 3 – solo PDF */}
         <div>
           <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Hoja de vida (PDF)

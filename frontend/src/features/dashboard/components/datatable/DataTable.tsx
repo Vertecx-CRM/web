@@ -48,7 +48,6 @@ const CreateButton = React.memo(CreateButtonComponent);
 
 const Pagination = React.memo(PaginationComponent);
 
-// Componente principal DataTable
 export function DataTable<T extends { id: number | string }>(
   props: DataTableProps<T>
 ) {
@@ -231,10 +230,8 @@ export function DataTable<T extends { id: number | string }>(
   return (
     <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* 🔍 Search + PageSize juntos */}
         {searchableKeys && searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
-            {/* Search */}
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input
@@ -248,7 +245,6 @@ export function DataTable<T extends { id: number | string }>(
               />
             </div>
 
-            {/* Page size select */}
             <div className="flex items-center gap-2">
               <select
                 value={pageSizeOption}
@@ -278,7 +274,6 @@ export function DataTable<T extends { id: number | string }>(
           </div>
         )}
 
-        {/* Botones de acciones a la derecha */}
         {(rightActions || onCreate) && (
           <div className="flex items-center gap-2 justify-end">
             {rightActions}

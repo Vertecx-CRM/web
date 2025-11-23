@@ -35,7 +35,7 @@ const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Dashboard: 16,
 };
 
-/** Mapea el nombre del privilegio al privilegeid de tu backend */
+
 const PRIVILEGE_TO_ID: Record<string, number> = {
   Crear: 1,
   Ver: 2,
@@ -43,14 +43,12 @@ const PRIVILEGE_TO_ID: Record<string, number> = {
   Eliminar: 4,
 };
 
-// Type guard
 function isValidConfig(
   v: { permissionid: number; privilegeid: number } | null
 ): v is { permissionid: number; privilegeid: number } {
   return v !== null;
 }
 
-// util para normalizar estado proveniente del backend (active/inactive) a UI
 const toUiStatus = (s?: string): "Activo" | "Inactivo" =>
   (s ?? "").toLowerCase() === "active" ? "Activo" : "Inactivo";
 
@@ -80,7 +78,6 @@ export const useRoles = () => {
     loadRoles();
   }, [loadRoles]);
 
-  /** CREATE */
   const handleCreateRole = async (payload: CreateRoleData) => {
     const errors = validateRoleForm(payload, roles);
     if (errors.name) return showWarning(errors.name);
@@ -118,7 +115,6 @@ export const useRoles = () => {
     }
   };
 
-  // helper para construir matriz [{permissionid, privilegeids[]}]
   const buildMatrixFromTokens = (tokens: string[]) => {
     const map = new Map<number, number[]>();
     for (const t of tokens) {
@@ -139,11 +135,6 @@ export const useRoles = () => {
     }));
   };
 
-  /** EDIT
-   * Secuencia corregida:
-   * 1) PUT /roles/:id/configurations (reemplaza matriz completa)
-   * 2) PATCH /roles/configurations con solo { role: { roleid, name?, status? } } (opcional)
-   */
   const handleEditRole = async (id: number, payload: EditRoleData) => {
     const errors = validateRoleForm(payload, roles, id);
     if (errors.name) return showWarning(errors.name);
@@ -154,10 +145,8 @@ export const useRoles = () => {
       return showWarning("Debes seleccionar al menos un permiso/privilegio.");
     }
 
-    // 1) Reemplaza matriz de permisos/privilegios
     await updateRoleMatrix(id, items);
 
-    // 2) Parchea metadatos del rol (nombre/estado). El backend admite PATCH sin configurations.
     await patchRoleMeta(id, {
       name: payload.name.trim(),
       status: payload.state as "Activo" | "Inactivo",
@@ -168,7 +157,6 @@ export const useRoles = () => {
     showSuccess("Rol actualizado exitosamente!");
   };
 
-  /** DELETE */
   const handleDeleteRole = async (role: Role): Promise<boolean> => {
     return confirmDelete(
       {
@@ -217,7 +205,6 @@ export const useRoles = () => {
     }
   };
 
-  /** EDIT (abrir modal con permisos reales) */
   const handleEdit = async (role: Role) => {
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
