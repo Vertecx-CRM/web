@@ -1,4 +1,3 @@
-// src/features/dashboard/roles/index.tsx
 "use client";
 
 import React from "react";
@@ -20,7 +19,7 @@ export default function Index() {
     setIsEditModalOpen,
     isViewModalOpen,
     setIsViewModalOpen,
-    viewingRole, // ✅ uso directo del role que se está viendo
+    viewingRole,
     selectedRole,
     handleCreateRole,
     handleEditRole,
@@ -35,7 +34,6 @@ export default function Index() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
-            {/* Modales */}
             <CreateRoleModal
               open={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
@@ -53,11 +51,10 @@ export default function Index() {
 
             <ViewRoleModal
               open={isViewModalOpen}
-              role={viewingRole} // ✅ Aquí usamos viewingRole para que muestre el correcto
+              role={viewingRole} 
               onClose={() => setIsViewModalOpen(false)}
             />
 
-            {/* Tabla */}
             <RolesTable
               roles={roles}
               onView={(r) => { handleView(r); setIsViewModalOpen(true); }}

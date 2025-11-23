@@ -1,4 +1,3 @@
-// src/features/dashboard/roles/validations/rolesValidations.ts
 import { Role, CreateRoleData } from "@/features/dashboard/roles/types/typeRoles";
 
 export interface RoleErrors {

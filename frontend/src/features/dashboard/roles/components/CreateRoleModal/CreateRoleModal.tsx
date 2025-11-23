@@ -12,7 +12,6 @@ interface CreateRoleModalProps {
   onClose: () => void;
   onSubmit: (data: { name: string; permissions: string[] }) => void;
   existingRoles: Role[];
-  /** opcional: deshabilitar botón mientras crea */
   loading?: boolean;
 }
 
@@ -78,22 +77,6 @@ export default function CreateRoleModal({
     setTimeout(validateForm, 0);
   };
 
-  const toggleAllPermissions = () => {
-    const allSelected =
-      Object.values(permissions).reduce((a, arr) => a + arr.length, 0) ===
-      Object.values(allModulePermissions).reduce((a, arr) => a + arr.length, 0);
-
-    if (allSelected) {
-      setPermissions({});
-    } else {
-      const fullSelection: Record<string, string[]> = {};
-      Object.entries(allModulePermissions).forEach(([module, perms]) => {
-        fullSelection[module] = [...perms];
-      });
-      setPermissions(fullSelection);
-    }
-  };
-
   const validateForm = (): boolean => {
     const newErrors: { name?: string; permissions?: string } = {};
     if (!roleName.trim()) {
@@ -147,9 +130,8 @@ export default function CreateRoleModal({
         ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
     >
       <CheckIcon
-        className={`w-3 h-3 text-white transition-opacity duration-150 ${
-          checked ? "opacity-100" : "opacity-0"
-        }`}
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${checked ? "opacity-100" : "opacity-0"
+          }`}
       />
     </button>
   );
@@ -209,26 +191,10 @@ export default function CreateRoleModal({
                   className="text-base font-semibold"
                   style={{ color: Colors.texts.primary }}
                 >
-                  Asignar permisos y privilegios{" "}
-                  <span className="text-red-500">*</span>
+                  Asignar permisos y privilegios <span className="text-red-500">*</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={
-                      Object.values(permissions).reduce(
-                        (acc, arr) => acc + arr.length,
-                        0
-                      ) ===
-                      Object.values(allModulePermissions).reduce(
-                        (acc, arr) => acc + arr.length,
-                        0
-                      )
-                    }
-                    onChange={toggleAllPermissions}
-                  />
-                  <span className="text-sm">Seleccionar todos</span>
-                </div>
               </div>
+
 
               {errors.permissions && (
                 <p className="text-left text-xs text-red-500">
@@ -324,4 +290,4 @@ export default function CreateRoleModal({
       )}
     </AnimatePresence>
   );
-}
+} 

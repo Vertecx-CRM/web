@@ -20,6 +20,21 @@ export const RolesTable: React.FC<RolesTableProps> = ({
   onDelete,
   onCreate,
 }) => {
+
+  const handleProtectedEdit = (role: Role) => {
+    if (role.id === 1) {
+      return; 
+    }
+    onEdit(role);
+  };
+
+  const handleProtectedDelete = (role: Role) => {
+    if (role.id === 1) {
+      return; 
+    }
+    onDelete(role);
+  };
+
   const columns: Column<Role>[] = [
     { key: "id", header: "ID" },
     { key: "name", header: "Nombre" },
@@ -49,8 +64,8 @@ export const RolesTable: React.FC<RolesTableProps> = ({
       pageSize={6}
       searchableKeys={["id", "name", "state"]}
       onView={onView}
-      onEdit={onEdit}
-      onDelete={onDelete}
+      onEdit={handleProtectedEdit}
+      onDelete={handleProtectedDelete}
       onCreate={onCreate}
       searchPlaceholder="Buscar roles..."
       createButtonText="Crear Rol"

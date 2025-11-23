@@ -44,14 +44,13 @@ const permissionGroups: PermissionGroup[] = [
   { title: "Dashboard", permissions: ["Ver"] },
 ];
 
-/** Traducciones defensivas Backend -> UI (privilegios y módulos) */
 const PRIV_BACK_TO_UI: Record<string, "Crear" | "Ver" | "Editar" | "Eliminar"> =
-  {
-    create: "Crear",
-    read: "Ver",
-    update: "Editar",
-    delete: "Eliminar",
-  };
+{
+  create: "Crear",
+  read: "Ver",
+  update: "Editar",
+  delete: "Eliminar",
+};
 
 const MODULE_BACK_TO_UI: Record<string, string> = {
   Roles: "Roles",
@@ -63,7 +62,7 @@ const MODULE_BACK_TO_UI: Record<string, string> = {
   Supplier: "Proveedores",
   Purchases: "Compras",
   purchaseOrders: "Compras",
-  purcharse: "Compras", // typo común visto en tu backend
+  purcharse: "Compras",
   "Órdenes de Compra": "Órdenes de Compra",
   Orders: "Órdenes de Compra",
   "Service Request": "Solicitud de Servicio",
@@ -142,7 +141,6 @@ export default function EditRoleModal({
       return `${modUI}-${privUI}`;
     });
 
-    // 🔍 Marca los permisos correspondientes
     const mapped: Record<string, string[]> = {};
     permissionGroups.forEach((group) => {
       mapped[group.title] = group.permissions.filter((perm) =>
@@ -208,37 +206,13 @@ export default function EditRoleModal({
       const updated = allSelected
         ? []
         : [
-            ...(permissionGroups.find((g) => g.title === module)?.permissions ||
-              []),
-          ];
+          ...(permissionGroups.find((g) => g.title === module)?.permissions ||
+            []),
+        ];
       const newPermissions = { ...prev, [module]: updated };
       validateForm(undefined, newPermissions);
       return newPermissions;
     });
-  };
-
-  const handleToggleAllPermissions = () => {
-    const selectedNow = Object.values(permissions).reduce(
-      (acc, arr) => acc + arr.length,
-      0
-    );
-    const totalAll = permissionGroups.reduce(
-      (acc, g) => acc + g.permissions.length,
-      0
-    );
-    const allSelected = selectedNow === totalAll;
-
-    if (allSelected) {
-      setPermissions({});
-      validateForm(undefined, {});
-    } else {
-      const fullSelection: Record<string, string[]> = {};
-      permissionGroups.forEach((group) => {
-        fullSelection[group.title] = [...group.permissions];
-      });
-      setPermissions(fullSelection);
-      validateForm(undefined, fullSelection);
-    }
   };
 
   const handleSubmit = async () => {
@@ -252,7 +226,6 @@ export default function EditRoleModal({
       return;
     }
 
-    // No cerramos aquí. El hook cierra el modal cuando el guardado finaliza OK.
     await onSave(role.id, {
       id: role.id,
       name: name.trim(),
@@ -276,9 +249,8 @@ export default function EditRoleModal({
       aria-pressed={checked}
     >
       <CheckIcon
-        className={`w-3 h-3 text-white transition-opacity duration-150 ${
-          checked ? "opacity-100" : "opacity-0"
-        }`}
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${checked ? "opacity-100" : "opacity-0"
+          }`}
       />
     </button>
   );
@@ -364,23 +336,8 @@ export default function EditRoleModal({
                 >
                   Permisos Asignados <span className="text-red-500">*</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={
-                      Object.values(permissions).reduce(
-                        (acc, arr) => acc + arr.length,
-                        0
-                      ) ===
-                      permissionGroups.reduce(
-                        (acc, g) => acc + g.permissions.length,
-                        0
-                      )
-                    }
-                    onChange={handleToggleAllPermissions}
-                  />
-                  <span className="text-sm">Seleccionar todos</span>
-                </div>
               </div>
+
 
               {errors.permissions && (
                 <p className="text-left text-xs text-red-500">
