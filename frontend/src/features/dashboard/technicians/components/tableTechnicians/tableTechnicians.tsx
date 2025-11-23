@@ -1,4 +1,3 @@
-// src/features/dashboard/technicians/components/tableTechnicians/tableTechnicians.tsx
 "use client";
 
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
