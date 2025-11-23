@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import {
@@ -53,7 +53,7 @@ export const useUser = () => {
         typeid: userData.typeid,
         image: userData.image || null,
         stateid: userData.stateid,
-        roleconfigurationid: userData.roleconfigurationid,
+        roleid: userData.roleid,
         // Campos condicionales
         ...(userData.CV !== undefined && { CV: userData.CV }),
         ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
@@ -92,7 +92,7 @@ export const useUser = () => {
         typeid: userData.typeid,
         image: userData.image || null,
         stateid: userData.stateid,
-        roleconfigurationid: userData.roleconfigurationid,
+        roleid: userData.roleid,
         ...(userData.CV !== undefined && { CV: userData.CV }),
         ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
         ...(userData.customercity !== undefined && { customercity: userData.customercity }),
@@ -170,3 +170,4 @@ export const useUser = () => {
     closeModals,
   };
 };
+

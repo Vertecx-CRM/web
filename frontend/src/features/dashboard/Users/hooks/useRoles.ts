@@ -2,29 +2,9 @@ import { useEffect, useState } from "react";
 import { fetchRoles } from "../connection/rolesApi";
 
 export interface Role {
-  roleconfigurationid: number;
-  roleid?: number;
-  permissionid?: number;
-  privilegeid?: number;
-
-  role?: {
-    id: number;
-    name: string;
-    status?: string;
-  };
-
-  permission?: {
-    id: number;
-    module: string;
-  };
-
-  privilege?: {
-    id: number;
-    name: string;
-  };
-
-  createat?: string;
-  updateat?: string | null;
+  roleid: number;
+  name: string;
+  status?: string;
 }
 
 export const useRoles = () => {
@@ -36,9 +16,17 @@ export const useRoles = () => {
       setLoading(true);
       try {
         const data = await fetchRoles();
+        const list: Role[] = Array.isArray(data)
+          ? data
+          : Array.isArray((data as any)?.data)
+          ? (data as any).data
+          : [];
 
-        // Filtramos solo los roles activos
-        const activeRoles = data.filter((item: Role) => item.role?.status === 'active');
+        const activeRoles = list.filter((item) => {
+          if (!item.status) return true;
+          const status = String(item.status).toLowerCase();
+          return status === "active" || status === "activo";
+        });
 
         setRoles(activeRoles);
       } catch (error) {

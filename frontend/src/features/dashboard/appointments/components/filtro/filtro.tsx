@@ -53,7 +53,7 @@ export const AppointmentFilters: React.FC<AppointmentFiltersProps> = ({
             const nombre = [t?.users?.name, t?.users?.lastname].filter(Boolean).join(" ").trim() || `Tecnico ${id}`;
             const titulo =
               t?.technicianTypeMaps?.[0]?.techniciantype?.name ??
-              t?.users?.roleconfiguration?.roles?.rolename ??
+              t?.users?.roles?.name ??
               "Tecnico";
             return { id: Number(id), nombre, titulo } as Technician;
           });

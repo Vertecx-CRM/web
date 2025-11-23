@@ -31,7 +31,7 @@ export const useCreateUserForm = ({
     documentnumber: "",
     image: null,
     stateid: 1,
-    roleconfigurationid: 0,
+    roleid: 0,
     CV: null,
     techniciantypeids: [],
     customercity: "",
@@ -50,7 +50,7 @@ export const useCreateUserForm = ({
     typeid: "",
     stateid: "",
     image: "",
-    roleconfigurationid: "",
+    roleid: "",
     CV: "",
     techniciantypeids: "",
     customercity: "",
@@ -69,7 +69,7 @@ export const useCreateUserForm = ({
     typeid: false,
     stateid: false,
     image: false,
-    roleconfigurationid: false,
+    roleid: false,
     CV: false,
     techniciantypeids: false,
     customercity: false,
@@ -81,34 +81,29 @@ export const useCreateUserForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNit, setIsNit] = useState(false);
 
-  /** Detectar el nombre del rol actual */
   const getRoleName = (roleId: number): string => {
-    const found = roles.find((r) => r.roleconfigurationid === roleId);
-    return found?.role?.name?.toLowerCase() || "";
+    const found = roles.find((r) => r.roleid === roleId);
+    return found?.name?.toLowerCase() || "";
   };
 
-  /** Detectar si el documento seleccionado es NIT */
   useEffect(() => {
-    setIsNit(formData.typeid === 4); 
+    setIsNit(formData.typeid === 4);
   }, [formData.typeid]);
 
-  /** Ajustes automáticos si es NIT */
   useEffect(() => {
     if (isNit) {
       const clienteRole = roles.find(
-        (r) => r.role?.name?.toLowerCase() === "cliente"
+        (r) => r.name?.toLowerCase() === "cliente"
       );
 
       setFormData((prev) => ({
         ...prev,
         lastname: "",
-        roleconfigurationid:
-          clienteRole?.roleconfigurationid || prev.roleconfigurationid,
+        roleid: clienteRole?.roleid || prev.roleid,
       }));
     }
   }, [isNit, roles]);
 
-  /** Subida de imagen */
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -131,7 +126,6 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** Subida de CV */
   const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -154,7 +148,6 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** Manejadores de cambio */
   const handleInputChange = (
     field: keyof CreateUserData,
     value: string | number | File | null
@@ -205,7 +198,6 @@ export const useCreateUserForm = ({
     setPreviewCV(null);
   };
 
-  /** Validación individual */
   const handleBlur = (field: keyof FormTouched) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value = formData[field as keyof CreateUserData];
@@ -220,10 +212,7 @@ export const useCreateUserForm = ({
       value,
       {
         ...formData,
-        roleconfiguration: {
-          roleconfigurationid: formData.roleconfigurationid,
-          roles: { name: getRoleName(formData.roleconfigurationid) },
-        },
+        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
       } as unknown as User,
       users,
       false
@@ -232,17 +221,13 @@ export const useCreateUserForm = ({
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  /** Envío del formulario */
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
     const valid = validateFormWithNotification(
       {
         ...formData,
-        roleconfiguration: {
-          roleconfigurationid: formData.roleconfigurationid,
-          roles: { name: getRoleName(formData.roleconfigurationid) },
-        },
+        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
       } as unknown as User,
       users,
       setErrors,
@@ -285,7 +270,6 @@ export const useCreateUserForm = ({
     }
   };
 
-  /** Reset al abrir modal */
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -297,7 +281,7 @@ export const useCreateUserForm = ({
         documentnumber: "",
         image: null,
         stateid: 1,
-        roleconfigurationid: 0,
+        roleid: 0,
         CV: null,
         techniciantypeids: [],
         customercity: "",
@@ -315,7 +299,7 @@ export const useCreateUserForm = ({
         typeid: "",
         stateid: "",
         image: "",
-        roleconfigurationid: "",
+        roleid: "",
         CV: "",
         techniciantypeids: "",
         customercity: "",
@@ -333,7 +317,7 @@ export const useCreateUserForm = ({
         typeid: false,
         stateid: false,
         image: false,
-        roleconfigurationid: false,
+        roleid: false,
         CV: false,
         techniciantypeids: false,
         customercity: false,

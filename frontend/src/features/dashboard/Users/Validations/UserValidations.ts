@@ -9,12 +9,11 @@ export const validateField = (
   isEditMode: boolean = false
 ): string => {
   let error = "";
-  const specialChars = /[@,.;:\_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>ç]/;
+  const specialChars = /[@,.;:_\{\[\}^\]`+*~¡¿?\\'=)(/&%$#"|<>]/;
 
-  const roleName = formData.roleconfiguration?.roles?.name?.toLowerCase() || "";
+  const roleName = formData.roles?.name?.toLowerCase() || "";
   const trimmedValue = String(value).trim().toLowerCase();
 
-  // Detectar si el documento es NIT (por ID)
   const isNit = Number(formData.typeid) === 4;
 
   switch (fieldName) {
@@ -25,49 +24,31 @@ export const validateField = (
     case "documentnumber":
       if (!value.trim()) {
         error = "El número de documento es obligatorio";
-      }
-
-      // Validación especial para NIT
-      else if (isNit) {
+      } else if (isNit) {
         if (!/^\d{5,12}-\d{1}$/.test(value)) {
           error = "El NIT debe tener formato válido (Ejemplo: 900123456-7)";
         } else if (!value.includes("-")) {
           error = "El NIT debe incluir un guion (-)";
         }
-      }
-
-      // Validación para PPT (7 dígitos exactos)
-      else if (Number(formData.typeid) === 2) {
+      } else if (Number(formData.typeid) === 2) {
         if (!/^\d{7}$/.test(value)) {
           error = "El número de PPT debe tener exactamente 7 dígitos numéricos";
         }
-      }
-
-      // Validación para Pasaporte (2 letras + 6 números)
-      else if (Number(formData.typeid) === 3) {
+      } else if (Number(formData.typeid) === 3) {
         if (!/^[A-Za-z]{2}\d{6}$/.test(value)) {
           error =
             "El pasaporte debe tener 2 letras seguidas de 6 números (Ejemplo: AB123456)";
         }
-      }
-
-      // Validación para Cédula de Extranjería (9 dígitos exactos)
-      else if (Number(formData.typeid) === 5) {
+      } else if (Number(formData.typeid) === 5) {
         if (!/^\d{9}$/.test(value)) {
           error =
             "La Cédula de Extranjería debe tener exactamente 9 dígitos numéricos";
         }
-      }
-
-      // Validación para Visa (VI) - 12 dígitos exactos
-      else if (Number(formData.typeid) === 6) {
+      } else if (Number(formData.typeid) === 6) {
         if (!/^\d{12}$/.test(value)) {
           error = "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
         }
-      }
-
-      // Validación para documentos normales
-      else {
+      } else {
         if (!/^\d+$/.test(value)) {
           error = "El documento solo puede contener números";
         } else if (value.length > 10) {
@@ -75,7 +56,6 @@ export const validateField = (
         }
       }
 
-      // Validar duplicado
       if (!error) {
         const duplicate = users.find(
           (u) =>
@@ -86,7 +66,6 @@ export const validateField = (
           error = "Ya existe un usuario con este número de documento";
       }
       break;
-
 
     case "name":
       if (!value.trim()) {
@@ -100,7 +79,6 @@ export const validateField = (
       }
       break;
 
-    // Apellido: se ignora si es NIT
     case "lastname":
       if (isNit) break;
       if (!value.trim()) {
@@ -167,7 +145,7 @@ export const validateField = (
       if (!String(value).trim()) error = "El estado es obligatorio";
       break;
 
-    case "roleconfigurationid":
+    case "roleid":
       if (!String(value).trim() || value === "0") {
         error = "El rol es obligatorio";
       }
@@ -233,9 +211,6 @@ export const validateField = (
   return error;
 };
 
-/**
- * Valida todos los campos del formulario completo.
- */
 export const validateAllFields = (
   formData: User,
   users: User[],
@@ -269,7 +244,7 @@ export const validateAllFields = (
     typeid: validateField("typeid", String(withDefaults.typeid || ""), withDefaults, users, isEditMode),
     stateid: validateField("stateid", String(withDefaults.stateid || ""), withDefaults, users, isEditMode),
     image: "",
-    roleconfigurationid: validateField("roleconfigurationid", String(withDefaults.roleconfigurationid || ""), withDefaults, users, isEditMode),
+    roleid: validateField("roleid", String(withDefaults.roleid || ""), withDefaults, users, isEditMode),
     CV: validateField("CV", withDefaults.CV, withDefaults, users, isEditMode),
     techniciantypeids: validateField("techniciantypeids", "", withDefaults, users, isEditMode),
     customercity: validateField("customercity", withDefaults.customercity, withDefaults, users, isEditMode),
@@ -277,15 +252,9 @@ export const validateAllFields = (
   };
 };
 
-/**
- * Verifica si existen errores
- */
 export const hasErrors = (errors: FormErrors): boolean =>
   Object.values(errors).some((e) => e !== "");
 
-/**
- * Valida formulario completo con notificación global (solo al guardar)
- */
 export const validateFormWithNotification = (
   formData: User,
   users: User[],

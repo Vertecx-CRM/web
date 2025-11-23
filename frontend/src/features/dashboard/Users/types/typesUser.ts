@@ -14,25 +14,12 @@ export interface User {
   confirmPassword?: string;
   states?: any;
   typeofdocuments?: any;
-  roleconfigurationid: number;
-
-  roleconfiguration?: {
-    roleconfigurationid: number;
-    roles?: {
-      id: number;
-      name: string;
-      status?: string;
-    };
-    permission?: {
-      id: number;
-      module: string;
-    };
-    privilege?: {
-      id: number;
-      name: string;
-    };
+  roleid: number;
+  roles?: {
+    roleid: number;
+    name: string;
+    status?: string;
   };
-
   technicians?: {
     technicianid: number;
     CV: string;
@@ -50,6 +37,7 @@ export interface User {
 
 export interface UserForTable extends User {
   id: number;
+  userid: number;
 }
 
 export interface CreateUserData {
@@ -61,18 +49,11 @@ export interface CreateUserData {
   documentnumber: string;
   image?: string | File | null;
   stateid: number;
-  roleconfigurationid: number;
+  roleid: number;
   CV?: string | File | null;
   techniciantypeids?: number[];
   customercity?: string;
   customerzipcode?: string;
-  roleconfiguration?: {
-    roleconfigurationid: number;
-    roles?: {
-      id?: number;
-      name?: string;
-    };
-  };
 }
 
 export interface EditUser {
@@ -85,7 +66,7 @@ export interface EditUser {
   typeid: number;
   image?: string | File | null;
   stateid: number;
-  roleconfigurationid: number;
+  roleid: number;
   CV?: string | File | null;
   techniciantypeids?: number[];
   customercity?: string;
@@ -104,7 +85,7 @@ export interface FormErrors {
   typeid: string;
   stateid: string;
   image: string;
-  roleconfigurationid: string;
+  roleid: string;
   CV: string;
   techniciantypeids: string;
   customercity: string;
@@ -123,14 +104,12 @@ export interface FormTouched {
   typeid: boolean;
   stateid: boolean;
   image: boolean;
-  roleconfigurationid: boolean;
+  roleid: boolean;
   CV: boolean;
   techniciantypeids: boolean;
   customercity: boolean;
   customerzipcode: boolean;
 }
-
-
 
 export interface CreateUserModalProps {
   isOpen: boolean;
@@ -157,8 +136,4 @@ export interface UsersTableProps {
   onEdit: (user: EditUser) => void;
   onDelete: (user: User) => void;
   onCreate: () => void;
-}
-
-export interface UserForTable extends Omit<User, "userid"> {
-  userid: number;
 }

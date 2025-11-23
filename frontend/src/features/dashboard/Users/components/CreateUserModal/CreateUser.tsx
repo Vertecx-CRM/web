@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React from "react";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
@@ -39,8 +39,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   // Determinar el rol seleccionado
   const selectedRole =
-    roles.find((r) => r.roleconfigurationid === formData.roleconfigurationid)
-      ?.role?.name || "";
+    roles.find((r) => r.roleid === formData.roleid)?.name || "";
   const isTecnico = selectedRole.toLowerCase() === "tecnico";
   const isCliente = selectedRole.toLowerCase() === "cliente";
 
@@ -127,7 +126,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
             </select>
 
-            {/* Número */}
+            {/* Numero */}
             <div className="flex-1 flex flex-col">
               <input
                 type="text"
@@ -219,7 +218,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             <input
               type="tel"
               name="phone"
-              placeholder={isNit ? "Ingrese teléfono de la empresa" : "Ingrese su teléfono"}
+              placeholder={isNit ? "Ingrese Teléfono de la empresa" : "Ingrese su Teléfono"}
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -261,16 +260,16 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         <div>
           <label className="block text-sm font-medium mb-1">Rol</label>
           <select
-            name="roleconfigurationid"
-            value={formData.roleconfigurationid}
+            name="roleid"
+            value={formData.roleid}
             onChange={handleSelectChange}
-            onBlur={() => handleBlur("roleconfigurationid")}
+            onBlur={() => handleBlur("roleid")}
             disabled={isNit}
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
               }`}
             style={{
               borderColor:
-                errors.roleconfigurationid && touched.roleconfigurationid
+                errors.roleid && touched.roleid
                   ? "red"
                   : Colors.table.lines,
             }}
@@ -282,15 +281,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               <option>No hay roles disponibles</option>
             ) : (
               roles.map((r) => (
-                <option key={r.roleconfigurationid} value={r.roleconfigurationid}>
-                  {r.role?.name}
+                <option key={r.roleid} value={r.roleid}>
+                  {r.name}
                 </option>
               ))
             )}
           </select>
-          {errors.roleconfigurationid && touched.roleconfigurationid && (
+          {errors.roleid && touched.roleid && (
             <span className="text-red-500 text-xs mt-1">
-              {errors.roleconfigurationid}
+              {errors.roleid}
             </span>
           )}
         </div>
@@ -334,7 +333,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </div>
         </div>
 
-        {/* Técnico */}
+        {/* técnico */}
         {isTecnico && (
           <>
             {/* CV */}
@@ -386,10 +385,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
             </div>
 
-            {/* Tipos de Técnico */}
+            {/* Tipos de técnico */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de Técnico
+                Tipos de técnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
@@ -490,3 +489,4 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 };
 
 export default CreateUserModal;
+

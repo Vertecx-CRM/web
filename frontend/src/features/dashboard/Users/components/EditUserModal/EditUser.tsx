@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React from "react";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
@@ -45,8 +45,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
   // Determinar rol seleccionado
   const selectedRole =
-    roles.find((r) => r.roleconfigurationid === formData.roleconfigurationid)
-      ?.role?.name || "";
+    roles.find((r) => r.roleid === formData.roleid)?.name || "";
   const isTecnico = selectedRole.toLowerCase() === "tecnico";
   const isCliente = selectedRole.toLowerCase() === "cliente";
 
@@ -138,7 +137,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           </div>
         </div>
 
-        {/* Tipo y número de documento */}
+        {/* Tipo y nÃºmero de documento */}
         <div>
           <label className="block text-sm font-medium mb-1">Documento</label>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -174,7 +173,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="documentnumber"
-                placeholder="Número de documento"
+                placeholder="NÃºmero de documento"
                 value={formData.documentnumber}
                 onChange={handleTextChange}
                 onBlur={() => handleBlur("documentnumber")}
@@ -252,14 +251,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </div>
 
 
-        {/* Teléfono y Correo */}
+        {/* TelÃ©fono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{isNit ? "Teléfono de la empresa" : "Teléfono"}</label>
+            <label className="block text-sm font-medium mb-1">{isNit ? "TelÃ©fono de la empresa" : "TelÃ©fono"}</label>
             <input
               type="tel"
               name="phone"
-              placeholder="Ingrese su teléfono"
+              placeholder="Ingrese su telÃ©fono"
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -299,16 +298,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         <div>
           <label className="block text-sm font-medium mb-1">Rol</label>
           <select
-            name="roleconfigurationid"
-            value={formData.roleconfigurationid}
+            name="roleid"
+            value={formData.roleid}
             onChange={handleSelectChange}
-            onBlur={() => handleBlur("roleconfigurationid")}
+            onBlur={() => handleBlur("roleid")}
             disabled={isNit} 
             className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
               }`}
             style={{
               borderColor:
-                errors.roleconfigurationid && touched.roleconfigurationid
+                errors.roleid && touched.roleid
                   ? "red"
                   : Colors.table.lines,
             }}
@@ -319,19 +318,19 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             ) : roles.length === 0 ? (
               <option>No hay roles disponibles</option>
             ) : (
-              roles.map((r) => (
-                <option
-                  key={r.roleconfigurationid}
-                  value={r.roleconfigurationid}
-                >
-                  {r.role?.name}
+                roles.map((r) => (
+                  <option
+                    key={r.roleid}
+                    value={r.roleid}
+                  >
+                    {r.name}
                 </option>
               ))
             )}
           </select>
-          {errors.roleconfigurationid && touched.roleconfigurationid && (
+          {errors.roleid && touched.roleid && (
             <span className="text-red-500 text-xs mt-1">
-              {errors.roleconfigurationid}
+              {errors.roleid}
             </span>
           )}
         </div>
@@ -358,7 +357,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           )}
         </div>
 
-        {/* CV y tipos de técnico */}
+        {/* CV y tipos de tÃ©cnico */}
         {isTecnico && (
           <>
             <div>
@@ -416,7 +415,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de Técnico
+                Tipos de TÃ©cnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
@@ -498,12 +497,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                Código Postal
+                CÃ³digo Postal
               </label>
               <input
                 type="text"
                 name="customerzipcode"
-                placeholder="Código postal"
+                placeholder="CÃ³digo postal"
                 value={formData.customerzipcode || ""}
                 onChange={(e) =>
                   handleInputChange("customerzipcode", e.target.value)
@@ -531,3 +530,4 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 };
 
 export default EditUserModal;
+
