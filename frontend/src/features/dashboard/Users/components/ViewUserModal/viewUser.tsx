@@ -32,7 +32,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
     user.lastname === "";
 
   // Detectar rol
-  const roleName = user.roleconfiguration?.roles?.name?.toLowerCase() || "";
+  const roleName = user.roles?.name?.toLowerCase() || "";
   const isTecnico = roleName === "tecnico";
   const isCliente = roleName === "cliente";
 
@@ -183,7 +183,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
             Rol
           </label>
           <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-            {user.roleconfiguration?.roles?.name || "Sin rol"}
+            {user.roles?.name || "Sin rol"}
           </div>
         </div>
 

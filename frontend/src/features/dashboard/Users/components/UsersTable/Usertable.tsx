@@ -48,10 +48,9 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     { key: "phone", header: "Teléfono" },
     { key: "email", header: "Correo Electrónico" },
     {
-      key: "roleconfiguration",
+      key: "roles",
       header: "Rol",
-      render: (u) =>
-        u.roleconfiguration?.roles?.name || "Sin rol"
+      render: (u) => u.roles?.name || "Sin rol",
     },
     {
       key: "stateid",

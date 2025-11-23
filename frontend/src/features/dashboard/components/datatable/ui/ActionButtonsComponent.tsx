@@ -11,6 +11,7 @@
     onCheck,
     renderExtraActions,
     compact = false,
+    actionGuard,
   }: {
     row: any;
     onView?: (row: any) => void;
@@ -20,9 +21,21 @@
     onCheck?: (row: any) => void;
     renderExtraActions?: (row: any) => React.ReactNode;
     compact?: boolean;
+    actionGuard?: (
+      row: any,
+    ) => {
+      disableEdit?: boolean;
+      disableDelete?: boolean;
+      editTitle?: string;
+      deleteTitle?: string;
+    };
   }) {
     const [showDropdown, setShowDropdown] = useState(false);
-    const isAdmin = row.id === 1;
+    const guard = actionGuard?.(row) ?? {};
+    const editDisabled = guard.disableEdit ?? false;
+    const deleteDisabled = guard.disableDelete ?? false;
+    const editTitle = guard.editTitle ?? "Editar";
+    const deleteTitle = guard.deleteTitle ?? "Eliminar";
 
     if (compact) {
       return (
@@ -51,15 +64,15 @@
 
               {onEdit && (
                 <button
-                  disabled={isAdmin}
-                  title={isAdmin ? "No se puede editar este rol" : "Editar"}
+                  disabled={editDisabled}
+                  title={editDisabled ? editTitle : "Editar"}
                   onClick={() => {
-                    if (isAdmin) return;
+                    if (editDisabled) return;
                     onEdit(row);
                     setShowDropdown(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-xs ${
-                    isAdmin
+                    editDisabled
                       ? "opacity-40 cursor-not-allowed"
                       : "hover:bg-gray-50"
                   }`}
@@ -70,15 +83,15 @@
 
               {onDelete && (
                 <button
-                  disabled={isAdmin}
-                  title={isAdmin ? "No se puede eliminar este rol" : "Eliminar"}
+                  disabled={deleteDisabled}
+                  title={deleteDisabled ? deleteTitle : "Eliminar"}
                   onClick={() => {
-                    if (isAdmin) return;
+                    if (deleteDisabled) return;
                     onDelete(row);
                     setShowDropdown(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-xs ${
-                    isAdmin
+                    deleteDisabled
                       ? "opacity-40 cursor-not-allowed text-gray-400"
                       : "hover:bg-gray-50 text-red-600"
                   }`}
@@ -105,18 +118,18 @@
         {onEdit && (
           <ActionButton
             icon="/icons/Edit.svg"
-            title={isAdmin ? "No se puede editar este rol" : "Editar"}
+            title={editDisabled ? editTitle : "Editar"}
             onClick={() => onEdit(row)}
-            disabled={isAdmin}
+            disabled={editDisabled}
           />
         )}
 
         {onDelete && (
           <ActionButton
             icon="/icons/delete.svg"
-            title={isAdmin ? "No se puede eliminar este rol" : "Eliminar"}
+            title={deleteDisabled ? deleteTitle : "Eliminar"}
             onClick={() => onDelete(row)}
-            disabled={isAdmin}
+            disabled={deleteDisabled}
           />
         )}
 

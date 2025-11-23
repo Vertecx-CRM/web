@@ -6,6 +6,11 @@ import {
   TechnicianState
 } from "../types/typesTechnicians";
 
+export type TechnicianTypeApi = {
+  techniciantypeid: number;
+  name: string;
+};
+
 type TechnicianFromApi = {
   technicianid: number;
   CV: string | null;
@@ -58,6 +63,11 @@ export const getTechnicians = async (): Promise<Technician[]> => {
   });
 };
 
+export const getTechnicianTypes = async (): Promise<TechnicianTypeApi[]> => {
+  const { data } = await api.get<TechnicianTypeApi[]>("/techniciantypes");
+  return Array.isArray(data) ? data : [];
+};
+
 export type CreateTechnicianPayload = {
   name: string;
   lastname: string;
@@ -67,7 +77,7 @@ export type CreateTechnicianPayload = {
   techniciantypeids: number[];
   CV?: string | null;
   image?: string | null;
-  roleconfigurationid?: number;
+  roleid?: number;
 
   typeid: number;
 };
@@ -88,8 +98,7 @@ export const createTechnician = async (
   };
 
   if (payload.image) body.image = payload.image;
-  if (payload.roleconfigurationid)
-    body.roleconfigurationid = payload.roleconfigurationid;
+  if (payload.roleid) body.roleid = payload.roleid;
 
   const { data } = await api.post<TechnicianFromApi>("/technicians", body);
   return data;
@@ -105,7 +114,7 @@ export type UpdateTechnicianPayload = {
   techniciantypeids?: number[];
   CV?: string | null;
   image?: string | null;
-  roleconfigurationid?: number;
+  roleid?: number;
   typeid?: number;
 };
 

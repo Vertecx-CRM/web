@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
 import { useRequestStates } from "../hooks/useRequestStates";
+import { splitDateTime } from "../utils/schedule";
 
 export type EditRequestPayload = {
   tipos: ("Mantenimiento" | "Instalacion")[];
@@ -11,6 +12,7 @@ export type EditRequestPayload = {
   direccion: string;
   cliente: string;
   programada?: string | null;
+  horaProgramada?: string | null;
   estado?: string;
 };
 
@@ -23,18 +25,6 @@ type Props = {
   clientes?: Option[];
   initial: EditRequestPayload & { estado?: string };
 };
-
-function toDateOnly(v: string | null | undefined) {
-  if (!v) return "";
-  const s = String(v);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "";
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 export default function EditRequestModal({
   isOpen,
@@ -51,6 +41,7 @@ export default function EditRequestModal({
   const [descripcion, setDescripcion] = useState("");
   const [direccion, setDireccion] = useState("");
   const [programada, setProgramada] = useState<string | null>(null);
+  const [horaProgramada, setHoraProgramada] = useState<string | null>(null);
   const [estado, setEstado] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [saving, setSaving] = useState(false);
@@ -58,12 +49,14 @@ export default function EditRequestModal({
 
   useEffect(() => {
     if (!initial) return;
+    const parts = splitDateTime(initial.programada ?? null);
     setTipo(initial.tipos?.[0] ?? null);
     setServicio(initial.servicio ?? "");
     setCliente(initial.cliente ?? "");
     setDescripcion(initial.descripcion ?? "");
     setDireccion(initial.direccion ?? "");
-    setProgramada(toDateOnly(initial.programada) || null);
+    setProgramada(parts.date);
+    setHoraProgramada(initial.horaProgramada ?? parts.time);
     setEstado(initial.estado ?? "");
     setSaving(false);
   }, [initial, isOpen]);
@@ -76,6 +69,9 @@ export default function EditRequestModal({
     e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
     e.direccion = direccion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
     e.estado = estado ? null : "Selecciona un estado.";
+    if (programada && !horaProgramada) {
+      e.horaProgramada = "Selecciona la hora.";
+    }
     setErrors(e);
     return Object.values(e).every((x) => !x);
   }
@@ -90,6 +86,7 @@ export default function EditRequestModal({
       direccion: direccion.trim(),
       cliente,
       programada: programada || null,
+      horaProgramada: horaProgramada || (programada ? "09:00" : null),
       estado,
     });
     onClose();
@@ -219,6 +216,17 @@ export default function EditRequestModal({
               className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
               disabled={saving}
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Hora</label>
+            <input
+              type="time"
+              value={horaProgramada ?? ""}
+              onChange={(e) => setHoraProgramada(e.target.value || null)}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              disabled={saving}
+            />
+            {errors.horaProgramada && <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>}
           </div>
         </div>
 

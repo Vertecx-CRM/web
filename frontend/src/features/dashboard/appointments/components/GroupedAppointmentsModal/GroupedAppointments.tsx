@@ -94,7 +94,7 @@ export const GroupedAppointmentsModal: React.FC<GroupedAppointmentsModalProps> =
                 : Colors.states.appointment[estado] ||
                   { background: "#eee", text: "#333" };
 
-            const tipoServicio = appointment.orden?.tipoServicio || "N/A";
+            const tipoServicio = appointment.servicio || appointment.orden?.tipoServicio || "N/A";
 
             return (
               <div

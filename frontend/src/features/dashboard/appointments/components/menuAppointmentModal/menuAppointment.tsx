@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { createPortal } from 'react-dom';
 import Colors from '@/shared/theme/colors';
 import { AppointmentDetailsModalProps, Order } from '../../types/typeAppointment';
@@ -32,7 +32,7 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
 
   const handleCancelledClick = () => {
     if (appointment.estado === "Cancelado") {
-      showWarning("La cita ya está cancelada.");
+      showWarning("La cita ya est cancelada.");
       return;
     } else if (appointment.estado === "Finalizado") {
       showWarning("No se puede cancelar una cita finalizada.");
@@ -43,19 +43,10 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
     onCancel(appointment);
   }
 
-  let currentOrder: Order | null = null;
-  currentOrder = appointment.orden || null;
+  const clientName = appointment.nombreCliente || appointment.orden?.cliente || "Sin cliente";
+  const tipoServicio = appointment.servicio || appointment.tipoServicioSolicitud || appointment.orden?.tipoServicio || "Sin servicio";
 
-  const clientName = currentOrder?.cliente || "Sin cliente";
-  const tipoServicio = currentOrder?.tipoServicio || "Sin servicio";
-  const tipoMantenimiento = currentOrder?.tipoMantenimiento || "";
-
-  const titleText = currentOrder
-    ? `${clientName} (${tipoServicio === "mantenimiento"
-      ? `Mantenimiento - ${tipoMantenimiento}`
-      : "Instalación"
-    })`
-    : "Sin orden asignada";
+  const titleText = `${clientName} - ${tipoServicio}`;
 
   return createPortal(
     <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
@@ -117,20 +108,23 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="font-medium" style={{ color: Colors.texts.primary }}>
-                  {appointment.tecnicos?.[0]?.nombre || 'Técnico no asignado'} - {appointment.tecnicos?.[0]?.titulo || ''}
+                  {clientName}
                 </span>
                 <span className="text-sm" style={{ color: Colors.texts.secondary }}>
-                  {appointment.dia}/{appointment.mes}/{appointment.año}
+                  {appointment.dia}/{appointment.mes}/{appointment.ano}
                 </span>
               </div>
               <div className="text-sm" style={{ color: Colors.texts.secondary }}>
                 {appointment.horaInicio}:{appointment.minutoInicio} - {appointment.horaFin}:{appointment.minutoFin}
               </div>
+              <div className="text-sm mt-1" style={{ color: Colors.texts.secondary }}>
+                {tipoServicio}
+              </div>
             </div>
             <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px]" style={{ outlineColor: Colors.table.lines }}></div>
             <div>
               <label className="block text-sm font-medium mb-2" style={{ color: Colors.texts.primary }}>
-                Observación
+                Observacin
               </label>
               <div
                 className="w-full px-3 py-2 border rounded-md min-h-[80px] overflow-y-auto break-words"
@@ -178,7 +172,7 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
                       className="px-3 py-2 border rounded-md text-sm"
                       style={{ borderColor: Colors.table.lines }}
                     >
-                      Hora cancelación:{" "}
+                      Hora cancelacin:{" "}
                       {new Date(appointment.horaCancelacion).toLocaleTimeString(
                         "es-CO",
                         {
@@ -199,3 +193,10 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
     document.body
   );
 };
+
+
+
+
+
+
+

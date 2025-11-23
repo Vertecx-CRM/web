@@ -13,7 +13,6 @@ import {
 import { showWarning } from "@/shared/utils/notifications";
 import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
-import { useDocumentTypes } from "./useDocumentTypes";
 
 export const useEditUserForm = ({
   isOpen,
@@ -23,8 +22,6 @@ export const useEditUserForm = ({
 }: EditUserModalProps) => {
   const { users } = useUser();
   const { roles } = useRoles();
-  const { documentTypes } = useDocumentTypes();
-
   const [originalCV, setOriginalCV] = useState<string | null>(null);
   const [isNit, setIsNit] = useState<boolean>(false);
   const [formData, setFormData] = useState<EditUser>({
@@ -37,7 +34,7 @@ export const useEditUserForm = ({
     typeid: 0,
     image: null,
     stateid: 1,
-    roleconfigurationid: 0,
+    roleid: 0,
     CV: null,
     techniciantypeids: [],
     customercity: "",
@@ -50,18 +47,13 @@ export const useEditUserForm = ({
   const [previewCV, setPreviewCV] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /** Detectar si el tipo de documento seleccionado es NIT */
-  const checkIfNit = (typeId: number): boolean => {
-    return typeId === 4; // 4 = NIT
-  };
+  const checkIfNit = (typeId: number): boolean => typeId === 4;
 
-  /** Obtener nombre del rol */
   const getRoleName = (roleId: number): string => {
-    const found = roles.find((r) => r.roleconfigurationid === roleId);
-    return found?.role?.name?.toLowerCase() || "";
+    const found = roles.find((r) => r.roleid === roleId);
+    return found?.name?.toLowerCase() || "";
   };
 
-  /** Subida de imagen a Cloudinary */
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -85,7 +77,6 @@ export const useEditUserForm = ({
     }
   };
 
-  /** Subida de CV a Cloudinary */
   const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
     const CLOUD_NAME = "ditjhxzre";
     const UPLOAD_PRESET = "Vertecx";
@@ -108,7 +99,6 @@ export const useEditUserForm = ({
     }
   };
 
-  /** Manejador de cambios */
   const handleInputChange = (
     field: keyof EditUser,
     value: string | number | File | null
@@ -116,19 +106,17 @@ export const useEditUserForm = ({
     setFormData((prev) => {
       const newData = { ...prev, [field]: value };
 
-      // Detectar cambio de tipo de documento → verificar si es NIT
       if (field === "typeid" && typeof value === "number") {
-        const isNitDoc = checkIfNit(value);
-        setIsNit(isNitDoc);
+        const nitDoc = checkIfNit(value);
+        setIsNit(nitDoc);
 
-        if (isNitDoc) {
+        if (nitDoc) {
           newData.lastname = "";
-          // Cambiar automáticamente rol a Cliente
           const clienteRole = roles.find(
-            (r) => r.role?.name?.toLowerCase() === "cliente"
+            (r) => r.name?.toLowerCase() === "cliente"
           );
           if (clienteRole) {
-            newData.roleconfigurationid = clienteRole.roleconfigurationid;
+            newData.roleid = clienteRole.roleid;
           }
         }
       }
@@ -142,7 +130,6 @@ export const useEditUserForm = ({
     }
   };
 
-  /** Manejador de cambio de tipos de técnico */
   const handleTechnicianTypeChange = (typeId: number, checked: boolean) => {
     setFormData((prev) => {
       const current = prev.techniciantypeids || [];
@@ -155,7 +142,6 @@ export const useEditUserForm = ({
     });
   };
 
-  /** Imagen y CV */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     if (file) {
@@ -182,7 +168,6 @@ export const useEditUserForm = ({
     setPreviewCV(null);
   };
 
-  /** Validación al perder foco */
   const handleBlur = (field: keyof FormTouched) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
     const value = formData[field as keyof EditUser];
@@ -191,7 +176,6 @@ export const useEditUserForm = ({
     }
   };
 
-  /** Validación individual con reglas por documento */
   const validateFieldOnChange = (field: string, value: string) => {
     if (isNit && field === "lastname") return;
 
@@ -200,34 +184,27 @@ export const useEditUserForm = ({
       value,
       {
         ...formData,
-        roleconfiguration: {
-          roleconfigurationid: formData.roleconfigurationid,
-          roles: { name: getRoleName(formData.roleconfigurationid) },
-        },
+        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
       } as unknown as User,
       users,
-      true 
+      true
     );
 
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  /** Envío del formulario */
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
     const valid = validateFormWithNotification(
       {
         ...formData,
-        roleconfiguration: {
-          roleconfigurationid: formData.roleconfigurationid,
-          roles: { name: getRoleName(formData.roleconfigurationid) },
-        },
+        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
       } as unknown as User,
       users,
       setErrors,
       setTouched,
-      true 
+      true
     );
 
     if (!valid) return;
@@ -264,7 +241,6 @@ export const useEditUserForm = ({
     }
   };
 
-  /** Inicializar datos al abrir modal */
   useEffect(() => {
     if (isOpen && user) {
       const technician = user.technicians?.[0];
@@ -272,7 +248,7 @@ export const useEditUserForm = ({
       const currentCV = technician?.CV || null;
 
       setOriginalCV(currentCV);
-      setIsNit(user.typeid === 4); 
+      setIsNit(user.typeid === 4);
 
       setFormData({
         userid: user.userid!,
@@ -284,7 +260,7 @@ export const useEditUserForm = ({
         typeid: user.typeid,
         image: user.image ?? null,
         stateid: user.stateid,
-        roleconfigurationid: user.roleconfigurationid,
+        roleid: user.roleid,
         CV: currentCV,
         techniciantypeids:
           technician?.technicianTypeMaps?.map((tm) => tm.techniciantypeid) || [],
@@ -292,13 +268,11 @@ export const useEditUserForm = ({
         customerzipcode: customer?.customerzipcode || "",
       });
 
-      // Mostrar imagen previa si existe
       if (user.image && typeof user.image === "string") {
         setPreviewImage(user.image);
       } else {
         setPreviewImage(null);
       }
-
     }
   }, [isOpen, user]);
 
