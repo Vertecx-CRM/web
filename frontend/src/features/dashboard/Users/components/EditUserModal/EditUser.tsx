@@ -251,14 +251,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </div>
 
 
-        {/* TelÃ©fono y Correo */}
+        {/* Teléfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{isNit ? "TelÃ©fono de la empresa" : "TelÃ©fono"}</label>
+            <label className="block text-sm font-medium mb-1">{isNit ? "Teléfono de la empresa" : "Teléfono"}</label>
             <input
               type="tel"
               name="phone"
-              placeholder="Ingrese su telÃ©fono"
+              placeholder="Ingrese su Teléfono"
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -357,7 +357,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           )}
         </div>
 
-        {/* CV y tipos de tÃ©cnico */}
+        {/* CV y tipos de técnico */}
         {isTecnico && (
           <>
             <div>
@@ -415,7 +415,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de TÃ©cnico
+                Tipos de técnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>

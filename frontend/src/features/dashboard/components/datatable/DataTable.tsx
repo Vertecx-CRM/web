@@ -66,11 +66,12 @@ export function DataTable<T extends { id: number | string }>(
     createButtonText = "Crear",
     rightActions,
     renderActions,
-    renderExtraActions,
-    tailHeader,
-    renderTail,
-    mobileCardView = true,
-  } = props;
+  renderExtraActions,
+  tailHeader,
+  renderTail,
+  mobileCardView = true,
+  actionGuard,
+} = props;
 
   const [q, setQ] = useState("");
   const [pageSizeOption, setPageSizeOption] = useState<string | number>("");
@@ -195,6 +196,7 @@ export function DataTable<T extends { id: number | string }>(
                 onDelete={onDelete}
                 onCancel={onCancel}
                 onCheck={onCheck}
+                actionGuard={actionGuard}
                 renderExtraActions={renderExtraActions}
               />
             )}
@@ -223,6 +225,7 @@ export function DataTable<T extends { id: number | string }>(
       renderExtraActions,
       renderTail,
       tailHeader,
+      actionGuard,
       startIndex,
     ]
   );
@@ -309,6 +312,7 @@ export function DataTable<T extends { id: number | string }>(
                   onDelete={onDelete}
                   onCancel={onCancel}
                   onCheck={onCheck}
+                  actionGuard={actionGuard}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
                   renderTail={renderTail}
