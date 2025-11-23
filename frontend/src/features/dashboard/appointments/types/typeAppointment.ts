@@ -1,4 +1,4 @@
-export interface Technician {
+﻿export interface Technician {
   id: number;
   nombre: string;
   titulo: string;
@@ -45,7 +45,7 @@ export interface AppointmentFormData {
   minutoFin: string;
   dia: string;
   mes: string;
-  año: string;
+  ano: string;
   tecnicos: Technician[];
   orden?: Order | null;
   observaciones: string;
@@ -81,7 +81,7 @@ export interface AppointmentEvent {
   minutoFin: string;
   dia: string;
   mes: string;
-  año: string;
+  ano: string;
   orden?: Order | null;
   observaciones: string;
   estado?: "Pendiente" | "Finalizado" | "Cancelado" | "En-proceso" | "Cerrado" | "Reprogramada";   
@@ -98,6 +98,11 @@ export interface AppointmentEvent {
   servicio?: string;
   descripcion?: string;
   materiales?: Material[]; 
+  requestId?: number;
+  serviceId?: number;
+  clientId?: number;
+  stateId?: number;
+  scheduledAt?: string | Date | null;
 }
 
 
@@ -108,7 +113,7 @@ export interface SlotDateTime {
   minutoFin: string;
   dia: string;
   mes: string;
-  año: string;
+  ano: string;
   start?: Date;
   end?: Date;
 }
@@ -144,7 +149,7 @@ export type AppointmentErrors = {
   minutoFin?: string | undefined;
   dia?: string | undefined;
   mes?: string | undefined;
-  año?: string | undefined;
+  ano?: string | undefined;
   orden?: string | undefined;
   tecnicos?: string | undefined;
   motivoCancelacion?: string | undefined;
@@ -201,7 +206,7 @@ export interface OrderSearchComboboxProps {
   validateOrder?: (order: Order | null) => string | undefined; 
 }
 
-// Nuevas interfaces para búsqueda de solicitudes y órdenes
+// Nuevas interfaces para bsqueda de solicitudes y rdenes
 export interface UseSolicitudSearchProps {
   solicitudes: SolicitudOrden[];
   selectedSolicitud: SolicitudOrden | null;
@@ -246,5 +251,7 @@ export interface ReprogramAppointmentModalProps {
   appointment: AppointmentEvent | null;
   onReprogramSave: (date: Date, end: Date) => void;
 }
+
+
 
 

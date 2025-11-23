@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
 
@@ -10,6 +10,7 @@ export type CreateRequestPayload = {
   direccion: string;
   cliente: string;
   programada?: string | null;
+  horaProgramada?: string | null;
 };
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   title?: string;
   servicios?: Option[];
   clientes?: Option[];
+  initialDate?: string | null;
+  initialTime?: string | null;
 };
 
 export default function CreateRequestModal({
@@ -28,14 +31,30 @@ export default function CreateRequestModal({
   title = "Crear Solicitud",
   servicios = [],
   clientes = [],
+  initialDate = null,
+  initialTime = null,
 }: Props) {
   const [tipo, setTipo] = useState<"Mantenimiento" | "Instalacion" | null>(null);
   const [servicio, setServicio] = useState("");
   const [cliente, setCliente] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [direccion, setDireccion] = useState("");
-  const [programada, setProgramada] = useState<string | null>(null);
+  const [programada, setProgramada] = useState<string | null>(initialDate);
+  const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+
+  useEffect(() => {
+    if (isOpen) {
+      setTipo(null);
+      setServicio("");
+      setCliente("");
+      setDescripcion("");
+      setDireccion("");
+      setProgramada(initialDate);
+      setHoraProgramada(initialTime);
+      setErrors({});
+    }
+  }, [isOpen, initialDate, initialTime]);
 
   function validate() {
     const e: Record<string, string | null> = {};
@@ -44,12 +63,17 @@ export default function CreateRequestModal({
     e.cliente = cliente ? null : "Selecciona un cliente.";
     e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
     e.direccion = direccion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
+    if (programada && !horaProgramada) {
+      e.horaProgramada = "Selecciona la hora.";
+    }
     setErrors(e);
     return Object.values(e).every((x) => !x);
   }
 
   async function submit() {
     if (!validate()) return;
+    const finalHour =
+      horaProgramada && horaProgramada.includes(":") ? horaProgramada : programada ? "09:00" : null;
     await onSave({
       tipos: tipo ? [tipo] as ("Mantenimiento" | "Instalacion")[] : [],
       servicio,
@@ -57,6 +81,7 @@ export default function CreateRequestModal({
       direccion: direccion.trim(),
       cliente,
       programada,
+      horaProgramada: finalHour,
     });
     onClose();
   }
@@ -182,6 +207,16 @@ export default function CreateRequestModal({
               onChange={(e) => setProgramada(e.target.value || null)}
               className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Hora</label>
+            <input
+              type="time"
+              value={horaProgramada ?? ""}
+              onChange={(e) => setHoraProgramada(e.target.value || null)}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            {errors.horaProgramada && <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>}
           </div>
         </div>
 

@@ -38,7 +38,11 @@ export default function ViewRequestModal({ isOpen, onClose, title = "Detalles de
       ? new Date(data.fecha).toLocaleString()
       : undefined;
 
-  const programadaTxt = data.programada ? new Date(data.programada).toLocaleDateString("es-CO") : "—";
+  let programadaTxt = "—";
+  if (data.programada) {
+    const d = new Date(data.programada);
+    programadaTxt = Number.isNaN(d.getTime()) ? String(data.programada) : d.toLocaleString("es-CO");
+  }
 
   return (
     <Modal

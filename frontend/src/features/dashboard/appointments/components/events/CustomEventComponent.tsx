@@ -1,4 +1,4 @@
-import { AppointmentEvent, Order } from "../../types/typeAppointment";
+import { AppointmentEvent } from "../../types/typeAppointment";
 import Colors from "@/shared/theme/colors";
 
 // Define un tipo para el evento de grupo, que extiende al evento normal
@@ -37,10 +37,8 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
   const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
   const isShortEvent = durationMinutes <= 30;
 
-  // Datos de la orden
-  const currentOrder: Order | null = event.orden || null;
-  const tipoServicio = currentOrder?.tipoServicio || "Sin tipo de servicio";
-  const nombreCliente = currentOrder?.cliente || "Cliente no asignado";
+  const tipoServicio = event.servicio || event.orden?.tipoServicio || "Solicitud";
+  const nombreCliente = event.nombreCliente || event.orden?.cliente || "Cliente no asignado";
 
   // 🎨 Colores de estado y subestado desde Colors
   const estadoColors =
@@ -121,17 +119,13 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
         {getTipoCitaText()}
       </div>
 
-      {currentOrder && (
-        <div className="truncate text-[10px] sm:text-xs text-center mt-1 opacity-90">
-          {tipoServicio}
-        </div>
-      )}
+      <div className="truncate text-[10px] sm:text-xs text-center mt-1 opacity-90">
+        {tipoServicio}
+      </div>
 
-      {currentOrder && (
-        <div className="truncate text-[10px] sm:text-sm text-center mt-1">
-          {nombreCliente}
-        </div>
-      )}
+      <div className="truncate text-[10px] sm:text-sm text-center mt-1">
+        {nombreCliente}
+      </div>
 
       <div className="truncate text-[8px] sm:text-xs text-center mt-1 opacity-80">
         {startTime} - {endTime}

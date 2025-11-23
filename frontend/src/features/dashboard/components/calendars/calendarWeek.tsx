@@ -18,12 +18,9 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import './sytileWeek.css';
-import { Appointment, AppointmentEvent, SlotDateTime } from '../../appointments/types/typeAppointment';
+import { AppointmentEvent, SlotDateTime } from '../../appointments/types/typeAppointment';
 import { CustomEventComponent } from '../../appointments/components/events/CustomEventComponent';
-import { CreateAppointmentModal } from '../../appointments/components/CreateAppointmentModal/createAppointment';
 import { AppointmentDetailsModal } from '../../appointments/components/menuAppointmentModal/menuAppointment';
-import { EditAppointmentModal } from '../../appointments/components/EditAppointmentModal/editAppointmente';
-import { ViewAppointmentModal } from '../../appointments/components/ViewAppointmentModal/viewAppointment';
 import { confirmCancelAppointment } from '../../../../shared/utils/confirmCancel/confirmCancel';
 import { GroupedAppointmentsModal } from '../../appointments/components/GroupedAppointmentsModal/GroupedAppointments';
 import { showWarning } from '@/shared/utils/notifications';
@@ -31,6 +28,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import { FiltersState } from '../../appointments/components/filtro/filtro';
 import { ReprogramAppointmentModal } from '../../appointments/components/rescheduleModal/rescheduleModal';
 import { useAppointments } from '../../appointments/hooks/useAppointment';
+import CreateRequestModal, { type CreateRequestPayload } from '../../requests/components/CreateRequestModal';
+import EditRequestModal, { type EditRequestPayload } from '../../requests/components/EditRequestModal';
+import ViewRequestModal from '../../requests/components/ViewRequestModal';
+import { useLookups } from '../../requests/hooks/useLookups';
 import dynamic from 'next/dynamic';
 
 const locales = { es };
@@ -86,7 +87,21 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   const [isReprogramModalOpen, setIsReprogramModalOpen] = useState(false);
   const [appointmentToReprogram, setAppointmentToReprogram] = useState<AppointmentEvent | null>(null);
 
-  const [displayEvents, setDisplayEvents] = useState<GroupedEvent[]>([]);
+  const formatDate = (value?: Date | string | null) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (v: number) => String(v).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const formatTime = (value?: Date | string | null) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (v: number) => String(v).padStart(2, "0");
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   const getWeekRange = useCallback((date: Date) => {
     const start = startOfWeek(date, { weekStartsOn: 1 });
@@ -107,7 +122,9 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     handleCancelAppointment,
     handleCreateAppointment: createAppointmentInHook,
     handleUpdateAppointment: updateAppointmentInHook,
+    handleUpdateRequest,
   } = useAppointments();
+  const { serviceOptions, customerOptions } = useLookups();
 
   const filteredAppointments = useMemo(() => {
     return events.filter((a) => {
@@ -159,19 +176,14 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   }, [events, search, filters]);
 
 
-  // 2. UseEffect para buscador + rango visible + agrupar:
-  useEffect(() => {
-    // en vez de partir de events, parte de filteredAppointments
+  // 2. Agrupar y filtrar eventos visibles (memoizado para evitar loops)
+  const displayEvents = useMemo(() => {
     let filtered = [...filteredAppointments];
 
-    // 2. Filtrar por rango visible
     filtered = filtered.filter(
-      ev =>
-        ev.start >= dateRange.start &&
-        ev.start <= dateRange.end
+      ev => ev.start >= dateRange.start && ev.start <= dateRange.end
     );
 
-    // 3. Ordenar y agrupar
     const sortedEvents = [...filtered].sort((a, b) => a.start.getTime() - b.start.getTime());
     const newDisplayEvents: GroupedEvent[] = [];
     let i = 0;
@@ -198,7 +210,7 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       }
     }
 
-    setDisplayEvents(newDisplayEvents);
+    return newDisplayEvents;
   }, [filteredAppointments, dateRange]);
 
   const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
@@ -300,13 +312,9 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     handleUpdateAppointment(updatedEvent);
   };
 
-  const handleSaveAppointment = (newEvent: Appointment) => {
-    const fixedEvent: AppointmentEvent = {
-      ...newEvent,
-      start: new Date(newEvent.start),
-      end: new Date(newEvent.end),
-    };
-    createAppointmentInHook(fixedEvent, fixedEvent.tecnicos || []);
+  const handleSaveRequest = async (data: CreateRequestPayload) => {
+    const slot = selectedSlot || defaultSlot;
+    await createAppointmentInHook(data, slot);
     setIsCreateModalOpen(false);
   };
 
@@ -321,12 +329,14 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       ...updated,
       start: updated.start instanceof Date ? updated.start : new Date(updated.start),
       end: updated.end instanceof Date ? updated.end : new Date(updated.end),
-      title: updated.orden
-        ? `Orden: ${typeof updated.orden === "object" ? updated.orden.id : updated.orden}`
-        : "Sin orden",
     };
 
     updateAppointmentInHook(fixedEvent);
+  };
+
+  const handleSaveEditRequest = async (values: EditRequestPayload) => {
+    if (!editingAppointment) return;
+    await handleUpdateRequest(Number(editingAppointment.id), values, editingAppointment);
     setIsEditModalOpen(false);
     setEditingAppointment(null);
   };
@@ -338,12 +348,12 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   };
 
   const handleCancel = async (appointment: AppointmentEvent) => {
-    const appointmentLabel = appointment.orden
-      ? `Orden: ${appointment.orden.tipoServicio} - Cliente: ${appointment.orden.cliente}`
-      : appointment.title || "Cita sin título";
+    const appointmentLabel = appointment.servicio
+      ? `${appointment.servicio} - ${appointment.nombreCliente ?? ""}`
+      : appointment.title || "Solicitud";
 
-    await confirmCancelAppointment(appointmentLabel, async (reason) => {
-      handleCancelAppointment(appointment, reason); // hook actualiza appointments
+    await confirmCancelAppointment(appointmentLabel, async () => {
+      await handleCancelAppointment(appointment);
       setIsDetailsModalOpen(false);
     });
   };
@@ -435,8 +445,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     año: '2025',
   };
 
-  console.log(events);
-
   return (
     <div id="calendar-pdf" className="calendar-wrapper w-full">
       <div ref={calendarRef} className="w-full h-full min-h-[100px] bg-white rounded-xl">
@@ -492,26 +500,42 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
             </div>
           </div>
 
-          <CreateAppointmentModal
+          <CreateRequestModal
             isOpen={isCreateModalOpen}
             onClose={() => {
               setIsCreateModalOpen(false);
               setEditingAppointment(null);
             }}
-            onSave={handleSaveAppointment}
-            selectedDateTime={selectedSlot || defaultSlot}
-            editingAppointment={editingAppointment}
+            onSave={handleSaveRequest}
+            initialDate={formatDate(selectedSlot?.start ?? null)}
+            initialTime={formatTime(selectedSlot?.start ?? null)}
+            servicios={serviceOptions}
+            clientes={customerOptions}
           />
 
-          <EditAppointmentModal
-            isOpen={isEditModalOpen}
-            onClose={() => {
-              setIsEditModalOpen(false);
-              setEditingAppointment(null);
-            }}
-            appointment={editingAppointment}
-            onSave={handleUpdateAppointment}
-          />
+          {isEditModalOpen && editingAppointment && (
+            <EditRequestModal
+              isOpen={isEditModalOpen}
+              onClose={() => {
+                setIsEditModalOpen(false);
+                setEditingAppointment(null);
+              }}
+              initial={{
+                tipos: editingAppointment.tipoServicioSolicitud === "instalacion" ? ["Instalacion"] : ["Mantenimiento"],
+                servicio: editingAppointment.serviceId ? String(editingAppointment.serviceId) : "",
+                descripcion: editingAppointment.descripcion ?? "",
+                direccion: editingAppointment.direccion ?? "",
+                cliente: editingAppointment.clientId ? String(editingAppointment.clientId) : "",
+                programada: formatDate(editingAppointment.start),
+                horaProgramada: formatTime(editingAppointment.start),
+                estado: editingAppointment.stateId ? String(editingAppointment.stateId) : "",
+              }}
+              servicios={serviceOptions}
+              clientes={customerOptions}
+              onSave={handleSaveEditRequest}
+              title="Editar Solicitud"
+            />
+          )}
 
           <ReprogramAppointmentModal
             isOpen={isReprogramModalOpen}
@@ -527,14 +551,29 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
 
           />
 
-          <ViewAppointmentModal
-            isOpen={isViewModalOpen}
-            onClose={() => {
-              setIsViewModalOpen(false);
-              setViewingAppointment(null);
-            }}
-            appointment={viewingAppointment}
-          />
+          {isViewModalOpen && viewingAppointment && (
+            <ViewRequestModal
+              isOpen={isViewModalOpen}
+              onClose={() => {
+                setIsViewModalOpen(false);
+                setViewingAppointment(null);
+              }}
+              data={{
+                tipos: viewingAppointment.tipoServicioSolicitud
+                  ? [viewingAppointment.tipoServicioSolicitud === "instalacion" ? "Instalacion" : "Mantenimiento"]
+                  : [],
+                servicio: viewingAppointment.servicio || "Servicio",
+                descripcion: viewingAppointment.descripcion || "",
+                direccion: viewingAppointment.direccion || "",
+                cliente: viewingAppointment.nombreCliente || "",
+                fecha: viewingAppointment.start,
+                estado: viewingAppointment.estado,
+                codigo: `SRV-${String(viewingAppointment.id).padStart(6, "0")}`,
+                programada: viewingAppointment.start ? new Date(viewingAppointment.start).toISOString() : null,
+              }}
+              title="Detalle de la Solicitud"
+            />
+          )}
 
           <AppointmentDetailsModal
             isOpen={isDetailsModalOpen}
@@ -568,3 +607,5 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
 };
 
 export default WeeklyCalendar;
+
+
