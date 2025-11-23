@@ -14,6 +14,7 @@ import {
 } from "@/shared/utils/cloudinary";
 import {
   getTechnicians as getTechniciansApi,
+  getTechnicianTypes,
   createTechnician as createTechnicianApi,
   updateTechnician as updateTechnicianApi,
   deleteTechnician as deleteTechnicianApi,
@@ -33,12 +34,7 @@ const TECH_TYPE_MAP: Record<string, number> = {
   Redes: 3,
 };
 
-const TECHNICIAN_ROLECONFIG_ID = 3;
-
-const mapTechTypesToIds = (types: string[]) =>
-  types
-    .map((name) => TECH_TYPE_MAP[name])
-    .filter((id): id is number => typeof id === "number");
+const normalizeTypeName = (name: string) => name.trim().toLowerCase();
 
 const validateTechnician = (data: MinimalTechForValidate) => {
   if (!data.name.trim()) {
@@ -72,6 +68,14 @@ const EXTRA_LOADER_DELAY_MS = 300;
 
 export const useTechnicians = (_initialTechnicians: Technician[]) => {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [typeNameToId, setTypeNameToId] = useState<Record<string, number>>(
+    Object.fromEntries(
+      Object.entries(TECH_TYPE_MAP).map(([k, v]) => [normalizeTypeName(k), v])
+    )
+  );
+  const [typeOptions, setTypeOptions] = useState<string[]>(
+    Object.keys(TECH_TYPE_MAP)
+  );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTechnician, setEditingTechnician] =
     useState<Technician | null>(null);
@@ -90,8 +94,30 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
     }
   };
 
+  const loadTechnicianTypes = async () => {
+    try {
+      const types = await getTechnicianTypes();
+      if (types.length > 0) {
+        setTypeNameToId(
+          Object.fromEntries(
+            types.map((t) => [normalizeTypeName(t.name), t.techniciantypeid])
+          )
+        );
+        setTypeOptions(types.map((t) => t.name));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const mapTechTypesToIds = (types: string[]) =>
+    types
+      .map((name) => typeNameToId[normalizeTypeName(name)])
+      .filter((id): id is number => typeof id === "number");
+
   useEffect(() => {
     loadTechnicians();
+    loadTechnicianTypes();
   }, []);
 
   const handleCreateTechnician = async (data: CreateTechnicianData) => {
@@ -131,7 +157,6 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         techniciantypeids,
         CV: resumeUrl ?? null,
         image: imageUrl ?? null,
-        roleconfigurationid: TECHNICIAN_ROLECONFIG_ID,
         typeid: typeid,
       };
 
@@ -250,6 +275,7 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
 
   return {
     technicians,
+    typeOptions,
     isCreateModalOpen,
     setIsCreateModalOpen,
     isEditModalOpen,

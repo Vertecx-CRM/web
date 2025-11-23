@@ -14,6 +14,7 @@ import { useState } from "react";
 export default function TechniciansIndex() {
   const {
     technicians,
+    typeOptions,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingTechnician,
@@ -37,6 +38,7 @@ export default function TechniciansIndex() {
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateTechnician as (data: CreateTechnicianData) => void}
               technicians={technicians}
+              typeOptions={typeOptions}
             />
 
             {editingTechnician && (
@@ -46,6 +48,7 @@ export default function TechniciansIndex() {
                 onClose={() => setEditingTechnician(null)}
                 onUpdate={(data) => handleEditTechnician(data.id, data)}
                 technicians={technicians}
+                typeOptions={typeOptions}
               />
             )}
 

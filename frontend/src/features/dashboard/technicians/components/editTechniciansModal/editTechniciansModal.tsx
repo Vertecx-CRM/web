@@ -36,6 +36,7 @@ interface EditTechnicianModalProps {
   isOpen: boolean;
   technician: Technician;
   technicians: Technician[];
+  typeOptions?: string[];
   onClose: () => void;
   onUpdate: (data: EditTechnicianData) => void;
 }
@@ -44,6 +45,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   isOpen,
   technician,
   technicians,
+  typeOptions,
   onClose,
   onUpdate,
 }) => {
@@ -402,7 +404,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
           </label>
 
           <div className="flex flex-wrap gap-2">
-            {TECH_TYPES.map((opt) => {
+            {(typeOptions ?? TECH_TYPES).map((opt) => {
               const active = types.includes(opt);
 
               return (

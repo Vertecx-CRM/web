@@ -32,6 +32,7 @@ interface CreateTechnicianModalProps {
   onClose: () => void;
   onSave: (data: CreateTechnicianData) => void;
   technicians: Technician[];
+  typeOptions?: string[];
 }
 
 const TECH_TYPES = ["Cableado estructurado", "Electricista", "Redes"];
@@ -44,6 +45,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   onClose,
   onSave,
   technicians,
+  typeOptions,
 }) => {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
@@ -468,7 +470,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               Tipos de técnico <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-wrap gap-2">
-              {TECH_TYPES.map((opt) => {
+              {(typeOptions ?? TECH_TYPES).map((opt) => {
                 const active = types.includes(opt);
                 return (
                   <button
