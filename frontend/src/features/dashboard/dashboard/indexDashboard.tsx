@@ -8,6 +8,7 @@ import { MonthlyGraph } from "./components/BarChar/monthlySalesGraph";
 import { PieChartCategoryAndProducts } from "./components/PieChart/pieChart";
 import { CustomBarChart } from "./components/BarChar/barChart";
 import { dashboardApi } from "./api/dashboardApi";
+import { useLoader } from "@/shared/components/loader";
 
 export const IndexDashboard = () => {
   // ESTADOS
@@ -31,11 +32,13 @@ export const IndexDashboard = () => {
   const [selectedMonthSales, setSelectedMonthSales] = useState<string | null>(null);
   const [selectedMonthShopping, setSelectedMonthShopping] = useState<string | null>(null);
   const [selectedMonthClients, setSelectedMonthClients] = useState<string | null>(null);
+  const { showLoader, hideLoader } = useLoader();
 
   // CARGAR TODA LA DATA DEL DASHBOARD
   useEffect(() => {
     const loadDashboard = async () => {
       try {
+        showLoader();
         // VENTAS
         setSalesYear(await dashboardApi.getSalesByYear());
         setTotalSales((await dashboardApi.getTotalSales()).total);
@@ -61,10 +64,13 @@ export const IndexDashboard = () => {
 
       } catch (error) {
         console.error("Error cargando dashboard:", error);
+      } finally {
+        hideLoader();
       }
     };
 
     loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

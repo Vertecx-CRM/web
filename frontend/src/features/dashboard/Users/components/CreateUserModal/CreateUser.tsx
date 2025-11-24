@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
@@ -131,7 +131,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               <input
                 type="text"
                 name="documentnumber"
-                placeholder={isNit ? "Número de NIT" : "Número de documento"}
+                placeholder={isNit ? "Nmero de NIT" : "Nmero de documento"}
                 value={formData.documentnumber}
                 onChange={handleTextChange}
                 onBlur={() => handleBlur("documentnumber")}
@@ -209,16 +209,16 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           )}
         </div>
 
-        {/* Teléfono y Correo */}
+        {/* Telfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              {isNit ? "Teléfono de la empresa" : "Teléfono"}
+              {isNit ? "Telfono de la empresa" : "Telfono"}
             </label>
             <input
               type="tel"
               name="phone"
-              placeholder={isNit ? "Ingrese Teléfono de la empresa" : "Ingrese su Teléfono"}
+              placeholder={isNit ? "Ingrese Telfono de la empresa" : "Ingrese su Telfono"}
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -333,7 +333,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </div>
         </div>
 
-        {/* técnico */}
+        {/* tecnico */}
         {isTecnico && (
           <>
             {/* CV */}
@@ -342,17 +342,15 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 CV (PDF, DOC, DOCX)
               </label>
               <div
-                className="border border-dashed rounded-md p-2 text-center flex flex-col items-center justify-center gap-2"
+                className="border border-dashed rounded-md px-4 py-3 text-center flex flex-col items-center justify-center gap-2"
                 style={{
                   borderColor:
                     errors.CV && touched.CV ? "red" : Colors.table.lines,
                 }}
               >
                 {previewCV ? (
-                  <>
-                    <span className="text-sm text-gray-600">
-                      Archivo: {previewCV}
-                    </span>
+                  <div className="flex flex-col items-center gap-1 text-sm text-gray-700">
+                    <span>Archivo: {previewCV}</span>
                     <button
                       type="button"
                       onClick={removeCV}
@@ -360,7 +358,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                     >
                       Eliminar CV
                     </button>
-                  </>
+                  </div>
                 ) : (
                   <>
                     <input
@@ -373,7 +371,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                     />
                     <label
                       htmlFor="cv-upload"
-                      className="cursor-pointer text-xs text-gray-500"
+                      className="w-full text-center text-sm text-gray-500 cursor-pointer"
                     >
                       Haga clic para cargar CV
                     </label>
@@ -385,51 +383,55 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
             </div>
 
-            {/* Tipos de técnico */}
+            {/* Tipos de tecnico */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de técnico
+                Tipos de tecnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
               ) : technicianTypes.length === 0 ? (
                 <p className="text-sm text-gray-500">
-                  No hay tipos de técnico disponibles
+                  No hay tipos de tecnico disponibles
                 </p>
               ) : (
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded bg-gray-50"
-                  style={{
-                    borderColor:
-                      errors.techniciantypeids && touched.techniciantypeids
-                        ? "red"
-                        : Colors.table.lines,
-                  }}
-                >
-                  {technicianTypes.map((type) => (
-                    <label
-                      key={type.techniciantypeid}
-                      className="flex items-center gap-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          formData.techniciantypeids?.includes(
-                            type.techniciantypeid
-                          ) || false
-                        }
-                        onChange={(e) =>
-                          handleTechnicianTypeChange(
-                            type.techniciantypeid,
-                            e.target.checked
-                          )
-                        }
-                        onBlur={() => handleBlur("techniciantypeids")}
-                      />
-                      <span className="text-sm">{type.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {technicianTypes.map((type) => {
+                      const selected = Boolean(
+                        formData.techniciantypeids?.includes(
+                          type.techniciantypeid
+                        )
+                      );
+                      return (
+                        <button
+                          type="button"
+                          key={type.techniciantypeid}
+                          onClick={() =>
+                            handleTechnicianTypeChange(
+                              type.techniciantypeid,
+                              !selected
+                            )
+                          }
+                          onBlur={() => handleBlur("techniciantypeids")}
+                          className={`px-4 py-2 rounded-full border text-sm transition ${
+                            selected
+                              ? "bg-red-600 text-white border-red-600 shadow-sm"
+                              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          {type.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors.techniciantypeids && touched.techniciantypeids && (
+                    <span className="text-red-500 text-xs mt-1 block">
+                      {errors.techniciantypeids}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -461,12 +463,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Código Postal
+                Cdigo Postal
               </label>
               <input
                 type="text"
                 name="customerzipcode"
-                placeholder="Código postal"
+                placeholder="Cdigo postal"
                 value={formData.customerzipcode || ""}
                 onChange={(e) =>
                   handleInputChange("customerzipcode", e.target.value)
@@ -489,4 +491,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 };
 
 export default CreateUserModal;
+
+
+
 
