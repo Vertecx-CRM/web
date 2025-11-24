@@ -148,6 +148,7 @@ export default function PurchasesIndex() {
           <Loader />
         ) : (
           <DataTable
+            module="purchases"
             data={purchases}
             columns={columns}
             searchableKeys={[

@@ -125,6 +125,7 @@ export default function CategoriesPage() {
             />
 
             <DataTable<Category>
+              module="categories"
               data={categories}
               columns={columns}
               pageSize={10}

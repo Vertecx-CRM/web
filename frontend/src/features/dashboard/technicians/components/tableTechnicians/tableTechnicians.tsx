@@ -61,6 +61,7 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
 
   return (
     <DataTable<Technician>
+      module="technicians"
       data={technicians}
       columns={columns}
       pageSize={6}

@@ -97,6 +97,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
 
   return (
     <DataTable<UserForTable>
+      module="users"
       data={usersForTable}
       columns={columns}
       pageSize={10}

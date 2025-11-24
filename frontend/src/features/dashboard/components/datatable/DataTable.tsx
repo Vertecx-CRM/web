@@ -11,19 +11,15 @@ import { ActionButtonComponent } from "./ui/ActionButtonComponent";
 import { CreateButtonComponent } from "./ui/CreateButtonComponent";
 import { OptimizedTdComponent } from "./ui/OptimizedTdComponent";
 import { PaginationComponent } from "./ui/PaginationComponent";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
+
+const actionGuard = () => undefined;
 
 const ROW_HEIGHT = 60;
 const VISIBLE_ROWS = 10;
 
-function Th({
-  children,
-  className = "",
-  width,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  width?: string;
-}) {
+
+function Th({ children, className = "", width }: { children: React.ReactNode; className?: string; width?: string }) {
   return (
     <th
       className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-pre-line break-words text-center align-middle ${className}`}
@@ -35,22 +31,13 @@ function Th({
 }
 
 const OptimizedTd = React.memo(OptimizedTdComponent);
-
 export const ActionButton = React.memo(ActionButtonComponent);
-
 export const ActionButtons = React.memo(ActionButtonsComponent);
-
-const MobileCard = React.memo(
-  MobileCardComponent
-) as typeof MobileCardComponent;
-
+const MobileCard = React.memo(MobileCardComponent) as typeof MobileCardComponent;
 const CreateButton = React.memo(CreateButtonComponent);
-
 const Pagination = React.memo(PaginationComponent);
 
-export function DataTable<T extends { id: number | string }>(
-  props: DataTableProps<T>
-) {
+export function DataTable<T extends { [key: string]: any }>(props: DataTableProps<T> & { module: string }) {
   const {
     data,
     columns,
@@ -66,12 +53,14 @@ export function DataTable<T extends { id: number | string }>(
     createButtonText = "Crear",
     rightActions,
     renderActions,
-  renderExtraActions,
-  tailHeader,
-  renderTail,
-  mobileCardView = true,
-  actionGuard,
-} = props;
+    renderExtraActions,
+    tailHeader,
+    renderTail,
+    mobileCardView = true,
+    module
+  } = props;
+
+  const { canView, canCreate, canUpdate, canDelete } = usePermissions();
 
   const [q, setQ] = useState("");
   const [pageSizeOption, setPageSizeOption] = useState<string | number>("");
@@ -82,62 +71,43 @@ export function DataTable<T extends { id: number | string }>(
   const normalize = useCallback((value: unknown): string[] => {
     if (value == null) return [];
     const str = String(value).toLowerCase().trim();
-
     if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
       const num = Number(str.replace(/[\$,]/g, ""));
       return [num.toString(), num.toFixed(0), num.toFixed(2)];
     }
-
     if (!isNaN(Date.parse(str))) {
       const d = new Date(str);
       return [
         d.toISOString().slice(0, 10),
         d.toLocaleDateString("es-ES"),
-        d.getFullYear().toString(),
+        d.getFullYear().toString()
       ].map((f) => f.toLowerCase());
     }
-
     return [str];
   }, []);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return data;
-
     const isExactStatus = term === "activo" || term === "inactivo";
-
     return data.filter((row) =>
       searchableKeys.some((key) => {
         const value = row[key];
         if (value == null) return false;
-
         if ((key === "estado" || key === "state") && isExactStatus) {
-          const estado = String(value).toLowerCase();
-          return estado === term;
+          return String(value).toLowerCase() === term;
         }
-
         const strValue = String(value).toLowerCase();
         if (strValue.includes(term)) return true;
-
         const normalized = normalize(value);
         return normalized.some((n) => n.includes(term));
       })
     );
   }, [q, data, searchableKeys, normalize]);
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filtered.length / pageSize));
-  }, [filtered.length, pageSize]);
-
-  // calcular registros visibles
-  const current = useMemo(() => {
-    return filtered.slice((page - 1) * pageSize, page * pageSize);
-  }, [filtered, page, pageSize]);
-
-  const goTo = useCallback(
-    (p: number) => setPage(Math.min(Math.max(p, 1), totalPages)),
-    [totalPages]
-  );
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
+  const current = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
+  const goTo = useCallback((p: number) => setPage(Math.min(Math.max(p, 1), totalPages)), [totalPages]);
 
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
   const visibleRows = current.slice(startIndex, startIndex + VISIBLE_ROWS);
@@ -160,12 +130,10 @@ export function DataTable<T extends { id: number | string }>(
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  const visibleColumns = useMemo(() => {
-    return columns.filter(
-      (col) =>
-        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
-    );
-  }, [columns]);
+  const visibleColumns = useMemo(
+    () => columns.filter((col) => col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)),
+    [columns]
+  );
 
   const Row = useCallback(
     ({ row, index }: { row: T; index: number }) => (
@@ -174,40 +142,27 @@ export function DataTable<T extends { id: number | string }>(
         style={{
           top: `${(startIndex + index) * ROW_HEIGHT}px`,
           width: "100%",
-          height: `${ROW_HEIGHT}px`,
+          height: `${ROW_HEIGHT}px`
         }}
       >
-        {(window.innerWidth >= 768 ? columns : visibleColumns).map(
-          (c, colIndex) => (
-            <OptimizedTd
-              key={String(c.key)}
-              colIndex={colIndex}
-              header={c.header}
-              width={c.width}
-              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
-            >
-              <div className="truncate" title={String(row[c.key])}>
-                {c.render ? c.render(row) : String(row[c.key])}
-              </div>
-            </OptimizedTd>
-          )
-        )}
+        {(window.innerWidth >= 768 ? columns : visibleColumns).map((c, colIndex) => (
+          <OptimizedTd key={String(c.key)} colIndex={colIndex} header={c.header} width={c.width} className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
+            <div className="truncate" title={String(row[c.key])}>
+              {c.render ? c.render(row) : String(row[c.key])}
+            </div>
+          </OptimizedTd>
+        ))}
 
-        {(onView ||
-          onEdit ||
-          onDelete ||
-          onCancel ||
-          onCheck ||
-          renderActions) && (
+        {(canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions) && (
           <OptimizedTd header="Acciones">
             {renderActions ? (
               renderActions(row)
             ) : (
               <ActionButtons
                 row={row}
-                onView={onView}
-                onEdit={onEdit}
-                onDelete={onDelete}
+                onView={canView(module) ? onView : undefined}
+                onEdit={canUpdate(module) ? onEdit : undefined}
+                onDelete={canDelete(module) ? onDelete : undefined}
                 onCancel={onCancel}
                 onCheck={onCheck}
                 actionGuard={actionGuard}
@@ -218,10 +173,7 @@ export function DataTable<T extends { id: number | string }>(
         )}
 
         {renderTail && (
-          <OptimizedTd
-            header={tailHeader ?? "Imprimir"}
-            className="text-center"
-          >
+          <OptimizedTd header={tailHeader ?? "Imprimir"} className="text-center">
             {renderTail(row)}
           </OptimizedTd>
         )}
@@ -241,13 +193,17 @@ export function DataTable<T extends { id: number | string }>(
       tailHeader,
       actionGuard,
       startIndex,
+      canView,
+      canUpdate,
+      canDelete,
+      module
     ]
   );
 
   return (
     <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {searchableKeys && searchableKeys.length > 0 && (
+        {searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
@@ -294,12 +250,9 @@ export function DataTable<T extends { id: number | string }>(
         {(rightActions || onCreate) && (
           <div className="flex items-center gap-2 justify-end">
             {rightActions}
-            {onCreate && (
+            {onCreate && canCreate(module) && (
               <div className="hidden md:block">
-                <CreateButton
-                  onCreate={onCreate}
-                  createButtonText={createButtonText}
-                />
+                <CreateButton onCreate={onCreate} createButtonText={createButtonText} />
               </div>
             )}
           </div>
@@ -315,9 +268,9 @@ export function DataTable<T extends { id: number | string }>(
                   key={resolveRowKey(row, idx)}
                   row={row}
                   columns={columns}
-                  onView={onView}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
+                  onView={canView(module) ? onView : undefined}
+                  onEdit={canUpdate(module) ? onEdit : undefined}
+                  onDelete={canDelete(module) ? onDelete : undefined}
                   onCancel={onCancel}
                   onCheck={onCheck}
                   actionGuard={actionGuard}
@@ -327,53 +280,27 @@ export function DataTable<T extends { id: number | string }>(
                   tailHeader={tailHeader}
                 />
               ))}
-              {current.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No se encontraron resultados
-                </div>
-              )}
+              {current.length === 0 && <div className="text-center py-8 text-gray-500">No se encontraron resultados</div>}
             </div>
           </div>
         )}
 
-        <div
-          className={`${
-            mobileCardView ? "hidden md:block" : "block"
-          } overflow-x-auto`}
-        >
-          <div
-            className="max-h-[600px] overflow-y-auto"
-            onScroll={handleScroll}
-          >
+        <div className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`}>
+          <div className="max-h-[600px] overflow-y-auto" onScroll={handleScroll}>
             <table className="min-w-full text-sm table-fixed border-collapse">
-              <thead
-                className="bg-gray-50 text-gray-700 sticky top-0 z-10"
-                style={{ backgroundColor: Colors.table.header }}
-              >
+              <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10" style={{ backgroundColor: Colors.table.header }}>
                 <tr className="text-center table-row">
                   {columns.map((c) => (
                     <Th key={String(c.key)} width={c.width}>
                       {c.header}
                     </Th>
                   ))}
-                  {(onView ||
-                    onEdit ||
-                    onDelete ||
-                    onCancel ||
-                    onCheck ||
-                    renderActions) && <Th>Acciones</Th>}
-                  {renderTail && (
-                    <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
-                  )}
+                  {(canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions) && <Th>Acciones</Th>}
+                  {renderTail && <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>}
                 </tr>
               </thead>
-              <tbody
-                className="divide divide-[#E6E6E6]"
-                style={{
-                  position: "relative",
-                  height: `${current.length * ROW_HEIGHT}px`,
-                }}
-              >
+
+              <tbody className="divide divide-[#E6E6E6]" style={{ position: "relative", height: `${current.length * ROW_HEIGHT}px` }}>
                 {visibleRows.map((row, index) => (
                   <Row
                     key={resolveRowKey(row, index)}
@@ -384,20 +311,14 @@ export function DataTable<T extends { id: number | string }>(
               </tbody>
             </table>
 
-            {current.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                No se encontraron resultados
-              </div>
-            )}
+            {current.length === 0 && <div className="text-center py-12 text-gray-500">No se encontraron resultados</div>}
           </div>
         </div>
 
-        {totalPages > 1 && (
-          <Pagination page={page} totalPages={totalPages} goTo={goTo} />
-        )}
+        {totalPages > 1 && <Pagination page={page} totalPages={totalPages} goTo={goTo} />}
       </div>
 
-      {onCreate && (
+      {onCreate && canCreate(module) && (
         <button
           className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
           style={{ background: Colors.buttons.primary }}
