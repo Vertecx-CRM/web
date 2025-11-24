@@ -67,6 +67,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   return (
     <>
       <DataTable<Product>
+        module="products"
         data={products}
         columns={columns}
         pageSize={10}

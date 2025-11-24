@@ -86,6 +86,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
 
   return (
     <DataTable<Service>
+      module="services"
       data={services}
       columns={columns}
       pageSize={6}

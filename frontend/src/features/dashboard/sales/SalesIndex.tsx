@@ -109,6 +109,7 @@ export default function SalesIndex() {
   return (
     <div className="flex flex-col gap-4">
       <DataTable<Sale>
+        module="sales"
         data={sales}
         columns={columns}
         searchableKeys={["codigo", "cliente", "estado"]}

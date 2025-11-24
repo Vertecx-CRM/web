@@ -65,7 +65,8 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   };
 
   return (
-    <DataTable<userForTable>
+    <DataTable<UserForTable>
+      module="users"
       data={usersForTable}
       columns={columns}
       pageSize={10}

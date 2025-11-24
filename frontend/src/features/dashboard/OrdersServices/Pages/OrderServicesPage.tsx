@@ -620,6 +620,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       <main className="flex-1 flex flex-col bg-gray-100">
         <div className="px-4 pb-6 pt-4 max-w-7xl w-full mx-auto">
           <DataTable<Row>
+            module="ordersServices"
             data={rows}
             columns={columns}
             pageSize={8}

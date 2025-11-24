@@ -275,6 +275,7 @@ export default function ServiceRequestsPage() {
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
         <DataTable<Row>
+          module="servicesRequests"
           data={rows}
           columns={columns}
           pageSize={5}

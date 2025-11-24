@@ -97,6 +97,7 @@ export default function Clients() {
           />
 
           <DataTable<Client>
+            module="costumers"
             data={clients}
             columns={columns}
             pageSize={10}

@@ -3,7 +3,6 @@
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { routes } from "@/shared/routes";
 import {
   Home,
   Users,
@@ -17,8 +16,7 @@ import {
 import Colors from "@/shared/theme/colors";
 import { motion, AnimatePresence } from "framer-motion";
 import React from "react";
-
-/* ========= SUBCOMPONENTES ========= */
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
 
 const MenuItem = React.memo(
   ({
@@ -128,8 +126,6 @@ const SubMenu = React.memo(
 
 SubMenu.displayName = "SubMenu";
 
-/* ========= COMPONENTE PRINCIPAL ========= */
-
 const AsideNav = ({
   isCollapsed,
   setIsCollapsed,
@@ -139,6 +135,7 @@ const AsideNav = ({
 }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
+  const { canView } = usePermissions();
 
   const toggleMenu = useCallback(
     (menu: string) => {
@@ -147,46 +144,62 @@ const AsideNav = ({
     [openMenu]
   );
 
-  // Memoizamos items del menú para no recrearlos siempre
   const menuConfig = useMemo(
     () => [
       {
         type: "link",
-        href: routes.dashboard.main,
-        icon: Home,
+        href: "/dashboard",
         label: "Dashboard",
+        icon: Home,
+        module: "dashboard",
       },
       {
         type: "link",
-        href: routes.dashboard.users,
-        icon: Users,
+        href: "/dashboard/access/users",
         label: "Usuarios",
+        icon: Users,
+        module: "users",
       },
       {
         type: "link",
-        href: routes.dashboard.roles,
-        icon: Users,
+        href: "/dashboard/access/roles",
         label: "Roles",
+        icon: Users,
+        module: "Roles",
       },
       {
         type: "submenu",
         parent: "compras",
         icon: Truck,
         label: "Compras",
+        moduleChildren: ["suppliers", "purchaseOrders", "purcharse"],
         childrenRoutes: [
-          routes.dashboard.suppliers,
-          routes.dashboard.purchasesOrders,
-          routes.dashboard.purchases,
-          routes.dashboard.purchasesGraph,
+          "/dashboard/purchases/suppliers",
+          "/dashboard/purchases/orders",
+          "/dashboard/purchases",
+          "/dashboard/purchases/graph",
         ],
         items: [
-          { href: routes.dashboard.suppliers, label: "Proveedores" },
           {
-            href: routes.dashboard.purchasesOrders,
-            label: "Órdenes de compras",
+            href: "/dashboard/purchases/suppliers",
+            label: "Proveedores",
+            module: "suppliers",
           },
-          { href: routes.dashboard.purchases, label: "Compras" },
-          { href: routes.dashboard.purchasesGraph, label: "Gráficas compras" },
+          {
+            href: "/dashboard/purchases/orders",
+            label: "Órdenes de compras",
+            module: "purchaseOrders",
+          },
+          {
+            href: "/dashboard/purchases",
+            label: "Compras",
+            module: "purcharse",
+          },
+          {
+            href: "/dashboard/purchases/graph",
+            label: "Gráficas compras",
+            module: "purcharse",
+          },
         ],
       },
       {
@@ -194,13 +207,22 @@ const AsideNav = ({
         parent: "productos",
         icon: Box,
         label: "Productos",
+        moduleChildren: ["products", "categoryProducts"],
         childrenRoutes: [
-          routes.dashboard.products,
-          routes.dashboard.productsCategories,
+          "/dashboard/products",
+          "/dashboard/products/categories",
         ],
         items: [
-          { href: routes.dashboard.productsCategories, label: "Categorías" },
-          { href: routes.dashboard.products, label: "Productos" },
+          {
+            href: "/dashboard/products/categories",
+            label: "Categorías",
+            module: "categoryProducts",
+          },
+          {
+            href: "/dashboard/products",
+            label: "Productos",
+            module: "products",
+          },
         ],
       },
       {
@@ -208,28 +230,70 @@ const AsideNav = ({
         parent: "servicios",
         icon: Wrench,
         label: "Servicios",
+        moduleChildren: ["services", "technicians"],
         childrenRoutes: [
-          routes.dashboard.services,
-          routes.dashboard.technicians,
+          "/dashboard/services",
+          "/dashboard/technicians",
         ],
         items: [
-          { href: routes.dashboard.services, label: "Servicios" },
-          { href: routes.dashboard.technicians, label: "Técnicos" },
+          {
+            href: "/dashboard/services",
+            label: "Servicios",
+            module: "services",
+          },
+          {
+            href: "/dashboard/technicians",
+            label: "Técnicos",
+            module: "technicians",
+          },
         ],
       },
       {
         type: "submenu",
-        parent: "clientes",
+        parent: "ventas",
         icon: Users,
         label: "Ventas",
-        childrenRoutes: [routes.dashboard.clients],
+        moduleChildren: [
+          "customers",
+          "servicesRequest",
+          "orderServices",
+          "appointments",
+          "quotes",
+        ],
+        childrenRoutes: [
+          "/dashboard/clients",
+        ],
         items: [
-          { href: routes.dashboard.sales, label: "Ventas" },
-          { href: routes.dashboard.clients, label: "Clientes" },
-          { href: routes.dashboard.requestsServices, label: "Solicitudes" },
-          { href: routes.dashboard.ordersServices, label: "Órdenes" },
-          { href: routes.dashboard.appointments, label: "Citas" },
-          { href: routes.dashboard.quotes, label: "Cotizaciones" },
+          {
+            href: "/dashboard/sales",
+            label: "Ventas",
+            module: "customers",
+          },
+          {
+            href: "/dashboard/clients",
+            label: "Clientes",
+            module: "customers",
+          },
+          {
+            href: "/dashboard/requests",
+            label: "Solicitudes",
+            module: "servicesRequest",
+          },
+          {
+            href: "/dashboard/orders",
+            label: "Órdenes",
+            module: "orderServices",
+          },
+          {
+            href: "/dashboard/appointments",
+            label: "Citas",
+            module: "appointments",
+          },
+          {
+            href: "/dashboard/quotes",
+            label: "Cotizaciones",
+            module: "quotes",
+          },
         ],
       },
     ],
@@ -244,7 +308,6 @@ const AsideNav = ({
       className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.25)]"
       style={{ backgroundColor: Colors.asideNavBackground.primary }}
     >
-      {/* Botón flecha */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1 drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)] hover:bg-red-600 transition"
@@ -252,7 +315,6 @@ const AsideNav = ({
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
 
-      {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 mb-4">
         <div className="w-8 h-8 flex items-center justify-center bg-red-600 rounded-lg text-white font-bold">
           V
@@ -263,32 +325,58 @@ const AsideNav = ({
         </div>
       </div>
 
-      {/* NAV */}
       <nav className="flex flex-col gap-1 px-2">
-        {menuConfig.map((item) =>
-          item.type === "link" ? (
-            <MenuItem
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-            />
-          ) : (
-            <SubMenu
-              key={item.parent}
-              parent={item.parent}
-              icon={item.icon}
-              label={item.label}
-              childrenRoutes={item.childrenRoutes}
-              pathname={pathname}
-              openMenu={openMenu}
-              toggleMenu={toggleMenu}
-              items={item.items}
-              setOpenMenu={setOpenMenu}
-            />
-          )
-        )}
+        {menuConfig.map((item) => {
+          if (item.type === "link") {
+            return (
+              canView(item.module) && (
+                <MenuItem
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={pathname === item.href}
+                />
+              )
+            );
+          }
+
+          if (item.type === "submenu") {
+            const visibleItems = item.items.filter((i) => canView(i.module));
+
+            if (visibleItems.length === 0) return null;
+
+            if (visibleItems.length === 1) {
+              const only = visibleItems[0];
+              return (
+                <MenuItem
+                  key={only.href}
+                  href={only.href}
+                  icon={item.icon}
+                  label={only.label}
+                  isActive={pathname.startsWith(only.href)}
+                />
+              );
+            }
+
+            return (
+              <SubMenu
+                key={item.parent}
+                parent={item.parent}
+                icon={item.icon}
+                label={item.label}
+                childrenRoutes={item.childrenRoutes}
+                pathname={pathname}
+                openMenu={openMenu}
+                toggleMenu={toggleMenu}
+                items={visibleItems}
+                setOpenMenu={setOpenMenu}
+              />
+            );
+          }
+
+          return null;
+        })}
       </nav>
     </motion.aside>
   );

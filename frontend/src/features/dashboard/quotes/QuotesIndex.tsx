@@ -146,6 +146,7 @@ export default function QuotesIndex() {
 
         {/* 🧩 Tabla de Cotizaciones */}
         <DataTable<IQuote>
+          module="quotes"
           data={quotesData}
           columns={columns}
           searchableKeys={["client", "status", "creationDate"]}

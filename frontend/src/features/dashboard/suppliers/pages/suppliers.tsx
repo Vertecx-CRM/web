@@ -251,6 +251,7 @@ export default function SuppliersPage() {
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100">
         <DataTable<Row>
+          module="suppliers"
           data={rows}
           columns={columns}
           pageSize={5}
