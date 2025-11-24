@@ -82,7 +82,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         }}
         form="edit-user-form"
       >
-        {isSubmitting ? "Actualizando..." : "Actualizar"}
+        Actualizar
       </button>
     </>
   );

@@ -9,7 +9,7 @@ import {
   validateField,
   validateFormWithNotification,
 } from "../validations/categoryValidations";
-import { showWarning, showSuccess } from "@/shared/utils/notifications";
+import { showWarning } from "@/shared/utils/notifications";
 
 export const useCreateCategoryForm = ({
   isOpen,
@@ -42,7 +42,7 @@ export const useCreateCategoryForm = ({
     }
   }, [isOpen]);
 
-  // Validación en tiempo real (incluye nombre duplicado)
+  // Validacion en tiempo real (incluye nombre duplicado)
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -56,7 +56,7 @@ export const useCreateCategoryForm = ({
     }
   };
 
-  // Validación al salir del campo
+  // Validacion al salir del campo
   const handleBlur = (
     e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -95,11 +95,11 @@ export const useCreateCategoryForm = ({
     }
   };
 
-  // Envío del formulario
+  // Envio del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validación global con notificación (solo al guardar)
+    // Validacion global con notificacion (solo al guardar)
     const valid = validateFormWithNotification(
       formData,
       setErrors,
@@ -114,17 +114,14 @@ export const useCreateCategoryForm = ({
         iconUrl = await uploadToCloudinary(formData.icon);
       }
 
-      onSave({
+      await onSave({
         name: formData.name.trim(),
         description: formData.description.trim(),
         icon: iconUrl,
       });
-
-      showSuccess("Categoría creada exitosamente");
-      setTimeout(onClose, 800);
     } catch (error) {
       console.error(error);
-      showWarning("Error al guardar la categoría");
+      showWarning("Error al guardar la categoria");
     }
   };
 

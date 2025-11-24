@@ -38,57 +38,31 @@ type LoaderContextType = {
 
 const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
 
-// Tiempo mínimo que el loader debe estar visible (en ms)
-const MIN_LOADER_TIME = 1000;
-
 export function LoaderProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
-  const startRef = useRef<number | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCountRef = useRef(0);
 
   const showLoader = () => {
-    // Cancelar cualquier hide pendiente
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-
-    if (!loading) {
-      startRef.current = Date.now();
-      setLoading(true);
-    }
+    pendingCountRef.current += 1;
+    if (!loading) setLoading(true);
   };
 
   const hideLoader = () => {
+    if (pendingCountRef.current > 0) pendingCountRef.current -= 1;
+    if (pendingCountRef.current < 0) pendingCountRef.current = 0;
+    if (pendingCountRef.current > 0) return;
     if (!loading) return;
-
-    const start = startRef.current;
-    if (!start) {
-      setLoading(false);
-      return;
-    }
-
-    const elapsed = Date.now() - start;
-    const remaining = MIN_LOADER_TIME - elapsed;
-
-    if (remaining <= 0) {
-      setLoading(false);
-      startRef.current = null;
-    } else {
-      timeoutRef.current = setTimeout(() => {
-        setLoading(false);
-        startRef.current = null;
-        timeoutRef.current = null;
-      }, remaining);
-    }
+    setLoading(false);
   };
 
-  // Limpiar timeout al desmontar el provider
   useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+    if (!loading) return;
+    const id = setTimeout(() => {
+      pendingCountRef.current = 0;
+      setLoading(false);
+    }, 15000);
+    return () => clearTimeout(id);
+  }, [loading]);
 
   return (
     <LoaderContext.Provider value={{ showLoader, hideLoader }}>
@@ -110,8 +84,6 @@ export function LoaderGate() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // En cada cambio de ruta pedimos ocultar loader;
-    // el propio hideLoader respeta el tiempo mínimo.
     hideLoader();
   }, [hideLoader, pathname]);
 

@@ -1,12 +1,15 @@
-const API_URL = "http://localhost:3001/products-categories";
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").replace(/\/$/, "");
+const API_URL = `${BASE_URL}/products-categories`;
 
 // Obtener todas las categorías
 export const fetchCategories = async () => {
-  const response = await fetch(API_URL);
+  const response = await fetch(API_URL, { cache: "no-store" });
   if (!response.ok) throw new Error("Error al obtener las categorías");
 
-  const data = await response.json();
-  return data;
+  const payload = await response.json();
+  const data = payload?.data ?? payload;
+
+  return { data, status: response.status };
 };
 
 
