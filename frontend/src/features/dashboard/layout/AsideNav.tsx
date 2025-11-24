@@ -162,7 +162,7 @@ const AsideNav = ({
       },
       {
         type: "link",
-        href: "/dashboard/access/roles",
+        href: "/dashboard/roles",
         label: "Roles",
         icon: Users,
         module: "Roles",
@@ -181,7 +181,7 @@ const AsideNav = ({
         ],
         items: [
           {
-            href: "/dashboard/purchases/suppliers",
+            href: "/dashboard/suppliers",
             label: "Proveedores",
             module: "suppliers",
           },
@@ -280,7 +280,7 @@ const AsideNav = ({
             module: "servicesRequest",
           },
           {
-            href: "/dashboard/orders",
+            href: "/dashboard/orders-services",
             label: "Órdenes",
             module: "orderServices",
           },
