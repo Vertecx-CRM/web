@@ -11,6 +11,14 @@ interface ViewTechnicianModalProps {
   onClose: () => void;
 }
 
+const rowLabel = "text-[13px] font-medium mb-0.5";
+const rowBox =
+  "px-2 py-1 border rounded-md bg-gray-50 text-[13px] leading-5 whitespace-nowrap overflow-hidden text-ellipsis";
+
+const chip = "px-2.5 py-0.5 rounded-full border text-xs";
+const chipOn = "bg-red-600 text-white border-red-600";
+const chipOff = "bg-gray-100 text-gray-700 border-gray-300";
+
 const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
   isOpen,
   technician,
@@ -23,6 +31,10 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
     const lastInitial = lastName?.charAt(0)?.toUpperCase() ?? "";
     return `${firstInitial}${lastInitial}`;
   };
+
+  const documento = `${technician.documentType ?? ""} ${
+    technician.documentNumber ?? ""
+  }`.trim();
 
   return (
     <Modal
@@ -41,16 +53,14 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
         </div>
       }
     >
-      <div className="grid grid-cols-2 gap-3 p-1">
-        {/* Imagen */}
-        <div className="col-span-2 flex flex-col items-center mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 p-1">
+        <div className="col-span-2 lg:col-span-3 flex justify-center mb-1">
           <div
-            className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-bold text-lg"
-            style={{
-              backgroundColor: technician.image ? "transparent" : "#f3f4f6",
-            }}
+            className="w-16 h-16 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden text-gray-600 font-semibold text-base"
+            style={{ backgroundColor: technician.image ? "transparent" : "#f3f4f6" }}
           >
             {technician.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={technician.image}
                 alt={`${technician.name} ${technician.lastName}`}
@@ -62,95 +72,88 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
           </div>
         </div>
 
-        {/* Nombre */}
+        {/* Fila 1 */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Nombre
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.name}
-          </div>
+          <div className={rowBox}>{technician.name}</div>
         </div>
 
-        {/* Apellido */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Apellido
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.lastName}
-          </div>
+          <div className={rowBox}>{technician.lastName}</div>
         </div>
 
-        {/* Tipo de Documento */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Tipo de Documento
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
+            Documento
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.documentType}
+          <div className={rowBox} title={documento || "—"}>
+            {documento || "—"}
           </div>
         </div>
 
-        {/* Número de Documento */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Número de Documento
-          </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.documentNumber}
-          </div>
-        </div>
-
-        {/* Teléfono */}
-        <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Teléfono
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.phone}
-          </div>
+          <div className={rowBox}>{technician.phone}</div>
         </div>
 
-        {/* Correo */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
-            Correo Electrónico
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
+            Correo electrónico
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.email}
-          </div>
+          <div className={rowBox}>{technician.email}</div>
         </div>
 
-        {/* Estado */}
         <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            style={{ color: Colors.texts.primary }}
-          >
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
             Estado
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-            {technician.state}
+          <div className={rowBox}>{technician.state}</div>
+        </div>
+
+        <div className="col-span-2 lg:col-span-3 flex flex-col items-center">
+          <label
+            className={`${rowLabel} text-center`}
+            style={{ color: Colors.texts.primary }}
+          >
+            Tipos de técnico
+          </label>
+          <div className="flex flex-wrap justify-center gap-1.5 max-w-[640px]">
+            {(technician.types ?? []).length ? (
+              technician.types.map((t) => (
+                <span key={t} className={`${chip} ${chipOn}`}>
+                  {t}
+                </span>
+              ))
+            ) : (
+              <span className={`${chip} ${chipOff}`}>Sin especificar</span>
+            )}
           </div>
+        </div>
+
+        <div>
+          <label className={rowLabel} style={{ color: Colors.texts.primary }}>
+            Hoja de vida (PDF)
+          </label>
+          {technician.resumeUrl ? (
+            <a
+              href={technician.resumeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-3 py-1 rounded-md border bg-white hover:bg-gray-100 text-[13px]"
+              title="Abrir hoja de vida"
+            >
+              Ver PDF
+            </a>
+          ) : (
+            <div className={rowBox}>No cargada</div>
+          )}
         </div>
       </div>
     </Modal>
@@ -158,4 +161,3 @@ const ViewTechnicianModal: React.FC<ViewTechnicianModalProps> = ({
 };
 
 export default ViewTechnicianModal;
- 

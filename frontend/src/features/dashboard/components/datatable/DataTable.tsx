@@ -149,6 +149,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
                 onDelete={canDelete(module) ? onDelete : undefined}
                 onCancel={onCancel}
                 onCheck={onCheck}
+                actionGuard={actionGuard}
                 renderExtraActions={renderExtraActions}
               />
             )}
@@ -174,6 +175,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
       renderExtraActions,
       renderTail,
       tailHeader,
+      actionGuard,
       startIndex,
       canView,
       canUpdate,
@@ -187,7 +189,6 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
-            {/* Search */}
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input
@@ -201,7 +202,6 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
               />
             </div>
 
-            {/* Page size select */}
             <div className="flex items-center gap-2">
               <select
                 value={pageSizeOption}
@@ -231,7 +231,6 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
           </div>
         )}
 
-        {/* Botones de acciones a la derecha */}
         {(rightActions || onCreate) && (
           <div className="flex items-center gap-2 justify-end">
             {rightActions}
@@ -264,6 +263,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
                   onDelete={canDelete(module) ? onDelete : undefined}
                   onCancel={onCancel}
                   onCheck={onCheck}
+                  actionGuard={actionGuard}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
                   renderTail={renderTail}

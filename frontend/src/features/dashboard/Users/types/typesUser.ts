@@ -1,95 +1,139 @@
-export interface user {
-  id?: number;
-  tipoDocumento: string;
-  numeroDocumento: string;
-  nombre: string;
-  apellido?: string;
-  telefono: string;
+export interface User {
+  userid?: number;
+  createat?: string | Date;
+  updateat?: string | Date;
+  stateid: number;
+  typeid: number;
+  phone: string;
+  documentnumber: string;
+  image?: string | null;
+  name: string;
+  lastname?: string | null;
   email: string;
-  rol: string;
-  estado: "Activo" | "Inactivo";
-  imagen?: File | string | null;
   password?: string;
   confirmPassword?: string;
+  states?: any;
+  typeofdocuments?: any;
+  roleid: number;
+  roles?: {
+    roleid: number;
+    name: string;
+    status?: string;
+  };
+  technicians?: {
+    technicianid: number;
+    CV: string;
+    technicianTypeMaps?: {
+      techniciantypeid: number;
+      techniciantype?: { name: string };
+    }[];
+  }[];
+  customers?: {
+    customerid: number;
+    customercity: string | null;
+    customerzipcode: string | null;
+  }[];
 }
 
-export interface userBase {
-  numeroDocumento: string;
-  nombre: string;
-  telefono: string;
-  email: string;
-  estado: "Activo" | "Inactivo";
-  imagen?: File | null;
-}
-
-export interface createUserData extends userBase {
-  tipoDocumento: string;
-  apellido: string;
-  rol: string;
-  password: string;
-  confirmPassword: string;
-}
-
-export interface editUser extends userBase {
+export interface UserForTable extends User {
   id: number;
-  tipoDocumento: string;
-  apellido: string;
-  rol: string;
+  userid: number;
 }
 
-export interface formErrors {
-  tipoDocumento: string;
-  numeroDocumento: string;
-  nombre: string;
-  apellido: string;
-  telefono: string;
+export interface CreateUserData {
+  name: string;
+  lastname?: string | null;
   email: string;
-  rol: string;
-  estado?: string
+  phone: string;
+  typeid: number;
+  documentnumber: string;
+  image?: string | File | null;
+  stateid: number;
+  roleid: number;
+  CV?: string | File | null;
+  techniciantypeids?: number[];
+  customercity?: string;
+  customerzipcode?: string;
+}
+
+export interface EditUser {
+  userid: number;
+  name: string;
+  lastname: string | null;
+  email: string;
+  phone: string;
+  documentnumber: string;
+  typeid: number;
+  image?: string | File | null;
+  stateid: number;
+  roleid: number;
+  CV?: string | File | null;
+  techniciantypeids?: number[];
+  customercity?: string;
+  customerzipcode?: string;
+}
+
+export interface FormErrors {
+  userid: string;
+  name: string;
+  lastname: string;
+  email: string;
   password: string;
   confirmPassword: string;
+  phone: string;
+  documentnumber: string;
+  typeid: string;
+  stateid: string;
+  image: string;
+  roleid: string;
+  CV: string;
+  techniciantypeids: string;
+  customercity: string;
+  customerzipcode: string;
 }
 
-export interface formTouched {
-  tipoDocumento: boolean;
-  numeroDocumento: boolean;
-  nombre: boolean;
-  apellido: boolean;
-  telefono: boolean;
+export interface FormTouched {
+  userid: boolean;
+  name: boolean;
+  lastname: boolean;
   email: boolean;
-  rol: boolean;
-  estado: boolean;
   password: boolean;
   confirmPassword: boolean;
+  phone: boolean;
+  documentnumber: boolean;
+  typeid: boolean;
+  stateid: boolean;
+  image: boolean;
+  roleid: boolean;
+  CV: boolean;
+  techniciantypeids: boolean;
+  customercity: boolean;
+  customerzipcode: boolean;
 }
 
-export interface createUserModalProps {
+export interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (userData: createUserData) => void;
+  onSave: (userData: CreateUserData) => void;
 }
 
-export interface editUserModalProps {
+export interface EditUserModalProps {
   isOpen: boolean;
-  user: editUser | null; 
+  user: User | null;
   onClose: () => void;
-  onSave: (userData: editUser ) => void;
+  onSave: (userData: EditUser) => void;
 }
 
-export interface viewUserModalProps {
+export interface ViewUserModalProps {
   isOpen: boolean;
-  user: user | null;
+  user: User | null;
   onClose: () => void;
 }
 
 export interface UsersTableProps {
-  users: user[];
-  onView: (user: user) => void;
-  onEdit: (user: editUser) => void;
-  onDelete: (user: user) => void;
+  users: User[];
+  onView: (user: User) => void;
+  onEdit: (user: EditUser) => void;
+  onDelete: (user: User) => void;
   onCreate: () => void;
-}
-
-export interface userForTable extends Omit<user, 'id'> {
-  id: number;
 }

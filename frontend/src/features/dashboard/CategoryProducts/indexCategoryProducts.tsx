@@ -21,28 +21,57 @@ export default function CategoriesPage() {
     handleEditCategory,
     handleView,
     handleEdit,
-    handleDelete,
+    handleDeleteCategory,
     closeModals,
   } = useCategories();
 
   const columns: Column<Category>[] = [
     { key: "id", header: "ID" },
-    { key: "nombre", header: "Nombre" },
-    { key: "descripcion", header: "Descripción" },
+    { key: "name", header: "Nombre" },
     {
-      key: "estado",
+      key: "description",
+      header: "Descripción",
+      render: (row: Category) => {
+        const desc =
+          row.description && row.description.trim() !== ""
+            ? row.description
+            : "No hay descripción";
+
+        const maxLength = 60;
+        const truncated =
+          desc.length > maxLength ? desc.substring(0, maxLength) + "..." : desc;
+
+        return (
+          <div
+            title={desc}
+            className="flex justify-center items-center text-center w-full h-full"
+          >
+            <span
+              className={`block max-w-[250px] truncate ${desc === "No hay descripción"
+                  ? "text-gray-400 italic"
+                  : "text-gray-700"
+                }`}
+            >
+              {truncated}
+            </span>
+          </div>
+        );
+      },
+    },
+
+    {
+      key: "status",
       header: "Estado",
       render: (row: Category) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color:
-              row.estado === "Activo"
-                ? Colors.states.success
-                : Colors.states.inactive,
+            color: row.status
+              ? Colors.states.success
+              : Colors.states.inactive,
           }}
         >
-          {row.estado}
+          {row.status ? "Activo" : "Inactivo"}
         </span>
       ),
     },
@@ -66,11 +95,13 @@ export default function CategoriesPage() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="flex-1 px-6 py-6">
+
             {/* Modal de Crear Categoría */}
             <CreateCategoryModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateCategory}
+              categories={categories}
             />
 
             {/* Modal de Editar Categoría */}
@@ -83,6 +114,7 @@ export default function CategoriesPage() {
                   handleEditCategory(editingCategory.id, categoryData);
                 }
               }}
+              categories={categories}
             />
 
             {/* Modal de Ver Categoría */}
@@ -97,13 +129,13 @@ export default function CategoriesPage() {
               data={categories}
               columns={columns}
               pageSize={10}
-              searchableKeys={["id", "nombre", "descripcion", "estado"]}
+              searchableKeys={["id", "name", "description", "status"]}
               onCreate={() => setIsCreateModalOpen(true)}
               createButtonText="Crear Categoría"
               searchPlaceholder="Buscar categorías..."
               onView={handleView}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDeleteCategory}
             />
           </div>
         </main>

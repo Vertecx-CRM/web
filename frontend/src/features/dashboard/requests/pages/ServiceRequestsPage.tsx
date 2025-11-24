@@ -9,9 +9,8 @@ import { useServiceRequests, useCreateServiceRequest, useUpdateServiceRequest } 
 import CreateRequestModal, { type CreateRequestPayload } from "@/features/dashboard/requests/components/CreateRequestModal";
 import EditRequestModal, { type EditRequestPayload } from "@/features/dashboard/requests/components/EditRequestModal";
 import ViewRequestModal from "@/features/dashboard/requests/components/ViewRequestModal";
-import type { SlotDateTime } from "@/features/dashboard/appointments/types/typeAppointment";
-import { CreateAppointmentModal } from "@/features/dashboard/appointments/components/CreateAppointmentModal/createAppointment";
 import { useLookups } from "@/features/dashboard/requests/hooks/useLookups";
+import { buildScheduledAt, splitDateTime } from "@/features/dashboard/requests/utils/schedule";
 
 const ICONS = { calendar: "/icons/calendar.svg", cancel: "/icons/minus-circle.svg", print: "/icons/printer.svg", money: "/icons/dollar-sign.svg" };
 
@@ -31,15 +30,6 @@ type Row = {
   programada?: string | null;
 };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function dateToSlot(d: Date): SlotDateTime {
-  const startH = d.getHours();
-  const startM = d.getMinutes();
-  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startH, startM + 60);
-  return { dia: pad2(d.getDate()), mes: pad2(d.getMonth() + 1), año: String(d.getFullYear()), horaInicio: pad2(startH), minutoInicio: pad2(startM), horaFin: pad2(end.getHours()), minutoFin: pad2(end.getMinutes()) };
-}
 function estadoClass(v: string) {
   const s = (v || "").toLowerCase();
   if (s.includes("aprob")) return "text-green-600";
@@ -56,20 +46,12 @@ function tipoToBackend(t: "Mantenimiento" | "Instalacion" | undefined) {
   if (!t) return "MANTENIMIENTO";
   return t.toUpperCase();
 }
-function toYMD(input?: string | null) {
-  if (!input) return null;
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
 
 export default function ServiceRequestsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openView, setOpenView] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
-  const [openAppointment, setOpenAppointment] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<SlotDateTime | null>(null);
 
   const queryClient = useQueryClient();
   const { serviceOptions, customerOptions } = useLookups();
@@ -93,7 +75,7 @@ export default function ServiceRequestsPage() {
       const lower = String(tipoRaw).toLowerCase();
       const tipo = lower.includes("instal") ? "Instalacion" : lower.includes("manten") ? "Mantenimiento" : String(tipoRaw || "");
       const tipos: ("Mantenimiento" | "Instalacion")[] = tipo === "Mantenimiento" ? ["Mantenimiento"] : tipo === "Instalacion" ? ["Instalacion"] : [];
-      const programada = r?.scheduledAt ? String(r.scheduledAt) : null;
+      const programada = r?.scheduledAt ? new Date(r.scheduledAt).toISOString() : null;
       const estado = r?.state?.name ?? r?.status ?? "";
       const stateId = r?.stateId ?? r?.state?.stateid ?? undefined;
       const fecha = r?.createdAt ? new Date(r.createdAt).toLocaleDateString("es-CO") : "";
@@ -128,8 +110,9 @@ export default function ServiceRequestsPage() {
   }
 
   async function handleCreate(values: CreateRequestPayload) {
+    const scheduledAt = buildScheduledAt(values.programada, values.horaProgramada, new Date());
     const dto = {
-      scheduledAt: values.programada ?? null,
+      scheduledAt,
       serviceType: tipoToBackend(values.tipos?.[0]),
       description: values.descripcion?.trim(),
       stateId: 1,
@@ -145,8 +128,13 @@ export default function ServiceRequestsPage() {
   async function handleUpdate(values: EditRequestPayload) {
     if (!selected) return;
     const id = Number(selected.id);
+    const scheduledAt = buildScheduledAt(
+      values.programada,
+      values.horaProgramada,
+      selected.programada ? new Date(selected.programada) : null
+    );
     const payload: any = {
-      scheduledAt: values.programada ?? null,
+      scheduledAt,
       serviceType: tipoToBackend(values.tipos?.[0]),
       description: values.descripcion?.trim(),
       serviceId: parseMaybeId(values.servicio),
@@ -156,7 +144,7 @@ export default function ServiceRequestsPage() {
     if (stateIdNum > 0) payload.stateId = stateIdNum;
 
     optimisticPatch(id, {
-      programada: values.programada ?? null,
+      programada: scheduledAt,
       descripcion: values.descripcion?.trim(),
       servicio: String(serviceOptions.find((o) => String(o.id) === String(values.servicio))?.label ?? selected.servicio),
       serviceId: parseMaybeId(values.servicio),
@@ -179,7 +167,15 @@ export default function ServiceRequestsPage() {
     if (!res.isConfirmed) return;
     const id = Number(row.id);
     optimisticPatch(id, { estado: "Cancelado", stateId: 4 });
-    const payload = { scheduledAt: row.programada ?? null, serviceType: tipoToBackend(row.tipos?.[0]), description: row.descripcion?.trim(), stateId: 4, serviceId: parseMaybeId(String(row.serviceId ?? "")), clientId: parseMaybeId(String(row.clienteId ?? "")) };
+    const parts = splitDateTime(row.programada ?? null);
+    const payload = {
+      scheduledAt: buildScheduledAt(parts.date, parts.time, row.programada ? new Date(row.programada) : new Date()),
+      serviceType: tipoToBackend(row.tipos?.[0]),
+      description: row.descripcion?.trim(),
+      stateId: 4,
+      serviceId: parseMaybeId(String(row.serviceId ?? "")),
+      clientId: parseMaybeId(String(row.clienteId ?? "")),
+    };
     await updateMut.mutateAsync({ id, payload });
     await queryClient.invalidateQueries({ queryKey: ["service-requests"] });
     await Swal.fire({ icon: "success", title: "Cancelada", text: "La solicitud fue cancelada.", timer: 1400, showConfirmButton: false });
@@ -302,9 +298,8 @@ export default function ServiceRequestsPage() {
                 className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
                 title="Programar"
                 onClick={() => {
-                  const base = row.programada ? new Date(row.programada) : new Date();
-                  setSelectedSlot(dateToSlot(base));
-                  setOpenAppointment(true);
+                  setSelected(row);
+                  setOpenEdit(true);
                 }}
               >
                 <img src={ICONS.calendar} className="h-4 w-4" />
@@ -350,6 +345,9 @@ export default function ServiceRequestsPage() {
         />
 
         {openEdit && selected && (
+          (() => {
+            const parts = splitDateTime(selected.programada ?? null);
+            return (
           <EditRequestModal
             key={`edit-${selected.id}`}
             isOpen={openEdit}
@@ -360,7 +358,8 @@ export default function ServiceRequestsPage() {
               descripcion: selected.descripcion,
               direccion: selected.direccion,
               cliente: String(selected.clienteId ?? ""),
-              programada: toYMD(selected.programada),
+              programada: parts.date,
+              horaProgramada: parts.time,
               estado: String(selected.stateId ?? ""),
             }}
             servicios={serviceOptions}
@@ -368,6 +367,8 @@ export default function ServiceRequestsPage() {
             onSave={handleUpdate}
             title="Editar Solicitud"
           />
+            );
+          })()
         )}
 
         {openView && selected && (
@@ -387,15 +388,6 @@ export default function ServiceRequestsPage() {
               programada: selected.programada ?? null,
             }}
             title="Detalle de la Solicitud"
-          />
-        )}
-
-        {openAppointment && selectedSlot && (
-          <CreateAppointmentModal
-            isOpen={openAppointment}
-            onClose={() => setOpenAppointment(false)}
-            onSave={() => setOpenAppointment(false)}
-            selectedDateTime={selectedSlot}
           />
         )}
       </main>

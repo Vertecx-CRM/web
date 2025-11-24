@@ -14,6 +14,7 @@ import { useState } from "react";
 export default function TechniciansIndex() {
   const {
     technicians,
+    typeOptions,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingTechnician,
@@ -23,7 +24,6 @@ export default function TechniciansIndex() {
     handleDeleteTechnician,
   } = useTechnicians(mockTechnicians);
 
-  // ✅ Estado para ver técnico
   const [viewingTechnician, setViewingTechnician] = useState<Technician | null>(null);
 
   return (
@@ -32,15 +32,15 @@ export default function TechniciansIndex() {
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">
-            {/* Modal Crear */}
+            
             <CreateTechnicianModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateTechnician as (data: CreateTechnicianData) => void}
               technicians={technicians}
+              typeOptions={typeOptions}
             />
 
-            {/* Modal Editar */}
             {editingTechnician && (
               <EditTechnicianModal
                 isOpen={true}
@@ -48,20 +48,19 @@ export default function TechniciansIndex() {
                 onClose={() => setEditingTechnician(null)}
                 onUpdate={(data) => handleEditTechnician(data.id, data)}
                 technicians={technicians}
+                typeOptions={typeOptions}
               />
             )}
 
-            {/* ✅ Modal Ver */}
             <ViewTechnicianModal
               isOpen={!!viewingTechnician}
               technician={viewingTechnician}
               onClose={() => setViewingTechnician(null)}
             />
 
-            {/* Tabla de técnicos */}
             <TableTechnicians
               technicians={technicians}
-              onView={(t) => setViewingTechnician(t)} // ✅ abre modal en vez de alert
+              onView={(t) => setViewingTechnician(t)} 
               onEdit={(t) => setEditingTechnician(t)}
               onDelete={handleDeleteTechnician}
               onCreate={() => setIsCreateModalOpen(true)}

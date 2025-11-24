@@ -14,7 +14,8 @@ import {
   TechnicianErrors,
 } from "@/features/dashboard/technicians/validations/techniciansValidations";
 import { showWarning } from "@/shared/utils/notifications";
-import { Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
+import { getDocumentTypes } from "../../api/typeofdocuments.api";
 
 type TechnicianField =
   | "documentType"
@@ -23,103 +24,119 @@ type TechnicianField =
   | "lastName"
   | "phone"
   | "email"
-  | "password"
-  | "confirmPassword";
+  | "types"
+  | "resumePdf";
 
 interface CreateTechnicianModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: CreateTechnicianData) => void;
   technicians: Technician[];
+  typeOptions?: string[];
 }
 
-const documentTypes: DocumentType[] = [
-  "CC",
-  "CE",
-  "TI",
-  "Pasaporte",
-  "PPT",
-  "PEP",
-  "Otro",
-];
+const TECH_TYPES = ["Cableado estructurado", "Electricista", "Redes"];
+
+const removeBtnClass =
+  "text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700 flex items-center gap-1";
 
 const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   isOpen,
   onClose,
   onSave,
   technicians,
+  typeOptions,
 }) => {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
-  const [contraseña, setContraseña] = useState("");
-  const [confirmarContraseña, setConfirmarContraseña] = useState("");
-  const [tipoDocumento, setTipoDocumento] = useState<DocumentType>("CC");
+  const [tipoDocumento, setTipoDocumento] = useState<string>("");
+  const [tipoDocumentoId, setTipoDocumentoId] = useState<number>(0);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+
   const [numeroDocumento, setNumeroDocumento] = useState("");
   const [telefono, setTelefono] = useState("");
   const [correo, setCorreo] = useState("");
   const [imagen, setImagen] = useState<File | null>(null);
   const [previewImagen, setPreviewImagen] = useState<string | null>(null);
-  const [mostrarContraseña, setMostrarContraseña] = useState(false);
-  const [mostrarConfirmarContraseña, setMostrarConfirmarContraseña] =
-    useState(false);
+
+  const [types, setTypes] = useState<string[]>([]);
+  const [resumePdf, setResumePdf] = useState<File | null>(null);
+  const [resumeName, setResumeName] = useState<string>("");
+
   const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
   const [imageError, setImageError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setNombre("");
     setApellido("");
-    setContraseña("");
-    setConfirmarContraseña("");
-    setTipoDocumento("CC");
+    setTipoDocumento("");
+    setTipoDocumentoId(0);
     setNumeroDocumento("");
     setTelefono("");
     setCorreo("");
     setImagen(null);
     setPreviewImagen(null);
-    setMostrarContraseña(false);
-    setMostrarConfirmarContraseña(false);
+    setTypes([]);
+    setResumePdf(null);
+    setResumeName("");
     setErrors({});
     setImageError(null);
+    setPdfError(null);
   };
 
   useEffect(() => {
-    if (isOpen) resetForm();
+    if (!isOpen) return;
+
+    resetForm();
+    
+    getDocumentTypes().then((data) => {
+      const filtered = data.filter((d) => d.name !== "NIT");
+      setDocumentTypes(filtered);
+
+      if (filtered.length > 0) {
+        setTipoDocumentoId(filtered[0].typeofdocumentid);
+        setTipoDocumento(filtered[0].name);
+      }
+    });
+
   }, [isOpen]);
 
-  const handleFieldChange = (field: TechnicianField, rawValue: string) => {
+  const handleFieldChange = (field: TechnicianField, rawValue: any) => {
     let value = rawValue;
-    const hasDigits = /\d/.test(rawValue);
+    const hasDigits = typeof rawValue === "string" && /\d/.test(rawValue);
+
+    if (field === "documentType") {
+      const id = Number(rawValue);
+      const doc = documentTypes.find((d) => d.typeofdocumentid === id);
+
+      setTipoDocumentoId(id);
+      setTipoDocumento(doc?.name ?? "");
+
+      const docTypeError = validateTechnicianField(
+        "documentType",
+        doc?.name ?? "",
+        technicians,
+        { documentType: doc?.name ?? "" }
+      );
+      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
+
+      return;
+    }
 
     if (field === "name" || field === "lastName")
-      value = rawValue.replace(/\d/g, "");
-    if (field === "phone") value = rawValue.replace(/\D/g, "");
+      value = String(rawValue).replace(/\d/g, "");
+
+    if (field === "phone") value = String(rawValue).replace(/\D/g, "");
+
     if (field === "documentNumber") {
       value =
         tipoDocumento === "PPT" || tipoDocumento === "Pasaporte"
-          ? rawValue.replace(/[^a-zA-Z0-9]/g, "")
-          : rawValue.replace(/\D/g, "");
-    }
-
-    if (field === "documentType") {
-      const dt = rawValue as DocumentType;
-      setTipoDocumento(dt);
-      const numError = validateTechnicianField(
-        "documentNumber",
-        numeroDocumento,
-        technicians,
-        { password: contraseña, documentType: dt }
-      );
-      setErrors((prev) => ({ ...prev, documentNumber: numError }));
-      const docTypeError = validateTechnicianField(
-        "documentType",
-        dt,
-        technicians,
-        { password: contraseña, documentType: dt }
-      );
-      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
-      return;
+          ? String(rawValue).replace(/[^a-zA-Z0-9]/g, "")
+          : String(rawValue).replace(/\D/g, "");
     }
 
     switch (field) {
@@ -128,12 +145,6 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         break;
       case "lastName":
         setApellido(value);
-        break;
-      case "password":
-        setContraseña(value);
-        break;
-      case "confirmPassword":
-        setConfirmarContraseña(value);
         break;
       case "documentNumber":
         setNumeroDocumento(value);
@@ -144,13 +155,20 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
       case "email":
         setCorreo(value);
         break;
+      case "types":
+        setTypes(value as string[]);
+        break;
+      case "resumePdf":
+        setResumePdf(value as File | null);
+        break;
     }
 
-    const extra = {
-      password: field === "password" ? value : contraseña,
-      documentType: tipoDocumento,
-    };
-    let fieldError = validateTechnicianField(field, value, technicians, extra);
+    let fieldError = validateTechnicianField(
+      field,
+      value,
+      technicians,
+      { documentType: tipoDocumento }
+    );
 
     if ((field === "name" || field === "lastName") && hasDigits) {
       fieldError =
@@ -160,37 +178,17 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     }
 
     setErrors((prev) => ({ ...prev, [field]: fieldError }));
-
-    if (field === "password" || field === "confirmPassword") {
-      const confVal = field === "confirmPassword" ? value : confirmarContraseña;
-      const confError = validateTechnicianField(
-        "confirmPassword",
-        confVal,
-        technicians,
-        { password: field === "password" ? value : contraseña }
-      );
-      setErrors((prev) => ({ ...prev, confirmPassword: confError }));
-    }
-
-    if (field === "documentNumber") {
-      const numError = validateTechnicianField(
-        "documentNumber",
-        value,
-        technicians,
-        { password: contraseña, documentType: tipoDocumento }
-      );
-      setErrors((prev) => ({ ...prev, documentNumber: numError }));
-    }
   };
 
   const validateImage = (file: File | null) => {
     if (!file) return null;
-    if (!file.type.startsWith("image/")) return "El archivo debe ser una imagen";
+    if (!file.type.startsWith("image/"))
+      return "El archivo debe ser una imagen";
     if (file.size > 2 * 1024 * 1024) return "La imagen no debe superar 2MB";
     return null;
   };
 
-  const handleFileChange = (file: File | null) => {
+  const handleImageChange = (file: File | null) => {
     if (file) {
       const err = validateImage(file);
       if (err) {
@@ -205,33 +203,72 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     setPreviewImagen(file ? URL.createObjectURL(file) : null);
   };
 
+  const handlePdfChange = (file: File | null) => {
+    if (!file) {
+      setResumePdf(null);
+      setResumeName("");
+      setPdfError("La hoja de vida (PDF) es obligatoria");
+      setErrors((p) => ({
+        ...p,
+        resumePdf: "La hoja de vida (PDF) es obligatoria",
+      }));
+      return;
+    }
+    if (file.type !== "application/pdf") {
+      const msg = "El archivo debe ser un PDF";
+      setPdfError(msg);
+      setErrors((p) => ({ ...p, resumePdf: msg }));
+      setResumePdf(null);
+      setResumeName("");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = "El PDF no debe superar 10MB";
+      setPdfError(msg);
+      setErrors((p) => ({ ...p, resumePdf: msg }));
+      setResumePdf(null);
+      setResumeName("");
+      return;
+    }
+    setPdfError(null);
+    setErrors((p) => ({ ...p, resumePdf: undefined }));
+    setResumePdf(file);
+    setResumeName(file.name);
+  };
+
+  const handleToggleType = (option: string) => {
+    setTypes((prev) =>
+      prev.includes(option)
+        ? prev.filter((t) => t !== option)
+        : [...prev, option]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const formData: CreateTechnicianData = {
       name: nombre,
       lastName: apellido,
-      password: contraseña,
-      confirmPassword: confirmarContraseña,
       documentType: tipoDocumento,
+      typeid: tipoDocumentoId,
       documentNumber: numeroDocumento,
       phone: telefono,
       email: correo,
-      image: imagen ? URL.createObjectURL(imagen) : undefined,
+      image: imagen || undefined,
       state: "Activo",
+      types,
+      resumePdf: resumePdf as File,
     };
 
     const formErrors = validateTechnicianForm(formData, technicians);
     setErrors(formErrors);
 
-    if (Object.keys(formErrors).length > 0 || imageError) {
+    if (Object.keys(formErrors).length > 0 || imageError || pdfError) {
       showWarning("Por favor completa los campos obligatorios correctamente");
       return;
     }
 
     onSave(formData);
-    resetForm();
-    onClose();
   };
 
   return (
@@ -267,211 +304,299 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         className="flex flex-col h-full"
       >
         <div className="flex-1 grid grid-cols-2 gap-3 p-1">
-          {(
-            [
-              "documentType",
-              "documentNumber",
-              "name",
-              "lastName",
-              "phone",
-              "email",
-              "password",
-              "confirmPassword",
-            ] as TechnicianField[]
-          ).map((field) => {
-            const valueMap: Record<TechnicianField, string> = {
-              name: nombre ?? "",
-              lastName: apellido ?? "",
-              password: contraseña ?? "",
-              confirmPassword: confirmarContraseña ?? "",
-              documentType: tipoDocumento ?? "",
-              documentNumber: numeroDocumento ?? "",
-              phone: telefono ?? "",
-              email: correo ?? "",
-            };
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Tipo de Documento <span className="text-red-500">*</span>
+            </label>
 
-            const typeMap: Record<TechnicianField, string> = {
-              name: "text",
-              lastName: "text",
-              password: mostrarContraseña ? "text" : "password",
-              confirmPassword: mostrarConfirmarContraseña ? "text" : "password",
-              documentType: "select",
-              documentNumber: "text",
-              phone: "text",
-              email: "email",
-            };
-
-            const placeholderMap: Record<TechnicianField, string> = {
-              name: "Ingrese nombre",
-              lastName: "Ingrese apellido",
-              password: "Ingrese contraseña",
-              confirmPassword: "Confirme contraseña",
-              documentType: "",
-              documentNumber: "Número de documento",
-              phone: "Ingrese teléfono",
-              email: "Correo@gmail.com",
-            };
-
-            const labelMap: Record<TechnicianField, string> = {
-              documentType: "Tipo de Documento",
-              documentNumber: "Número de Documento",
-              name: "Nombre",
-              lastName: "Apellido",
-              phone: "Teléfono",
-              email: "Correo electrónico",
-              password: "Contraseña",
-              confirmPassword: "Confirmar contraseña",
-            };
-
-            return (
-              <div key={field} className="relative">
-                <label
-                  className="block text-sm font-medium mb-1"
-                  style={{ color: Colors.texts.primary }}
+            <select
+              value={tipoDocumentoId}
+              onChange={(e) =>
+                handleFieldChange("documentType", e.target.value)
+              }
+              className="w-full px-2 py-1 border rounded-md"
+              style={{
+                borderColor: errors.documentType ? "red" : Colors.table.lines,
+              }}
+            >
+              {documentTypes.map((doc) => (
+                <option
+                  key={doc.typeofdocumentid}
+                  value={doc.typeofdocumentid}
                 >
-                  {labelMap[field]}{" "}
-                  {field !== "documentType" && (
-                    <span className="text-red-500">*</span>
-                  )}
-                </label>
+                  {doc.name}
+                </option>
+              ))}
+            </select>
 
-                {field === "documentType" ? (
-                  <select
-                    value={tipoDocumento}
-                    onChange={(e) =>
-                      handleFieldChange("documentType", e.target.value)
-                    }
-                    onBlur={() =>
-                      handleFieldChange("documentType", tipoDocumento)
-                    }
-                    className="w-full px-2 py-1 border rounded-md"
-                    style={{
-                      borderColor: errors.documentType
-                        ? "red"
-                        : Colors.table.lines,
+            {errors.documentType && (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.documentType}
+              </p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Número de Documento <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Número de documento"
+              value={numeroDocumento}
+              onChange={(e) =>
+                handleFieldChange("documentNumber", e.target.value)
+              }
+              onBlur={() =>
+                handleFieldChange("documentNumber", numeroDocumento)
+              }
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: errors.documentNumber
+                  ? "red"
+                  : Colors.table.lines,
+              }}
+            />
+            {errors.documentNumber && (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.documentNumber}
+              </p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Nombre <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ingrese nombre"
+              value={nombre}
+              onChange={(e) => handleFieldChange("name", e.target.value)}
+              onBlur={() => handleFieldChange("name", nombre)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
+            />
+            {errors.name && (
+              <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Apellido <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ingrese apellido"
+              value={apellido}
+              onChange={(e) => handleFieldChange("lastName", e.target.value)}
+              onBlur={() => handleFieldChange("lastName", apellido)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: errors.lastName ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.lastName && (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.lastName}
+              </p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Teléfono <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ingrese teléfono"
+              value={telefono}
+              onChange={(e) => handleFieldChange("phone", e.target.value)}
+              onBlur={() => handleFieldChange("phone", telefono)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: errors.phone ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.phone && (
+              <p className="mt-1 text-xs text-red-600">{errors.phone}</p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Correo electrónico <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              placeholder="Correo@gmail.com"
+              value={correo}
+              onChange={(e) => handleFieldChange("email", e.target.value)}
+              onBlur={() => handleFieldChange("email", correo)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: errors.email ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.email && (
+              <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+            )}
+          </div>
+
+          <div className="col-span-2">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Tipos de técnico <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(typeOptions ?? TECH_TYPES).map((opt) => {
+                const active = types.includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      handleToggleType(opt);
+                      setTimeout(
+                        () =>
+                          handleFieldChange(
+                            "types",
+                            types.includes(opt)
+                              ? types.filter((t) => t !== opt)
+                              : [...types, opt]
+                          ),
+                        0
+                      );
                     }}
+                    className={`px-3 py-1 rounded-full border text-sm transition ${active
+                      ? "bg-red-600 text-white border-red-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                      }`}
                   >
-                    {documentTypes.map((doc) => (
-                      <option key={doc} value={doc}>
-                        {doc}
-                      </option>
-                    ))}
-                  </select>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.types && (
+              <p className="mt-1 text-xs text-red-600">{errors.types}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Hoja de vida (PDF) <span className="text-red-500">*</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <div
+                onClick={() => pdfInputRef.current?.click()}
+                className="flex h-10 min-w-10 max-w-[260px] items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-700 cursor-pointer hover:bg-gray-100 px-2"
+                title={resumeName || "Subir PDF"}
+              >
+                {resumePdf ? (
+                  <span className="text-xs truncate w-full">
+                    {resumeName}
+                  </span>
                 ) : (
-                  <div className="relative w-full">
-                    <input
-                      type={typeMap[field]}
-                      placeholder={placeholderMap[field]}
-                      value={valueMap[field]}
-                      onChange={(e) => handleFieldChange(field, e.target.value)}
-                      onBlur={() => handleFieldChange(field, valueMap[field])}
-                      className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 pr-10"
-                      style={{
-                        borderColor: errors[field]
-                          ? "red"
-                          : Colors.table.lines,
-                      }}
-                    />
-
-                    {(field === "password" ||
-                      field === "confirmPassword") && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          field === "password"
-                            ? setMostrarContraseña((s) => !s)
-                            : setMostrarConfirmarContraseña((s) => !s)
-                        }
-                        className="absolute inset-y-0 right-2 my-auto flex items-center text-gray-500 hover:bg-gray-200 p-1 rounded-md"
-                      >
-                        {field === "password"
-                          ? mostrarContraseña
-                            ? (
-                              <img
-                                src="/icons/Eye.svg"
-                                alt="Ocultar contraseña"
-                                className="h-4 w-4"
-                              />
-                            )
-                            : (
-                              <img
-                                src="/icons/eye-off.svg"
-                                alt="Mostrar contraseña"
-                                className="h-4 w-4"
-                              />
-                            )
-                          : mostrarConfirmarContraseña
-                          ? (
-                            <img
-                              src="/icons/Eye.svg"
-                              alt="Ocultar confirmación"
-                              className="h-4 w-4"
-                            />
-                          )
-                          : (
-                            <img
-                              src="/icons/eye-off.svg"
-                              alt="Mostrar confirmación"
-                              className="h-4 w-4"
-                            />
-                          )}
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {errors[field] && (
-                  <p className="mt-1 text-xs text-red-600">{errors[field]}</p>
+                  <Upload size={16} />
                 )}
               </div>
-            );
-          })}
+              {resumePdf && (
+                <button
+                  type="button"
+                  onClick={() => handlePdfChange(null)}
+                  className={removeBtnClass}
+                >
+                  <X size={14} /> Eliminar
+                </button>
+              )}
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) =>
+                  handlePdfChange(e.target.files?.[0] ?? null)
+                }
+              />
+            </div>
+            {(pdfError || errors.resumePdf) && (
+              <p className="mt-1 text-xs text-red-600">
+                {pdfError || errors.resumePdf}
+              </p>
+            )}
+          </div>
 
-{/* Imagen */}
-<div className="col-span-2">
-  <label
-    className="block text-sm font-medium mb-1"
-    style={{ color: Colors.texts.primary }}
-  >
-    Imagen
-  </label>
-  <div className="mt-1 flex items-center gap-2">
-    <div
-      onClick={() => fileInputRef.current?.click()}
-      className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
-    >
-      {previewImagen ? (
-        <img
-          src={previewImagen}
-          alt="preview"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <Upload size={16} />
-      )}
-    </div>
-    {imagen && (
-      <button
-        type="button"
-        onClick={() => handleFileChange(null)}
-        className="text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
-      >
-        Eliminar
-      </button>
-    )}
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept="image/*"
-      className="hidden"
-      onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-    />
-  </div>
-  {imageError && (
-    <p className="mt-1 text-xs text-red-600">{imageError}</p>
-  )}
-</div>
-
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Imagen
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <div
+                onClick={() => imgInputRef.current?.click()}
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+              >
+                {previewImagen ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewImagen}
+                    alt="preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Upload size={16} />
+                )}
+              </div>
+              {imagen && (
+                <button
+                  type="button"
+                  onClick={() => handleImageChange(null)}
+                  className={removeBtnClass}
+                >
+                  <X size={14} /> Eliminar
+                </button>
+              )}
+              <input
+                ref={imgInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) =>
+                  handleImageChange(e.target.files?.[0] ?? null)
+                }
+              />
+            </div>
+            {imageError && (
+              <p className="mt-1 text-xs text-red-600">{imageError}</p>
+            )}
+          </div>
         </div>
       </form>
     </Modal>
