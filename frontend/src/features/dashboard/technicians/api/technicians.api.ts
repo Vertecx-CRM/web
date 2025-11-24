@@ -116,6 +116,7 @@ export type UpdateTechnicianPayload = {
   image?: string | null;
   roleid?: number;
   typeid?: number;
+  stateid?: number;
 };
 
 export const updateTechnician = async (id: number, payload: UpdateTechnicianPayload) => {

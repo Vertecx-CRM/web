@@ -35,9 +35,11 @@
     for (const rc of data) {
       const r = rc.role;
       if (!r?.id) continue;
+      const idNum = Number(r.id);
+      if (!Number.isFinite(idNum)) continue;
       if (!map.has(r.id)) {
         map.set(r.id, {
-          id: r.id,
+          id: idNum,
           name: r.name,
           state: toUiStatus(r.status),
         });
@@ -86,32 +88,37 @@ export const patchRoleMeta = async (
   roleid: number,
   payload: { name?: string; status?: "Activo" | "Inactivo" }
 ) => {
-  const detail = await api.get(`/roles/${roleid}/detail`);
-  const configs = Array.isArray(detail.data?.configurations)
-    ? detail.data.configurations
-    : [];
-
-  if (!configs.length) {
-    throw new Error(
-      "El rol no tiene configuraciones registradas. Primero define la matriz con PUT /roles/:id/configurations."
-    );
-  }
-
-  const configurations = configs.map((c: any) => ({
-    roleconfigurationid: c.roleconfigurationid,
-  }));
-
   const role: any = { roleid };
   if (payload.name !== undefined) role.name = payload.name;
   if (payload.status !== undefined) {
     role.status = toBackendStatus(payload.status);
   }
 
-  const { data } = await api.patch(`/roles/configurations`, {
-    role,
-    configurations,
-  });
+  // Para compatibilidad con backends que requieren configuraciones, obtenemos
+  // la lista actual y la reenviamos con IDs completos (role/permission/privilege).
+  const detail = await api.get(`/roles/${roleid}/detail`);
+  const configs = Array.isArray(detail.data?.configurations)
+    ? detail.data.configurations
+    : [];
 
+  const configurations = configs
+    .map((c: any) => ({
+      roleconfigurationid: c?.roleconfigurationid,
+      roleid: c?.role?.roleid ?? c?.roleid,
+      permissionid: c?.permission?.id ?? c?.permissionid,
+      privilegeid: c?.privilege?.id ?? c?.privilegeid,
+    }))
+    .filter(
+      (c: any) =>
+        Number.isInteger(c.roleconfigurationid) &&
+        Number.isInteger(c.permissionid) &&
+        Number.isInteger(c.privilegeid)
+    );
+
+  const body =
+    configurations.length > 0 ? { role, configurations } : { role };
+
+  const { data } = await api.patch(`/roles/configurations`, body);
   return data;
 };
   

@@ -112,7 +112,23 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
   const visibleRows = current.slice(startIndex, startIndex + VISIBLE_ROWS);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop), []);
+  const resolveRowKey = useCallback(
+    (row: T, idxFallback: number) => {
+      const anyRow = row as any;
+      return (
+        anyRow.id ??
+        anyRow.purchaseorderid ??
+        anyRow.numberoforder ??
+        anyRow.reference ??
+        idxFallback
+      );
+    },
+    [],
+  );
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  }, []);
 
   const visibleColumns = useMemo(
     () => columns.filter((col) => col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)),
@@ -247,15 +263,9 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
-              {current.map((row, index) => (
+              {current.map((row, idx) => (
                 <MobileCard
-                  key={
-                    row.id ??
-                    row.purchaseorderid ??
-                    row.numberoforder ??
-                    row.reference ??
-                    index
-                  }
+                  key={resolveRowKey(row, idx)}
                   row={row}
                   columns={columns}
                   onView={canView(module) ? onView : undefined}
@@ -293,13 +303,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
               <tbody className="divide divide-[#E6E6E6]" style={{ position: "relative", height: `${current.length * ROW_HEIGHT}px` }}>
                 {visibleRows.map((row, index) => (
                   <Row
-                    key={
-                      row.id ??
-                      row.purchaseorderid ??
-                      row.numberoforder ??
-                      row.reference ??
-                      index
-                    }
+                    key={resolveRowKey(row, index)}
                     row={row}
                     index={index}
                   />

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import React from "react";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
@@ -137,7 +137,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           </div>
         </div>
 
-        {/* Tipo y nÃºmero de documento */}
+        {/* Tipo y nmero de documento */}
         <div>
           <label className="block text-sm font-medium mb-1">Documento</label>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -173,7 +173,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="text"
                 name="documentnumber"
-                placeholder="NÃºmero de documento"
+                placeholder="Nmero de documento"
                 value={formData.documentnumber}
                 onChange={handleTextChange}
                 onBlur={() => handleBlur("documentnumber")}
@@ -251,14 +251,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         </div>
 
 
-        {/* Teléfono y Correo */}
+        {/* Telfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{isNit ? "Teléfono de la empresa" : "Teléfono"}</label>
+            <label className="block text-sm font-medium mb-1">{isNit ? "Telfono de la empresa" : "Telfono"}</label>
             <input
               type="tel"
               name="phone"
-              placeholder="Ingrese su Teléfono"
+              placeholder="Ingrese su Telfono"
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -357,7 +357,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           )}
         </div>
 
-        {/* CV y tipos de técnico */}
+        {/* CV y tipos de tecnico */}
         {isTecnico && (
           <>
             <div>
@@ -365,14 +365,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                 CV (PDF, DOC, DOCX)
               </label>
               <div
-                className="border border-dashed rounded-md p-2 text-center flex flex-col items-center justify-center gap-2"
+                className="border border-dashed rounded-md px-4 py-3 text-center flex flex-col items-center justify-center gap-2"
                 style={{
                   borderColor:
                     errors.CV && touched.CV ? "red" : Colors.table.lines,
                 }}
               >
                 {previewCV || formData.CV ? (
-                  <>
+                  <div className="flex flex-col items-center gap-1 text-sm text-gray-700">
                     <a
                       href={typeof formData.CV === "string" ? formData.CV : "#"}
                       target="_blank"
@@ -388,7 +388,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     >
                       Eliminar CV
                     </button>
-                  </>
+                  </div>
                 ) : (
                   <>
                     <input
@@ -401,7 +401,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                     />
                     <label
                       htmlFor="cv-upload"
-                      className="cursor-pointer text-xs text-gray-500"
+                      className="w-full text-center text-sm text-gray-500 cursor-pointer"
                     >
                       Haga clic para cargar CV
                     </label>
@@ -415,7 +415,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de técnico
+                Tipos de tecnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
@@ -424,44 +424,43 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
                   No hay tipos disponibles
                 </p>
               ) : (
-                <div
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border rounded bg-gray-50"
-                  style={{
-                    borderColor:
-                      errors.techniciantypeids && touched.techniciantypeids
-                        ? "red"
-                        : Colors.table.lines,
-                  }}
-                >
-                  {technicianTypes.map((type) => (
-                    <label
-                      key={type.techniciantypeid}
-                      className="flex items-center gap-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          formData.techniciantypeids?.includes(
-                            type.techniciantypeid
-                          ) || false
-                        }
-                        onChange={(e) =>
-                          handleTechnicianTypeChange(
-                            type.techniciantypeid,
-                            e.target.checked
-                          )
-                        }
-                        onBlur={() => handleBlur("techniciantypeids")}
-                      />
-                      <span className="text-sm">{type.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {errors.techniciantypeids && touched.techniciantypeids && (
-                <span className="text-red-500 text-xs mt-1">
-                  {errors.techniciantypeids}
-                </span>
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {technicianTypes.map((type) => {
+                      const selected = Boolean(
+                        formData.techniciantypeids?.includes(
+                          type.techniciantypeid
+                        )
+                      );
+                      return (
+                        <button
+                          type="button"
+                          key={type.techniciantypeid}
+                          onClick={() =>
+                            handleTechnicianTypeChange(
+                              type.techniciantypeid,
+                              !selected
+                            )
+                          }
+                          onBlur={() => handleBlur("techniciantypeids")}
+                          className={`px-4 py-2 rounded-full border text-sm transition ${
+                            selected
+                              ? "bg-red-600 text-white border-red-600 shadow-sm"
+                              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          {type.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors.techniciantypeids && touched.techniciantypeids && (
+                    <span className="text-red-500 text-xs mt-1">
+                      {errors.techniciantypeids}
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -497,12 +496,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                CÃ³digo Postal
+                Cdigo Postal
               </label>
               <input
                 type="text"
                 name="customerzipcode"
-                placeholder="CÃ³digo postal"
+                placeholder="Cdigo postal"
                 value={formData.customerzipcode || ""}
                 onChange={(e) =>
                   handleInputChange("customerzipcode", e.target.value)
@@ -530,4 +529,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 };
 
 export default EditUserModal;
+
+
+
 

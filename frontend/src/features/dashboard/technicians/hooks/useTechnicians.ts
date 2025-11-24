@@ -210,12 +210,14 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       const techniciantypeids = rest.types
         ? mapTechTypesToIds(rest.types)
         : undefined;
+      const stateid = rest.state === "Inactivo" ? 2 : 1;
 
       const body: UpdateTechnicianPayload = {
         name: rest.name,
         lastname: rest.lastName,
         documentnumber: rest.documentNumber,
         phone: rest.phone,
+        stateid,
       };
 
       if (rest.email !== existing.email) {
@@ -228,6 +230,7 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       if (resumeUrl && resumeUrl !== existing.resumeUrl) body.CV = resumeUrl;
       if (techniciantypeids && techniciantypeids.length > 0)
         body.techniciantypeids = techniciantypeids;
+      // Si no cambian tipos, igual respetamos el estado actualizado
 
       await updateTechnicianApi(id, body);
 

@@ -62,6 +62,9 @@ export const useRoles = () => {
   const isEditModalOpen = editingRole !== null;
   const isViewModalOpen = viewingRole !== null;
   const selectedRole = editingRole ?? viewingRole ?? null;
+  const isDefaultAdmin = (role: { id: number }) => Number(role.id) === 1;
+  const DEFAULT_ADMIN_WARNING =
+    "El rol administrador inicial no puede ser editado ni eliminado.";
 
   const loadRoles = useCallback(async () => {
     const rows = await apiGetRoles();
@@ -136,6 +139,10 @@ export const useRoles = () => {
   };
 
   const handleEditRole = async (id: number, payload: EditRoleData) => {
+    if (isDefaultAdmin({ id })) {
+      return showWarning(DEFAULT_ADMIN_WARNING);
+    }
+
     const errors = validateRoleForm(payload, roles, id);
     if (errors.name) return showWarning(errors.name);
     if (errors.permissions) return showWarning(errors.permissions);
@@ -145,16 +152,25 @@ export const useRoles = () => {
       return showWarning("Debes seleccionar al menos un permiso/privilegio.");
     }
 
-    await updateRoleMatrix(id, items);
+    try {
+      await updateRoleMatrix(id, items);
 
-    await patchRoleMeta(id, {
-      name: payload.name.trim(),
-      status: payload.state as "Activo" | "Inactivo",
-    });
+      await patchRoleMeta(id, {
+        name: payload.name.trim(),
+        status: payload.state as "Activo" | "Inactivo",
+      });
 
-    await loadRoles();
-    setEditingRole(null);
-    showSuccess("Rol actualizado exitosamente!");
+      await loadRoles();
+      setEditingRole(null);
+      showSuccess("Rol actualizado exitosamente!");
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "No se pudo actualizar el rol.";
+      showWarning(Array.isArray(msg) ? msg.join(", ") : msg);
+      console.error("Error al editar rol:", err);
+    }
   };
 
   const handleDeleteRole = async (role: Role): Promise<boolean> => {
@@ -206,6 +222,10 @@ export const useRoles = () => {
   };
 
   const handleEdit = async (role: Role) => {
+    if (isDefaultAdmin(role)) {
+      return showWarning(DEFAULT_ADMIN_WARNING);
+    }
+
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
       const mappedPermissions = configurations.map(
@@ -229,6 +249,10 @@ export const useRoles = () => {
   };
 
   const handleDelete = async (role: Role) => {
+    if (isDefaultAdmin(role)) {
+      return showWarning(DEFAULT_ADMIN_WARNING);
+    }
+
     await handleDeleteRole(role);
   };
 

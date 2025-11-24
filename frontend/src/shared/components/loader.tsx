@@ -39,7 +39,7 @@ type LoaderContextType = {
 const LoaderContext = createContext<LoaderContextType | undefined>(undefined);
 
 // Tiempo mínimo que el loader debe estar visible (en ms)
-const MIN_LOADER_TIME = 600;
+const MIN_LOADER_TIME = 1000;
 
 export function LoaderProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);

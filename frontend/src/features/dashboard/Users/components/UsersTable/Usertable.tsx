@@ -30,6 +30,21 @@ export const UsersTable: React.FC<UsersTableProps> = ({
     userid: u.userid ?? index + 1,
   }));
 
+  const actionGuard = (u: UserForTable) => {
+    const roleName = u.roles?.name?.toLowerCase();
+    const isAdmin = roleName === "admin" || u.roleid === 1;
+    const isFirstUser = u.id === 1 || u.userid === 1;
+
+    if (isAdmin && isFirstUser) {
+      return {
+        disableEdit: true,
+        disableDelete: true,
+        editTitle: "No se puede editar este usuario admin",
+        deleteTitle: "No se puede eliminar este usuario admin",
+      };
+    }
+  };
+
 
   //Columnas del DataTable
   const columns: Column<UserForTable>[] = [
@@ -98,6 +113,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       onEdit={handleEdit}
       onDelete={handleDelete}
       onCreate={onCreate}
+      actionGuard={actionGuard}
       searchPlaceholder="Buscar por nombre, correo, documento o teléfono…"
       createButtonText="Crear Usuario"
     />

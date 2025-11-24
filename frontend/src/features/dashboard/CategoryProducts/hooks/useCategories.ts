@@ -1,45 +1,66 @@
-import { useState, useEffect } from "react";
-import { Category, CreateCategoryData, EditCategoryData } from "../types/typeCategoryProducts";
-import { showSuccess } from "@/shared/utils/notifications";
+import { useEffect, useState } from "react";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-import { fetchCategories, createCategory, updateCategory, deleteCategory } from "../connection/categoryApi";
+import { showSuccess } from "@/shared/utils/notifications";
+import { useLoader } from "@/shared/components/loader";
+import {
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from "../connection/categoryApi";
+import {
+  Category,
+  CreateCategoryData,
+  EditCategoryData,
+} from "../types/typeCategoryProducts";
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<EditCategoryData | null>(null);
+  const [editingCategory, setEditingCategory] =
+    useState<EditCategoryData | null>(null);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(false);
+  const { showLoader, hideLoader } = useLoader();
 
-  // Cargar todas las categorías al iniciar
+  const applyCategoriesResponse = (data: any) => {
+    if (Array.isArray(data)) {
+      setCategories(data);
+    } else if (data?.data && Array.isArray(data.data)) {
+      setCategories(data.data);
+    } else {
+      console.warn("El backend no devolvio un array valido:", data);
+    }
+  };
+
+  const refreshCategories = async () => {
+    const data = await fetchCategories();
+    applyCategoriesResponse(data);
+  };
+
+  // Cargar todas las categorias al iniciar
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      showLoader();
       try {
         const data = await fetchCategories();
-
-        // Aseguramos que data sea un arreglo y tenga las claves correctas
-        if (Array.isArray(data)) {
-          setCategories(data);
-        } else if (data?.data && Array.isArray(data.data)) {
-          setCategories(data.data);
-        } else {
-          console.warn("⚠️ El backend no devolvió un array válido:", data);
-        }
-
+        applyCategoriesResponse(data);
       } catch (error) {
-        console.error("Error al cargar categorías:", error);
+        console.error("Error al cargar categorias:", error);
       } finally {
         setLoading(false);
+        hideLoader();
       }
     };
 
     load();
   }, []);
 
-  // Crear categoría
+  // Crear categoria
   const handleCreateCategory = async (categoryData: CreateCategoryData) => {
     try {
+      showLoader();
       const newCategory = {
         name: categoryData.name,
         description: categoryData.description,
@@ -48,21 +69,25 @@ export const useCategories = () => {
       };
 
       const response = await createCategory(newCategory);
-
-      // Si el backend devuelve la categoría directamente o dentro de .data
       const created = response.data ?? response;
 
       setCategories((prev) => [...prev, created]);
-      showSuccess("Categoría creada exitosamente!");
+      showSuccess("Categoria creada exitosamente!");
       setIsCreateModalOpen(false);
     } catch (error) {
-      console.error("Error al crear categoría:", error);
+      console.error("Error al crear categoria:", error);
+    } finally {
+      hideLoader();
     }
   };
 
-  // Editar categoría
-  const handleEditCategory = async (id: number, categoryData: EditCategoryData) => {
+  // Editar categoria
+  const handleEditCategory = async (
+    id: number,
+    categoryData: EditCategoryData
+  ) => {
     try {
+      showLoader();
       const updatedCategory = {
         name: categoryData.name,
         description: categoryData.description,
@@ -71,41 +96,48 @@ export const useCategories = () => {
       };
 
       const response = await updateCategory(id, updatedCategory);
-
       const updated = response.data ?? response;
 
       setCategories((prev) =>
         prev.map((cat) => (cat.id === id ? updated : cat))
       );
 
-      showSuccess("Categoría actualizada exitosamente!");
+      showSuccess("Categoria actualizada exitosamente!");
       setEditingCategory(null);
     } catch (error) {
-      console.error("Error al actualizar categoría:", error);
+      console.error("Error al actualizar categoria:", error);
+    } finally {
+      hideLoader();
     }
   };
 
-  // Eliminar categoría
-  const handleDeleteCategory = async (category: Category): Promise<boolean> => {
+  // Eliminar categoria
+  const handleDeleteCategory = async (
+    category: Category
+  ): Promise<boolean> => {
     return confirmDelete(
       {
         itemName: category.name,
-        itemType: "categoría",
-        successMessage: `La categoría "${category.name}" ha sido eliminada correctamente.`,
-        errorMessage: "No se pudo eliminar la categoría. Por favor, intenta nuevamente.",
+        itemType: "categoria",
+        successMessage: `La categoria "${category.name}" ha sido eliminada correctamente.`,
+        errorMessage:
+          "No se pudo eliminar la categoria. Por favor, intenta nuevamente.",
       },
       async () => {
         try {
+          showLoader();
           await deleteCategory(category.id);
-          setCategories((prev) => prev.filter((c) => c.id !== category.id));
+          await refreshCategories();
         } catch (error) {
-          console.error("Error al eliminar categoría:", error);
+          console.error("Error al eliminar categoria:", error);
+        } finally {
+          hideLoader();
         }
       }
     );
   };
 
-  // Acciones de vista y edición
+  // Acciones de vista y edicion
   const handleView = (category: Category) => setViewingCategory(category);
   const handleEdit = (category: Category) => {
     const editData: EditCategoryData = {
