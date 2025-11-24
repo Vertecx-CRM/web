@@ -13,8 +13,6 @@ import { OptimizedTdComponent } from "./ui/OptimizedTdComponent";
 import { PaginationComponent } from "./ui/PaginationComponent";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
 
-const actionGuard = () => undefined;
-
 const ROW_HEIGHT = 60;
 const VISIBLE_ROWS = 10;
 
@@ -57,7 +55,8 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
     tailHeader,
     renderTail,
     mobileCardView = true,
-    module
+    module,
+    actionGuard = () => undefined
   } = props;
 
   const { canView, canCreate, canUpdate, canDelete } = usePermissions();
