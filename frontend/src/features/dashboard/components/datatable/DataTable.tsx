@@ -142,6 +142,20 @@ export function DataTable<T extends { id: number | string }>(
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
   const visibleRows = current.slice(startIndex, startIndex + VISIBLE_ROWS);
 
+  const resolveRowKey = useCallback(
+    (row: T, idxFallback: number) => {
+      const anyRow = row as any;
+      return (
+        anyRow.id ??
+        anyRow.purchaseorderid ??
+        anyRow.numberoforder ??
+        anyRow.reference ??
+        idxFallback
+      );
+    },
+    [],
+  );
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
@@ -296,15 +310,9 @@ export function DataTable<T extends { id: number | string }>(
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
-              {current.map((row) => (
+              {current.map((row, idx) => (
                 <MobileCard
-                  key={
-                    row.id ??
-                    row.purchaseorderid ??
-                    row.numberoforder ??
-                    row.reference ??
-                    index
-                  }
+                  key={resolveRowKey(row, idx)}
                   row={row}
                   columns={columns}
                   onView={onView}
@@ -368,13 +376,7 @@ export function DataTable<T extends { id: number | string }>(
               >
                 {visibleRows.map((row, index) => (
                   <Row
-                    key={
-                      row.id ??
-                      row.purchaseorderid ??
-                      row.numberoforder ??
-                      row.reference ??
-                      index
-                    }
+                    key={resolveRowKey(row, index)}
                     row={row}
                     index={index}
                   />

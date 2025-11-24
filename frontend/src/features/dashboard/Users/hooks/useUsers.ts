@@ -12,29 +12,42 @@ import {
   updateUser,
   deleteUser,
 } from "../connection/userApi";
+import { useLoader } from "@/shared/components/loader";
 
 export const useUser = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<EditUser | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const { showLoader, hideLoader } = useLoader();
+
+  const applyUsersResponse = (response: any) => {
+    if (response?.success && Array.isArray(response.data)) {
+      setUsers(response.data);
+    } else if (Array.isArray(response)) {
+      setUsers(response);
+    } else {
+      console.warn("Estructura de respuesta inesperada:", response);
+      setUsers([]);
+    }
+  };
+
+  const refreshUsers = async () => {
+    const response = await fetchUsers();
+    applyUsersResponse(response);
+  };
 
   useEffect(() => {
     const loadUsers = async () => {
       try {
+        showLoader();
         const response = await fetchUsers();
-
-        if (response.success && Array.isArray(response.data)) {
-          setUsers(response.data);
-        } else if (Array.isArray(response)) {
-          setUsers(response);
-        } else {
-          console.warn("Estructura de respuesta inesperada:", response);
-          setUsers([]);
-        }
+        applyUsersResponse(response);
       } catch (error) {
         console.error(error);
         showWarning("Error al cargar usuarios desde el servidor");
+      } finally {
+        hideLoader();
       }
     };
 
@@ -44,6 +57,7 @@ export const useUser = () => {
 
   const handleCreateUser = async (userData: CreateUserData) => {
     try {
+      showLoader();
       const payload = {
         name: userData.name,
         lastname: userData.lastname,
@@ -67,14 +81,14 @@ export const useUser = () => {
       // Actualiza el estado local sin esperar al backend
       setUsers((prev) => [...prev, newUser]);
 
-      fetchUsers().then((fresh) => {
-        if (Array.isArray(fresh.data)) setUsers(fresh.data);
-      });
+      await refreshUsers();
 
       setIsCreateModalOpen(false);
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al crear usuario");
+    } finally {
+      hideLoader();
     }
   };
 
@@ -83,6 +97,7 @@ export const useUser = () => {
     if (!userData.userid) return;
 
     try {
+      showLoader();
       const payload = {
         name: userData.name,
         lastname: userData.lastname,
@@ -106,14 +121,14 @@ export const useUser = () => {
         prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
       );
 
-      fetchUsers().then((fresh) => {
-        if (Array.isArray(fresh.data)) setUsers(fresh.data);
-      });
+      await refreshUsers();
 
       setEditingUser(null);
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al actualizar usuario");
+    } finally {
+      hideLoader();
     }
   };
 
@@ -127,20 +142,19 @@ export const useUser = () => {
       },
       async () => {
         try {
+          showLoader();
           if (!userToDelete.userid) return;
 
           setUsers((prev) => prev.filter((u) => u.userid !== userToDelete.userid));
 
           await deleteUser(userToDelete.userid);
 
-          fetchUsers().then((fresh) => {
-            if (fresh.success && Array.isArray(fresh.data)) {
-              setUsers(fresh.data);
-            }
-          });
+          await refreshUsers();
         } catch (error) {
           console.error(error);
           showWarning("Error al eliminar usuario");
+        } finally {
+          hideLoader();
         }
       }
     );

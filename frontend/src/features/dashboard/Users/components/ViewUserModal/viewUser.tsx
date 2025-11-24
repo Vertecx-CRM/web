@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React, { useEffect, useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { ViewUserModalProps } from "../../types/typesUser";
@@ -129,7 +129,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               {isNit ? "Nombre de la empresa" : "Nombre"}
             </label>
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-              {user.name || "—"}
+              {user.name || ""}
             </div>
           </div>
 
@@ -142,20 +142,20 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                 Apellido
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {user.lastname || "—"}
+                {user.lastname || ""}
               </div>
             </div>
           )}
         </div>
 
-        {/* Teléfono y Correo */}
+        {/* Telfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label
               className="block text-sm font-medium mb-1"
               style={{ color: Colors.texts.primary }}
             >
-              {isNit ? "Teléfono de la empresa" : "Teléfono"}
+              {isNit ? "Telfono de la empresa" : "Telfono"}
             </label>
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
               {user.phone}
@@ -166,7 +166,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               className="block text-sm font-medium mb-1"
               style={{ color: Colors.texts.primary }}
             >
-              {isNit ? "Correo de la empresa" : "Correo electrónico"}
+              {isNit ? "Correo de la empresa" : "Correo electrnico"}
             </label>
             <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 break-all">
               {user.email}
@@ -187,11 +187,11 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         </div>
 
-        {/* Información para Técnico */}
+        {/* Informacin para Tcnico */}
         {isTecnico && technician && (
           <div className="border-t pt-4 space-y-4">
             <h3 className="text-sm font-medium text-gray-700">
-              Información de Técnico
+              Informacin de Tcnico
             </h3>
 
             {technician.CV && (
@@ -203,7 +203,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline"
                 >
-                  Ver currículum
+                  Ver currculum
                 </a>
               </div>
             )}
@@ -212,13 +212,13 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               technician.technicianTypeMaps.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Tipos de Técnico
+                    Tipos de tecnico
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {technician.technicianTypeMaps.map((tm, index) => (
                       <span
                         key={`${tm.techniciantypeid}-${index}`}
-                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                        className="px-4 py-2 rounded-full text-sm border bg-red-600 text-white border-red-600 shadow-sm"
                       >
                         {tm.techniciantype?.name ||
                           `Tipo ID: ${tm.techniciantypeid}`}
@@ -230,11 +230,11 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
           </div>
         )}
 
-        {/* Información para Cliente */}
+        {/* Informacin para Cliente */}
         {isCliente && customer && (
           <div className="border-t pt-4 space-y-4">
             <h3 className="text-sm font-medium text-gray-700">
-              Información de Cliente
+              Informacin de Cliente
             </h3>
 
             {customer.customercity && (
@@ -249,7 +249,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
             {customer.customerzipcode && (
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Código Postal
+                  Cdigo Postal
                 </label>
                 <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
                   {customer.customerzipcode}
