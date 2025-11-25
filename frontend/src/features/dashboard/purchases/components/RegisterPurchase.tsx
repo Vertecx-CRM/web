@@ -337,7 +337,7 @@ export default function RegisterPurchaseForm({
           <button
             type="button"
             onClick={() => setIsNewProduct(false)}
-            className={`text-xs px-2 py-1 rounded ${
+            className={`text-xs px-2 py-1 rounded cursor-pointer ${
               !isNewProduct ? "bg-black text-white" : "bg-gray-200"
             }`}
           >
@@ -347,7 +347,7 @@ export default function RegisterPurchaseForm({
           <button
             type="button"
             onClick={() => setIsNewProduct(true)}
-            className={`text-xs px-2 py-1 rounded ${
+            className={`text-xs px-2 py-1 rounded cursor-pointer ${
               isNewProduct ? "bg-black text-white" : "bg-gray-200"
             }`}
           >
@@ -441,7 +441,7 @@ export default function RegisterPurchaseForm({
         <button
           type="button"
           onClick={onClose}
-          className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+          className=" cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
         >
           Cancelar
         </button>

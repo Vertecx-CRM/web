@@ -16,8 +16,15 @@ import { usePermissions } from "@/features/auth/hooks/usePermissions";
 const ROW_HEIGHT = 60;
 const VISIBLE_ROWS = 10;
 
-
-function Th({ children, className = "", width }: { children: React.ReactNode; className?: string; width?: string }) {
+function Th({
+  children,
+  className = "",
+  width,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  width?: string;
+}) {
   return (
     <th
       className={`px-2 sm:px-4 py-3 font-semibold text-xs sm:text-sm whitespace-pre-line break-words text-center align-middle ${className}`}
@@ -31,11 +38,15 @@ function Th({ children, className = "", width }: { children: React.ReactNode; cl
 const OptimizedTd = React.memo(OptimizedTdComponent);
 export const ActionButton = React.memo(ActionButtonComponent);
 export const ActionButtons = React.memo(ActionButtonsComponent);
-const MobileCard = React.memo(MobileCardComponent) as typeof MobileCardComponent;
+const MobileCard = React.memo(
+  MobileCardComponent
+) as typeof MobileCardComponent;
 const CreateButton = React.memo(CreateButtonComponent);
 const Pagination = React.memo(PaginationComponent);
 
-export function DataTable<T extends { [key: string]: any }>(props: DataTableProps<T> & { module: string }) {
+export function DataTable<T extends { [key: string]: any }>(
+  props: DataTableProps<T> & { module: string }
+) {
   const {
     data,
     columns,
@@ -56,7 +67,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
     renderTail,
     mobileCardView = true,
     module,
-    actionGuard = () => undefined
+    actionGuard = () => undefined,
   } = props;
 
   const { canView, canCreate, canUpdate, canDelete } = usePermissions();
@@ -79,7 +90,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
       return [
         d.toISOString().slice(0, 10),
         d.toLocaleDateString("es-ES"),
-        d.getFullYear().toString()
+        d.getFullYear().toString(),
       ].map((f) => f.toLowerCase());
     }
     return [str];
@@ -93,6 +104,19 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
       searchableKeys.some((key) => {
         const value = row[key];
         if (value == null) return false;
+        if (key === "state") {
+          const stateName = (row.state?.name ?? "").toLowerCase();
+
+          const mapped =
+            stateName === "approved"
+              ? "aprobado"
+              : stateName === "revoke"
+              ? "anulado"
+              : stateName;
+
+          return mapped.includes(term);
+        }
+
         if ((key === "estado" || key === "state") && isExactStatus) {
           return String(value).toLowerCase() === term;
         }
@@ -104,33 +128,43 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
     );
   }, [q, data, searchableKeys, normalize]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(filtered.length / pageSize)), [filtered.length, pageSize]);
-  const current = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
-  const goTo = useCallback((p: number) => setPage(Math.min(Math.max(p, 1), totalPages)), [totalPages]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / pageSize)),
+    [filtered.length, pageSize]
+  );
+  const current = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
+  const goTo = useCallback(
+    (p: number) => setPage(Math.min(Math.max(p, 1), totalPages)),
+    [totalPages]
+  );
 
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
   const visibleRows = current.slice(startIndex, startIndex + VISIBLE_ROWS);
 
-  const resolveRowKey = useCallback(
-    (row: T, idxFallback: number) => {
-      const anyRow = row as any;
-      return (
-        anyRow.id ??
-        anyRow.purchaseorderid ??
-        anyRow.numberoforder ??
-        anyRow.reference ??
-        idxFallback
-      );
-    },
-    [],
-  );
+  const resolveRowKey = useCallback((row: T, idxFallback: number) => {
+    const anyRow = row as any;
+    return (
+      anyRow.id ??
+      anyRow.purchaseorderid ??
+      anyRow.numberoforder ??
+      anyRow.reference ??
+      idxFallback
+    );
+  }, []);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
   const visibleColumns = useMemo(
-    () => columns.filter((col) => col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)),
+    () =>
+      columns.filter(
+        (col) =>
+          col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
+      ),
     [columns]
   );
 
@@ -141,18 +175,31 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
         style={{
           top: `${(startIndex + index) * ROW_HEIGHT}px`,
           width: "100%",
-          height: `${ROW_HEIGHT}px`
+          height: `${ROW_HEIGHT}px`,
         }}
       >
-        {(window.innerWidth >= 768 ? columns : visibleColumns).map((c, colIndex) => (
-          <OptimizedTd key={String(c.key)} colIndex={colIndex} header={c.header} width={c.width} className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm">
-            <div className="truncate" title={String(row[c.key])}>
-              {c.render ? c.render(row) : String(row[c.key])}
-            </div>
-          </OptimizedTd>
-        ))}
+        {(window.innerWidth >= 768 ? columns : visibleColumns).map(
+          (c, colIndex) => (
+            <OptimizedTd
+              key={String(c.key)}
+              colIndex={colIndex}
+              header={c.header}
+              width={c.width}
+              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
+            >
+              <div className="truncate" title={String(row[c.key])}>
+                {c.render ? c.render(row) : String(row[c.key])}
+              </div>
+            </OptimizedTd>
+          )
+        )}
 
-        {(canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions) && (
+        {(canView(module) ||
+          canUpdate(module) ||
+          canDelete(module) ||
+          onCancel ||
+          onCheck ||
+          renderActions) && (
           <OptimizedTd header="Acciones">
             {renderActions ? (
               renderActions(row)
@@ -172,7 +219,10 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
         )}
 
         {renderTail && (
-          <OptimizedTd header={tailHeader ?? "Imprimir"} className="text-center">
+          <OptimizedTd
+            header={tailHeader ?? "Imprimir"}
+            className="text-center"
+          >
             {renderTail(row)}
           </OptimizedTd>
         )}
@@ -195,7 +245,7 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
       canView,
       canUpdate,
       canDelete,
-      module
+      module,
     ]
   );
 
@@ -251,7 +301,10 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
             {rightActions}
             {onCreate && canCreate(module) && (
               <div className="hidden md:block">
-                <CreateButton onCreate={onCreate} createButtonText={createButtonText} />
+                <CreateButton
+                  onCreate={onCreate}
+                  createButtonText={createButtonText}
+                />
               </div>
             )}
           </div>
@@ -279,27 +332,54 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
                   tailHeader={tailHeader}
                 />
               ))}
-              {current.length === 0 && <div className="text-center py-8 text-gray-500">No se encontraron resultados</div>}
+              {current.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No se encontraron resultados
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        <div className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`}>
-          <div className="max-h-[600px] overflow-y-auto" onScroll={handleScroll}>
+        <div
+          className={`${
+            mobileCardView ? "hidden md:block" : "block"
+          } overflow-x-auto`}
+        >
+          <div
+            className="max-h-[600px] overflow-y-auto"
+            onScroll={handleScroll}
+          >
             <table className="min-w-full text-sm table-fixed border-collapse">
-              <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10" style={{ backgroundColor: Colors.table.header }}>
+              <thead
+                className="bg-gray-50 text-gray-700 sticky top-0 z-10"
+                style={{ backgroundColor: Colors.table.header }}
+              >
                 <tr className="text-center table-row">
                   {columns.map((c) => (
                     <Th key={String(c.key)} width={c.width}>
                       {c.header}
                     </Th>
                   ))}
-                  {(canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions) && <Th>Acciones</Th>}
-                  {renderTail && <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>}
+                  {(canView(module) ||
+                    canUpdate(module) ||
+                    canDelete(module) ||
+                    onCancel ||
+                    onCheck ||
+                    renderActions) && <Th>Acciones</Th>}
+                  {renderTail && (
+                    <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
+                  )}
                 </tr>
               </thead>
 
-              <tbody className="divide divide-[#E6E6E6]" style={{ position: "relative", height: `${current.length * ROW_HEIGHT}px` }}>
+              <tbody
+                className="divide divide-[#E6E6E6]"
+                style={{
+                  position: "relative",
+                  height: `${current.length * ROW_HEIGHT}px`,
+                }}
+              >
                 {visibleRows.map((row, index) => (
                   <Row
                     key={resolveRowKey(row, index)}
@@ -310,11 +390,17 @@ export function DataTable<T extends { [key: string]: any }>(props: DataTableProp
               </tbody>
             </table>
 
-            {current.length === 0 && <div className="text-center py-12 text-gray-500">No se encontraron resultados</div>}
+            {current.length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                No se encontraron resultados
+              </div>
+            )}
           </div>
         </div>
 
-        {totalPages > 1 && <Pagination page={page} totalPages={totalPages} goTo={goTo} />}
+        {totalPages > 1 && (
+          <Pagination page={page} totalPages={totalPages} goTo={goTo} />
+        )}
       </div>
 
       {onCreate && canCreate(module) && (
