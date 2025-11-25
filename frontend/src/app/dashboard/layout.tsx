@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AsideNav from "@/features/dashboard/layout/AsideNav";
 import TopNav from "@/features/dashboard/layout/TopNav";
 import { LoaderGate, LoaderProvider } from "@/shared/components/loader";
@@ -10,13 +10,20 @@ import { useRouter, usePathname } from "next/navigation";
 import { showSuccess } from "@/shared/utils/notifications";
 import { MODULE_TO_PATH, pickDefaultDashboardRoute } from "@/features/auth/authz";
 import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
-import { useAuth } from "@/features/auth/authcontext";
 import { toast } from "react-toastify";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const { user, allowedModules, ready, lastAuthAction, setLastAuthAction } = useAuth();
+  const {
+    user,
+    allowedModules,
+    ready,
+    lastAuthAction,
+    setLastAuthAction,
+    isAuthenticated,
+    changePassword,
+  } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -59,7 +66,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!pathname.startsWith(base)) router.replace(base);
   }, [allowedModules, ready, user, pathname, router]);
-  const { user, isAuthenticated, ready, changePassword } = useAuth();
   const [forcePasswordModal, setForcePasswordModal] = useState(false);
 
   const mustChangePassword = !!user?.mustchangepassword;
