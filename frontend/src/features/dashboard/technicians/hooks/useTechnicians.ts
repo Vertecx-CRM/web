@@ -166,7 +166,15 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
       toast.success("Técnico creado exitosamente");
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo crear el técnico. Intenta nuevamente.");
+      const apiMessage =
+        (error as any)?.response?.data?.message ||
+        (error as any)?.message ||
+        "";
+      toast.error(
+        apiMessage
+          ? `No se pudo crear el técnico: ${apiMessage}`
+          : "No se pudo crear el técnico. Intenta nuevamente."
+      );
     } finally {
       await new Promise((resolve) =>
         setTimeout(resolve, EXTRA_LOADER_DELAY_MS)

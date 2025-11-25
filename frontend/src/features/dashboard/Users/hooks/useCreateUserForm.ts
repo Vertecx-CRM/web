@@ -13,6 +13,12 @@ import {
 } from "../Validations/UserValidations";
 import { useRoles } from "./useRoles";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 export const useCreateUserForm = ({
   isOpen,
   onClose,
@@ -82,7 +88,7 @@ export const useCreateUserForm = ({
 
   const getRoleName = (roleId: number): string => {
     const found = roles.find((r) => r.roleid === roleId);
-    return found?.name?.toLowerCase() || "";
+    return normalizeRoleName(found?.name || "");
   };
 
   useEffect(() => {
@@ -92,7 +98,7 @@ export const useCreateUserForm = ({
   useEffect(() => {
     if (isNit) {
       const clienteRole = roles.find(
-        (r) => r.name?.toLowerCase() === "cliente"
+        (r) => normalizeRoleName(r.name) === "cliente"
       );
 
       setFormData((prev) => ({

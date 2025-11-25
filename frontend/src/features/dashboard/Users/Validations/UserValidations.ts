@@ -1,6 +1,12 @@
 import { showError } from "@/shared/utils/notifications";
 import { User, FormErrors, FormTouched } from "../types/typesUser";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 export const validateField = (
   fieldName: string,
   value: string,
@@ -11,7 +17,7 @@ export const validateField = (
   let error = "";
   const specialChars = /[@,.;:_\{\[\}^\]`+*~¡¿?\\'=)(/&%$#"|<>]/;
 
-  const roleName = formData.roles?.name?.toLowerCase() || "";
+  const roleName = normalizeRoleName(formData.roles?.name || "");
   const trimmedValue = String(value).trim().toLowerCase();
 
   const isNit = Number(formData.typeid) === 4;
