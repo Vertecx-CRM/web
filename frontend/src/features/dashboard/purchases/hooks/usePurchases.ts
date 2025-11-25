@@ -5,6 +5,8 @@ import {
   getPurchases,
   createPurchase,
   cancelPurchase,
+  getProductsForPurchase,
+  getSuppliersForPurchase,
 } from "../api/purchases.api";
 import { IPurchase } from "../Types/Purchase.type";
 
@@ -29,23 +31,17 @@ export const months = [
   "Diciembre",
 ];
 
-export const suppliers = ["Proveedor A", "Proveedor B", "Proveedor C"];
-
 export function usePurchases() {
   const [purchases, setPurchases] = useState<IPurchase[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** 📦 Catálogo de productos */
-  const [products] = useState<Record<string, Product>>({
-    "Cámara Hivision": { price: 500000, stock: 5 },
-    "Disco Duro 1TB": { price: 250000, stock: 10 },
-    "Router Mikrotik": { price: 400000, stock: 3 },
-    "Switch TP-Link 24p": { price: 350000, stock: 4 },
-    "Cable UTP Cat6": { price: 500, stock: 100 },
-    "Laptop Dell XPS": { price: 1200, stock: 2 },
-  });
+  /**  Catálogo de productos */
+  const [products, setProducts] = useState<any[]>([]);
 
-  /** 🧾 Formulario principal */
+  /**  Catálogo de proveedores */
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+
+  /**  Formulario principal */
   const [form, setForm] = useState({
     orderNumber: "",
     invoiceNumber: "",
@@ -59,11 +55,48 @@ export function usePurchases() {
     description: "",
   });
 
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getProductsForPurchase();
+        setProducts(data);
+      } catch (err) {
+        console.error("Error cargando productos", err);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const data = await getSuppliersForPurchase();
+
+        // ✅ solo proveedores activos
+        const actives = data.filter((s: any) => s.stateid === 1);
+
+        setSuppliers(actives);
+      } catch (err) {
+        console.error("Error cargando proveedores", err);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
+
   const [error, setError] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [cart, setCart] = useState<
-    { name: string; qty: number; price: number }[]
+    {
+      isNew: boolean;
+      productid?: number;
+      productname?: string;
+      productpriceofsupplier?: number;
+      quantity: number;
+      unitprice: number;
+    }[]
   >([]);
 
   /** 📅 Generar años (últimos 6) */
@@ -80,9 +113,9 @@ export function usePurchases() {
     return new Date(Number(form.year), monthIndex + 1, 0).getDate();
   }, [form.month, form.year]);
 
-  /** 🧮 Calcular total */
+  /**  Calcular total */
   const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.qty * item.price, 0),
+    () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
     [cart]
   );
 
@@ -102,7 +135,7 @@ export function usePurchases() {
     return `ORD-${year}-${nextConsecutive}`;
   };
 
-  /** 🔄 Cargar compras desde backend */
+  /**  Cargar compras desde backend */
   const fetchPurchases = async () => {
     try {
       const data = await getPurchases();
@@ -148,65 +181,84 @@ export function usePurchases() {
     }
   };
 
-  /** 🛒 Agregar producto */
-  const handleAddProduct = () => {
-    if (!selectedProduct || quantity <= 0) return;
+  /**    Agregar producto */
+  const handleAddProduct = ({
+    isNew,
+    productName,
+    supplierPrice,
+    selectedProduct,
+    quantity,
+  }: any) => {
+    if (!isNew) {
+      const product = products.find(
+        (p) => p.productid === Number(selectedProduct)
+      );
 
-    setCart((prev) => {
-      const existing = prev.find((p) => p.name === selectedProduct);
-      if (existing) {
-        return prev.map((p) =>
-          p.name === selectedProduct ? { ...p, qty: p.qty + quantity } : p
-        );
-      }
-      return [
+      if (!product) return;
+
+      setCart((prev) => [
         ...prev,
         {
-          name: selectedProduct,
-          qty: quantity,
-          price: products[selectedProduct].price,
+          isNew: false,
+          productid: product.productid,
+          quantity,
+          unitprice: product.productpriceofsupplier,
         },
-      ];
-    });
-
-    setSelectedProduct("");
-    setQuantity(1);
+      ]);
+    } else {
+      setCart((prev) => [
+        ...prev,
+        {
+          isNew: true,
+          productname: productName,
+          productpriceofsupplier: supplierPrice,
+          quantity,
+          unitprice: supplierPrice,
+        },
+      ]);
+    }
   };
 
-  /** ✅ Registrar compra (backend) */
+  /**  Registrar compra (backend) */
   const handleAddPurchase = async () => {
-    if (error) return;
     if (cart.length === 0) {
-      setError("⚠️ Agrega al menos un producto al carrito.");
+      setError("⚠️ Agrega al menos un producto.");
       return;
     }
 
-    const day = form.day?.toString().padStart(2, "0");
-    const monthIndex = months.indexOf(form.month) + 1;
-    const month = monthIndex.toString().padStart(2, "0");
+    const day = form.day.padStart(2, "0");
+    const month = (months.indexOf(form.month) + 1).toString().padStart(2, "0");
     const year = form.year;
-    const registerDate = `${year}-${month}-${day}`;
+    const created = `${year}-${month}-${day}`;
 
-    const newPurchase: Partial<IPurchase> = {
+    const payload = {
       numberoforder: form.orderNumber,
       reference: form.invoiceNumber,
       supplierid: Number(form.supplier),
-      amount: total,
-      createdat: registerDate,
+      stateid: 3,
+      createdat: created,
       updatedat: new Date().toISOString(),
-      stateid: 1, // Aprobado
+      products: cart.map((item) => ({
+        productid: item.productid ?? 0,
+        quantity: item.quantity,
+        unitprice: item.unitprice,
+        productname: item.productname,
+        productpriceofsupplier: item.productpriceofsupplier,
+      })),
     };
 
     try {
-      await createPurchase(newPurchase);
+      const res = await createPurchase(payload);
       await fetchPurchases();
-    } catch (error) {
-      console.error("Error creating purchase:", error);
-      setError("❌ No se pudo registrar la compra.");
+      return res; 
+    } catch (err) {
+      console.error(err);
+      setError("❌ Error al registrar la compra.");
+      throw err; 
     }
   };
 
-  /** 🚫 Cancelar compra */
+  /**  Cancelar compra */
   const handleCancelPurchase = async (id: number) => {
     try {
       await cancelPurchase(id);

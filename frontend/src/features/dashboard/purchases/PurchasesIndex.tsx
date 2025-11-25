@@ -39,9 +39,9 @@ export default function PurchasesIndex() {
     {
       key: "supplier",
       header: "Proveedor",
-      // tu backend no tiene supplier.name, usamos contactname
-      render: (row) => row.supplier?.contactname ?? "N/A",
+      render: (row) => row.supplier?.name ?? "N/A",
     },
+
     {
       key: "createdat",
       header: "Fecha de Registro",

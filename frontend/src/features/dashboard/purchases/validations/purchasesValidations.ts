@@ -15,16 +15,16 @@ export interface PurchaseErrors {
  * Valida un campo individual de una compra
  */
 export const validatePurchaseField = (
-  field: keyof Omit<IPurchase, "id">,
+  field: any,
   value: any,
-  purchases: IPurchase[],
+  purchases: IPurchase[] = [],
   currentId?: number
 ): string | undefined => {
   switch (field) {
     case "orderNumber":
       if (!String(value).trim()) return "El número de orden es obligatorio";
       if (
-        purchases.some(
+        (purchases ?? []).some(
           (p) =>
             p.orderNumber.toLowerCase() ===
               String(value).trim().toLowerCase() && p.id !== currentId
@@ -43,14 +43,15 @@ export const validatePurchaseField = (
         return "El formato debe ser FAC-AAAA-NNNN (ej: FAC-2025-1001)";
 
       if (
-        purchases.some(
+        (purchases ?? []).some(
           (p) =>
-            p.invoiceNumber.toLowerCase() ===
+            p.invoiceNumber?.toLowerCase() ===
               String(value).trim().toLowerCase() && p.id !== currentId
         )
       ) {
         return "Ya existe una compra con este número de factura";
       }
+
       return;
 
     case "supplier":
@@ -98,21 +99,21 @@ export const validatePurchaseForm = (
 ): PurchaseErrors => {
   const errors: PurchaseErrors = {};
 
-  const fields: (keyof Omit<IPurchase, "id">)[] = [
-    "orderNumber",
-    "invoiceNumber",
-    "supplier",
+  const fields: any[] = [
     "registerDate",
-    "amount",
     "status",
+    "numberoforder",
+    "invoiceNumber",
+    "supplierid",
+    "amount",
     "description",
   ];
 
   fields.forEach((field) => {
     const error = validatePurchaseField(
-      field,
+      field as any,
       (data as any)[field],
-      purchases,
+      purchases ?? [],
       currentId
     );
     if (error) errors[field] = error;
