@@ -13,9 +13,11 @@ import {
   PurchaseErrors,
 } from "../validations/purchasesValidations";
 import { usePurchases } from "../hooks/usePurchases";
+import { useLoader } from "@/shared/components/loader";
 
 interface Props {
   onSave: (purchase: IPurchase) => void;
+  onClose: () => void;
   purchases: IPurchase[];
 }
 
@@ -41,7 +43,11 @@ const formatCOP = (value: number) =>
     minimumFractionDigits: 0,
   }).format(value);
 
-export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
+export default function RegisterPurchaseForm({
+  onSave,
+  onClose,
+  purchases,
+}: Props) {
   const {
     form,
     setForm,
@@ -57,12 +63,16 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     handleAddProduct,
     products,
     suppliers,
-    handleAddPurchase, // ✅ usamos la función del hook
+    handleAddPurchase, //  usamos la función del hook
   } = usePurchases();
 
   const [errors, setErrors] = useState<PurchaseErrors>({});
+  const [isNewProduct, setIsNewProduct] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductPrice, setNewProductPrice] = useState(0);
+  const { showLoader, hideLoader } = useLoader();
 
-  /** ✅ Valida un campo individual y actualiza el estado de errores */
+  /**  Valida un campo individual y actualiza el estado de errores */
   const handleFieldValidation = (
     field: keyof Omit<IPurchase, "id">,
     value: any
@@ -71,7 +81,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  /** ✅ Al enviar el formulario */
+  /**  Al enviar el formulario */
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -80,18 +90,35 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
       return;
     }
 
-    // Construimos el objeto que espera el backend
     const data = {
       numberoforder: form.orderNumber,
+      invoiceNumber: form.invoiceNumber,
       reference: form.invoiceNumber,
       supplierid: Number(form.supplier),
-      stateid: 1, // Aprobado
+      stateid: 1,
       amount: total,
       createdat: new Date().toISOString(),
       updatedat: new Date().toISOString(),
     };
 
-    const validationErrors = validatePurchaseForm(data, purchases);
+    const dataForValidation = {
+      orderNumber: form.orderNumber,
+      invoiceNumber: form.invoiceNumber,
+      supplier: form.supplier,
+      registerDate:
+        form.year && form.month && form.day
+          ? `${form.year}-${form.month}-${form.day}`
+          : "",
+      amount: total,
+      status: "Aprobado",
+      description: form.description,
+    };
+
+    const validationErrors = validatePurchaseForm(
+      dataForValidation as any,
+      purchases ?? []
+    );
+
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -100,12 +127,19 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
     }
 
     try {
-      await handleAddPurchase(data); // ✅ usamos tu función
-      showSuccess("✅ Compra registrada correctamente.");
-      onSave(data as IPurchase);
+      showLoader();
+
+      const savedPurchase = await handleAddPurchase();
+
+      showSuccess("✅ Compra registrada con éxito.");
+
+      onSave(savedPurchase as IPurchase);
+      onClose();
     } catch (error) {
       console.error(error);
       showError("❌ Error al registrar la compra. Inténtalo de nuevo.");
+    } finally {
+      hideLoader();
     }
   };
 
@@ -114,7 +148,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
       onSubmit={handleFormSubmit}
       className="space-y-5 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto rounded"
     >
-      {/* 📅 Fecha */}
+      {/*  Fecha */}
       <div>
         <label className="block text-sm font-medium mb-1">
           Fecha de Registro <span className="text-red-500">*</span>
@@ -182,7 +216,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         )}
       </div>
 
-      {/* 📦 N° Orden y Proveedor */}
+      {/* N° Orden y Proveedor */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm mb-1 font-medium">
@@ -208,6 +242,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
           </label>
           <select
             name="supplier"
+            value={form.supplier}
             onChange={(e) => {
               handleChange(e);
               handleFieldValidation("supplier", e.target.value);
@@ -218,18 +253,19 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
           >
             <option value="">Selecciona el proveedor</option>
             {suppliers.map((s) => (
-              <option key={s} value={s}>
-                {s}
+              <option key={s.supplierid} value={s.supplierid}>
+                {s.name} - {s.nit}
               </option>
             ))}
           </select>
+
           {errors.supplier && (
             <p className="text-xs text-red-500">{errors.supplier}</p>
           )}
         </div>
       </div>
 
-      {/* 🧾 Número de Factura */}
+      {/*  Número de Factura */}
       <div>
         <label className="block text-sm mb-1 font-medium">
           Número de Factura <span className="text-red-500">*</span>
@@ -252,7 +288,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         )}
       </div>
 
-      {/* 💰 Total */}
+      {/*  Total */}
       <div>
         <label className="block text-sm mb-1 font-medium">
           Total <span className="text-red-500">*</span>
@@ -270,7 +306,7 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         )}
       </div>
 
-      {/* 📝 Descripción */}
+      {/*  Descripción */}
       <div>
         <label className="block text-sm mb-1 font-medium">Descripción</label>
         <textarea
@@ -290,48 +326,107 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         )}
       </div>
 
-      {/* 🛒 Productos */}
+      {/*  Productos */}
       <div className="p-3 border rounded-lg bg-gray-50">
         <label className="block text-sm mb-2">
           Productos <span className="text-red-500">*</span>
         </label>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <select
-            value={selectedProduct}
-            onChange={(e) => setSelectedProduct(e.target.value)}
-            className="flex-1 rounded-md border px-2 py-2 text-sm"
+        {/* Toggle Seleccionar / Crear */}
+        <div className="flex gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => setIsNewProduct(false)}
+            className={`text-xs px-2 py-1 rounded ${
+              !isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            }`}
           >
-            <option value="">Selecciona un producto</option>
-            {Object.keys(products).map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            value={quantity}
-            min={1}
-            onChange={(e) => setQuantity(Number(e.target.value))}
-            className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
-          />
+            Seleccionar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsNewProduct(true)}
+            className={`text-xs px-2 py-1 rounded ${
+              isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            }`}
+          >
+            Crear producto
+          </button>
         </div>
 
+        {/* Modo selección */}
+        {!isNewProduct ? (
+          <div className="flex flex-col sm:flex-col gap-2">
+            <select
+              value={selectedProduct}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+              className="flex-1 rounded-md border px-2 py-2 text-sm"
+            >
+              <option value="">Selecciona un producto</option>
+              {products.map((p) => (
+                <option key={p.productid} value={p.productid}>
+                  {p.productname} - {formatCOP(p.productpriceofsale)}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="number"
+              value={quantity}
+              min={1}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
+            />
+          </div>
+        ) : (
+          /* Modo crear producto */
+          <div className="flex flex-col sm:flex-col gap-2">
+            <input
+              type="text"
+              placeholder="Nombre del producto"
+              value={newProductName}
+              onChange={(e) => setNewProductName(e.target.value)}
+              className="flex-1 rounded-md border px-2 py-2 text-sm"
+            />
+
+            <input
+              type="number"
+              placeholder="Precio proveedor"
+              value={newProductPrice}
+              onChange={(e) => setNewProductPrice(Number(e.target.value))}
+              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+            />
+
+            <input
+              type="number"
+              value={quantity}
+              min={1}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
+            />
+          </div>
+        )}
+
+        {/* Botón original */}
         <button
           type="button"
           onClick={() => {
-            if (!selectedProduct) return;
-            const alreadyInCart =
-              cart.find((item) => item.name === selectedProduct)?.qty || 0;
-            const stock = products[selectedProduct].stock;
+            if (!isNewProduct && !selectedProduct) return;
 
-            if (alreadyInCart + quantity > stock + alreadyInCart) {
-              showWarning("⚠️ No puedes superar el stock disponible.");
+            if (isNewProduct && (!newProductName || newProductPrice <= 0)) {
+              showWarning("Completa los datos del nuevo producto.");
               return;
             }
 
-            handleAddProduct();
+            handleAddProduct({
+              isNew: isNewProduct,
+              productName: newProductName,
+              supplierPrice: newProductPrice,
+              selectedProduct: selectedProduct,
+              quantity: quantity,
+            });
+
             showSuccess("Producto agregado al carrito 🛒");
           }}
           style={{ backgroundColor: Colors.buttons.primary }}
@@ -341,10 +436,11 @@ export default function RegisterPurchaseForm({ onSave, purchases }: Props) {
         </button>
       </div>
 
-      {/* ⚙️ Botones */}
+      {/*  Botones */}
       <div className="flex flex-col sm:flex-row justify-end gap-2">
         <button
           type="button"
+          onClick={onClose}
           className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
         >
           Cancelar

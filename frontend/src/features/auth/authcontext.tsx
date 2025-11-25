@@ -1,85 +1,182 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Cookies from "js-cookie";
 import { api, setAccessToken } from "@/lib/api";
 import { AuthUser } from "@/features/auth/types/AuthUser";
+import { RegisterPayload } from "@/features/auth/types/RegisterPayload";
+import {
+  getAllowedModulesFromPermissions,
+  pickPostLoginRedirect,
+} from "@/features/auth/authz";
 
-type AuthResult = { ok: boolean; message?: string };
+type AuthResult = { ok: boolean; message?: string; redirectTo?: string };
+type AuthAction = "login" | "logout" | null;
 
 type AuthContextType = {
   user: AuthUser | null;
+  profile: any | null;
   isAuthenticated: boolean;
   ready: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
+  login: (
+    email: string,
+    password: string,
+    nextPath?: string | null
+  ) => Promise<AuthResult>;
   logout: () => void;
-  loadUser: () => Promise<void>;
+  loadUser: () => Promise<AuthUser | null>;
   changePassword: (
     currentPassword: string,
     newPassword: string
   ) => Promise<AuthResult>;
-  updateProfile: (
-    data: { 
-      name?: string; 
-      lastname?: string;
-      phone?: string; 
-      avatar?: string 
-    }
-  ) => Promise<AuthResult>;
+  loadProfile: (userId?: number) => Promise<any | null>;
+  refreshProfile: () => Promise<any | null>;
+  refreshBasicUserData: (userId?: number) => Promise<void>;
+  updateProfile: (data: any) => Promise<AuthResult>;
+  register: (data: RegisterPayload) => Promise<AuthResult>;
+  allowedModules: string[];
+  lastAuthAction: AuthAction;
+  setLastAuthAction: (action: AuthAction) => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function cookieOptions() {
+  return { path: "/", sameSite: "lax" as const };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [ready, setReady] = useState(false);
+  const [lastAuthAction, setLastAuthAction] = useState<AuthAction>(null);
 
-  async function loadUser() {
+  const userRef = useRef<AuthUser | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const loadUser = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const { data } = await api.get("/auth/me");
       setUser(data);
+      return data as AuthUser;
     } catch {
       setUser(null);
-    } finally {
-      setReady(true);
+      return null;
     }
-  }
-
-  useEffect(() => {
-    loadUser();
   }, []);
 
-  const login: AuthContextType["login"] = async (email, password) => {
+  const loadProfile = useCallback(async (userId?: number): Promise<any | null> => {
+    const id = userId ?? (userRef.current as any)?.userid;
+    if (!id) {
+      setProfile(null);
+      return null;
+    }
+
     try {
-      const res = await api.post("/auth/login", { email, password });
-      const data = res.data;
+      const res = await api.get(`/users/${id}`);
+      const payload = res.data?.data ?? res.data;
+      setProfile(payload);
+      return payload;
+    } catch {
+      setProfile(null);
+      return null;
+    }
+  }, []);
 
-      const access = data.accessToken || data.access_token;
-      const refresh = data.refreshToken || data.refresh_token;
+  const refreshProfile = useCallback(async () => {
+    const id = (userRef.current as any)?.userid;
+    if (!id) return null;
+    return loadProfile(id);
+  }, [loadProfile]);
 
-      if (!access || !refresh) {
-        return { ok: false, message: data.message || "Credenciales inválidas" };
+  const refreshBasicUserData = useCallback(
+    async (userId?: number) => {
+      const id = userId ?? (userRef.current as any)?.userid;
+      if (!id) return;
+      await loadUser();
+      await loadProfile(id);
+    },
+    [loadProfile, loadUser]
+  );
+
+  useEffect(() => {
+    (async () => {
+      const token = Cookies.get("token");
+      if (!token) {
+        setReady(true);
+        return;
       }
 
-      setAccessToken(access);
-      Cookies.set("refresh", refresh, { path: "/" });
+      setAccessToken(token);
+      const me = await loadUser();
+      if (me) await loadProfile((me as any)?.userid);
 
-      await loadUser();
+      setReady(true);
+    })();
+  }, [loadProfile, loadUser]);
 
-      return { ok: true };
-    } catch (err: any) {
-      return {
-        ok: false,
-        message: err?.response?.data?.message || "No se pudo iniciar sesión",
-      };
-    }
-  };
+  const login = useCallback(
+    async (
+      email: string,
+      password: string,
+      nextPath?: string | null
+    ): Promise<AuthResult> => {
+      try {
+        const res = await api.post("/auth/login", { email, password });
+        const data = res.data;
 
-  const logout = () => {
+        const access = data?.access_token;
+        const refresh = data?.refresh_token;
+
+        if (!access || !refresh)
+          return { ok: false, message: "Credenciales inválidas" };
+
+        setAccessToken(access);
+        Cookies.set("token", access, cookieOptions());
+        Cookies.set("refresh", refresh, cookieOptions());
+
+        const me = await loadUser();
+        if (me) await loadProfile((me as any)?.userid);
+
+        const perms: string[] = (me as any)?.permissions || [];
+        const redirectTo =
+          pickPostLoginRedirect(perms, nextPath) || "/dashboard";
+
+        setLastAuthAction("login");
+        setReady(true);
+        return { ok: true, redirectTo };
+      } catch (err: any) {
+        setReady(true);
+        return {
+          ok: false,
+          message:
+            err?.response?.data?.message || "No se pudo iniciar sesión",
+        };
+      }
+    },
+    [loadProfile, loadUser]
+  );
+
+  const logout = useCallback(() => {
+    Cookies.remove("token", { path: "/" });
+    Cookies.remove("refresh", { path: "/" });
     setAccessToken(null);
-    Cookies.remove("refresh");
     setUser(null);
-  };
+    setProfile(null);
+    setLastAuthAction("logout");
+    setReady(true);
+  }, []);
 
   const changePassword: AuthContextType["changePassword"] = async (
     currentPassword,
@@ -98,48 +195,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ok: false,
         message:
           err?.response?.data?.message ||
-          "No se pudo actualizar la contrase��a",
+          "No se pudo actualizar la contraseña",
       };
     }
   };
 
-  const updateProfile = async (data: any) => {
-    try {
-      if (!user?.userid) return { ok: false, message: "Usuario no autenticado" };
+  const updateProfile = useCallback(
+    async (data: any): Promise<AuthResult> => {
+      try {
+        const id = (userRef.current as any)?.userid;
+        if (!id) return { ok: false, message: "Usuario no autenticado" };
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${user.userid}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+        const res = await api.put(`/users/${id}`, data);
+        const result = res.data;
 
-      const result = await res.json();
+        if (result?.success === false)
+          return { ok: false, message: result.message };
 
-      if (!result.success) {
-        return { ok: false, message: result.message || "Error al actualizar" };
+        await loadUser();
+        await loadProfile(id);
+
+        return { ok: true };
+      } catch (err: any) {
+        return {
+          ok: false,
+          message:
+            err?.response?.data?.message || "Error al actualizar",
+        };
       }
+    },
+    [loadProfile, loadUser]
+  );
 
-          await loadUser();
+  const register = useCallback(
+    async (data: RegisterPayload): Promise<AuthResult> => {
+      try {
+        const res = await api.post("/users", data);
+        if (res.data?.success === false)
+          return { ok: false, message: res.data.message };
+        return { ok: true };
+      } catch (err: any) {
+        return {
+          ok: false,
+          message: err?.response?.data?.message || "No se pudo registrar",
+        };
+      }
+    },
+    []
+  );
 
-    return { ok: true };
-
-  } catch (e) {
-    return { ok: false, message: "Error de conexión" };
-  }
-  };
+  const allowedModules = useMemo(() => {
+    const perms: string[] = (user as any)?.permissions || [];
+    if (!perms.length) return [];
+    return getAllowedModulesFromPermissions(perms);
+  }, [user]);
 
   const value = useMemo<AuthContextType>(
     () => ({
       user,
+      profile,
       isAuthenticated: !!user,
       ready,
       login,
       logout,
       loadUser,
       changePassword,
+      loadProfile,
+      refreshProfile,
+      refreshBasicUserData,
       updateProfile,
+      register,
+      allowedModules,
+      lastAuthAction,
+      setLastAuthAction,
     }),
-    [user, ready, changePassword]
+    [
+      user,
+      profile,
+      ready,
+      login,
+      logout,
+      loadUser,
+      loadProfile,
+      refreshProfile,
+      refreshBasicUserData,
+      updateProfile,
+      register,
+      allowedModules,
+      lastAuthAction,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
