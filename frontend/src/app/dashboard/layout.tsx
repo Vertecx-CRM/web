@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AsideNav from "@/features/dashboard/layout/AsideNav";
 import TopNav from "@/features/dashboard/layout/TopNav";
-import { LoaderGate } from "@/shared/components/loader";
+import { LoaderGate, LoaderProvider } from "@/shared/components/loader";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import { useRouter, usePathname } from "next/navigation";
@@ -59,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <RequireAuth>
+      <LoaderProvider>
       <LoaderGate />
 
       <div className="flex h-screen">
@@ -78,6 +79,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </main>
         </div>
       </div>
+      </LoaderProvider>
     </RequireAuth>
   );
 }
