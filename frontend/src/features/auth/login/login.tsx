@@ -129,11 +129,6 @@ export default function LoginPage({ embedded = false }: Props) {
           </button>
           <Link href={routes.auth.register}>Crear Cuenta</Link>
         </div>
-        <div className="pt-2 text-xs text-gray-500">
-          <p>
-            <strong>Demo:</strong> <code>admin@sistemaspc.com</code> / <code>123456</code>
-          </p>
-        </div>
       </form>
 
       <RecoverEmailModal

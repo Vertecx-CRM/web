@@ -79,7 +79,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         }}
         form="create-user-form"
       >
-        {isSubmitting ? "Guardando..." : "Guardar"}
+        Guardar
       </button>
     </>
   );

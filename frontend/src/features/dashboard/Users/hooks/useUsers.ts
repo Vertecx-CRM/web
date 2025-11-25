@@ -81,9 +81,12 @@ export const useUser = () => {
       // Actualiza el estado local sin esperar al backend
       setUsers((prev) => [...prev, newUser]);
 
-      await refreshUsers();
-
       setIsCreateModalOpen(false);
+
+      // Refresca en segundo plano para mantener consistencia sin bloquear UI
+      refreshUsers().catch((err) =>
+        console.warn("No se pudo refrescar usuarios tras crear:", err)
+      );
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al crear usuario");
@@ -121,9 +124,12 @@ export const useUser = () => {
         prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
       );
 
-      await refreshUsers();
-
       setEditingUser(null);
+
+      // Refresca en background sin bloquear la experiencia
+      refreshUsers().catch((err) =>
+        console.warn("No se pudo refrescar usuarios tras actualizar:", err)
+      );
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al actualizar usuario");
@@ -149,7 +155,10 @@ export const useUser = () => {
 
           await deleteUser(userToDelete.userid);
 
-          await refreshUsers();
+          // Refresca en segundo plano para no bloquear la experiencia
+          refreshUsers().catch((err) =>
+            console.warn("No se pudo refrescar usuarios tras eliminar:", err)
+          );
         } catch (error) {
           console.error(error);
           showWarning("Error al eliminar usuario");

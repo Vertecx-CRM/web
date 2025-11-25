@@ -1,19 +1,95 @@
 import { useAuth } from "../authcontext";
 
+const MODULE_ALIASES: Record<string, string> = {
+  // compras / órdenes
+  purchases: "purcharse",
+  purcharse: "purcharse",
+  compras: "purcharse",
+  purchasesmanagement: "purcharse",
+  purchase: "purcharse",
+  ordenesdecompra: "purchaseorders",
+  purchaseorders: "purchaseorders",
+
+  // catálogos
+  categories: "categoryproducts",
+  categoryproducts: "categoryproducts",
+  products: "products",
+  suppliers: "suppliers",
+
+  // servicios
+  servicesrequests: "servicesrequest",
+  servicesrequest: "servicesrequest",
+  orderservices: "orderservices",
+  services: "services",
+  technicians: "technicians",
+  quotes: "quotes",
+
+  // clientes / usuarios
+  costumers: "customers",
+  customers: "customers",
+  clients: "customers",
+  users: "users",
+  roles: "roles",
+
+  // otros
+  sales: "sales",
+  sale: "sales",
+  ventas: "sales",
+  venta: "sales",
+  dashboard: "dashboard",
+};
+
+const PRIVILEGE_ALIASES: Record<string, string> = {
+  create: "create",
+  crear: "create",
+
+  read: "read",
+  ver: "read",
+  leer: "read",
+
+  update: "update",
+  actualizar: "update",
+  editar: "update",
+
+  delete: "delete",
+  eliminar: "delete",
+  borrar: "delete",
+};
+
+function normalizeModule(name: string) {
+  const key = (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+  return MODULE_ALIASES[key] ?? key;
+}
+
+function normalizePrivilege(name: string) {
+  const key = (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return PRIVILEGE_ALIASES[key] ?? key;
+}
+
 function parsePermission(item: string) {
-  const [module, privilege] = item.split(".");
-  return { module, privilege };
+  const sep = item.includes(".") ? "." : item.includes("-") ? "-" : ".";
+  const [module, privilege] = item.split(sep);
+  return { module: normalizeModule(module), privilege: normalizePrivilege(privilege) };
 }
 
 export function usePermissions() {
   const { user } = useAuth();
-  const perms = user?.permissions || [];
+  const perms = (user as any)?.permissions || [];
 
   function has(module: string, privilege: string) {
-    return perms.some((p) => {
-      const { module: m, privilege: pv } = parsePermission(p);
-      return m.toLowerCase() === module.toLowerCase() &&
-             pv.toLowerCase() === privilege.toLowerCase();
+    const targetModule = normalizeModule(module);
+    const targetPrivilege = normalizePrivilege(privilege);
+
+    return perms.some((p: string) => {
+      const { module: m, privilege: pv } = parsePermission(p || "");
+      return m === targetModule && pv === targetPrivilege;
     });
   }
 
