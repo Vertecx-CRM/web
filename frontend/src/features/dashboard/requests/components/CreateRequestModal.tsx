@@ -1,16 +1,18 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import { showError } from "@/shared/utils/notifications";
 
 export type CreateRequestPayload = {
-  tipos: ("Mantenimiento" | "Instalacion")[];
-  servicio: string;
-  descripcion: string;
+  scheduledAt?: string | null;
+  serviceType: "MANTENIMIENTO" | "INSTALACION";
+  description: string;
   direccion: string;
-  cliente: string;
-  programada?: string | null;
-  horaProgramada?: string | null;
+  stateId?: number;
+  serviceId: number;
+  clientId: number;
 };
 
 type Props = {
@@ -24,6 +26,13 @@ type Props = {
   initialTime?: string | null;
 };
 
+function toIsoFromLocalDateTime(date: string, time: string) {
+  const [y, m, d] = date.split("-").map((n) => Number(n));
+  const [hh, mm] = time.split(":").map((n) => Number(n));
+  const dt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  return dt.toISOString();
+}
+
 export default function CreateRequestModal({
   isOpen,
   onClose,
@@ -35,55 +44,79 @@ export default function CreateRequestModal({
   initialTime = null,
 }: Props) {
   const [tipo, setTipo] = useState<"Mantenimiento" | "Instalacion" | null>(null);
-  const [servicio, setServicio] = useState("");
-  const [cliente, setCliente] = useState("");
-  const [descripcion, setDescripcion] = useState("");
+  const [serviceId, setServiceId] = useState<number | "">("");
+  const [clientId, setClientId] = useState<number | "">("");
+  const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
   const [programada, setProgramada] = useState<string | null>(initialDate);
   const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTipo(null);
-      setServicio("");
-      setCliente("");
-      setDescripcion("");
+      setServiceId("");
+      setClientId("");
+      setDescription("");
       setDireccion("");
       setProgramada(initialDate);
       setHoraProgramada(initialTime);
       setErrors({});
+      setSaving(false);
     }
   }, [isOpen, initialDate, initialTime]);
 
+  useEffect(() => {
+    if (!programada) setHoraProgramada(null);
+  }, [programada]);
+
   function validate() {
     const e: Record<string, string | null> = {};
-    e.tipos = tipo ? null : "Selecciona un tipo.";
-    e.servicio = servicio ? null : "Selecciona un servicio.";
-    e.cliente = cliente ? null : "Selecciona un cliente.";
-    e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
-    e.direccion = direccion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
-    if (programada && !horaProgramada) {
-      e.horaProgramada = "Selecciona la hora.";
-    }
+    e.tipo = tipo ? null : "Selecciona un tipo.";
+    e.serviceId = serviceId !== "" ? null : "Selecciona un servicio.";
+    e.clientId = clientId !== "" ? null : "Selecciona un cliente.";
+    e.description = description.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
+
+    const dir = (direccion ?? "").trim();
+    if (dir.length < 3) e.direccion = "Mínimo 3 caracteres.";
+    else if (dir.length > 255) e.direccion = "Máximo 255 caracteres.";
+    else e.direccion = null;
+
+    if (programada && !horaProgramada) e.horaProgramada = "Selecciona la hora.";
     setErrors(e);
     return Object.values(e).every((x) => !x);
   }
 
   async function submit() {
+    if (saving) return;
     if (!validate()) return;
-    const finalHour =
-      horaProgramada && horaProgramada.includes(":") ? horaProgramada : programada ? "09:00" : null;
-    await onSave({
-      tipos: tipo ? [tipo] as ("Mantenimiento" | "Instalacion")[] : [],
-      servicio,
-      descripcion: descripcion.trim(),
-      direccion: direccion.trim(),
-      cliente,
-      programada,
-      horaProgramada: finalHour,
-    });
-    onClose();
+
+    const serviceType: "MANTENIMIENTO" | "INSTALACION" =
+      tipo === "Mantenimiento" ? "MANTENIMIENTO" : "INSTALACION";
+
+    const scheduledAt =
+      programada ? toIsoFromLocalDateTime(programada, horaProgramada || "09:00") : null;
+
+    const dir = String(direccion ?? "").trim().slice(0, 255);
+
+    setSaving(true);
+    try {
+      await onSave({
+        serviceType,
+        serviceId: Number(serviceId),
+        clientId: Number(clientId),
+        description: String(description ?? "").trim(),
+        direccion: dir,
+        scheduledAt,
+        stateId: 1,
+      });
+      onClose();
+    } catch {
+      showError("No se pudo crear la solicitud.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -96,16 +129,18 @@ export default function CreateRequestModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            disabled={saving}
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={submit}
-            className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+            className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+            disabled={saving}
           >
-            Guardar
+            {saving ? "Guardando..." : "Guardar"}
           </button>
         </div>
       }
@@ -142,7 +177,7 @@ export default function CreateRequestModal({
               Instalación
             </button>
           </div>
-          {errors.tipos && <p className="mt-1 text-xs text-red-600">{errors.tipos}</p>}
+          {errors.tipo && <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -150,8 +185,8 @@ export default function CreateRequestModal({
             <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
             <div className="relative">
               <select
-                value={servicio}
-                onChange={(e) => setServicio(e.target.value)}
+                value={serviceId === "" ? "" : String(serviceId)}
+                onChange={(e) => setServiceId(e.target.value ? Number(e.target.value) : "")}
                 className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
               >
                 <option value="">Selecciona el servicio</option>
@@ -161,17 +196,19 @@ export default function CreateRequestModal({
                   </option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                ▾
+              </span>
             </div>
-            {errors.servicio && <p className="mt-1 text-xs text-red-600">{errors.servicio}</p>}
+            {errors.serviceId && <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>}
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
             <div className="relative">
               <select
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
+                value={clientId === "" ? "" : String(clientId)}
+                onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : "")}
                 className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
               >
                 <option value="">Selecciona el cliente</option>
@@ -181,9 +218,11 @@ export default function CreateRequestModal({
                   </option>
                 ))}
               </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                ▾
+              </span>
             </div>
-            {errors.cliente && <p className="mt-1 text-xs text-red-600">{errors.cliente}</p>}
+            {errors.clientId && <p className="mt-1 text-xs text-red-600">{errors.clientId}</p>}
           </div>
         </div>
 
@@ -208,28 +247,32 @@ export default function CreateRequestModal({
               className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
             />
           </div>
+
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Hora</label>
             <input
               type="time"
+              disabled={!programada}
               value={horaProgramada ?? ""}
               onChange={(e) => setHoraProgramada(e.target.value || null)}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
             />
-            {errors.horaProgramada && <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>}
+            {errors.horaProgramada && (
+              <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
+            )}
           </div>
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
           <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="Describe brevemente la solicitud"
             className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
           />
-          {errors.descripcion && <p className="mt-1 text-xs text-red-600">{errors.descripcion}</p>}
+          {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
         </div>
       </div>
     </Modal>
