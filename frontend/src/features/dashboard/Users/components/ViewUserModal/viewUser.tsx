@@ -4,6 +4,12 @@ import Colors from "@/shared/theme/colors";
 import { ViewUserModalProps } from "../../types/typesUser";
 import Modal from "@/features/dashboard/components/Modal";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 const ViewUserModal: React.FC<ViewUserModalProps> = ({
   isOpen,
   onClose,
@@ -32,7 +38,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
     user.lastname === "";
 
   // Detectar rol
-  const roleName = user.roles?.name?.toLowerCase() || "";
+  const roleName = normalizeRoleName(user.roles?.name || "");
   const isTecnico = roleName === "tecnico";
   const isCliente = roleName === "cliente";
 

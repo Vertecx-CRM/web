@@ -11,6 +11,11 @@ export type TechnicianTypeApi = {
   name: string;
 };
 
+type TechnicianTypesEnvelope =
+  | TechnicianTypeApi[]
+  | { data?: TechnicianTypeApi[] }
+  | { success?: boolean; data?: TechnicianTypeApi[] };
+
 type TechnicianFromApi = {
   technicianid: number;
   CV: string | null;
@@ -64,8 +69,17 @@ export const getTechnicians = async (): Promise<Technician[]> => {
 };
 
 export const getTechnicianTypes = async (): Promise<TechnicianTypeApi[]> => {
-  const { data } = await api.get<TechnicianTypeApi[]>("/techniciantypes");
-  return Array.isArray(data) ? data : [];
+  const { data } = await api.get<TechnicianTypesEnvelope>(
+    "/techniciantypes"
+  );
+
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : [];
+
+  return list;
 };
 
 export type CreateTechnicianPayload = {

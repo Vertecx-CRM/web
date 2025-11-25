@@ -42,9 +42,10 @@ export const CustomBarChart: React.FC<CustomBarChartProps> = ({
   data,
   xKey,
   bars,
+  height = 300,
 }) => {
   return (
-    <ResponsiveContainer width="100%" height="100%" >
+    <ResponsiveContainer width="100%" height={height}>
       <BarChart
         data={data}
         margin={{
