@@ -1,4 +1,5 @@
 export interface ISupplier {
+  name: any;
   supplierid: number;
   contactname: string;
   servicetype: string;
