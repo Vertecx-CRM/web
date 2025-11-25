@@ -13,6 +13,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  users,
 }) => {
   const {
     formData,
@@ -30,7 +31,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     removeImage,
     removeCV,
     handleTechnicianTypeChange,
-  } = useCreateUserForm({ isOpen, onClose, onSave });
+  } = useCreateUserForm({ isOpen, onClose, onSave, users });
 
   const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
   const { roles, loading: loadingRoles } = useRoles();

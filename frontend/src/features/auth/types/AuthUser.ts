@@ -11,4 +11,8 @@ export interface AuthUser {
   stateid?: number;
   isactive?: boolean;
   permissions?: string[];
+  rolename?: string;
+  permissions?: string[];
+  mustchangepassword?: boolean;
+  isactive?: boolean;
 }

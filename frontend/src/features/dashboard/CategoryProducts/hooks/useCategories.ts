@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import { showSuccess } from "@/shared/utils/notifications";
-import { useLoader } from "@/shared/components/loader";
 import {
   fetchCategories,
   createCategory,
@@ -20,8 +19,7 @@ export const useCategories = () => {
   const [editingCategory, setEditingCategory] =
     useState<EditCategoryData | null>(null);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { showLoader, hideLoader } = useLoader();
+  const [loading, setLoading] = useState(true);
 
   const waitForRender = async () => {
     await new Promise<void>((resolve) => {
@@ -51,44 +49,22 @@ export const useCategories = () => {
     return response?.status ?? (Array.isArray(response) ? 200 : undefined);
   };
 
-  const waitForPaint = async () => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-    await new Promise<void>((resolve) => setTimeout(resolve, 16));
-  };
-
-  const runWithLoader = async (fn: () => Promise<void>) => {
-    showLoader();
-    try {
-      await fn();
-      await waitForPaint();
-    } finally {
-      hideLoader();
-    }
-  };
-
   // Cargar todas las categorias al iniciar
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await runWithLoader(async () => {
-        try {
-          const status = await refreshCategories();
-          if (status !== 200) {
-            throw new Error(`Refresh categorias devolvio status ${status}`);
-          }
-        } catch (error) {
-          console.error("Error al cargar categorias:", error);
-        } finally {
-          setLoading(false);
+      try {
+        const status = await refreshCategories();
+        if (status !== 200) {
+          throw new Error(`Refresh categorias devolvio status ${status}`);
         }
-      });
+      } catch (error) {
+        console.error("Error al cargar categorias:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     if (!hasFetchedRef.current) {
@@ -99,33 +75,34 @@ export const useCategories = () => {
 
   // Crear categoria
   const handleCreateCategory = async (categoryData: CreateCategoryData) => {
-    await runWithLoader(async () => {
-      try {
-        setIsCreateModalOpen(false);
-        const newCategory = {
-          name: categoryData.name,
-          description: categoryData.description,
-          icon: categoryData.icon || "",
-          status: true,
-        };
+    setLoading(true);
+    try {
+      setIsCreateModalOpen(false);
+      const newCategory = {
+        name: categoryData.name,
+        description: categoryData.description,
+        icon: categoryData.icon || "",
+        status: true,
+      };
 
-        const createdResp = await createCategory(newCategory);
-        const created = createdResp?.data ?? createdResp;
-        if (created) {
-          setCategories((prev) =>
-            [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-          );
-        }
-        const status = await refreshCategories();
-        if (status !== 200) {
-          throw new Error(`Refresh categorias devolvio status ${status}`);
-        }
-        showSuccess("Categoria creada exitosamente!");
-        await waitForRender();
-      } catch (error) {
-        console.error("Error al crear categoria:", error);
+      const createdResp = await createCategory(newCategory);
+      const created = createdResp?.data ?? createdResp;
+      if (created) {
+        setCategories((prev) =>
+          [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
+        );
       }
-    });
+      const status = await refreshCategories();
+      if (status !== 200) {
+        throw new Error(`Refresh categorias devolvio status ${status}`);
+      }
+      showSuccess("Categoria creada exitosamente!");
+      await waitForRender();
+    } catch (error) {
+      console.error("Error al crear categoria:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Editar categoria
@@ -133,36 +110,37 @@ export const useCategories = () => {
     id: number,
     categoryData: EditCategoryData
   ) => {
-    await runWithLoader(async () => {
-      try {
-        const updatedCategory = {
-          name: categoryData.name,
-          description: categoryData.description,
-          icon: categoryData.icon,
-          status: categoryData.status,
-        };
+    setLoading(true);
+    try {
+      const updatedCategory = {
+        name: categoryData.name,
+        description: categoryData.description,
+        icon: categoryData.icon,
+        status: categoryData.status,
+      };
 
-        const updatedResp = await updateCategory(id, updatedCategory);
-        const updated = updatedResp?.data ?? updatedResp;
-        if (updated) {
-          setCategories((prev) =>
-            prev
-              .map((cat) => (cat.id === id ? updated : cat))
-              .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-          );
-        }
-        const status = await refreshCategories();
-        if (status !== 200) {
-          throw new Error(`Refresh categorias devolvio status ${status}`);
-        }
-
-        showSuccess("Categoria actualizada exitosamente!");
-        await waitForRender();
-        setEditingCategory(null);
-      } catch (error) {
-        console.error("Error al actualizar categoria:", error);
+      const updatedResp = await updateCategory(id, updatedCategory);
+      const updated = updatedResp?.data ?? updatedResp;
+      if (updated) {
+        setCategories((prev) =>
+          prev
+            .map((cat) => (cat.id === id ? updated : cat))
+            .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
+        );
       }
-    });
+      const status = await refreshCategories();
+      if (status !== 200) {
+        throw new Error(`Refresh categorias devolvio status ${status}`);
+      }
+
+      showSuccess("Categoria actualizada exitosamente!");
+      await waitForRender();
+      setEditingCategory(null);
+    } catch (error) {
+      console.error("Error al actualizar categoria:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Eliminar categoria
@@ -178,23 +156,24 @@ export const useCategories = () => {
           "No se pudo eliminar la categoria. Por favor, intenta nuevamente.",
       },
       async () => {
-        await runWithLoader(async () => {
-          try {
-            await deleteCategory(category.id);
-            setCategories((prev) =>
-              prev
-                .filter((cat) => cat.id !== category.id)
-                .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-            );
-            const status = await refreshCategories();
-            if (status !== 200) {
-              throw new Error(`Refresh categorias devolvio status ${status}`);
-            }
-            await waitForRender();
-          } catch (error) {
-            console.error("Error al eliminar categoria:", error);
+        setLoading(true);
+        try {
+          await deleteCategory(category.id);
+          setCategories((prev) =>
+            prev
+              .filter((cat) => cat.id !== category.id)
+              .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
+          );
+          const status = await refreshCategories();
+          if (status !== 200) {
+            throw new Error(`Refresh categorias devolvio status ${status}`);
           }
-        });
+          await waitForRender();
+        } catch (error) {
+          console.error("Error al eliminar categoria:", error);
+        } finally {
+          setLoading(false);
+        }
       }
     );
   };

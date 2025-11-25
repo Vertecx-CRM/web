@@ -8,7 +8,14 @@ import { MonthlyGraph } from "./components/BarChar/monthlySalesGraph";
 import { PieChartCategoryAndProducts } from "./components/PieChart/pieChart";
 import { CustomBarChart } from "./components/BarChar/barChart";
 import { dashboardApi } from "./api/dashboardApi";
-import { useLoader } from "@/shared/components/loader";
+
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export const IndexDashboard = () => {
   // ESTADOS
@@ -32,13 +39,13 @@ export const IndexDashboard = () => {
   const [selectedMonthSales, setSelectedMonthSales] = useState<string | null>(null);
   const [selectedMonthShopping, setSelectedMonthShopping] = useState<string | null>(null);
   const [selectedMonthClients, setSelectedMonthClients] = useState<string | null>(null);
-  const { showLoader, hideLoader } = useLoader();
+  const [loading, setLoading] = useState(true);
 
   // CARGAR TODA LA DATA DEL DASHBOARD
   useEffect(() => {
     const loadDashboard = async () => {
+      setLoading(true);
       try {
-        showLoader();
         // VENTAS
         setSalesYear(await dashboardApi.getSalesByYear());
         setTotalSales((await dashboardApi.getTotalSales()).total);
@@ -65,7 +72,7 @@ export const IndexDashboard = () => {
       } catch (error) {
         console.error("Error cargando dashboard:", error);
       } finally {
-        hideLoader();
+        setLoading(false);
       }
     };
 
@@ -75,6 +82,7 @@ export const IndexDashboard = () => {
 
   return (
     <div className="w-full h-screen overflow-y-auto overflow-x-hidden p-4">
+      {loading && <Loader />}
 
       {/* PRIMERA FILA: MÉTRICAS PRINCIPALES */}
       <div className="flex flex-wrap gap-4 justify-center md:justify-start">

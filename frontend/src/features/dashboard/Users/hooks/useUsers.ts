@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import {
@@ -12,52 +12,81 @@ import {
   updateUser,
   deleteUser,
 } from "../connection/userApi";
-import { useLoader } from "@/shared/components/loader";
 
 export const useUser = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<EditUser | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
-  const { showLoader, hideLoader } = useLoader();
+  const [loading, setLoading] = useState(true);
 
-  const applyUsersResponse = (response: any) => {
-    if (response?.success && Array.isArray(response.data)) {
-      setUsers(response.data);
-    } else if (Array.isArray(response)) {
-      setUsers(response);
+  const waitForRender = async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+  };
+
+  const applyUsersResponse = async (response: any) => {
+    const payload = response?.data ?? response;
+    const sortUsers = (list: User[]) =>
+      [...list].sort((a, b) =>
+        `${a.name ?? ""} ${a.lastname ?? ""}`.localeCompare(
+          `${b.name ?? ""} ${b.lastname ?? ""}`,
+          "es",
+          { sensitivity: "base" }
+        )
+      );
+
+    if (Array.isArray(payload)) {
+      setUsers(sortUsers(payload));
+    } else if (payload?.data && Array.isArray(payload.data)) {
+      setUsers(sortUsers(payload.data));
     } else {
       console.warn("Estructura de respuesta inesperada:", response);
-      setUsers([]);
+      return;
     }
+    await waitForRender();
   };
 
   const refreshUsers = async () => {
     const response = await fetchUsers();
-    applyUsersResponse(response);
+    await applyUsersResponse(response);
+    const payload = response?.data ?? response;
+    if (typeof response?.status === "number") return response.status;
+    if (response?.success) return 200;
+    if (Array.isArray(payload)) return 200;
+    if (payload?.data && Array.isArray(payload.data)) return 200;
+    return undefined;
   };
+
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     const loadUsers = async () => {
+      setLoading(true);
       try {
-        showLoader();
-        const response = await fetchUsers();
-        applyUsersResponse(response);
+        const status = await refreshUsers();
+        if (status !== 200) {
+          throw new Error(`Refresh usuarios devolvio status ${status}`);
+        }
       } catch (error) {
-        console.error(error);
+        console.error("Error al cargar usuarios:", error);
         showWarning("Error al cargar usuarios desde el servidor");
       } finally {
-        hideLoader();
+        setLoading(false);
       }
     };
 
-    loadUsers();
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      loadUsers();
+    }
   }, []);
 
-
   const handleCreateUser = async (userData: CreateUserData) => {
+    setLoading(true);
     try {
-      showLoader();
+      setIsCreateModalOpen(false);
       const payload = {
         name: userData.name,
         lastname: userData.lastname,
@@ -76,31 +105,27 @@ export const useUser = () => {
       };
 
       const newUser = await createUser(payload);
-      showSuccess("Usuario creado exitosamente");
-
-      // Actualiza el estado local sin esperar al backend
       setUsers((prev) => [...prev, newUser]);
+      const status = await refreshUsers();
+      if (status !== 200) {
+        throw new Error(`Refresh usuarios devolvio status ${status}`);
+      }
 
-      setIsCreateModalOpen(false);
-
-      // Refresca en segundo plano para mantener consistencia sin bloquear UI
-      refreshUsers().catch((err) =>
-        console.warn("No se pudo refrescar usuarios tras crear:", err)
-      );
+      showSuccess("Usuario creado exitosamente");
+      await waitForRender();
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al crear usuario");
     } finally {
-      hideLoader();
+      setLoading(false);
     }
   };
-
 
   const handleEditUser = async (userData: EditUser) => {
     if (!userData.userid) return;
 
+    setLoading(true);
     try {
-      showLoader();
       const payload = {
         name: userData.name,
         lastname: userData.lastname,
@@ -118,23 +143,22 @@ export const useUser = () => {
       };
 
       const updatedUser = await updateUser(userData.userid, payload);
-      showSuccess("Usuario actualizado exitosamente");
-
       setUsers((prev) =>
         prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
       );
+      const status = await refreshUsers();
+      if (status !== 200) {
+        throw new Error(`Refresh usuarios devolvio status ${status}`);
+      }
 
+      showSuccess("Usuario actualizado exitosamente");
+      await waitForRender();
       setEditingUser(null);
-
-      // Refresca en background sin bloquear la experiencia
-      refreshUsers().catch((err) =>
-        console.warn("No se pudo refrescar usuarios tras actualizar:", err)
-      );
     } catch (error: any) {
       console.error(error);
       showWarning(error.message || "Error al actualizar usuario");
     } finally {
-      hideLoader();
+      setLoading(false);
     }
   };
 
@@ -147,23 +171,23 @@ export const useUser = () => {
         errorMessage: "Error al eliminar usuario",
       },
       async () => {
+        setLoading(true);
         try {
-          showLoader();
           if (!userToDelete.userid) return;
 
           setUsers((prev) => prev.filter((u) => u.userid !== userToDelete.userid));
 
           await deleteUser(userToDelete.userid);
-
-          // Refresca en segundo plano para no bloquear la experiencia
-          refreshUsers().catch((err) =>
-            console.warn("No se pudo refrescar usuarios tras eliminar:", err)
-          );
+          const status = await refreshUsers();
+          if (status !== 200) {
+            throw new Error(`Refresh usuarios devolvio status ${status}`);
+          }
+          await waitForRender();
         } catch (error) {
           console.error(error);
           showWarning("Error al eliminar usuario");
         } finally {
-          hideLoader();
+          setLoading(false);
         }
       }
     );
@@ -181,6 +205,7 @@ export const useUser = () => {
 
   return {
     users,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingUser,
@@ -193,4 +218,3 @@ export const useUser = () => {
     closeModals,
   };
 };
-

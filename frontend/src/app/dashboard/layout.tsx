@@ -9,11 +9,21 @@ import { useAuth } from "@/features/auth/authcontext";
 import { useRouter, usePathname } from "next/navigation";
 import { showSuccess } from "@/shared/utils/notifications";
 import { MODULE_TO_PATH, pickDefaultDashboardRoute } from "@/features/auth/authz";
+import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
+import { toast } from "react-toastify";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const { user, allowedModules, ready, lastAuthAction, setLastAuthAction } = useAuth();
+  const {
+    user,
+    allowedModules,
+    ready,
+    lastAuthAction,
+    setLastAuthAction,
+    isAuthenticated,
+    changePassword,
+  } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -56,6 +66,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!pathname.startsWith(base)) router.replace(base);
   }, [allowedModules, ready, user, pathname, router]);
+  const [forcePasswordModal, setForcePasswordModal] = useState(false);
+
+  const mustChangePassword = !!user?.mustchangepassword;
+
+  useEffect(() => {
+    if (ready && isAuthenticated && mustChangePassword) {
+      setForcePasswordModal(true);
+    } else if (!mustChangePassword) {
+      setForcePasswordModal(false);
+    }
+  }, [ready, isAuthenticated, mustChangePassword]);
+
+  const handleForcePasswordSave = async ({
+    currentPassword,
+    newPassword,
+  }: {
+    currentPassword?: string;
+    newPassword: string;
+  }) => {
+    const current = currentPassword || "";
+    const res = await changePassword(current, newPassword);
+    if (!res.ok) {
+      throw new Error(res.message || "No se pudo actualizar la contrasena");
+    }
+    setForcePasswordModal(false);
+    toast.success("Contrasena actualizada exitosamente");
+  };
+
+  const handleForcePasswordClose = () => {
+    if (mustChangePassword) {
+      setForcePasswordModal(true);
+      return;
+    }
+    setForcePasswordModal(false);
+  };
 
   return (
     <RequireAuth>
@@ -80,6 +125,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
       </LoaderProvider>
+      <ChangePasswordModal
+        open={forcePasswordModal}
+        onClose={handleForcePasswordClose}
+        onSave={handleForcePasswordSave}
+        requireCurrent
+      />
     </RequireAuth>
   );
 }

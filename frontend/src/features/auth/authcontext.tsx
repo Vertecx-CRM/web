@@ -24,27 +24,25 @@ type AuthAction = "login" | "logout" | null;
 type AuthContextType = {
   user: AuthUser | null;
   profile: any | null;
-
   isAuthenticated: boolean;
   ready: boolean;
-
   login: (
     email: string,
     password: string,
     nextPath?: string | null
   ) => Promise<AuthResult>;
   logout: () => void;
-
   loadUser: () => Promise<AuthUser | null>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<AuthResult>;
   loadProfile: (userId?: number) => Promise<any | null>;
   refreshProfile: () => Promise<any | null>;
   refreshBasicUserData: (userId?: number) => Promise<void>;
-
   updateProfile: (data: any) => Promise<AuthResult>;
   register: (data: RegisterPayload) => Promise<AuthResult>;
-
   allowedModules: string[];
-
   lastAuthAction: AuthAction;
   setLastAuthAction: (action: AuthAction) => void;
 };
@@ -152,7 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (me) await loadProfile((me as any)?.userid);
 
         const perms: string[] = (me as any)?.permissions || [];
-        const redirectTo = pickPostLoginRedirect(perms, nextPath) || "/dashboard";
+        const redirectTo =
+          pickPostLoginRedirect(perms, nextPath) || "/dashboard";
 
         setLastAuthAction("login");
         setReady(true);
@@ -161,7 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setReady(true);
         return {
           ok: false,
-          message: err?.response?.data?.message || "No se pudo iniciar sesión",
+          message:
+            err?.response?.data?.message || "No se pudo iniciar sesión",
         };
       }
     },
@@ -178,22 +178,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, []);
 
-  const register = useCallback(
-    async (data: RegisterPayload): Promise<AuthResult> => {
-      try {
-        const res = await api.post("/users", data);
-        if (res.data?.success === false)
-          return { ok: false, message: res.data.message };
-        return { ok: true };
-      } catch (err: any) {
-        return {
-          ok: false,
-          message: err?.response?.data?.message || "No se pudo registrar",
-        };
-      }
-    },
-    []
-  );
+  const changePassword: AuthContextType["changePassword"] = async (
+    currentPassword,
+    newPassword
+  ) => {
+    try {
+      await api.patch("/auth/change-password", {
+        currentPassword,
+        newPassword,
+        confirmNewPassword: newPassword,
+      });
+      await loadUser();
+      return { ok: true };
+    } catch (err: any) {
+      return {
+        ok: false,
+        message:
+          err?.response?.data?.message ||
+          "No se pudo actualizar la contraseña",
+      };
+    }
+  };
 
   const updateProfile = useCallback(
     async (data: any): Promise<AuthResult> => {
@@ -214,11 +219,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err: any) {
         return {
           ok: false,
-          message: err?.response?.data?.message || "Error de conexión",
+          message:
+            err?.response?.data?.message || "Error al actualizar",
         };
       }
     },
     [loadProfile, loadUser]
+  );
+
+  const register = useCallback(
+    async (data: RegisterPayload): Promise<AuthResult> => {
+      try {
+        const res = await api.post("/users", data);
+        if (res.data?.success === false)
+          return { ok: false, message: res.data.message };
+        return { ok: true };
+      } catch (err: any) {
+        return {
+          ok: false,
+          message: err?.response?.data?.message || "No se pudo registrar",
+        };
+      }
+    },
+    []
   );
 
   const allowedModules = useMemo(() => {
@@ -233,20 +256,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       isAuthenticated: !!user,
       ready,
-
       login,
       logout,
-
       loadUser,
+      changePassword,
       loadProfile,
       refreshProfile,
       refreshBasicUserData,
-
       updateProfile,
       register,
-
       allowedModules,
-
       lastAuthAction,
       setLastAuthAction,
     }),

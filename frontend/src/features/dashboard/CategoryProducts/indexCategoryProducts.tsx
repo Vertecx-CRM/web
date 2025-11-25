@@ -10,9 +10,18 @@ import { useCategories } from "./hooks/useCategories";
 import { Category, EditCategoryData } from "./types/typeCategoryProducts";
 import { Column } from "../components/datatable/types/column.types";
 
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
 export default function CategoriesPage() {
   const {
     categories,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingCategory,
@@ -124,19 +133,23 @@ export default function CategoriesPage() {
               onClose={closeModals}
             />
 
-            <DataTable<Category>
-              module="categories"
-              data={categories}
-              columns={columns}
-              pageSize={10}
-              searchableKeys={["id", "name", "description", "status"]}
-              onCreate={() => setIsCreateModalOpen(true)}
-              createButtonText="Crear Categoría"
-              searchPlaceholder="Buscar categorías..."
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDeleteCategory}
-            />
+            {loading ? (
+              <Loader />
+            ) : (
+              <DataTable<Category>
+                module="categories"
+                data={categories}
+                columns={columns}
+                pageSize={10}
+                searchableKeys={["id", "name", "description", "status"]}
+                onCreate={() => setIsCreateModalOpen(true)}
+                createButtonText="Crear Categoría"
+                searchPlaceholder="Buscar categorías..."
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDeleteCategory}
+              />
+            )}
           </div>
         </main>
       </div>
