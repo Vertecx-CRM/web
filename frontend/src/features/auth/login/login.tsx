@@ -63,7 +63,7 @@ export default function LoginPage({ embedded = false }: Props) {
     setOpenChange(true);
   }
 
-  async function handleSavePassword(_pwd: string) {
+  async function handleSavePassword(_payload: { newPassword: string }) {
     setOpenChange(false);
   }
 

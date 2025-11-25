@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AsideNav from "@/features/dashboard/layout/AsideNav";
 import TopNav from "@/features/dashboard/layout/TopNav";
 import { LoaderGate } from "@/shared/components/loader";
 import RequireAuth from "@/features/auth/requireauth";
+import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
+import { useAuth } from "@/features/auth/authcontext";
 
 export default function DashboardLayout({
   children,
@@ -12,6 +14,41 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user, isAuthenticated, ready, changePassword } = useAuth();
+  const [forcePasswordModal, setForcePasswordModal] = useState(false);
+
+  const mustChangePassword = !!user?.mustchangepassword;
+
+  useEffect(() => {
+    if (ready && isAuthenticated && mustChangePassword) {
+      setForcePasswordModal(true);
+    } else if (!mustChangePassword) {
+      setForcePasswordModal(false);
+    }
+  }, [ready, isAuthenticated, mustChangePassword]);
+
+  const handleForcePasswordSave = async ({
+    currentPassword,
+    newPassword,
+  }: {
+    currentPassword?: string;
+    newPassword: string;
+  }) => {
+    const current = currentPassword || "";
+    const res = await changePassword(current, newPassword);
+    if (!res.ok) {
+      throw new Error(res.message || "No se pudo actualizar la contrasena");
+    }
+    setForcePasswordModal(false);
+  };
+
+  const handleForcePasswordClose = () => {
+    if (mustChangePassword) {
+      setForcePasswordModal(true);
+      return;
+    }
+    setForcePasswordModal(false);
+  };
 
   return (
     <RequireAuth>
@@ -31,6 +68,12 @@ export default function DashboardLayout({
           </main>
         </div>
       </div>
+      <ChangePasswordModal
+        open={forcePasswordModal}
+        onClose={handleForcePasswordClose}
+        onSave={handleForcePasswordSave}
+        requireCurrent
+      />
     </RequireAuth>
   );
 }

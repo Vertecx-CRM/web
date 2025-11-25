@@ -14,6 +14,10 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<AuthResult>;
   logout: () => void;
   loadUser: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<AuthResult>;
   updateProfile: (
     data: { 
       name?: string; 
@@ -77,6 +81,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const changePassword: AuthContextType["changePassword"] = async (
+    currentPassword,
+    newPassword
+  ) => {
+    try {
+      await api.patch("/auth/change-password", {
+        currentPassword,
+        newPassword,
+        confirmNewPassword: newPassword,
+      });
+      await loadUser();
+      return { ok: true };
+    } catch (err: any) {
+      return {
+        ok: false,
+        message:
+          err?.response?.data?.message ||
+          "No se pudo actualizar la contrase��a",
+      };
+    }
+  };
+
   const updateProfile = async (data: any) => {
     try {
       if (!user?.userid) return { ok: false, message: "Usuario no autenticado" };
@@ -110,9 +136,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       logout,
       loadUser,
+      changePassword,
       updateProfile,
     }),
-    [user, ready]
+    [user, ready, changePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -20,7 +20,7 @@ export function Modal({ open, title, onClose, children, className }: ModalProps)
       <div className={`relative w-[540px] max-w-[92vw] rounded-2xl border border-white/10 bg-neutral-900 text-neutral-100 shadow-2xl ${className || ""}`}>
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <h2 className="text-base font-semibold tracking-wide text-neutral-50">{title}</h2>
-          <button aria-label="Cerrar" onClick={onClose} className="h-8 w-8 rounded-full transition hover:bg-white/10">×</button>
+          <button aria-label="Cerrar" onClick={onClose} className="h-8 w-8 rounded-full transition hover:bg-white/10">X</button>
         </div>
         <div className="px-6 py-5">{children}</div>
       </div>
@@ -79,12 +79,12 @@ export function RecoverEmailModal({ open, onClose, onSubmit }: RecoverEmailModal
   const isValid = useMemo(() => /\S+@\S+\.\S+/.test(email), [email]);
   const handle = async () => {
     setErr(null);
-    if (!isValid) { setErr("Ingresa un correo válido"); return; }
+    if (!isValid) { setErr("Ingresa un correo valido"); return; }
     setLoading(true);
     try { await onSubmit(email); } finally { setLoading(false); }
   };
   return (
-    <Modal open={open} title="Recuperar contraseña" onClose={onClose}>
+    <Modal open={open} title="Recuperar contrasena" onClose={onClose}>
       <Field label="Ingrese su correo">
         <TextInput type="email" inputMode="email" placeholder="correo@ejemplo.com" value={email} onChange={e => setEmail(e.target.value)} />
       </Field>
@@ -135,7 +135,7 @@ export function OtpModal({ open, email, onClose, onBack, onVerify, onResend, dur
 
   const submit = async () => {
     setErr(null);
-    if (!done) { setErr("Completa el código"); return; }
+    if (!done) { setErr("Completa el codigo"); return; }
     await onVerify(code);
   };
 
@@ -145,8 +145,8 @@ export function OtpModal({ open, email, onClose, onBack, onVerify, onResend, dur
   return (
     <Modal open={open} title="Restaurar cuenta" onClose={onClose}>
       <div className="text-center">
-        <p className="mb-1 text-sm font-semibold text-red-400">Revisa tu correo electrónico</p>
-        <p className="mb-6 text-xs text-neutral-400">Digitá el código enviado a <span className="text-neutral-200">{email}</span></p>
+        <p className="mb-1 text-sm font-semibold text-red-400">Revisa tu correo electronico</p>
+        <p className="mb-6 text-xs text-neutral-400">Digita el codigo enviado a <span className="text-neutral-200">{email}</span></p>
         <div className="mb-4 flex items-center justify-center gap-3">
           {values.map((v, i) => (
             <input
@@ -168,7 +168,7 @@ export function OtpModal({ open, email, onClose, onBack, onVerify, onResend, dur
           <Button onClick={submit} disabled={!done}>Aceptar</Button>
         </div>
         <div className="mt-4 text-xs text-neutral-400">
-          {seconds === 0 ? <button className="underline transition hover:text-neutral-200" onClick={onResend}>Reenviar código</button> : <span>Espera para reenviar</span>}
+          {seconds === 0 ? <button className="underline transition hover:text-neutral-200" onClick={onResend}>Reenviar codigo</button> : <span>Espera para reenviar</span>}
         </div>
       </div>
     </Modal>
@@ -178,9 +178,12 @@ export function OtpModal({ open, email, onClose, onBack, onVerify, onResend, dur
 type ChangePasswordModalProps = {
   open: boolean;
   onClose: () => void;
-  onSave: (newPassword: string) => Promise<void> | void;
+  requireCurrent?: boolean;
+  onSave: (payload: { newPassword: string; currentPassword?: string }) => Promise<void> | void;
 };
-export function ChangePasswordModal({ open, onClose, onSave }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = false }: ChangePasswordModalProps) {
+  const [current, setCurrent] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -196,19 +199,52 @@ export function ChangePasswordModal({ open, onClose, onSave }: ChangePasswordMod
     return s;
   }, [pwd]);
 
-  const canSave = pwd.length >= 8 && pwd === confirm && strength >= 3;
+  const canSave =
+    pwd.length >= 8 &&
+    pwd === confirm &&
+    strength >= 3 &&
+    (!requireCurrent || current.length > 0);
 
   const submit = async () => {
     setErr(null);
-    if (!canSave) { setErr("Verifica la contraseña"); return; }
-    await onSave(pwd);
+    if (!canSave) { setErr("Verifica la contrasena"); return; }
+    try {
+      await onSave({
+        newPassword: pwd,
+        currentPassword: requireCurrent ? current : undefined,
+      });
+      setCurrent("");
+      setPwd("");
+      setConfirm("");
+    } catch (e: any) {
+      setErr(e?.message || "No se pudo actualizar la contrasena");
+    }
   };
 
   return (
-    <Modal open={open} title="Cambiar Contraseña" onClose={onClose}>
-      <Field label="Ingrese la nueva contraseña">
+    <Modal open={open} title="Cambiar Contrasena" onClose={onClose}>
+      {requireCurrent && (
+        <Field label="Ingrese su contrasena actual">
+          <div className="relative">
+            <TextInput
+              type={showCurrent ? "text" : "password"}
+              value={current}
+              onChange={e => setCurrent(e.target.value)}
+              placeholder="********"
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(v => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10"
+            >
+              {showCurrent ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+        </Field>
+      )}
+      <Field label="Ingrese la nueva contrasena">
         <div className="relative">
-          <TextInput type={show ? "text" : "password"} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="••••••••" />
+          <TextInput type={show ? "text" : "password"} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="********" />
           <button type="button" onClick={() => setShow(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10">{show ? "Ocultar" : "Mostrar"}</button>
         </div>
       </Field>
@@ -218,8 +254,8 @@ export function ChangePasswordModal({ open, onClose, onSave }: ChangePasswordMod
         </div>
         <span className="text-xs text-neutral-400">Seguridad</span>
       </div>
-      <Field label="Confirmar contraseña">
-        <TextInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="••••••••" />
+      <Field label="Confirmar contrasena">
+        <TextInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="********" />
       </Field>
       {err && <p className="mb-3 text-sm text-red-400">{err}</p>}
       <div className="mt-6 flex items-center justify-end gap-3">
