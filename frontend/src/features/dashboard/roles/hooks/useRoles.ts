@@ -15,9 +15,6 @@ import {
   patchRoleMeta,
 } from "../api/roles.api";
 
-/** ------------------------------
- *  MAPEO CORRECTO DE PERMISSION IDs
- *  ------------------------------ */
 const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Roles: 1,
   Usuarios: 2,
@@ -28,28 +25,22 @@ const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Compras: 7,
   Servicios: 8,
   Técnicos: 9,
-  "Horarios de los técnicos": 10,
-  Clientes: 11,
-  "Solicitud de Servicio": 12,
-  Citas: 13,
-  "Cotización de Servicio": 14,
-  "Orden de Servicio": 15,
-  Dashboard: 16,
-
-  /** ✔ NUEVO — Ventas */
-  Ventas: 17,
+  Clientes: 10,
+  "Solicitud de Servicio": 11,
+  Citas: 12,
+  "Cotización de Servicio": 13,
+  "Orden de Servicio": 14,
+  Dashboard: 15,
+  Ventas: 16,
 };
 
-/** ------------------------------
- *  MAPEO CORRECTO DE PRIVILEGIOS
- *  IDs según tu tabla actual
- *  ------------------------------ */
+
 const PRIVILEGE_TO_ID: Record<string, number> = {
   Crear: 1,
   Ver: 2,
   Editar: 3,
   Eliminar: 4,
-  Desactivar: 5, // ✔ NUEVO
+  Desactivar: 5,
 };
 
 function isValidConfig(

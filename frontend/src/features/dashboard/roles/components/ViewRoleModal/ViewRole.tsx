@@ -19,9 +19,6 @@ export default function ViewRoleModal({
 }: ViewRoleModalProps) {
   if (!open || !role) return null;
 
-  /** --------------------------------------------
-   * Traducción backend → nombres de módulos en UI
-   * -------------------------------------------- */
   const moduleTranslations: Record<string, string> = {
     Roles: "Roles",
 
@@ -72,29 +69,21 @@ export default function ViewRoleModal({
     dashboard: "Dashboard",
     Dashboard: "Dashboard",
 
-    /** -----------------------------------
-     * ✔ NUEVO — módulo de ventas
-     * ----------------------------------- */
     sales: "Ventas",
     Sales: "Ventas",
   };
 
-  /** --------------------------------------------
-   * Traducción backend → nombres de privilegios
-   * -------------------------------------------- */
   const privilegeTranslations: Record<string, string> = {
     create: "Crear",
     read: "Ver",
     update: "Editar",
     delete: "Eliminar",
 
-    /** ✔ NUEVO privilegio */
     deactivate: "Desactivar",
 
     all: "Todos",
   };
 
-  /** Agrupar permisos por módulo */
   const groupedPermissions: Record<string, string[]> = {};
 
   role.permissions?.forEach((p) => {
@@ -116,6 +105,22 @@ export default function ViewRoleModal({
 
     groupedPermissions[moduleName].push(privilegeName);
   });
+
+  /** FILTRO FINAL EXACTO */
+  const filterPrivileges = (moduleName: string, privilege: string) => {
+    // Dashboard → solo Ver
+    if (moduleName === "Dashboard") return privilege === "Ver";
+
+    // Ventas → SOLO Ver, Crear, Desactivar
+    if (moduleName === "Ventas") {
+      return ["Ver", "Crear", "Desactivar"].includes(privilege);
+    }
+
+    // En todos los demás módulos → prohibir Desactivar
+    if (privilege === "Desactivar") return false;
+
+    return true;
+  };
 
   const Checkbox = ({ checked }: { checked: boolean }) => (
     <div
@@ -227,8 +232,11 @@ export default function ViewRoleModal({
 
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-center gap-4">
-                            {groupedPermissions[moduleName].map(
-                              (privilege, idx) => (
+                            {groupedPermissions[moduleName]
+                              .filter((priv) =>
+                                filterPrivileges(moduleName, priv)
+                              )
+                              .map((privilege, idx) => (
                                 <div
                                   key={`${moduleName}-${privilege}-${idx}`}
                                   className="flex items-center gap-2"
@@ -236,8 +244,7 @@ export default function ViewRoleModal({
                                   <Checkbox checked />
                                   <span className="text-sm">{privilege}</span>
                                 </div>
-                              )
-                            )}
+                              ))}
                           </div>
                         </td>
                       </tr>
