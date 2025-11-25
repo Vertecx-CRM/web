@@ -19,35 +19,82 @@ export default function ViewRoleModal({
 }: ViewRoleModalProps) {
   if (!open || !role) return null;
 
+  /** --------------------------------------------
+   * Traducción backend → nombres de módulos en UI
+   * -------------------------------------------- */
   const moduleTranslations: Record<string, string> = {
     Roles: "Roles",
+
     users: "Usuarios",
+    User: "Usuarios",
+
     categoryProducts: "Categoría de Productos",
+    Categories: "Categoría de Productos",
+
     products: "Productos",
+    Products: "Productos",
+
     suppliers: "Proveedores",
+    Supplier: "Proveedores",
+
+    purchases: "Compras",
+    Purchases: "Compras",
 
     purchaseOrders: "Órdenes de Compra",
-    purcharse: "Compras",
+    Orders: "Órdenes de Compra",
 
     services: "Servicios",
+    Service: "Servicios",
+
     technicians: "Técnicos",
+    Technician: "Técnicos",
+
     customers: "Clientes",
+    Client: "Clientes",
+
     servicesRequest: "Solicitud de Servicio",
+    "Service Request": "Solicitud de Servicio",
+    "Service Requests": "Solicitud de Servicio",
+    Requests: "Solicitud de Servicio",
+
     appointments: "Citas",
+    Appointment: "Citas",
+    Appointments: "Citas",
+
     quotes: "Cotización de Servicio",
+    Quotes: "Cotización de Servicio",
+    Quotation: "Cotización de Servicio",
+
     orderServices: "Orden de Servicio",
+    "Service Order": "Orden de Servicio",
+    "Service Orders": "Orden de Servicio",
 
     dashboard: "Dashboard",
+    Dashboard: "Dashboard",
+
+    /** -----------------------------------
+     * ✔ NUEVO — módulo de ventas
+     * ----------------------------------- */
+    sales: "Ventas",
+    Sales: "Ventas",
   };
 
+  /** --------------------------------------------
+   * Traducción backend → nombres de privilegios
+   * -------------------------------------------- */
   const privilegeTranslations: Record<string, string> = {
     create: "Crear",
     read: "Ver",
-    update: "Actualizar",
+    update: "Editar",
     delete: "Eliminar",
+
+    /** ✔ NUEVO privilegio */
+    deactivate: "Desactivar",
+
     all: "Todos",
   };
 
+  /** Agrupar permisos por módulo */
   const groupedPermissions: Record<string, string[]> = {};
 
   role.permissions?.forEach((p) => {
@@ -96,6 +143,7 @@ export default function ViewRoleModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
+            {/* HEADER */}
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2
                 className="text-lg font-semibold"
@@ -111,6 +159,7 @@ export default function ViewRoleModal({
               </button>
             </div>
 
+            {/* BODY */}
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -138,11 +187,7 @@ export default function ViewRoleModal({
                   </label>
                   <input
                     type="text"
-                    value={
-                      String(role.state) === "1" || role.state === "Activo"
-                        ? "Activo"
-                        : "Inactivo"
-                    }
+                    value={role.state === "Activo" ? "Activo" : "Inactivo"}
                     readOnly
                     className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
                     style={{ borderColor: Colors.table.lines }}
@@ -172,22 +217,24 @@ export default function ViewRoleModal({
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y">
                     {Object.keys(groupedPermissions).map((moduleName) => (
                       <tr key={moduleName}>
                         <td className="px-4 py-3 font-medium text-gray-800">
                           {moduleName}
                         </td>
+
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-center gap-4">
                             {groupedPermissions[moduleName].map(
-                              (priv, index) => (
+                              (privilege, idx) => (
                                 <div
-                                  key={`${moduleName}-${priv}-${index}`}
+                                  key={`${moduleName}-${privilege}-${idx}`}
                                   className="flex items-center gap-2"
                                 >
-                                  <Checkbox checked={true} />
-                                  <span className="text-sm">{priv}</span>
+                                  <Checkbox checked />
+                                  <span className="text-sm">{privilege}</span>
                                 </div>
                               )
                             )}
@@ -200,6 +247,7 @@ export default function ViewRoleModal({
               </div>
             </div>
 
+            {/* FOOTER */}
             <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
                 type="button"
