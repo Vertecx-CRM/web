@@ -7,6 +7,7 @@ import { LoaderGate } from "@/shared/components/loader";
 import RequireAuth from "@/features/auth/requireauth";
 import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
 import { useAuth } from "@/features/auth/authcontext";
+import { toast } from "react-toastify";
 
 export default function DashboardLayout({
   children,
@@ -40,6 +41,7 @@ export default function DashboardLayout({
       throw new Error(res.message || "No se pudo actualizar la contrasena");
     }
     setForcePasswordModal(false);
+    toast.success("Contrasena actualizada exitosamente");
   };
 
   const handleForcePasswordClose = () => {

@@ -11,18 +11,15 @@ import {
   validateField,
   validateFormWithNotification,
 } from "../Validations/UserValidations";
-import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
-import { useLoader } from "@/shared/components/loader";
 
 export const useCreateUserForm = ({
   isOpen,
   onClose,
   onSave,
+  users,
 }: CreateUserModalProps) => {
-  const { users } = useUser();
   const { roles } = useRoles();
-  const { showLoader, hideLoader } = useLoader();
 
   const [formData, setFormData] = useState<CreateUserData>({
     name: "",
@@ -241,7 +238,6 @@ export const useCreateUserForm = ({
 
     try {
       setIsSubmitting(true);
-      showLoader();
       onClose();
 
       let imageUrl: string | null = null;
@@ -270,7 +266,6 @@ export const useCreateUserForm = ({
       showWarning("Error al guardar el usuario.");
     } finally {
       setIsSubmitting(false);
-      hideLoader();
     }
   };
 

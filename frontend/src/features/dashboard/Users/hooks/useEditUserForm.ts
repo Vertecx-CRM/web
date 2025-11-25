@@ -11,19 +11,16 @@ import {
   validateFormWithNotification,
 } from "../Validations/UserValidations";
 import { showWarning } from "@/shared/utils/notifications";
-import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
-import { useLoader } from "@/shared/components/loader";
 
 export const useEditUserForm = ({
   isOpen,
   onClose,
   onSave,
   user,
+  users,
 }: EditUserModalProps) => {
-  const { users } = useUser();
   const { roles } = useRoles();
-  const { showLoader, hideLoader } = useLoader();
   const [originalCV, setOriginalCV] = useState<string | null>(null);
   const [isNit, setIsNit] = useState<boolean>(false);
   const [formData, setFormData] = useState<EditUser>({
@@ -213,7 +210,6 @@ export const useEditUserForm = ({
 
     try {
       setIsSubmitting(true);
-      showLoader();
       onClose();
 
       let imageUrl: string | null = null;
@@ -241,7 +237,6 @@ export const useEditUserForm = ({
       showWarning("Error al actualizar el usuario.");
     } finally {
       setIsSubmitting(false);
-      hideLoader();
     }
   };
 
