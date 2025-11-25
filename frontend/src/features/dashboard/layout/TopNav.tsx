@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { UserCircle, LogOut, Pencil, Menu, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { routes } from "@/shared/routes";
@@ -35,22 +35,13 @@ type TopNavProps = {
   fallbackUserName?: string;
 };
 
-interface AuthUser {
-  name?: string;
-  email?: string;
-  avatar?: string;
-}
-
 export default function TopNav({
-  logoutRedirectTo = "/auth/access",
+  logoutRedirectTo = "/auth/login",
   fallbackUserName = "Usuario",
 }: TopNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth() as {
-    user: AuthUser | null;
-    logout: () => Promise<void> | void;
-  };
+  const { user, profile, logout } = useAuth();
   const { showLoader, hideLoader } = useLoader();
 
   const [loading, setLoading] = useState(false);
@@ -68,6 +59,21 @@ export default function TopNav({
       .sort((a, b) => b[0].length - a[0].length)
       .find(([path]) => pathname.startsWith(path))?.[1] ||
     "Dashboard";
+
+  const display = useMemo(() => {
+    const name =
+      profile?.name ??
+      user?.name ??
+      profile?.users?.name ??
+      fallbackUserName;
+
+    const email = profile?.email ?? user?.email ?? profile?.users?.email ?? "";
+
+    const image =
+      profile?.image ?? user?.image ?? profile?.users?.image ?? "";
+
+    return { name, email, image };
+  }, [profile, user, fallbackUserName]);
 
   useEffect(() => {
     setDisplayedText("");
@@ -114,13 +120,16 @@ export default function TopNav({
     setMenuProfileOpen(false);
     setLoading(true);
     showLoader();
+
     try {
-      await Promise.resolve(logout());
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("__toast_login_success__");
+      }
+      await logout();
       router.replace(logoutRedirectTo);
     } finally {
       setLoading(false);
-      hideLoader();
-      setTimeout(hideLoader, 250);
+      setTimeout(() => hideLoader(), 300);
     }
   };
 
@@ -134,6 +143,7 @@ export default function TopNav({
       <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-2 md:pl-5">
         {displayedText}
       </h1>
+
       <button
         onClick={() => setMenuOpen((v) => !v)}
         className="md:hidden text-gray-700 mr-2"
@@ -141,20 +151,22 @@ export default function TopNav({
       >
         {menuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
+
       <div className="relative">
         <button
           ref={btnRef}
           onClick={() => setMenuProfileOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={menuProfileOpen}
-          className="flex items-center gap-3 rounded-full px-3 py-1 border-0 outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 hover:bg-gray-100/70 transition"
+          className="flex items-center gap-3 rounded-full px-3 py-1 border-0 outline-none hover:bg-gray-100/70 transition"
         >
           <span className="hidden md:block text-gray-700 max-w-[180px] truncate">
-            {user?.name ?? fallbackUserName}
+            {display.name}
           </span>
-          {user?.avatar ? (
+
+          {display.image ? (
             <img
-              src={user.avatar}
+              src={display.image}
               alt="avatar"
               className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover ring-1 ring-gray-200"
             />
@@ -162,6 +174,7 @@ export default function TopNav({
             <UserCircle className="w-9 h-9 md:w-10 md:h-10 text-gray-600" />
           )}
         </button>
+
         {menuProfileOpen && (
           <div
             ref={menuRef}
@@ -169,13 +182,12 @@ export default function TopNav({
             className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-xl z-50 overflow-hidden"
           >
             <div className="px-4 py-3 border-b">
-              <p className="text-sm font-medium truncate">
-                {user?.name ?? fallbackUserName}
-              </p>
-              {user?.email && (
-                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              <p className="text-sm font-medium truncate">{display.name}</p>
+              {!!display.email && (
+                <p className="text-xs text-gray-500 truncate">{display.email}</p>
               )}
             </div>
+
             <button
               onClick={handleOpenProfile}
               role="menuitem"
@@ -184,6 +196,7 @@ export default function TopNav({
               <Pencil size={16} />
               Editar perfil
             </button>
+
             <button
               onClick={handleLogout}
               disabled={loading}
@@ -196,6 +209,7 @@ export default function TopNav({
           </div>
         )}
       </div>
+
       <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </header>
   );

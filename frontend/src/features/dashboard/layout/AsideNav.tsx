@@ -16,7 +16,9 @@ import {
 import Colors from "@/shared/theme/colors";
 import { motion, AnimatePresence } from "framer-motion";
 import React from "react";
-import { usePermissions } from "@/features/auth/hooks/usePermissions";
+import { routes } from "@/shared/routes";
+import { useAuth } from "@/features/auth/authcontext";
+import { canViewModule, type AuthzModule } from "@/features/auth/authz";
 
 const MenuItem = React.memo(
   ({
@@ -135,7 +137,17 @@ const AsideNav = ({
 }) => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
-  const { canView } = usePermissions();
+  const { user } = useAuth();
+
+  const permissions = useMemo<string[]>(
+    () => ((user as any)?.permissions || (user as any)?.permission || []) as string[],
+    [user]
+  );
+
+  const canView = useCallback(
+    (module: AuthzModule) => canViewModule(permissions, module),
+    [permissions]
+  );
 
   const toggleMenu = useCallback(
     (menu: string) => {
@@ -144,160 +156,157 @@ const AsideNav = ({
     [openMenu]
   );
 
+  const isLinkActive = useCallback(
+    (href: string) => {
+      if (href === routes.dashboard.main) return pathname === href;
+      return pathname === href || pathname.startsWith(href + "/") || pathname.startsWith(href);
+    },
+    [pathname]
+  );
+
   const menuConfig = useMemo(
     () => [
       {
-        type: "link",
-        href: "/dashboard",
+        type: "link" as const,
+        href: routes.dashboard.main,
         label: "Dashboard",
         icon: Home,
-        module: "dashboard",
+        module: "dashboard" as AuthzModule,
       },
       {
-        type: "link",
-        href: "/dashboard/access/users",
+        type: "link" as const,
+        href: routes.dashboard.users,
         label: "Usuarios",
         icon: Users,
-        module: "users",
+        module: "users" as AuthzModule,
       },
       {
-        type: "link",
-        href: "/dashboard/roles",
+        type: "link" as const,
+        href: routes.dashboard.roles,
         label: "Roles",
         icon: Users,
-        module: "Roles",
+        module: "Roles" as AuthzModule,
       },
       {
-        type: "submenu",
+        type: "submenu" as const,
         parent: "compras",
         icon: Truck,
         label: "Compras",
-        moduleChildren: ["suppliers", "purchaseOrders", "purcharse"],
         childrenRoutes: [
-          "/dashboard/purchases/suppliers",
-          "/dashboard/purchases/orders",
-          "/dashboard/purchases",
-          "/dashboard/purchases/graph",
+          routes.dashboard.suppliers,
+          routes.dashboard.purchasesOrders,
+          routes.dashboard.purchases,
+          routes.dashboard.purchasesGraph,
         ],
         items: [
           {
-            href: "/dashboard/suppliers",
+            href: routes.dashboard.suppliers,
             label: "Proveedores",
-            module: "suppliers",
+            module: "suppliers" as AuthzModule,
           },
           {
-            href: "/dashboard/purchases/orders",
+            href: routes.dashboard.purchasesOrders,
             label: "Órdenes de compras",
-            module: "purchaseOrders",
+            module: "purchaseOrders" as AuthzModule,
           },
           {
-            href: "/dashboard/purchases",
+            href: routes.dashboard.purchases,
             label: "Compras",
-            module: "purcharse",
+            module: "purchases" as AuthzModule,
           },
           {
-            href: "/dashboard/purchases/graph",
+            href: routes.dashboard.purchasesGraph,
             label: "Gráficas compras",
-            module: "purcharse",
+            module: "purchases" as AuthzModule,
           },
         ],
       },
       {
-        type: "submenu",
+        type: "submenu" as const,
         parent: "productos",
         icon: Box,
         label: "Productos",
-        moduleChildren: ["products", "categoryProducts"],
-        childrenRoutes: [
-          "/dashboard/products",
-          "/dashboard/products/categories",
-        ],
+        childrenRoutes: [routes.dashboard.products, routes.dashboard.productsCategories],
         items: [
           {
-            href: "/dashboard/products/categories",
+            href: routes.dashboard.productsCategories,
             label: "Categorías",
-            module: "categoryProducts",
+            module: "categoryProducts" as AuthzModule,
           },
           {
-            href: "/dashboard/products",
+            href: routes.dashboard.products,
             label: "Productos",
-            module: "products",
+            module: "products" as AuthzModule,
           },
         ],
       },
       {
-        type: "submenu",
+        type: "submenu" as const,
         parent: "servicios",
         icon: Wrench,
         label: "Servicios",
-        moduleChildren: ["services", "technicians"],
-        childrenRoutes: [
-          "/dashboard/services",
-          "/dashboard/technicians",
-        ],
+        childrenRoutes: [routes.dashboard.services, routes.dashboard.technicians],
         items: [
           {
-            href: "/dashboard/services",
+            href: routes.dashboard.services,
             label: "Servicios",
-            module: "services",
+            module: "services" as AuthzModule,
           },
           {
-            href: "/dashboard/technicians",
+            href: routes.dashboard.technicians,
             label: "Técnicos",
-            module: "technicians",
+            module: "technicians" as AuthzModule,
           },
         ],
       },
       {
-        type: "submenu",
+        type: "submenu" as const,
         parent: "ventas",
         icon: Users,
         label: "Ventas",
-        moduleChildren: [
-          "customers",
-          "servicesRequest",
-          "orderServices",
-          "appointments",
-          "quotes",
-        ],
         childrenRoutes: [
-          "/dashboard/clients",
+          routes.dashboard.sales,
+          routes.dashboard.clients,
+          routes.dashboard.requestsServices,
+          routes.dashboard.ordersServices,
+          routes.dashboard.appointments,
+          routes.dashboard.quotes,
         ],
         items: [
           {
-            href: "/dashboard/sales",
+            href: routes.dashboard.sales,
             label: "Ventas",
-            module: "customers",
+            module: "sales" as AuthzModule,
           },
           {
-            href: "/dashboard/clients",
+            href: routes.dashboard.clients,
             label: "Clientes",
-            module: "customers",
+            module: "customers" as AuthzModule,
           },
           {
-            href: "/dashboard/requests",
+            href: routes.dashboard.requestsServices,
             label: "Solicitudes",
-            module: "servicesRequest",
+            module: "servicesRequest" as AuthzModule,
           },
           {
-            href: "/dashboard/orders-services",
+            href: routes.dashboard.ordersServices,
             label: "Órdenes",
-            module: "orderServices",
+            module: "orderServices" as AuthzModule,
           },
           {
-            href: "/dashboard/appointments",
+            href: routes.dashboard.appointments,
             label: "Citas",
-            module: "appointments",
+            module: "appointments" as AuthzModule,
           },
           {
-            href: "/dashboard/quotes",
+            href: routes.dashboard.quotes,
             label: "Cotizaciones",
-            module: "quotes",
+            module: "quotes" as AuthzModule,
           },
         ],
       },
     ],
-    []
+    [isLinkActive, pathname]
   );
 
   return (
@@ -328,22 +337,21 @@ const AsideNav = ({
       <nav className="flex flex-col gap-1 px-2">
         {menuConfig.map((item) => {
           if (item.type === "link") {
+            if (!canView(item.module)) return null;
+
             return (
-              canView(item.module) && (
-                <MenuItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                  isActive={pathname === item.href}
-                />
-              )
+              <MenuItem
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                isActive={isLinkActive(item.href)}
+              />
             );
           }
 
           if (item.type === "submenu") {
             const visibleItems = item.items.filter((i) => canView(i.module));
-
             if (visibleItems.length === 0) return null;
 
             if (visibleItems.length === 1) {
@@ -354,7 +362,7 @@ const AsideNav = ({
                   href={only.href}
                   icon={item.icon}
                   label={only.label}
-                  isActive={pathname.startsWith(only.href)}
+                  isActive={isLinkActive(only.href)}
                 />
               );
             }
