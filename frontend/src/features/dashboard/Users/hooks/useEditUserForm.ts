@@ -11,7 +11,6 @@ import {
   validateFormWithNotification,
 } from "../Validations/UserValidations";
 import { showWarning } from "@/shared/utils/notifications";
-import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
 
 export const useEditUserForm = ({
@@ -19,8 +18,8 @@ export const useEditUserForm = ({
   onClose,
   onSave,
   user,
+  users,
 }: EditUserModalProps) => {
-  const { users } = useUser();
   const { roles } = useRoles();
   const [originalCV, setOriginalCV] = useState<string | null>(null);
   const [isNit, setIsNit] = useState<boolean>(false);
@@ -211,6 +210,7 @@ export const useEditUserForm = ({
 
     try {
       setIsSubmitting(true);
+      onClose();
 
       let imageUrl: string | null = null;
       if (formData.image instanceof File) {
@@ -232,7 +232,6 @@ export const useEditUserForm = ({
       };
 
       await onSave(payload);
-      setTimeout(onClose, 800);
     } catch (error) {
       console.error("Error al actualizar usuario:", error);
       showWarning("Error al actualizar el usuario.");

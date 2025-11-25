@@ -7,9 +7,18 @@ import EditUserModal from "./components/EditUserModal/EditUser";
 import ViewUserModal from "./components/ViewUserModal/viewUser";
 import { useUser } from "./hooks/useUsers";
 
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const {
     users,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingUser,
@@ -50,6 +59,7 @@ export default function UsersPage() {
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}
               onSave={handleCreateUser}
+              users={users}
             />
 
             <EditUserModal
@@ -57,6 +67,7 @@ export default function UsersPage() {
               onClose={closeModals}
               onSave={handleEditUser}
               user={editingUser}
+              users={users}
             />
 
             <ViewUserModal
@@ -68,13 +79,17 @@ export default function UsersPage() {
             {/* NO necesitas DeleteConfirmation modal aquí */}
             {/* SweetAlert2 se encargará del modal de confirmación */}
 
-            <UsersTable
-              users={Array.isArray(users) ? users : []}
-              onView={handleView}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onCreate={() => setIsCreateModalOpen(true)}
-            />
+            {loading ? (
+              <Loader />
+            ) : (
+              <UsersTable
+                users={Array.isArray(users) ? users : []}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onCreate={() => setIsCreateModalOpen(true)}
+              />
+            )}
           </div>
         </main>
       </div>

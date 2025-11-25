@@ -14,6 +14,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onClose,
   onSave,
   user,
+  users,
 }) => {
   const {
     formData,
@@ -36,6 +37,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     onClose,
     onSave,
     user,
+    users,
   });
 
   const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
@@ -82,7 +84,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         }}
         form="edit-user-form"
       >
-        {isSubmitting ? "Actualizando..." : "Actualizar"}
+        Actualizar
       </button>
     </>
   );

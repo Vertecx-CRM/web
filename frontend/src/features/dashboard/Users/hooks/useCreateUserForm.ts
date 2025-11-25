@@ -11,15 +11,14 @@ import {
   validateField,
   validateFormWithNotification,
 } from "../Validations/UserValidations";
-import { useUser } from "../hooks/useUsers";
 import { useRoles } from "./useRoles";
 
 export const useCreateUserForm = ({
   isOpen,
   onClose,
   onSave,
+  users,
 }: CreateUserModalProps) => {
-  const { users } = useUser();
   const { roles } = useRoles();
 
   const [formData, setFormData] = useState<CreateUserData>({
@@ -239,6 +238,7 @@ export const useCreateUserForm = ({
 
     try {
       setIsSubmitting(true);
+      onClose();
 
       let imageUrl: string | null = null;
       if (formData.image instanceof File)
@@ -261,7 +261,6 @@ export const useCreateUserForm = ({
       };
 
       await onSave(payload);
-      setTimeout(onClose, 800);
     } catch (err) {
       console.error("Error al crear usuario:", err);
       showWarning("Error al guardar el usuario.");

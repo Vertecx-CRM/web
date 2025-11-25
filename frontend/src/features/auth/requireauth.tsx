@@ -7,7 +7,7 @@ import { useLoader } from "@/shared/components/loader";
 
 type Props = { children: React.ReactNode; loginPath?: string };
 
-export default function RequireAuth({ children, loginPath = "/auth/access" }: Props) {
+export default function RequireAuth({ children, loginPath = "/auth/login" }: Props) {
   const { isAuthenticated, ready } = useAuth();
   const { showLoader } = useLoader();
   const router = useRouter();
@@ -15,12 +15,13 @@ export default function RequireAuth({ children, loginPath = "/auth/access" }: Pr
 
   useEffect(() => {
     if (!ready) return;
-    if (!isAuthenticated) {
-      sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
-      showLoader();
-      const to = `${loginPath}?next=${encodeURIComponent(pathname)}`;
-      router.replace(to);
-    }
+    if (isAuthenticated) return;
+
+    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
+    showLoader();
+
+    const to = `${loginPath}?next=${encodeURIComponent(pathname)}`;
+    router.replace(to);
   }, [ready, isAuthenticated, router, pathname, loginPath, showLoader]);
 
   if (!ready) {
