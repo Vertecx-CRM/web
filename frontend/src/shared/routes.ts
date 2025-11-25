@@ -10,9 +10,10 @@ interface IRoutes {
     trajectory: string;
   };
   auth: {
-    access: string; 
     login: string;
     register: string;
+    forgotPassword: string;
+    resetPassword: string;
   };
   dashboard: {
     newClient: any;
@@ -51,9 +52,10 @@ export const routes: IRoutes = {
     trajectory: "/landing/trajectory",
   },
   auth: {
-    access: "/auth/access",
     login: "/auth/login",
     register: "/auth/register",
+    forgotPassword: "/auth/forgot-password",
+    resetPassword: "/auth/reset-password",
   },
   dashboard: {
     main: "/dashboard",
