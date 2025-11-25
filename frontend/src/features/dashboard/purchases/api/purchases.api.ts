@@ -13,6 +13,16 @@ export const getPurchases = async (): Promise<IPurchase[]> => {
   }));
 };
 
+export const getPurchaseById = async (id: number): Promise<IPurchase> => {
+  try {
+    const { data } = await api.get(`/purchasesmanagement/${id}`);
+    return { ...data, amount: parseFloat(data.amount) };
+  } catch (error) {
+    console.error("Error al obtener la compra:", error);
+    showError("Error al obtener la compra. Por favor, inténtalo de nuevo.");
+    throw error;
+  }
+};
 // Crear una nueva compra
 export const createPurchase = async (purchase: Partial<IPurchase>) => {
   try {
@@ -27,10 +37,14 @@ export const createPurchase = async (purchase: Partial<IPurchase>) => {
 
 // Anular una compra (actualizar estado)
 export const cancelPurchase = async (id: number) => {
-  const { data } = await api.patch(`/purchasesmanagement/${id}`, {
-    stateid: 2, // Asumiendo que 2 = Anulado
-  });
-  return data;
+  try {
+    const { data } = await api.post(`/purchasesmanagement/${id}/cancel`);
+    return data;
+  } catch (error) {
+    console.error("Error al anular la compra:", error);
+    showError("Error al anular la compra. Por favor, inténtalo de nuevo.");
+    throw error;
+  }
 };
 
 export const getProductsForPurchase = async () => {

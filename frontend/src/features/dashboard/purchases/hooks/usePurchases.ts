@@ -250,11 +250,11 @@ export function usePurchases() {
     try {
       const res = await createPurchase(payload);
       await fetchPurchases();
-      return res; 
+      return res;
     } catch (err) {
       console.error(err);
       setError("❌ Error al registrar la compra.");
-      throw err; 
+      throw err;
     }
   };
 
@@ -265,6 +265,7 @@ export function usePurchases() {
       await fetchPurchases();
     } catch (error) {
       console.error("Error canceling purchase:", error);
+      throw error;
     }
   };
 
