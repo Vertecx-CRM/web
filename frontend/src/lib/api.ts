@@ -32,7 +32,7 @@ let queue: Array<(t: string) => void> = [];
 
 async function refreshToken(): Promise<string> {
   const { data } = await axios.post(
-    `${API_URL}/auth/refresh`,
+    `${API_URL}auth/refresh`,
     {},
     { withCredentials: true }
   );

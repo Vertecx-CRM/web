@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Star, Mail, Phone, BadgeCheck, BadgeX, Pencil, X, MapPin } from "lucide-react";
 import Modal from "@/features/dashboard/components/Modal";
 
@@ -26,6 +27,13 @@ type Props = {
   title?: string;
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+function toOneDecimal(n: number) {
+  return Number(clamp(Number.isFinite(n) ? n : 0, 0, 5).toFixed(1));
+}
+
 function StatusBadge({ status }: { status: Supplier["status"] }) {
   const active = status === "Activo";
   return (
@@ -41,22 +49,23 @@ function StatusBadge({ status }: { status: Supplier["status"] }) {
 }
 
 function Stars({ value = 0 }: { value?: number }) {
-  const v = Math.max(0, Math.min(5, Math.round(value)));
+  const v = toOneDecimal(value);
   return (
     <span className="inline-flex items-center gap-0.5">
-      {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => {
-        const active = v >= n;
+      {Array.from({ length: 5 }, (_, i) => {
+        const fill = clamp(v - i, 0, 1); // 0..1
+        const pct = `${fill * 100}%`;
+
         return (
-          <Star
-            key={n}
-            size={14}
-            className={active ? "text-yellow-500" : "text-gray-300"}
-            strokeWidth={1.5}
-            fill={active ? "currentColor" : "none"}
-          />
+          <span key={i} className="relative inline-block h-[14px] w-[14px]">
+            <Star className="h-[14px] w-[14px] text-gray-300" strokeWidth={1.5} />
+            <span className="absolute inset-0 overflow-hidden" style={{ width: pct }}>
+              <Star className="h-[14px] w-[14px] text-yellow-500" strokeWidth={1.5} fill="currentColor" />
+            </span>
+          </span>
         );
       })}
-      <span className="ml-1 text-[11px] text-gray-500">({v}/5)</span>
+      <span className="ml-1 text-[11px] text-gray-500">({v.toFixed(1)}/5.0)</span>
     </span>
   );
 }
