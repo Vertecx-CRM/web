@@ -18,7 +18,13 @@ export type ServiceRequestDTO = {
   serviceId: number;
   clientId: number;
   state?: { stateid: number; name: string; description?: string | null };
-  service?: { serviceid: number; name: string; category?: string | null; price?: number | null; image?: string | null };
+  service?: {
+    serviceid: number;
+    name: string;
+    category?: string | null;
+    price?: number | null;
+    image?: string | null;
+  };
   customer?: {
     customerid: number;
     customercity?: string | null;
@@ -38,6 +44,16 @@ export type CreateServiceRequestInput = {
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
+
+function unwrap<T>(payload: any): T {
+  if (payload && typeof payload === "object" && "data" in payload) return (payload as any).data as T;
+  return payload as T;
+}
+
+function unwrapList<T>(payload: any): T[] {
+  const data = unwrap<any>(payload);
+  return Array.isArray(data) ? (data as T[]) : [];
+}
 
 function coerceId(v: any): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -105,7 +121,6 @@ function normalizeCreatePayload(payload: any): CreateServiceRequestInput {
     (Array.isArray(payload?.tipos) ? payload.tipos[0] : undefined);
 
   const serviceType = normalizeServiceType(typeFrom);
-
   const stateId = coerceId(payload?.stateId ?? 1) || 1;
 
   let scheduledAt: string | null = payload?.scheduledAt ?? null;
@@ -155,13 +170,13 @@ async function readAxiosErrorBody(e: AxiosError<any>) {
 }
 
 export async function listServiceRequests(): Promise<ServiceRequestDTO[]> {
-  const { data } = await api.get<ServiceRequestDTO[]>("/service-requests");
-  return data;
+  const res = await api.get<any>("/service-requests");
+  return unwrapList<ServiceRequestDTO>(res.data);
 }
 
 export async function getServiceRequest(id: number): Promise<ServiceRequestDTO> {
-  const { data } = await api.get<ServiceRequestDTO>(`/service-requests/${id}`);
-  return data;
+  const res = await api.get<any>(`/service-requests/${id}`);
+  return unwrap<ServiceRequestDTO>(res.data);
 }
 
 export async function createServiceRequest(payload: any): Promise<ServiceRequestDTO> {
@@ -170,8 +185,8 @@ export async function createServiceRequest(payload: any): Promise<ServiceRequest
   console.log("PAYLOAD ENVIADO →", clean);
 
   try {
-    const { data } = await api.post<ServiceRequestDTO>("/service-requests", clean);
-    return data;
+    const res = await api.post<any>("/service-requests", clean);
+    return unwrap<ServiceRequestDTO>(res.data);
   } catch (err) {
     const e = err as AxiosError<any>;
     const body = await readAxiosErrorBody(e);
@@ -180,9 +195,12 @@ export async function createServiceRequest(payload: any): Promise<ServiceRequest
   }
 }
 
-export async function updateServiceRequest(id: number, payload: UpdateServiceRequestInput): Promise<ServiceRequestDTO> {
-  const { data } = await api.patch<ServiceRequestDTO>(`/service-requests/${id}`, payload);
-  return data;
+export async function updateServiceRequest(
+  id: number,
+  payload: UpdateServiceRequestInput
+): Promise<ServiceRequestDTO> {
+  const res = await api.patch<any>(`/service-requests/${id}`, payload);
+  return unwrap<ServiceRequestDTO>(res.data);
 }
 
 export async function cancelServiceRequest(id: number): Promise<ServiceRequestDTO> {
@@ -194,6 +212,6 @@ export async function deleteServiceRequest(id: number): Promise<void> {
 }
 
 export async function listStates(): Promise<StateDTO[]> {
-  const { data } = await api.get<StateDTO[]>("/service-requests/states/all");
-  return data;
+  const res = await api.get<any>("/service-requests/states/all");
+  return unwrapList<StateDTO>(res.data);
 }
