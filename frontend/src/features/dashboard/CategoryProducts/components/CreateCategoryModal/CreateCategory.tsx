@@ -161,7 +161,7 @@ const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Nombre*
+            Nombre <span className="text-red-500">*</span>
           </label>
           <input
             type="text"

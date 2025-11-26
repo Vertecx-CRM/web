@@ -105,7 +105,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       <form id="create-user-form" onSubmit={handleSubmit} className="space-y-5">
         {/* Documento */}
         <div>
-          <label className="block text-sm font-medium mb-1">Documento</label>
+          <label className="block text-sm font-medium mb-1">
+            Documento <span className="text-red-500">*</span>
+          </label>
           <div className="flex flex-col sm:flex-row gap-2">
             {/* Tipo */}
             <select
@@ -167,7 +169,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         >
           <div className={isNit ? "col-span-2" : ""}>
             <label className="block text-sm font-medium mb-1">
-              {isNit ? "Nombre de la empresa" : "Nombre"}
+              {isNit ? "Nombre de la empresa" : "Nombre"}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -221,12 +224,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">
-              {isNit ? "Telfono de la empresa" : "Telfono"}
+              {isNit ? "Teléfono de la empresa" : "Teléfono"}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="tel"
               name="phone"
-              placeholder={isNit ? "Ingrese Telfono de la empresa" : "Ingrese su Telfono"}
+              placeholder={isNit ? "Ingrese Teléfono de la empresa" : "Ingrese su Teléfono"}
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -243,7 +247,8 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              {isNit ? "Correo de la empresa" : "Correo"}
+              {isNit ? "Correo de la empresa" : "Correo"}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="email"
@@ -266,7 +271,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
         {/* Rol */}
         <div>
-          <label className="block text-sm font-medium mb-1">Rol</label>
+          <label className="block text-sm font-medium mb-1">
+            Rol <span className="text-red-500">*</span>
+          </label>
           <select
             name="roleid"
             value={formData.roleid}
@@ -347,7 +354,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {/* CV */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                CV (PDF, DOC, DOCX)
+                CV (PDF, DOC, DOCX) <span className="text-red-500">*</span>
               </label>
               <div
                 className="border border-dashed rounded-md px-4 py-3 text-center flex flex-col items-center justify-center gap-2"
@@ -394,7 +401,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {/* Tipos de tecnico */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de técnico
+                Tipos de técnico <span className="text-red-500">*</span>
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
@@ -449,7 +456,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         {isCliente && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Ciudad</label>
+              <label className="block text-sm font-medium mb-1">
+                Ciudad <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="customercity"
@@ -471,12 +480,12 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Cdigo Postal
+                Código Postal <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 name="customerzipcode"
-                placeholder="Cdigo postal"
+                placeholder="Código postal"
                 value={formData.customerzipcode || ""}
                 onChange={(e) =>
                   handleInputChange("customerzipcode", e.target.value)
