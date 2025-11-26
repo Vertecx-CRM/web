@@ -116,10 +116,17 @@ export default function PurchasesIndex() {
       buttonsStyling: false,
     }).then(async (result) => {
       if (result.isConfirmed) {
+        Swal.fire({
+          title: "Anulando compra...",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+
         try {
           await handleCancelPurchase(purchase.purchaseorderid);
 
-          // ✅ Éxito
           Swal.fire({
             icon: "success",
             title: "Compra anulada",

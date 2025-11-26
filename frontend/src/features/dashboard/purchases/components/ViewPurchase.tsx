@@ -15,84 +15,47 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
   const products = purchase.purchaseProducts ?? [];
 
   return (
-    <div className="space-y-6 overflow-y-auto max-h-[95vh] pr-2 scroll-smooth">
+    <div className="space-y-6 pr-2">
       {/* Información de la compra */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium">N° Orden</label>
-          <input
-            type="text"
-            value={purchase.numberoforder}
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="N° Orden" value={purchase.numberoforder} />
+        <Field label="Factura" value={purchase.reference} />
 
-        <div>
-          <label className="block text-sm font-medium">Factura</label>
-          <input
-            type="text"
-            value={purchase.reference}
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
+        <Field
+          label="Proveedor"
+          value={purchase.supplier?.name ?? "Sin proveedor"}
+        />
 
-        <div>
-          <label className="block text-sm font-medium">Proveedor</label>
-          <input
-            type="text"
-            value={purchase.supplier?.name ?? "Sin proveedor"}
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
+        <Field
+          label="Fecha Registro"
+          value={new Date(purchase.createdat).toLocaleDateString()}
+        />
 
-        <div>
-          <label className="block text-sm font-medium">Fecha Registro</label>
-          <input
-            type="text"
-            value={new Date(purchase.createdat).toLocaleDateString()}
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
+        <Field
+          label="Monto"
+          value={Number(purchase.amount).toLocaleString("es-CO", {
+            style: "currency",
+            currency: "COP",
+          })}
+        />
 
-        <div>
-          <label className="block text-sm font-medium">Monto</label>
-          <input
-            type="text"
-            value={Number(purchase.amount).toLocaleString("es-CO", {
-              style: "currency",
-              currency: "COP",
-            })}
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium">Estado</label>
-          <input
-            type="text"
-            value={
-              purchase.state?.name?.toLowerCase() === "approved"
-                ? "Aprobada"
-                : purchase.state?.name?.toLowerCase() === "revoke"
-                ? "Anulada"
-                : "Desconocido"
-            }
-            disabled
-            className="w-full border p-2 rounded-lg bg-gray-100"
-          />
-        </div>
+        <Field
+          label="Estado"
+          value={
+            purchase.state?.name?.toLowerCase() === "approved"
+              ? "Aprobada"
+              : purchase.state?.name?.toLowerCase() === "revoke"
+              ? "Anulada"
+              : "Desconocido"
+          }
+        />
       </div>
 
       {/* Productos */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Productos</h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-h-96 overflow-y-auto pr-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <AnimatePresence>
             {products.map((item) => {
               const product = item.product;
@@ -106,25 +69,27 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                   }}
                   whileTap={{ scale: 0.97 }}
                   layout
-                  transition={{ duration: 0.4 }}
+                  transition={{ duration: 0.3 }}
                   className={`cursor-pointer bg-gray-50 rounded-xl shadow-md p-4 
                     ${
                       isOpen
-                        ? "flex flex-col md:flex-row gap-6 items-start md:col-span-3"
+                        ? "flex flex-col gap-4 md:col-span-2 xl:col-span-3"
                         : "flex flex-col items-center"
                     }`}
                   onClick={() => {
                     setOpenProducts((prev) => {
                       const newSet = new Set(prev);
-                      if (newSet.has(item.purchaseProductId))
+                      if (newSet.has(item.purchaseProductId)) {
                         newSet.delete(item.purchaseProductId);
-                      else newSet.add(item.purchaseProductId);
+                      } else {
+                        newSet.add(item.purchaseProductId);
+                      }
                       return newSet;
                     });
                   }}
                 >
                   {/* Vista compacta */}
-                  <div className="flex flex-col items-center w-full md:w-40">
+                  <div className="flex flex-col items-center w-full">
                     <p className="mt-2 font-medium text-gray-800 text-center">
                       {product?.productname ?? "Producto sin nombre"}
                     </p>
@@ -141,45 +106,38 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                   {/* Vista expandida */}
                   {isOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -20 }}
+                      initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex-1 w-full flex flex-row gap-6"
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.25 }}
+                      className="w-full overflow-x-auto"
                     >
-                      <div className="flex-1 overflow-x-auto">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr>
-                              <th className="p-3 text-center">Precio</th>
-                              <th className="p-3 text-center">Cantidad</th>
-                              <th className="p-3 text-center">Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td className="p-3 text-center">
-                                {Number(item.unitprice).toLocaleString(
-                                  "es-CO",
-                                  {
-                                    style: "currency",
-                                    currency: "COP",
-                                  }
-                                )}
-                              </td>
-                              <td className="p-3 text-center">
-                                {item.quantity}
-                              </td>
-                              <td className="p-3 text-center">
-                                {Number(item.subtotal).toLocaleString("es-CO", {
-                                  style: "currency",
-                                  currency: "COP",
-                                })}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <table className="w-full min-w-[350px] border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="p-2 text-center">Precio</th>
+                            <th className="p-2 text-center">Cantidad</th>
+                            <th className="p-2 text-center">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td className="p-2 text-center">
+                              {Number(item.unitprice).toLocaleString("es-CO", {
+                                style: "currency",
+                                currency: "COP",
+                              })}
+                            </td>
+                            <td className="p-2 text-center">{item.quantity}</td>
+                            <td className="p-2 text-center">
+                              {Number(item.subtotal).toLocaleString("es-CO", {
+                                style: "currency",
+                                currency: "COP",
+                              })}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </motion.div>
                   )}
                 </motion.div>
@@ -188,6 +146,21 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
           </AnimatePresence>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** ✅ Input reutilizable y responsive */
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium">{label}</label>
+      <input
+        type="text"
+        value={value}
+        disabled
+        className="w-full border p-2 rounded-lg bg-gray-100"
+      />
     </div>
   );
 }
