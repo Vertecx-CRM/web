@@ -148,7 +148,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
         {/* Tipo y nmero de documento */}
         <div>
-          <label className="block text-sm font-medium mb-1">Documento</label>
+          <label className="block text-sm font-medium mb-1">
+            Documento <span className="text-red-500">*</span>
+          </label>
           <div className="flex flex-col sm:flex-row gap-2">
             <select
               name="typeid"
@@ -209,7 +211,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         >
           <div className={isNit ? "col-span-2" : ""}>
             <label className="block text-sm font-medium mb-1">
-              {isNit ? "Nombre de la empresa" : "Nombre"}
+              {isNit ? "Nombre de la empresa" : "Nombre"}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -263,11 +266,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         {/* Telfono y Correo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">{isNit ? "Telfono de la empresa" : "Telfono"}</label>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Teléfono de la empresa" : "Teléfono"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
             <input
               type="tel"
               name="phone"
-              placeholder="Ingrese su Telfono"
+              placeholder="Ingrese su Teléfono"
               value={formData.phone}
               onChange={handleTextChange}
               onBlur={() => handleBlur("phone")}
@@ -283,7 +289,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">{isNit ? "Correo de la empresa" : "Correo"}</label>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Correo de la empresa" : "Correo"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               name="email"
@@ -305,7 +314,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
         {/* Rol */}
         <div>
-          <label className="block text-sm font-medium mb-1">Rol</label>
+          <label className="block text-sm font-medium mb-1">
+            Rol <span className="text-red-500">*</span>
+          </label>
           <select
             name="roleid"
             value={formData.roleid}
@@ -346,7 +357,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
         {/* Estado */}
         <div>
-          <label className="block text-sm font-medium mb-1">Estado</label>
+          <label className="block text-sm font-medium mb-1">Estado <span className="text-red-500">*</span></label>
           <select
             name="stateid"
             value={formData.stateid}
@@ -371,7 +382,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
           <>
             <div>
               <label className="block text-sm font-medium mb-1">
-                CV (PDF, DOC, DOCX)
+                CV (PDF, DOC, DOCX) <span className="text-red-500">*</span>
               </label>
               <div
                 className="border border-dashed rounded-md px-4 py-3 text-center flex flex-col items-center justify-center gap-2"
@@ -424,7 +435,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de técnico
+                Tipos de técnico <span className="text-red-500">*</span>
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
@@ -479,7 +490,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         {isCliente && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Ciudad</label>
+              <label className="block text-sm font-medium mb-1">
+                Ciudad <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 name="customercity"
@@ -505,12 +518,12 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">
-                Cdigo Postal
+                Código Postal <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 name="customerzipcode"
-                placeholder="Cdigo postal"
+                placeholder="Código postal"
                 value={formData.customerzipcode || ""}
                 onChange={(e) =>
                   handleInputChange("customerzipcode", e.target.value)

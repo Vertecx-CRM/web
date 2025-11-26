@@ -209,7 +209,7 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Estado
+            Estado <span className="text-red-500">*</span>
           </label>
           <select
             name="status"
