@@ -1,33 +1,29 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
-import { Service } from "../../types/typesServices";
+import { Service, EditServicePayload } from "../../types/typesServices";
 import { showWarning } from "@/shared/utils/notifications";
 import Image from "next/image";
+import { getServiceTypes, ServiceTypeApi } from "../../api/services.api";
 
 interface EditServiceModalProps {
   isOpen: boolean;
   service: Service | null;
   onClose: () => void;
-  onSave: (updatedService: Service) => void;
+  onSave: (updatedService: EditServicePayload) => void | Promise<void>;
   services: Service[];
 }
 
-const categories = [
-  "Mantenimiento Correctivo",
-  "Mantenimiento Preventivo",
-  "Instalación",
-];
+type Errors = Partial<Record<"name" | "typeofserviceid" | "image", string>>;
 
-interface ServiceErrors {
-  nombre?: string;
-  categoria?: string;
-  imagen?: string;
-}
-
-type ServiceFieldValue = string | File | null;
+const toTitleCase = (s: string) =>
+  s
+    .trim()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
 
 const EditServiceModal: React.FC<EditServiceModalProps> = ({
   isOpen,
@@ -36,123 +32,103 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
   onSave,
   services,
 }) => {
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [categoria, setCategoria] = useState("");
-  const [imagen, setImagen] = useState<File | string | null>(null);
-  const [estado, setEstado] = useState<"Activo" | "Inactivo">("Activo");
-  const [errors, setErrors] = useState<ServiceErrors>({});
-  const [isImagenEliminada, setIsImagenEliminada] = useState(false);
-
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [typeofserviceid, setTypeofserviceid] = useState<number>(0);
+  const [category, setCategory] = useState("");
+  const [image, setImage] = useState<File | string | null>(null);
+  const [state, setState] = useState<"Activo" | "Inactivo">("Activo");
+  const [stateid, setStateid] = useState<number>(1);
+  const [errors, setErrors] = useState<Errors>({});
+  const [isImageRemoved, setIsImageRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [types, setTypes] = useState<ServiceTypeApi[]>([]);
+  const [loadingTypes, setLoadingTypes] = useState(false);
+
+  const selectedTypeName = useMemo(() => {
+    const t = types.find((x) => x.typeofserviceid === typeofserviceid);
+    return t?.name ?? "";
+  }, [types, typeofserviceid]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingTypes(true);
+    getServiceTypes()
+      .then((list) => setTypes(Array.isArray(list) ? list : []))
+      .catch(() => setTypes([]))
+      .finally(() => setLoadingTypes(false));
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && service) {
-      setNombre(service.name);
-      setDescripcion(service.description || "");
-      setCategoria(service.category);
-      setEstado(service.state);
-
-      if (typeof service.image === "string" && service.image.trim() !== "") {
-        setImagen(service.image);
-        setIsImagenEliminada(false);
-      } else {
-        setImagen(null);
-        setIsImagenEliminada(false);
-      }
-
+      setName(service.name ?? "");
+      setDescription(service.description ?? "");
+      setTypeofserviceid(Number(service.typeofserviceid ?? 0));
+      setCategory(service.category ?? "");
+      setImage(
+        typeof service.image === "string" && service.image.trim()
+          ? service.image
+          : null
+      );
+      setIsImageRemoved(false);
+      setState(service.state ?? "Activo");
+      setStateid(Number(service.stateid ?? (service.state === "Inactivo" ? 2 : 1)));
       setErrors({});
     }
   }, [isOpen, service]);
 
   const handleCircleClick = () => fileInputRef.current?.click();
 
-  const validateNombre = (value: string) => {
-    setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (!value.trim()) {
-        newErrors.nombre = "El nombre es obligatorio";
-      } else if (
-        services.some(
-          (s) =>
-            s.name.toLowerCase() === value.toLowerCase() && s.id !== service?.id
-        )
-      ) {
-        newErrors.nombre = "Ya existe un servicio con este nombre";
-      } else {
-        delete newErrors.nombre;
-      }
-      return newErrors;
-    });
-  };
+  const validate = (): boolean => {
+    const next: Errors = {};
 
-  const validateField = (
-    field: keyof ServiceErrors,
-    value: ServiceFieldValue
-  ) => {
-    setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (field === "categoria") {
-        if (!value || (typeof value === "string" && value.trim() === "")) {
-          newErrors.categoria = "La categoría es obligatoria";
-        } else {
-          delete newErrors.categoria;
-        }
-      }
+    const trimmed = name.trim();
+    if (!trimmed) next.name = "El nombre es obligatorio";
 
-      if (field === "imagen") {
-        if (!value && !isImagenEliminada) {
-          newErrors.imagen = "La imagen es obligatoria";
-        } else {
-          delete newErrors.imagen;
-        }
-      }
+    const exists = services.some(
+      (s) =>
+        (s.name ?? "").trim().toLowerCase() === trimmed.toLowerCase() &&
+        s.id !== service?.id
+    );
+    if (trimmed && exists) next.name = "Ya existe un servicio con este nombre";
 
-      return newErrors;
-    });
+    if (!typeofserviceid) next.typeofserviceid = "Debe seleccionar un tipo de servicio";
+
+    const effectiveImage = isImageRemoved ? null : image;
+    if (!effectiveImage || (typeof effectiveImage === "string" && !effectiveImage.trim())) {
+      next.image = "La imagen es obligatoria";
+    }
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    validateNombre(nombre);
-    validateField("categoria", categoria);
-    validateField(
-      "imagen",
-      imagen && !isImagenEliminada
-        ? typeof imagen === "string"
-          ? imagen
-          : ""
-        : null
-    );
+    if (!service) return;
 
-    if (
-      !nombre ||
-      !categoria ||
-      errors.nombre ||
-      errors.categoria ||
-      (!imagen && isImagenEliminada)
-    ) {
-      showWarning(
-        "Por favor completa todos los campos obligatorios y corrige los errores"
-      );
+    if (!validate()) {
+      showWarning("Por favor completa todos los campos obligatorios y corrige los errores");
       return;
     }
 
-    if (!service) return;
+    const finalCategory = toTitleCase(selectedTypeName || category);
 
-    onSave({
+    const payload: EditServicePayload = {
       id: service.id,
-      name: nombre,
-      description: descripcion,
-      category: categoria,
-      image: isImagenEliminada ? null : imagen,
-      state: estado,
-    });
+      name: name.trim(),
+      description: description?.trim() || "",
+      image: isImageRemoved ? null : image,
+      typeofserviceid,
+      stateid,
+    };
 
+    await onSave(payload);
     onClose();
   };
 
-  const nombreImagen = imagen instanceof File ? imagen.name : "";
+  const imageName = image instanceof File ? image.name : "";
 
   return (
     <Modal
@@ -186,7 +162,6 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
         onSubmit={handleSubmit}
         className="grid grid-cols-2 gap-3 p-1 overflow-hidden"
       >
-        {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
           <input
             type="file"
@@ -194,27 +169,26 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
             className="hidden"
             ref={fileInputRef}
             onChange={(e) => {
-              setImagen(e.target.files?.[0] ?? null);
-              setIsImagenEliminada(false);
-              validateField("imagen", e.target.files?.[0] ? "" : null);
+              setImage(e.target.files?.[0] ?? null);
+              setIsImageRemoved(false);
+              setErrors((p) => ({ ...p, image: undefined }));
             }}
           />
+
           <div
             className="relative w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1 overflow-hidden"
             onClick={handleCircleClick}
-            style={{ borderColor: errors.imagen ? "red" : Colors.table.lines }}
+            style={{ borderColor: errors.image ? "red" : Colors.table.lines }}
           >
-            {!isImagenEliminada && imagen ? (
+            {!isImageRemoved && image ? (
               <Image
-                src={
-                  imagen instanceof File ? URL.createObjectURL(imagen) : imagen
-                }
+                src={image instanceof File ? URL.createObjectURL(image) : image}
                 alt="Servicio"
                 className="rounded-full object-cover"
-                onError={() => setImagen(null)}
                 fill
                 sizes="80px"
                 unoptimized
+                onError={() => setImage(null)}
               />
             ) : (
               <svg
@@ -237,23 +211,22 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
           <div className="text-center">
             <div className="text-xs text-gray-500 mb-1">
               Haga clic en el círculo para{" "}
-              {!isImagenEliminada && imagen ? "cambiar" : "seleccionar"} la
-              imagen
+              {!isImageRemoved && image ? "cambiar" : "seleccionar"} la imagen
             </div>
 
-            {!isImagenEliminada && imagen && (
+            {!isImageRemoved && image && (
               <div className="flex flex-col items-center space-y-1">
-                {nombreImagen && (
+                {imageName && (
                   <div className="text-xs text-green-600 font-medium">
-                    {nombreImagen}
+                    {imageName}
                   </div>
                 )}
                 <button
                   type="button"
                   onClick={() => {
-                    setImagen(null);
-                    setIsImagenEliminada(true);
-                    validateField("imagen", null);
+                    setImage(null);
+                    setIsImageRemoved(true);
+                    setErrors((p) => ({ ...p, image: "La imagen es obligatoria" }));
                   }}
                   className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
                   style={{ borderColor: Colors.states?.nullable }}
@@ -263,13 +236,12 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
               </div>
             )}
 
-            {errors.imagen && (
-              <span className="text-xs text-red-500 mt-1">{errors.imagen}</span>
+            {errors.image && (
+              <span className="text-xs text-red-500 mt-1">{errors.image}</span>
             )}
           </div>
         </div>
 
-        {/* Nombre */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
@@ -280,53 +252,54 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
           <input
             type="text"
             placeholder="Ingrese nombre"
-            value={nombre}
-            onChange={(e) => {
-              setNombre(e.target.value);
-              validateNombre(e.target.value);
-            }}
-            onBlur={() => validateNombre(nombre)}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => validate()}
             className="w-full px-2 py-1 border rounded-md"
-            style={{ borderColor: errors.nombre ? "red" : Colors.table.lines }}
+            style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
           />
-          {errors.nombre && (
-            <span className="text-xs text-red-500">{errors.nombre}</span>
+          {errors.name && (
+            <span className="text-xs text-red-500">{errors.name}</span>
           )}
         </div>
 
-        {/* Categoría */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Categoría <span className="text-red-500">*</span>
+            Tipo de servicio <span className="text-red-500">*</span>
           </label>
           <select
-            value={categoria}
+            value={typeofserviceid || ""}
             onChange={(e) => {
-              setCategoria(e.target.value);
-              validateField("categoria", e.target.value);
+              const id = Number(e.target.value || 0);
+              setTypeofserviceid(id);
+              setCategory(
+                toTitleCase(types.find((t) => t.typeofserviceid === id)?.name ?? "")
+              );
+              setErrors((p) => ({
+                ...p,
+                typeofserviceid: id ? undefined : "Debe seleccionar un tipo de servicio",
+              }));
             }}
-            onBlur={() => validateField("categoria", categoria)}
             className="w-full px-2 py-1 border rounded-md"
             style={{
-              borderColor: errors.categoria ? "red" : Colors.table.lines,
+              borderColor: errors.typeofserviceid ? "red" : Colors.table.lines,
             }}
           >
-            <option value="">Seleccione categoría</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            <option value="">{loadingTypes ? "Cargando..." : "Seleccione tipo"}</option>
+            {types.map((t) => (
+              <option key={t.typeofserviceid} value={t.typeofserviceid}>
+                {toTitleCase(t.name)}
               </option>
             ))}
           </select>
-          {errors.categoria && (
-            <span className="text-xs text-red-500">{errors.categoria}</span>
+          {errors.typeofserviceid && (
+            <span className="text-xs text-red-500">{errors.typeofserviceid}</span>
           )}
         </div>
 
-        {/* Descripción */}
         <div className="col-span-2">
           <label
             className="block text-sm font-medium mb-1"
@@ -334,20 +307,16 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
           >
             Descripción
           </label>
-          <div
-            className="border rounded-md"
-            style={{ borderColor: Colors.table.lines }}
-          >
+          <div className="border rounded-md" style={{ borderColor: Colors.table.lines }}>
             <textarea
               placeholder="Ingrese descripción"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="w-full max-h-28 min-h-24 px-2 py-1 resize-none overflow-y-auto outline-none bg-transparent"
             />
           </div>
         </div>
 
-        {/* Estado */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
@@ -356,13 +325,17 @@ const EditServiceModal: React.FC<EditServiceModalProps> = ({
             Estado
           </label>
           <select
-            value={estado}
-            onChange={(e) => setEstado(e.target.value as "Activo" | "Inactivo")}
+            value={stateid}
+            onChange={(e) => {
+              const sid = Number(e.target.value);
+              setStateid(sid);
+              setState(sid === 2 ? "Inactivo" : "Activo");
+            }}
             className="w-full px-2 py-1 border rounded-md"
             style={{ borderColor: Colors.table.lines }}
           >
-            <option value="Activo">Activo</option>
-            <option value="Inactivo">Inactivo</option>
+            <option value={1}>Activo</option>
+            <option value={2}>Inactivo</option>
           </select>
         </div>
       </form>

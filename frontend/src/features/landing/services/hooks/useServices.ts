@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 
 export interface Service {
+  id?: number;
   title: string;
   description: string;
   category: string;
@@ -26,7 +27,10 @@ export const useServices = (services: Service[]) => {
   };
 
   const normalizeText = (text: string) =>
-    text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    (text ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
 
   const filteredServices = useMemo(() => {
     const normalizedSearch = normalizeText(searchTerm);

@@ -16,7 +16,6 @@
   const toUiStatus = (s?: string) =>
     (s ?? "").toLowerCase() === "active" ? "Activo" : "Inactivo";
 
-  /** Normaliza cualquier forma de estado a lo que espera el backend */
   const toBackendStatus = (
     s?: "Activo" | "Inactivo" | "active" | "inactive" | boolean
   ): "active" | "inactive" => {
@@ -24,7 +23,6 @@
     const v = String(s ?? "").toLowerCase().trim();
     if (["activo", "active", "1", "true"].includes(v)) return "active";
     if (["inactivo", "inactive", "0", "false"].includes(v)) return "inactive";
-    // por defecto, activo
     return "active";
   };
 
@@ -75,7 +73,6 @@
 
   export type UpdateMatrixItem = { permissionid: number; privilegeids: number[] };
 
-  /** Reemplaza TODA la matriz (PUT /roles/:id/configurations) */
   export const updateRoleMatrix = async (
     roleid: number,
     items: UpdateMatrixItem[]
@@ -94,8 +91,6 @@ export const patchRoleMeta = async (
     role.status = toBackendStatus(payload.status);
   }
 
-  // Para compatibilidad con backends que requieren configuraciones, obtenemos
-  // la lista actual y la reenviamos con IDs completos (role/permission/privilege).
   const detail = await api.get(`/roles/${roleid}/detail`);
   const configs = Array.isArray(detail.data?.configurations)
     ? detail.data.configurations

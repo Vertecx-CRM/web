@@ -15,7 +15,6 @@ import {
   patchRoleMeta,
 } from "../api/roles.api";
 
-/** Mapea el nombre del módulo al permissionid de tu backend */
 const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Roles: 1,
   Usuarios: 2,
@@ -26,21 +25,21 @@ const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Compras: 7,
   Servicios: 8,
   Técnicos: 9,
-  "Horarios de los técnicos": 10,
-  Clientes: 11,
-  "Solicitud de Servicio": 12,
-  Citas: 13,
-  "Cotización de Servicio": 14,
-  "Orden de Servicio": 15,
-  Dashboard: 16,
+  Clientes: 10,
+  "Solicitud de Servicio": 11,
+  Citas: 12,
+  "Cotización de Servicio": 13,
+  "Orden de Servicio": 14,
+  Dashboard: 15,
+  Ventas: 16,
 };
-
 
 const PRIVILEGE_TO_ID: Record<string, number> = {
   Crear: 1,
   Ver: 2,
   Editar: 3,
   Eliminar: 4,
+  Desactivar: 5,
 };
 
 function isValidConfig(
@@ -59,22 +58,33 @@ export const useRoles = () => {
   const [viewingRole, setViewingRole] = useState<Role | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const [loadingCount, setLoadingCount] = useState(0);
+  const loading = loadingCount > 0;
+  const startLoading = () => setLoadingCount((c) => c + 1);
+  const stopLoading = () => setLoadingCount((c) => Math.max(0, c - 1));
+
   const isEditModalOpen = editingRole !== null;
   const isViewModalOpen = viewingRole !== null;
   const selectedRole = editingRole ?? viewingRole ?? null;
   const isDefaultAdmin = (role: { id: number }) => Number(role.id) === 1;
+
   const DEFAULT_ADMIN_WARNING =
     "El rol administrador inicial no puede ser editado ni eliminado.";
 
   const loadRoles = useCallback(async () => {
-    const rows = await apiGetRoles();
-    const mapped: Role[] = rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      state: r.state,
-      permissions: [],
-    }));
-    setRoles(mapped);
+    startLoading();
+    try {
+      const rows = await apiGetRoles();
+      const mapped: Role[] = rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        state: r.state,
+        permissions: [],
+      }));
+      setRoles(mapped);
+    } finally {
+      stopLoading();
+    }
   }, []);
 
   useEffect(() => {
@@ -92,9 +102,12 @@ export const useRoles = () => {
         if (idx === -1) return null;
         const moduleName = token.slice(0, idx);
         const privilegeName = token.slice(idx + 1);
+
         const permissionid = MODULE_TO_PERMISSION_ID[moduleName];
         const privilegeid = PRIVILEGE_TO_ID[privilegeName];
+
         if (!permissionid || !privilegeid) return null;
+
         return { permissionid, privilegeid };
       })
       .filter(isValidConfig);
@@ -103,6 +116,7 @@ export const useRoles = () => {
       return showWarning("No se pudo mapear ningún permiso a IDs válidos.");
     }
 
+    startLoading();
     try {
       setCreating(true);
       await apiCreateRole({
@@ -115,23 +129,30 @@ export const useRoles = () => {
       showSuccess("Rol creado exitosamente!");
     } finally {
       setCreating(false);
+      stopLoading();
     }
   };
 
   const buildMatrixFromTokens = (tokens: string[]) => {
     const map = new Map<number, number[]>();
+
     for (const t of tokens) {
       const idx = t.lastIndexOf("-");
       if (idx === -1) continue;
+
       const moduleName = t.slice(0, idx);
       const privilegeName = t.slice(idx + 1);
+
       const permissionid = MODULE_TO_PERMISSION_ID[moduleName];
       const privilegeid = PRIVILEGE_TO_ID[privilegeName];
       if (!permissionid || !privilegeid) continue;
+
       const arr = map.get(permissionid) ?? [];
       if (!arr.includes(privilegeid)) arr.push(privilegeid);
+
       map.set(permissionid, arr);
     }
+
     return Array.from(map.entries()).map(([permissionid, privilegeids]) => ({
       permissionid,
       privilegeids,
@@ -149,15 +170,16 @@ export const useRoles = () => {
 
     const items = buildMatrixFromTokens(payload.permissions ?? []);
     if (items.length === 0) {
-      return showWarning("Debes seleccionar al menos un permiso/privilegio.");
+      return showWarning("Debe seleccionar al menos un permiso/privilegio.");
     }
 
+    startLoading();
     try {
       await updateRoleMatrix(id, items);
 
       await patchRoleMeta(id, {
         name: payload.name.trim(),
-        status: payload.state as "Activo" | "Inactivo",
+        status: payload.state,
       });
 
       await loadRoles();
@@ -170,54 +192,30 @@ export const useRoles = () => {
         "No se pudo actualizar el rol.";
       showWarning(Array.isArray(msg) ? msg.join(", ") : msg);
       console.error("Error al editar rol:", err);
+    } finally {
+      stopLoading();
     }
   };
 
-  const handleDeleteRole = async (role: Role): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: role.name,
-        itemType: "rol",
-        successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
-        errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
-      },
-      async () => {
-        try {
-          await apiDeleteRole(role.id);
-          await loadRoles();
-        } catch (err) {
-          const ax = err as AxiosError<any>;
-          if (ax.response?.status === 404) {
-            showWarning("El rol ya no existe.");
-          } else if (ax.response?.status === 400 || ax.response?.status === 409) {
-            showWarning(
-              ax.response?.data?.message ??
-                "No se puede eliminar el rol (puede estar vinculado a usuarios)."
-            );
-          } else {
-            showWarning("Ocurrió un error al eliminar el rol.");
-          }
-          throw err;
-        }
-      }
-    );
-  };
-
-  /** VIEW */
   const handleView = async (role: Role) => {
+    startLoading();
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
+
       const mappedPermissions = configurations.map(
         (cfg: any) => `${cfg.permission.module}-${cfg.privilege.name}`
       );
+
       setViewingRole({
         ...role,
         permissions: mappedPermissions,
         state: toUiStatus(roleInfo.status),
       });
     } catch (err) {
-      console.error("Error al obtener detalle de rol:", err);
+      console.error("Error al obtener detalle del rol:", err);
       setViewingRole(role);
+    } finally {
+      stopLoading();
     }
   };
 
@@ -226,11 +224,14 @@ export const useRoles = () => {
       return showWarning(DEFAULT_ADMIN_WARNING);
     }
 
+    startLoading();
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
+
       const mappedPermissions = configurations.map(
         (cfg: any) => `${cfg.permission.module}-${cfg.privilege.name}`
       );
+
       setEditingRole({
         id: roleInfo.roleid,
         name: roleInfo.name,
@@ -245,6 +246,8 @@ export const useRoles = () => {
         state: role.state,
         permissions: [],
       });
+    } finally {
+      stopLoading();
     }
   };
 
@@ -256,6 +259,41 @@ export const useRoles = () => {
     await handleDeleteRole(role);
   };
 
+  const handleDeleteRole = async (role: Role): Promise<boolean> => {
+    return confirmDelete(
+      {
+        itemName: role.name,
+        itemType: "rol",
+        successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
+        errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
+      },
+      async () => {
+        startLoading();
+        try {
+          await apiDeleteRole(role.id);
+          await loadRoles();
+        } catch (err) {
+          const ax = err as AxiosError<any>;
+
+          if (ax.response?.status === 404) {
+            showWarning("El rol ya no existe.");
+          } else if (ax.response?.status === 400 || ax.response?.status === 409) {
+            showWarning(
+              ax.response?.data?.message ??
+                "No se puede eliminar el rol (está vinculado a usuarios)."
+            );
+          } else {
+            showWarning("Ocurrió un error al eliminar el rol.");
+          }
+
+          throw err;
+        } finally {
+          stopLoading();
+        }
+      }
+    );
+  };
+
   const closeModals = () => {
     setIsCreateModalOpen(false);
     setEditingRole(null);
@@ -264,6 +302,8 @@ export const useRoles = () => {
 
   return {
     roles,
+    loading,
+
     isCreateModalOpen,
     setIsCreateModalOpen,
     isEditModalOpen,

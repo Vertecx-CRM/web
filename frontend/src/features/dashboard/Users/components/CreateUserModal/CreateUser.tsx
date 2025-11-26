@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import React from "react";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
@@ -8,6 +8,12 @@ import { useDocumentTypes } from "../../hooks/useDocumentTypes";
 import { useRoles } from "../../hooks/useRoles";
 import { useTechnicianTypes } from "../../hooks/useTechnicianTypes";
 import Modal from "@/features/dashboard/components/Modal";
+
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const CreateUserModal: React.FC<CreateUserModalProps> = ({
   isOpen,
@@ -41,8 +47,9 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   // Determinar el rol seleccionado
   const selectedRole =
     roles.find((r) => r.roleid === formData.roleid)?.name || "";
-  const isTecnico = selectedRole.toLowerCase() === "tecnico";
-  const isCliente = selectedRole.toLowerCase() === "cliente";
+  const normalizedRole = normalizeRoleName(selectedRole);
+  const isTecnico = normalizedRole === "tecnico";
+  const isCliente = normalizedRole === "cliente";
 
   // Manejo inputs texto
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -387,13 +394,13 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {/* Tipos de tecnico */}
             <div>
               <label className="block text-sm font-medium mb-1">
-                Tipos de tecnico
+                Tipos de técnico
               </label>
               {loadingTechnicianTypes ? (
                 <p className="text-sm text-gray-500">Cargando tipos...</p>
               ) : technicianTypes.length === 0 ? (
                 <p className="text-sm text-gray-500">
-                  No hay tipos de tecnico disponibles
+                  No hay tipos de técnico disponibles
                 </p>
               ) : (
                 <>

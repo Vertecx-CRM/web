@@ -1,79 +1,85 @@
 const API_URL = "http://localhost:3001/dashboard";
 
+const buildUrl = (path: string, year?: number) => {
+  if (!year) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}year=${year}`;
+};
+
 export const dashboardApi = {
-    // Ventas
-    getSalesByYear: async () => {
-        const res = await fetch(`${API_URL}/sales/year`);
-        return res.json();
-    },
+  // Ventas
+  getSalesByYear: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/sales/year`, year));
+    return res.json();
+  },
 
-    getTotalSales: async () => {
-        const res = await fetch(`${API_URL}/sales/total`);
-        return res.json();
-    },
+  getTotalSales: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/sales/total`, year));
+    return res.json();
+  },
 
-    getDailySalesByMonth: async (month: number) => {
-        const res = await fetch(`${API_URL}/sales/month/${month}`);
-        return res.json();
-    },
+  getDailySalesByMonth: async (month: number, year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/sales/month/${month}`, year));
+    return res.json();
+  },
 
-    // Compras
-    getPurchasesByYear: async () => {
-        const res = await fetch(`${API_URL}/purchases/year`);
-        return res.json();
-    },
+  // Compras
+  getPurchasesByYear: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/purchases/year`, year));
+    return res.json();
+  },
 
-    getTotalPurchases: async () => {
-        const res = await fetch(`${API_URL}/purchases/total`);
-        return res.json();
-    },
+  getTotalPurchases: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/purchases/total`, year));
+    return res.json();
+  },
 
-    getDailyPurchasesByMonth: async (month: number) => {
-        const res = await fetch(`${API_URL}/purchases/month/${month}`);
-        return res.json();
-    },
+  getDailyPurchasesByMonth: async (month: number, year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/purchases/month/${month}`, year));
+    return res.json();
+  },
 
-    // Categorías
-    getCategoryProducts: async () => {
-        const res = await fetch(`${API_URL}/categories/products`);
-        return res.json();
-    },
+  // Categorías
+  getCategoryProducts: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/categories/products`, year));
+    return res.json();
+  },
 
-    // Órdenes de servicio
-    getOrdersByState: async () => {
-        const res = await fetch(`${API_URL}/orders/state`);
-        return res.json();
-    },
+  // Órdenes de servicio
+  getOrdersByState: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/orders/state`, year));
+    return res.json();
+  },
 
-    getTotalOrders: async () => {
-        const res = await fetch(`${API_URL}/orders/total`);
-        return res.json();
-    },
+  getTotalOrders: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/orders/total`, year));
+    return res.json();
+  },
 
-    // Solicitudes de servicio
-    getServiceRequestsByState: async () => {
-        const res = await fetch(`${API_URL}/service-requests/state`);
-        return res.json();
-    },
+  // Solicitudes de servicio
+  getServiceRequestsByState: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/service-requests/state`, year));
+    return res.json();
+  },
 
-    getTotalServiceRequests: async () => {
-        const res = await fetch(`${API_URL}/service-requests/total`);
-        return res.json();
-    },
+  getTotalServiceRequests: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/service-requests/total`, year));
+    return res.json();
+  },
 
-    // Clientes
-    getClientsByYear: async () => {
-        const res = await fetch(`${API_URL}/clients/year`);
-        return res.json();
-    },
+  // Clientes
+  getClientsByYear: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/clients/year`, year));
+    return res.json();
+  },
 
-    getTotalClients: async () => {
-        const res = await fetch(`${API_URL}/clients/total`);
-        return res.json();
-    },
+  getTotalClients: async (year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/clients/total`, year));
+    return res.json();
+  },
 
-    getDailyClientsByMonth: async (month: number) => {
-        const res = await fetch(`${API_URL}/clients/month/${month}`);
-        return res.json();
-    },
+  getDailyClientsByMonth: async (month: number, year?: number) => {
+    const res = await fetch(buildUrl(`${API_URL}/clients/month/${month}`, year));
+    return res.json();
+  },
 };

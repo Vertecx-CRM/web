@@ -43,6 +43,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
         deleteTitle: "No se puede eliminar este usuario admin",
       };
     }
+    return {};
   };
 
 

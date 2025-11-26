@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Technician,
   CreateTechnicianData,
@@ -21,7 +21,6 @@ import {
   CreateTechnicianPayload,
   UpdateTechnicianPayload,
 } from "../api/technicians.api";
-import { useLoader } from "@/shared/components/loader";
 
 type MinimalTechForValidate = Pick<
   Technician,
@@ -37,36 +36,18 @@ const TECH_TYPE_MAP: Record<string, number> = {
 const normalizeTypeName = (name: string) => name.trim().toLowerCase();
 
 const validateTechnician = (data: MinimalTechForValidate) => {
-  if (!data.name.trim()) {
-    toast.warning("El nombre es obligatorio");
-    return false;
-  }
-  if (!data.lastName.trim()) {
-    toast.warning("El apellido es obligatorio");
-    return false;
-  }
-  if (!data.documentType) {
-    toast.warning("El tipo de documento es obligatorio");
-    return false;
-  }
-  if (!data.documentNumber.trim()) {
-    toast.warning("El número de documento es obligatorio");
-    return false;
-  }
-  if (!data.phone.trim()) {
-    toast.warning("El teléfono es obligatorio");
-    return false;
-  }
-  if (!data.email.trim()) {
-    toast.warning("El correo es obligatorio");
-    return false;
-  }
+  if (!data.name.trim()) return toast.warning("El nombre es obligatorio"), false;
+  if (!data.lastName.trim()) return toast.warning("El apellido es obligatorio"), false;
+  if (!data.documentType) return toast.warning("El tipo de documento es obligatorio"), false;
+  if (!data.documentNumber.trim()) return toast.warning("El número de documento es obligatorio"), false;
+  if (!data.phone.trim()) return toast.warning("El teléfono es obligatorio"), false;
+  if (!data.email.trim()) return toast.warning("El correo es obligatorio"), false;
   return true;
 };
 
-const EXTRA_LOADER_DELAY_MS = 300;
+const MIN_LOADER_MS = 450;
 
-export const useTechnicians = (_initialTechnicians: Technician[]) => {
+export const useTechnicians = () => {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [typeNameToId, setTypeNameToId] = useState<Record<string, number>>(
     Object.fromEntries(
@@ -76,22 +57,56 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
   const [typeOptions, setTypeOptions] = useState<string[]>(
     Object.keys(TECH_TYPE_MAP)
   );
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingTechnician, setEditingTechnician] =
-    useState<Technician | null>(null);
 
+  const [loading, setLoading] = useState(false);
+  const busyRef = useRef(0);
+  const startRef = useRef<number | null>(null);
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingTechnician, setEditingTechnician] = useState<Technician | null>(null);
   const isEditModalOpen = editingTechnician !== null;
 
-  const { showLoader, hideLoader } = useLoader();
+  const startLoading = () => {
+    busyRef.current += 1;
+    if (busyRef.current === 1) {
+      startRef.current = Date.now();
+      setLoading(true);
+    }
+  };
+
+  const stopLoading = async () => {
+    busyRef.current = Math.max(0, busyRef.current - 1);
+    if (busyRef.current > 0) return;
+
+    const start = startRef.current ?? Date.now();
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, MIN_LOADER_MS - elapsed);
+
+    if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+
+    startRef.current = null;
+    setLoading(false);
+  };
+
+  const withLoading = async <T,>(fn: () => Promise<T>) => {
+    startLoading();
+    try {
+      return await fn();
+    } finally {
+      await stopLoading();
+    }
+  };
 
   const loadTechnicians = async () => {
-    try {
-      const list = await getTechniciansApi();
-      setTechnicians(list);
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudieron cargar los técnicos.");
-    }
+    await withLoading(async () => {
+      try {
+        const list = await getTechniciansApi();
+        setTechnicians(list);
+      } catch (error) {
+        console.error(error);
+        toast.error("No se pudieron cargar los técnicos.");
+      }
+    });
   };
 
   const loadTechnicianTypes = async () => {
@@ -111,13 +126,14 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
   };
 
   const mapTechTypesToIds = (types: string[]) =>
-    types
+    (types ?? [])
       .map((name) => typeNameToId[normalizeTypeName(name)])
       .filter((id): id is number => typeof id === "number");
 
   useEffect(() => {
     loadTechnicians();
     loadTechnicianTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreateTechnician = async (data: CreateTechnicianData) => {
@@ -132,46 +148,46 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         phone: rest.phone,
         email: rest.email,
       })
-    )
-      return;
+    ) return;
 
     try {
-      showLoader();
+      await withLoading(async () => {
+        const imageUrl = rest.image ? await uploadImageToCloudinary(rest.image) : undefined;
+        const resumeUrl = resumePdf ? await uploadPdfToCloudinary(resumePdf) : undefined;
 
-      const imageUrl = rest.image
-        ? await uploadImageToCloudinary(rest.image)
-        : undefined;
+        const techniciantypeids = mapTechTypesToIds(rest.types);
 
-      const resumeUrl = resumePdf
-        ? await uploadPdfToCloudinary(resumePdf)
-        : undefined;
+        const payload: CreateTechnicianPayload = {
+          name: rest.name,
+          lastname: rest.lastName,
+          email: rest.email,
+          documentnumber: rest.documentNumber,
+          phone: rest.phone,
+          techniciantypeids,
+          CV: resumeUrl ?? null,
+          image: imageUrl ?? null,
+          typeid: typeid,
+        };
 
-      const techniciantypeids = mapTechTypesToIds(rest.types);
+        await createTechnicianApi(payload);
 
-      const payload: CreateTechnicianPayload = {
-        name: rest.name,
-        lastname: rest.lastName,
-        email: rest.email,
-        documentnumber: rest.documentNumber,
-        phone: rest.phone,
-        techniciantypeids,
-        CV: resumeUrl ?? null,
-        image: imageUrl ?? null,
-        typeid: typeid,
-      };
+        const list = await getTechniciansApi();
+        setTechnicians(list);
 
-      await createTechnicianApi(payload);
-      await loadTechnicians();
-      setIsCreateModalOpen(false);
-      toast.success("Técnico creado exitosamente");
+        setIsCreateModalOpen(false);
+        toast.success("Técnico creado exitosamente");
+      });
     } catch (error) {
       console.error(error);
-      toast.error("No se pudo crear el técnico. Intenta nuevamente.");
-    } finally {
-      await new Promise((resolve) =>
-        setTimeout(resolve, EXTRA_LOADER_DELAY_MS)
+      const apiMessage =
+        (error as any)?.response?.data?.message ||
+        (error as any)?.message ||
+        "";
+      toast.error(
+        apiMessage
+          ? `No se pudo crear el técnico: ${apiMessage}`
+          : "No se pudo crear el técnico. Intenta nuevamente."
       );
-      hideLoader();
     }
   };
 
@@ -187,70 +203,48 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         phone: rest.phone,
         email: rest.email,
       })
-    )
-      return;
+    ) return;
 
     const existing = technicians.find((t) => t.id === id);
-    if (!existing) {
-      toast.error("No se encontró el técnico en la lista local.");
-      return;
-    }
+    if (!existing) return toast.error("No se encontró el técnico en la lista local.");
 
     try {
-      showLoader();
+      await withLoading(async () => {
+        const imageUrl = rest.image ? await uploadImageToCloudinary(rest.image) : existing.image;
+        const resumeUrl = resumePdf ? await uploadPdfToCloudinary(resumePdf) : existing.resumeUrl;
 
-      const imageUrl = rest.image
-        ? await uploadImageToCloudinary(rest.image)
-        : existing.image;
+        const techniciantypeids = rest.types ? mapTechTypesToIds(rest.types) : undefined;
+        const stateid = rest.state === "Inactivo" ? 2 : 1;
 
-      const resumeUrl = resumePdf
-        ? await uploadPdfToCloudinary(resumePdf)
-        : existing.resumeUrl;
+        const body: UpdateTechnicianPayload = {
+          name: rest.name,
+          lastname: rest.lastName,
+          documentnumber: rest.documentNumber,
+          phone: rest.phone,
+          stateid,
+          typeid: rest.typeid,
+        };
 
-      const techniciantypeids = rest.types
-        ? mapTechTypesToIds(rest.types)
-        : undefined;
-      const stateid = rest.state === "Inactivo" ? 2 : 1;
+        if (rest.email !== existing.email) body.email = rest.email;
+        if (imageUrl && imageUrl !== existing.image) body.image = imageUrl;
+        if (resumeUrl && resumeUrl !== existing.resumeUrl) body.CV = resumeUrl;
+        if (techniciantypeids && techniciantypeids.length > 0) body.techniciantypeids = techniciantypeids;
 
-      const body: UpdateTechnicianPayload = {
-        name: rest.name,
-        lastname: rest.lastName,
-        documentnumber: rest.documentNumber,
-        phone: rest.phone,
-        stateid,
-      };
+        await updateTechnicianApi(id, body);
 
-      if (rest.email !== existing.email) {
-        body.email = rest.email;
-      }
+        const list = await getTechniciansApi();
+        setTechnicians(list);
 
-      body.typeid = rest.typeid;
-
-      if (imageUrl && imageUrl !== existing.image) body.image = imageUrl;
-      if (resumeUrl && resumeUrl !== existing.resumeUrl) body.CV = resumeUrl;
-      if (techniciantypeids && techniciantypeids.length > 0)
-        body.techniciantypeids = techniciantypeids;
-      // Si no cambian tipos, igual respetamos el estado actualizado
-
-      await updateTechnicianApi(id, body);
-
-      await loadTechnicians();
-      setEditingTechnician(null);
-      toast.success("Técnico actualizado correctamente");
+        setEditingTechnician(null);
+        toast.success("Técnico actualizado correctamente");
+      });
     } catch (error) {
       console.error(error);
       toast.error("No se pudo actualizar el técnico. Intenta nuevamente.");
-    } finally {
-      await new Promise((resolve) =>
-        setTimeout(resolve, EXTRA_LOADER_DELAY_MS)
-      );
-      hideLoader();
     }
   };
 
-  const handleDeleteTechnician = async (
-    tech: Technician
-  ): Promise<boolean> => {
+  const handleDeleteTechnician = async (tech: Technician): Promise<boolean> => {
     return confirmDelete(
       {
         itemName: `${tech.name} ${tech.lastName}`,
@@ -259,19 +253,10 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
         errorMessage: "No se pudo eliminar el técnico. Intenta nuevamente.",
       },
       async () => {
-        try {
-          showLoader();
+        await withLoading(async () => {
           await deleteTechnicianApi(tech.id);
           setTechnicians((prev) => prev.filter((t) => t.id !== tech.id));
-        } catch (error) {
-          console.error(error);
-          throw error;
-        } finally {
-          await new Promise((resolve) =>
-            setTimeout(resolve, EXTRA_LOADER_DELAY_MS)
-          );
-          hideLoader();
-        }
+        });
       }
     );
   };
@@ -287,5 +272,6 @@ export const useTechnicians = (_initialTechnicians: Technician[]) => {
     handleCreateTechnician,
     handleEditTechnician,
     handleDeleteTechnician,
+    loading,
   };
 };

@@ -4,6 +4,12 @@ import Colors from "@/shared/theme/colors";
 import { ViewUserModalProps } from "../../types/typesUser";
 import Modal from "@/features/dashboard/components/Modal";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 const ViewUserModal: React.FC<ViewUserModalProps> = ({
   isOpen,
   onClose,
@@ -32,7 +38,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
     user.lastname === "";
 
   // Detectar rol
-  const roleName = user.roles?.name?.toLowerCase() || "";
+  const roleName = normalizeRoleName(user.roles?.name || "");
   const isTecnico = roleName === "tecnico";
   const isCliente = roleName === "cliente";
 
@@ -191,7 +197,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
         {isTecnico && technician && (
           <div className="border-t pt-4 space-y-4">
             <h3 className="text-sm font-medium text-gray-700">
-              Informacin de Tcnico
+              Informacin de Técnico
             </h3>
 
             {technician.CV && (
@@ -212,7 +218,7 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
               technician.technicianTypeMaps.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Tipos de tecnico
+                    Tipos de técnico
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {technician.technicianTypeMaps.map((tm, index) => (

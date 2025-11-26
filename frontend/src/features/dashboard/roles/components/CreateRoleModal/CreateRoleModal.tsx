@@ -28,6 +28,7 @@ export default function CreateRoleModal({
     {}
   );
 
+  /** ÚNICO CAMBIO NECESARIO → Se agregó "Ventas" */
   const allModulePermissions: Record<string, string[]> = {
     Roles: ["Editar", "Crear", "Eliminar", "Ver"],
     Usuarios: ["Editar", "Crear", "Eliminar", "Ver"],
@@ -44,6 +45,9 @@ export default function CreateRoleModal({
     Citas: ["Editar", "Crear", "Eliminar", "Ver"],
     "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
     "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
+
+    Ventas: ["Crear", "Ver", "Desactivar"],
+
     Dashboard: ["Ver"],
   };
 
@@ -130,8 +134,9 @@ export default function CreateRoleModal({
         ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
     >
       <CheckIcon
-        className={`w-3 h-3 text-white transition-opacity duration-150 ${checked ? "opacity-100" : "opacity-0"
-          }`}
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${
+          checked ? "opacity-100" : "opacity-0"
+        }`}
       />
     </button>
   );
@@ -191,10 +196,10 @@ export default function CreateRoleModal({
                   className="text-base font-semibold"
                   style={{ color: Colors.texts.primary }}
                 >
-                  Asignar permisos y privilegios <span className="text-red-500">*</span>
+                  Asignar permisos y privilegios{" "}
+                  <span className="text-red-500">*</span>
                 </h3>
               </div>
-
 
               {errors.permissions && (
                 <p className="text-left text-xs text-red-500">
@@ -290,4 +295,4 @@ export default function CreateRoleModal({
       )}
     </AnimatePresence>
   );
-} 
+}

@@ -6,7 +6,7 @@ export type AuthzModule =
   | "Roles"
   | "suppliers"
   | "purchaseOrders"
-  | "purcharse"
+  | "purchases"
   | "products"
   | "categoryProducts"
   | "services"
@@ -26,7 +26,7 @@ export const MENU_MODULES: AuthzModule[] = [
   "Roles",
   "suppliers",
   "purchaseOrders",
-  "purcharse",
+  "purchases",
   "products",
   "categoryProducts",
   "services",
@@ -51,8 +51,8 @@ const MODULE_ALIASES: Record<string, AuthzModule> = {
 
   purchaseOrders: "purchaseOrders",
 
-  purcharse: "purcharse",
-  purchasesGraph: "purcharse",
+  purcharse: "purchases",
+  purchasesGraph: "purchases",
 
   products: "products",
   categoryProducts: "categoryProducts",
@@ -81,7 +81,7 @@ const CANONICAL_TO_PERMISSION_MODULES: Record<AuthzModule, string[]> = {
   Roles: ["Roles", "roles"],
   suppliers: ["suppliers"],
   purchaseOrders: ["purchaseOrders"],
-  purcharse: ["purcharse", "purchasesGraph"],
+  purchases: ["purchases", "purchasesGraph"],
   products: ["products"],
   categoryProducts: ["categoryProducts"],
   services: ["services"],
@@ -102,7 +102,7 @@ export const MODULE_TO_PATH: Record<AuthzModule, string> = {
   Roles: routes.dashboard.roles,
   suppliers: routes.dashboard.suppliers,
   purchaseOrders: routes.dashboard.purchasesOrders,
-  purcharse: routes.dashboard.purchases,
+  purchases: routes.dashboard.purchases,
   products: routes.dashboard.products,
   categoryProducts: routes.dashboard.productsCategories,
   services: routes.dashboard.services,
