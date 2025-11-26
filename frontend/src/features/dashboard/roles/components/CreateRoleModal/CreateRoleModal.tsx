@@ -46,7 +46,6 @@ export default function CreateRoleModal({
     "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
     "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
 
-    /** Nuevo módulo de ventas */
     Ventas: ["Crear", "Ver", "Desactivar"],
 
     Dashboard: ["Ver"],

@@ -34,7 +34,6 @@ const MODULE_TO_PERMISSION_ID: Record<string, number> = {
   Ventas: 16,
 };
 
-
 const PRIVILEGE_TO_ID: Record<string, number> = {
   Crear: 1,
   Ver: 2,
@@ -59,6 +58,11 @@ export const useRoles = () => {
   const [viewingRole, setViewingRole] = useState<Role | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const [loadingCount, setLoadingCount] = useState(0);
+  const loading = loadingCount > 0;
+  const startLoading = () => setLoadingCount((c) => c + 1);
+  const stopLoading = () => setLoadingCount((c) => Math.max(0, c - 1));
+
   const isEditModalOpen = editingRole !== null;
   const isViewModalOpen = viewingRole !== null;
   const selectedRole = editingRole ?? viewingRole ?? null;
@@ -67,27 +71,26 @@ export const useRoles = () => {
   const DEFAULT_ADMIN_WARNING =
     "El rol administrador inicial no puede ser editado ni eliminado.";
 
-  /** ----------------------------------
-   * Cargar roles
-   * ---------------------------------- */
   const loadRoles = useCallback(async () => {
-    const rows = await apiGetRoles();
-    const mapped: Role[] = rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      state: r.state,
-      permissions: [],
-    }));
-    setRoles(mapped);
+    startLoading();
+    try {
+      const rows = await apiGetRoles();
+      const mapped: Role[] = rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        state: r.state,
+        permissions: [],
+      }));
+      setRoles(mapped);
+    } finally {
+      stopLoading();
+    }
   }, []);
 
   useEffect(() => {
     loadRoles();
   }, [loadRoles]);
 
-  /** ----------------------------------
-   * Crear Rol
-   * ---------------------------------- */
   const handleCreateRole = async (payload: CreateRoleData) => {
     const errors = validateRoleForm(payload, roles);
     if (errors.name) return showWarning(errors.name);
@@ -113,6 +116,7 @@ export const useRoles = () => {
       return showWarning("No se pudo mapear ningún permiso a IDs válidos.");
     }
 
+    startLoading();
     try {
       setCreating(true);
       await apiCreateRole({
@@ -125,12 +129,10 @@ export const useRoles = () => {
       showSuccess("Rol creado exitosamente!");
     } finally {
       setCreating(false);
+      stopLoading();
     }
   };
 
-  /** ----------------------------------
-   * Construcción de matriz para actualizar
-   * ---------------------------------- */
   const buildMatrixFromTokens = (tokens: string[]) => {
     const map = new Map<number, number[]>();
 
@@ -157,9 +159,6 @@ export const useRoles = () => {
     }));
   };
 
-  /** ----------------------------------
-   * Editar Rol
-   * ---------------------------------- */
   const handleEditRole = async (id: number, payload: EditRoleData) => {
     if (isDefaultAdmin({ id })) {
       return showWarning(DEFAULT_ADMIN_WARNING);
@@ -174,6 +173,7 @@ export const useRoles = () => {
       return showWarning("Debe seleccionar al menos un permiso/privilegio.");
     }
 
+    startLoading();
     try {
       await updateRoleMatrix(id, items);
 
@@ -192,10 +192,13 @@ export const useRoles = () => {
         "No se pudo actualizar el rol.";
       showWarning(Array.isArray(msg) ? msg.join(", ") : msg);
       console.error("Error al editar rol:", err);
+    } finally {
+      stopLoading();
     }
   };
 
   const handleView = async (role: Role) => {
+    startLoading();
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
 
@@ -211,17 +214,17 @@ export const useRoles = () => {
     } catch (err) {
       console.error("Error al obtener detalle del rol:", err);
       setViewingRole(role);
+    } finally {
+      stopLoading();
     }
   };
 
-  /** ----------------------------------
-   * Edit Modal
-   * ---------------------------------- */
   const handleEdit = async (role: Role) => {
     if (isDefaultAdmin(role)) {
       return showWarning(DEFAULT_ADMIN_WARNING);
     }
 
+    startLoading();
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
 
@@ -243,12 +246,11 @@ export const useRoles = () => {
         state: role.state,
         permissions: [],
       });
+    } finally {
+      stopLoading();
     }
   };
 
-  /** ----------------------------------
-   * Eliminar Rol
-   * ---------------------------------- */
   const handleDelete = async (role: Role) => {
     if (isDefaultAdmin(role)) {
       return showWarning(DEFAULT_ADMIN_WARNING);
@@ -266,6 +268,7 @@ export const useRoles = () => {
         errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
       },
       async () => {
+        startLoading();
         try {
           await apiDeleteRole(role.id);
           await loadRoles();
@@ -284,14 +287,13 @@ export const useRoles = () => {
           }
 
           throw err;
+        } finally {
+          stopLoading();
         }
       }
     );
   };
 
-  /** ----------------------------------
-   * Cerrar modales
-   * ---------------------------------- */
   const closeModals = () => {
     setIsCreateModalOpen(false);
     setEditingRole(null);
@@ -300,6 +302,8 @@ export const useRoles = () => {
 
   return {
     roles,
+    loading,
+
     isCreateModalOpen,
     setIsCreateModalOpen,
     isEditModalOpen,
