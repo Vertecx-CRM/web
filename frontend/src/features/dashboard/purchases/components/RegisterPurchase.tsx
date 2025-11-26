@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { IPurchase } from "../Types/Purchase.type";
@@ -12,29 +13,11 @@ import {
   validatePurchaseField,
   PurchaseErrors,
 } from "../validations/purchasesValidations";
-import { usePurchases } from "../hooks/usePurchases";
 import { useLoader } from "@/shared/components/loader";
+import { months, PurchaseFormState } from "../hooks/usePurchases";
 
-interface Props {
-  onSave: (purchase: IPurchase) => void;
-  onClose: () => void;
-  purchases: IPurchase[];
-}
-
-const months = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
+const DEFAULT_SUPPLIER_IMAGE =
+  "https://cdn-icons-png.flaticon.com/512/1698/1698535.png";
 
 const formatCOP = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -43,36 +26,71 @@ const formatCOP = (value: number) =>
     minimumFractionDigits: 0,
   }).format(value);
 
+interface Props {
+  onSave: () => Promise<any>;
+  onClose: () => void;
+  purchases: IPurchase[];
+
+  form: PurchaseFormState;
+  selectedProduct: string;
+  setSelectedProduct: (value: string) => void;
+  quantity: number;
+  setQuantity: (value: number) => void;
+  cart: {
+    isNew: boolean;
+    productid?: number;
+    productname?: string;
+    description?: string;
+    productpriceofsupplier?: number;
+    quantity: number;
+    unitprice: number;
+  }[];
+  years: number[];
+  daysInMonth: number;
+  total: number;
+  handleChange: (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => void;
+  handleAddProduct: (args: {
+    isNew: boolean;
+    productName: string;
+    supplierPrice: number;
+    selectedProduct: string;
+    quantity: number;
+    description: string;
+  }) => void;
+  products: any[];
+  suppliers: any[];
+}
+
 export default function RegisterPurchaseForm({
   onSave,
   onClose,
   purchases,
+  form,
+  selectedProduct,
+  setSelectedProduct,
+  quantity,
+  setQuantity,
+  cart,
+  years,
+  daysInMonth,
+  total,
+  handleChange,
+  handleAddProduct,
+  products,
+  suppliers,
 }: Props) {
-  const {
-    form,
-    setForm,
-    selectedProduct,
-    setSelectedProduct,
-    quantity,
-    setQuantity,
-    cart,
-    years,
-    daysInMonth,
-    total,
-    handleChange,
-    handleAddProduct,
-    products,
-    suppliers,
-    handleAddPurchase, //  usamos la función del hook
-  } = usePurchases();
-
   const [errors, setErrors] = useState<PurchaseErrors>({});
   const [isNewProduct, setIsNewProduct] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [newProductPrice, setNewProductPrice] = useState(0);
   const { showLoader, hideLoader } = useLoader();
+  const [productDescription, setProductDescription] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  /**  Valida un campo individual y actualiza el estado de errores */
   const handleFieldValidation = (
     field: keyof Omit<IPurchase, "id">,
     value: any
@@ -81,7 +99,6 @@ export default function RegisterPurchaseForm({
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  /**  Al enviar el formulario */
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -90,32 +107,19 @@ export default function RegisterPurchaseForm({
       return;
     }
 
-    const data = {
-      numberoforder: form.orderNumber,
-      invoiceNumber: form.invoiceNumber,
-      reference: form.invoiceNumber,
-      supplierid: Number(form.supplier),
-      stateid: 1,
-      amount: total,
-      createdat: new Date().toISOString(),
-      updatedat: new Date().toISOString(),
-    };
-
-    const dataForValidation = {
-      orderNumber: form.orderNumber,
-      invoiceNumber: form.invoiceNumber,
-      supplier: form.supplier,
-      registerDate:
-        form.year && form.month && form.day
-          ? `${form.year}-${form.month}-${form.day}`
-          : "",
-      amount: total,
-      status: "Aprobado",
-      description: form.description,
-    };
-
     const validationErrors = validatePurchaseForm(
-      dataForValidation as any,
+      {
+        orderNumber: form.orderNumber,
+        invoiceNumber: form.invoiceNumber,
+        supplier: form.supplier,
+        registerDate:
+          form.year && form.month && form.day
+            ? `${form.year}-${form.month}-${form.day}`
+            : "",
+        amount: total,
+        status: "Aprobado",
+        description: form.description,
+      } as any,
       purchases ?? []
     );
 
@@ -128,18 +132,18 @@ export default function RegisterPurchaseForm({
 
     try {
       showLoader();
+      setSaving(true);
 
-      const savedPurchase = await handleAddPurchase();
+      await onSave(); // ✅ aquí SÍ llama la API vía hook del padre
 
       showSuccess("✅ Compra registrada con éxito.");
-
-      onSave(savedPurchase as IPurchase);
       onClose();
     } catch (error) {
       console.error(error);
-      showError("❌ Error al registrar la compra. Inténtalo de nuevo.");
+      showError("❌ Error al registrar la compra.");
     } finally {
       hideLoader();
+      setSaving(false);
     }
   };
 
@@ -148,7 +152,7 @@ export default function RegisterPurchaseForm({
       onSubmit={handleFormSubmit}
       className="space-y-5 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto rounded"
     >
-      {/*  Fecha */}
+      {/* Fecha */}
       <div>
         <label className="block text-sm font-medium mb-1">
           Fecha de Registro <span className="text-red-500">*</span>
@@ -156,9 +160,10 @@ export default function RegisterPurchaseForm({
         <div className="grid grid-cols-3 gap-2">
           <select
             name="day"
+            value={form.day}
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("createdAt", form.createdAt);
+              handleFieldValidation("createdAt", form.registerDate);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
@@ -167,7 +172,7 @@ export default function RegisterPurchaseForm({
           >
             <option value="">Día</option>
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d}>
+              <option key={d} value={d.toString().padStart(2, "0")}>
                 {d}
               </option>
             ))}
@@ -175,9 +180,10 @@ export default function RegisterPurchaseForm({
 
           <select
             name="month"
+            value={form.month}
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("createdAt", form.createdAt);
+              handleFieldValidation("createdAt", form.registerDate);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
@@ -194,9 +200,10 @@ export default function RegisterPurchaseForm({
 
           <select
             name="year"
+            value={form.year}
             onChange={(e) => {
               handleChange(e);
-              handleFieldValidation("createdAt", form.createdAt);
+              handleFieldValidation("createdAt", form.registerDate);
             }}
             required
             className={`rounded-md border px-2 py-2 text-sm w-full ${
@@ -237,6 +244,27 @@ export default function RegisterPurchaseForm({
         </div>
 
         <div>
+          {form.supplier && (
+            <div className="flex items-center gap-2 mt-2 p-2 border rounded-md bg-gray-50">
+              <img
+                src={
+                  suppliers.find((s) => s.supplierid == form.supplier)?.image ||
+                  DEFAULT_SUPPLIER_IMAGE
+                }
+                alt="Proveedor"
+                className="w-10 h-10 rounded object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    DEFAULT_SUPPLIER_IMAGE;
+                }}
+              />
+
+              <span className="text-sm font-medium text-gray-700">
+                {suppliers.find((s) => s.supplierid == form.supplier)?.name}
+              </span>
+            </div>
+          )}
+
           <label className="block text-sm mb-1 font-medium">
             Proveedor <span className="text-red-500">*</span>
           </label>
@@ -265,7 +293,7 @@ export default function RegisterPurchaseForm({
         </div>
       </div>
 
-      {/*  Número de Factura */}
+      {/* Número de Factura */}
       <div>
         <label className="block text-sm mb-1 font-medium">
           Número de Factura <span className="text-red-500">*</span>
@@ -288,7 +316,7 @@ export default function RegisterPurchaseForm({
         )}
       </div>
 
-      {/*  Total */}
+      {/* Total */}
       <div>
         <label className="block text-sm mb-1 font-medium">
           Total <span className="text-red-500">*</span>
@@ -306,27 +334,7 @@ export default function RegisterPurchaseForm({
         )}
       </div>
 
-      {/*  Descripción */}
-      <div>
-        <label className="block text-sm mb-1 font-medium">Descripción</label>
-        <textarea
-          name="description"
-          onChange={(e) => {
-            handleChange(e);
-            handleFieldValidation("description", e.target.value);
-          }}
-          rows={3}
-          className={`w-full rounded-md border px-2 py-2 text-sm resize-none ${
-            errors.description ? "border-red-500" : "border-gray-300"
-          }`}
-          placeholder="Ingrese sus observaciones"
-        ></textarea>
-        {errors.description && (
-          <p className="text-xs text-red-500">{errors.description}</p>
-        )}
-      </div>
-
-      {/*  Productos */}
+      {/* Productos */}
       <div className="p-3 border rounded-lg bg-gray-50">
         <label className="block text-sm mb-2">
           Productos <span className="text-red-500">*</span>
@@ -355,7 +363,6 @@ export default function RegisterPurchaseForm({
           </button>
         </div>
 
-        {/* Modo selección */}
         {!isNewProduct ? (
           <div className="flex flex-col sm:flex-col gap-2">
             <select
@@ -380,7 +387,6 @@ export default function RegisterPurchaseForm({
             />
           </div>
         ) : (
-          /* Modo crear producto */
           <div className="flex flex-col sm:flex-col gap-2">
             <input
               type="text"
@@ -408,7 +414,15 @@ export default function RegisterPurchaseForm({
           </div>
         )}
 
-        {/* Botón original */}
+        {/* Descripción */}
+        <textarea
+          placeholder="Descripción del producto"
+          value={productDescription}
+          onChange={(e) => setProductDescription(e.target.value)}
+          className="w-full rounded-md border px-2 py-2 text-sm resize-none mt-2"
+          rows={2}
+        />
+
         <button
           type="button"
           onClick={() => {
@@ -425,8 +439,10 @@ export default function RegisterPurchaseForm({
               supplierPrice: newProductPrice,
               selectedProduct: selectedProduct,
               quantity: quantity,
+              description: productDescription,
             });
 
+            setProductDescription("");
             showSuccess("Producto agregado al carrito 🛒");
           }}
           style={{ backgroundColor: Colors.buttons.primary }}
@@ -434,9 +450,42 @@ export default function RegisterPurchaseForm({
         >
           Añadir más productos +
         </button>
+
+        {cart.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {cart.map((item, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between bg-white p-2 rounded-md shadow-sm border"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm text-gray-700">
+                    {item.productname ||
+                      products.find((p) => p.productid === item.productid)
+                        ?.productname}
+                  </span>
+
+                  <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {item.quantity}
+                  </span>
+                </div>
+
+                <span className="text-sm font-semibold text-gray-800">
+                  {formatCOP(item.unitprice * item.quantity)}
+                </span>
+
+                {item.description && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {item.description}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/*  Botones */}
+      {/* Botones */}
       <div className="flex flex-col sm:flex-row justify-end gap-2">
         <button
           type="button"
@@ -447,9 +496,10 @@ export default function RegisterPurchaseForm({
         </button>
         <button
           type="submit"
+          disabled={saving}
           className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
         >
-          Guardar
+          {saving ? "Guardando..." : "Guardar"}
         </button>
       </div>
     </form>

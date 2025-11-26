@@ -1,6 +1,6 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 import {
   getPurchases,
   createPurchase,
@@ -10,10 +10,17 @@ import {
 } from "../api/purchases.api";
 import { IPurchase } from "../Types/Purchase.type";
 
-/** Productos base */
-interface Product {
-  price: number;
-  stock: number;
+export interface PurchaseFormState {
+  orderNumber: string;
+  invoiceNumber: string;
+  supplier: string;
+  registerDate: string;
+  amount: number;
+  status: string;
+  day: string;
+  month: string;
+  year: string;
+  description: string;
 }
 
 export const months = [
@@ -35,16 +42,13 @@ export function usePurchases() {
   const [purchases, setPurchases] = useState<IPurchase[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /**  Catálogo de productos */
   const [products, setProducts] = useState<any[]>([]);
-
-  /**  Catálogo de proveedores */
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  /**  Formulario principal */
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<PurchaseFormState>({
     orderNumber: "",
     invoiceNumber: "",
     supplier: "",
@@ -74,10 +78,7 @@ export function usePurchases() {
     const fetchSuppliers = async () => {
       try {
         const data = await getSuppliersForPurchase();
-
-        // ✅ solo proveedores activos
         const actives = data.filter((s: any) => s.stateid === 1);
-
         setSuppliers(actives);
       } catch (err) {
         console.error("Error cargando proveedores", err);
@@ -95,33 +96,30 @@ export function usePurchases() {
       isNew: boolean;
       productid?: number;
       productname?: string;
+      description?: string;
       productpriceofsupplier?: number;
       quantity: number;
       unitprice: number;
     }[]
   >([]);
 
-  /** 📅 Generar años (últimos 6) */
   const currentYear = new Date().getFullYear();
   const years = useMemo(
     () => Array.from({ length: 6 }, (_, i) => currentYear - i),
     []
   );
 
-  /** 📅 Calcular días según mes y año seleccionados */
   const daysInMonth = useMemo(() => {
     if (!form.month || !form.year) return 31;
     const monthIndex = months.indexOf(form.month);
     return new Date(Number(form.year), monthIndex + 1, 0).getDate();
   }, [form.month, form.year]);
 
-  /**  Calcular total */
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
     [cart]
   );
 
-  /** 🧠 Generar número de orden basado en backend */
   const generateNextOrderNumber = (data: IPurchase[]) => {
     const year = new Date().getFullYear();
     const currentYearOrders = data
@@ -137,7 +135,6 @@ export function usePurchases() {
     return `ORD-${year}-${nextConsecutive}`;
   };
 
-  /**  Cargar compras desde backend */
   const fetchPurchases = async () => {
     try {
       const data = await getPurchases();
@@ -152,7 +149,6 @@ export function usePurchases() {
     }
   };
 
-  /** ⚙️ Cambio de campos del formulario */
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -166,7 +162,6 @@ export function usePurchases() {
       validateInvoiceYear(form.invoiceNumber, value);
   };
 
-  /** 🧾 Validar coincidencia de año en factura */
   const validateInvoiceYear = (invoice: string, year: string) => {
     const match = invoice.match(/^FAC-(\d{4})-\d{4}$/);
     if (match) {
@@ -183,19 +178,18 @@ export function usePurchases() {
     }
   };
 
-  /**    Agregar producto */
   const handleAddProduct = ({
     isNew,
     productName,
     supplierPrice,
     selectedProduct,
     quantity,
+    description,
   }: any) => {
     if (!isNew) {
       const product = products.find(
         (p) => p.productid === Number(selectedProduct)
       );
-
       if (!product) return;
 
       setCart((prev) => [
@@ -205,6 +199,7 @@ export function usePurchases() {
           productid: product.productid,
           quantity,
           unitprice: product.productpriceofsupplier,
+          description,
         },
       ]);
     } else {
@@ -216,17 +211,19 @@ export function usePurchases() {
           productpriceofsupplier: supplierPrice,
           quantity,
           unitprice: supplierPrice,
+          description,
         },
       ]);
     }
   };
 
-  /**  Registrar compra (backend) */
   const handleAddPurchase = async () => {
     if (cart.length === 0) {
       setError("⚠️ Agrega al menos un producto.");
       return;
     }
+
+    setSaving(true);
 
     const day = form.day.padStart(2, "0");
     const month = (months.indexOf(form.month) + 1).toString().padStart(2, "0");
@@ -246,21 +243,24 @@ export function usePurchases() {
         unitprice: item.unitprice,
         productname: item.productname,
         productpriceofsupplier: item.productpriceofsupplier,
+        description: item.description || "",
       })),
     };
 
     try {
       const res = await createPurchase(payload);
       await fetchPurchases();
+      setCart([]); // limpiar carrito
       return res;
     } catch (err) {
       console.error(err);
       setError("❌ Error al registrar la compra.");
       throw err;
+    } finally {
+      setSaving(false);
     }
   };
 
-  /**  Cancelar compra */
   const handleCancelPurchase = async (id: number) => {
     try {
       setCancelLoading(true);
@@ -274,23 +274,20 @@ export function usePurchases() {
     }
   };
 
-  /** Cargar compras al inicio */
   useEffect(() => {
     fetchPurchases();
   }, []);
 
   return {
-    // Backend
     purchases,
     loading,
+    saving,
 
-    // Formulario
     form,
     setForm,
     error,
     setError,
 
-    // Carrito
     selectedProduct,
     setSelectedProduct,
     quantity,
@@ -299,18 +296,15 @@ export function usePurchases() {
     setCart,
     total,
 
-    // Auxiliares
     products,
     suppliers,
     years,
     daysInMonth,
     cancelLoading,
 
-    // Acciones
     handleChange,
     handleAddProduct,
     handleAddPurchase,
     handleCancelPurchase,
-    
   };
 }

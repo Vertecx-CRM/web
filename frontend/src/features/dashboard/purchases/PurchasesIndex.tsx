@@ -21,8 +21,29 @@ function Loader() {
 }
 
 export default function PurchasesIndex() {
-  const { purchases, loading, handleAddPurchase, handleCancelPurchase } =
-    usePurchases();
+  const purchasesHook = usePurchases();
+
+  const {
+    purchases,
+    loading,
+    saving,
+    handleAddPurchase,
+    handleCancelPurchase,
+    form,
+    setForm,
+    selectedProduct,
+    setSelectedProduct,
+    quantity,
+    setQuantity,
+    cart,
+    years,
+    daysInMonth,
+    total,
+    handleChange,
+    handleAddProduct,
+    products,
+    suppliers,
+  } = purchasesHook;
 
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
   const [isDetailModalOpen, setDetailModalOpen] = useState(false);
@@ -77,7 +98,6 @@ export default function PurchasesIndex() {
     },
   ];
 
-  // ✅ SweetAlert con estilos igual al bloque comentado
   const confirmCancelPurchase = (purchase: IPurchase) => {
     Swal.fire({
       html: `
@@ -138,7 +158,6 @@ export default function PurchasesIndex() {
           const backendMsg =
             error?.response?.data?.message || "Error desconocido";
 
-          // ✅ Caso especial: ya está anulada
           if (
             typeof backendMsg === "string" &&
             backendMsg.toLowerCase().includes("ya está anulada")
@@ -150,9 +169,7 @@ export default function PurchasesIndex() {
               confirmButtonColor: "#b20000",
               confirmButtonText: "Aceptar",
             });
-          }
-          // ✅ Otro tipo de error
-          else {
+          } else {
             Swal.fire({
               icon: "error",
               title: "Error",
@@ -172,7 +189,7 @@ export default function PurchasesIndex() {
         <ToastContainer position="bottom-right" />
         <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
-        {loading ? (
+        {loading || saving ? (
           <Loader />
         ) : (
           <DataTable
@@ -209,6 +226,20 @@ export default function PurchasesIndex() {
           <RegisterPurchaseForm
             onClose={() => setRegisterModalOpen(false)}
             onSave={handleAddPurchase}
+            purchases={purchases}
+            form={form}
+            selectedProduct={selectedProduct}
+            setSelectedProduct={setSelectedProduct}
+            quantity={quantity}
+            setQuantity={setQuantity}
+            cart={cart}
+            years={years}
+            daysInMonth={daysInMonth}
+            total={total}
+            handleChange={handleChange}
+            handleAddProduct={handleAddProduct}
+            products={products}
+            suppliers={suppliers}
           />
         </Modal>
 
