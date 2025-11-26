@@ -41,7 +41,6 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
       }
     >
       <div className="grid grid-cols-2 gap-3 p-1">
-        {/* Imagen */}
         <div className="col-span-2 flex flex-col items-center mb-3">
           <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden">
             {imageSrc ? (
@@ -69,7 +68,6 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
           </div>
         </div>
 
-        {/* Nombre */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
@@ -77,25 +75,24 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
           >
             Nombre
           </label>
-          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
+          <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm whitespace-normal break-words [overflow-wrap:anywhere] leading-5 max-h-20 overflow-y-auto">
             {service.name}
           </div>
+
         </div>
 
-        {/* Categoría */}
         <div>
           <label
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Categoría
+            Tipo de servicio
           </label>
           <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
             {service.category}
           </div>
         </div>
 
-        {/* Descripción */}
         <div className="col-span-2">
           <label
             className="block text-sm font-medium mb-1"
@@ -108,7 +105,6 @@ const ViewServiceModal: React.FC<ViewServiceModalProps> = ({
           </div>
         </div>
 
-        {/* Estado */}
         <div>
           <label
             className="block text-sm font-medium mb-1"

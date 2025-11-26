@@ -4,21 +4,16 @@ import React from "react";
 import { Funnel } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+export type FilterItem = { id: string; label: string };
+
 interface FilterBarProps {
   className?: string;
   selectedFilters: string[];
   handleToggle: (id: string) => void;
+  filters: FilterItem[];
 }
 
-// IMPORTANTE: los ids deben coincidir con los nombres reales de las categorías
-const filters = [
-  { id: "all", label: "Todos" },
-  { id: "Mantenimiento Correctivo", label: "Mantenimiento Correctivo" },
-  { id: "Mantenimiento Preventivo", label: "Mantenimiento Preventivo" },
-  { id: "Instalación", label: "Instalación" },
-];
-
-const FilterBar = ({ className = "", selectedFilters, handleToggle }: FilterBarProps) => {
+const FilterBar = ({ className = "", selectedFilters, handleToggle, filters }: FilterBarProps) => {
   return (
     <aside className={`bg-white rounded-2xl shadow-lg p-4 md:p-6 flex-shrink-0 ${className}`}>
       <div className="flex items-center gap-2 mb-4">
@@ -26,13 +21,12 @@ const FilterBar = ({ className = "", selectedFilters, handleToggle }: FilterBarP
         <h2 className="text-lg font-bold text-[#B20000]">Filtrar</h2>
       </div>
 
-      <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">
-        Categorías
-      </h3>
+      <h3 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Categorías</h3>
 
       <div className="space-y-3">
         {filters.map((filter) => {
           const isChecked = selectedFilters.includes(filter.id);
+
           return (
             <label
               key={filter.id}
@@ -41,9 +35,10 @@ const FilterBar = ({ className = "", selectedFilters, handleToggle }: FilterBarP
             >
               <motion.span
                 className={`w-5 h-5 border-2 rounded-md flex items-center justify-center transition-all
-                  ${isChecked
-                    ? "border-[#B20000] bg-[#B20000] shadow-[0_0_8px_rgba(178,0,0,0.4)]"
-                    : "border-gray-300 group-hover:border-[#B20000] group-hover:shadow-[0_0_6px_rgba(178,0,0,0.3)]"
+                  ${
+                    isChecked
+                      ? "border-[#B20000] bg-[#B20000] shadow-[0_0_8px_rgba(178,0,0,0.4)]"
+                      : "border-gray-300 group-hover:border-[#B20000] group-hover:shadow-[0_0_6px_rgba(178,0,0,0.3)]"
                   }`}
                 whileTap={{ scale: 0.9 }}
               >

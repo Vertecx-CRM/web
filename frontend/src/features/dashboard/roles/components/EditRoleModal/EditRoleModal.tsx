@@ -41,59 +41,77 @@ const permissionGroups: PermissionGroup[] = [
     title: "Orden de Servicio",
     permissions: ["Crear", "Editar", "Eliminar", "Ver"],
   },
+
+  /** ✔ NUEVO — Módulo de ventas */
+  { title: "Ventas", permissions: ["Crear", "Ver", "Desactivar"] },
+
   { title: "Dashboard", permissions: ["Ver"] },
 ];
 
-const PRIV_BACK_TO_UI: Record<string, "Crear" | "Ver" | "Editar" | "Eliminar"> =
-{
+/** ✔ Privilegios backend → UI */
+const PRIV_BACK_TO_UI: Record<string, string> = {
   create: "Crear",
   read: "Ver",
   update: "Editar",
   delete: "Eliminar",
+  deactivate: "Desactivar", // ← agregado
 };
 
+/** ✔ Módulos backend → UI */
 const MODULE_BACK_TO_UI: Record<string, string> = {
   Roles: "Roles",
+
   users: "Usuarios",
   User: "Usuarios",
+
   Products: "Productos",
   products: "Productos",
+
   suppliers: "Proveedores",
   Supplier: "Proveedores",
+
+  purchases: "Compras",
   Purchases: "Compras",
-  purchaseOrders: "Compras",
-  purcharse: "Compras",
-  "Órdenes de Compra": "Órdenes de Compra",
+
+  purchaseOrders: "Órdenes de Compra",
   Orders: "Órdenes de Compra",
+
+  services: "Servicios",
+  Service: "Servicios",
+
+  technicians: "Técnicos",
+  Technician: "Técnicos",
+
+  customers: "Clientes",
+  Client: "Clientes",
+
+  servicesRequest: "Solicitud de Servicio",
   "Service Request": "Solicitud de Servicio",
   "Service Requests": "Solicitud de Servicio",
   Requests: "Solicitud de Servicio",
-  "Service Orders": "Orden de Servicio",
-  "Service Order": "Orden de Servicio",
-  Technicians: "Técnicos",
-  Technician: "Técnicos",
-  "Technicians Schedules": "Horarios de los técnicos",
-  Schedules: "Horarios de los técnicos",
-  Clients: "Clientes",
-  Client: "Clientes",
-  Quotes: "Cotización de Servicio",
-  Quotation: "Cotización de Servicio",
+
+  appointments: "Citas",
   Appointments: "Citas",
   Appointment: "Citas",
+
+  quotes: "Cotización de Servicio",
+  Quotes: "Cotización de Servicio",
+  Quotation: "Cotización de Servicio",
+
+  orderServices: "Orden de Servicio",
+  "Service Orders": "Orden de Servicio",
+  "Service Order": "Orden de Servicio",
+
+  dashboard: "Dashboard",
   Dashboard: "Dashboard",
+
   Categories: "Categoría de Productos",
   categoryProducts: "Categoría de Productos",
-  services: "Servicios",
-  Service: "Servicios",
-  technicians: "Técnicos",
-  customers: "Clientes",
-  servicesRequest: "Solicitud de Servicio",
-  appointments: "Citas",
-  quotes: "Cotización de Servicio",
-  orderServices: "Orden de Servicio",
-  dashboard: "Dashboard",
-};
 
+  /** ✔ NUEVO — Ventas */
+  sales: "Ventas",
+  Sales: "Ventas",
+};
 
 interface EditRoleModalProps {
   isOpen: boolean;
@@ -117,13 +135,15 @@ export default function EditRoleModal({
     {}
   );
 
+  /** ------------------------------ */
+  /** Backend → UI normalización      */
+  /** ------------------------------ */
   useEffect(() => {
     if (!role) return;
 
     setName(role.name);
     setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
 
-    // 🔧 Normaliza los tokens a los nombres reales de la UI
     const normalized = (role.permissions ?? []).map((token) => {
       const idx = token.lastIndexOf("-");
       if (idx === -1) return token;
@@ -131,11 +151,11 @@ export default function EditRoleModal({
       const rawModule = token.slice(0, idx);
       const rawPriv = token.slice(idx + 1).toLowerCase();
 
-      // Traduce del backend a la UI
       const modUI =
         MODULE_BACK_TO_UI[rawModule.trim()] ??
         MODULE_BACK_TO_UI[rawModule.replace(/\s/g, "")] ??
         rawModule;
+
       const privUI = PRIV_BACK_TO_UI[rawPriv] ?? rawPriv;
 
       return `${modUI}-${privUI}`;
@@ -154,6 +174,9 @@ export default function EditRoleModal({
 
   if (!isOpen || !role) return null;
 
+  /** ------------------------------ */
+  /** Validación frontend            */
+  /** ------------------------------ */
   const validateForm = (
     nameVal?: string,
     permsVal?: Record<string, string[]>
@@ -167,7 +190,8 @@ export default function EditRoleModal({
     } else {
       const isDuplicate = existingRoles.some(
         (r) =>
-          r.name.toLowerCase() === nameToCheck.toLowerCase() && r.id !== role.id
+          r.name.toLowerCase() === nameToCheck.toLowerCase() &&
+          r.id !== role.id
       );
       if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
     }
@@ -183,6 +207,9 @@ export default function EditRoleModal({
     return Object.keys(newErrors).length === 0;
   };
 
+  /** ------------------------------ */
+  /** Manejo de toggles              */
+  /** ------------------------------ */
   const handleTogglePermission = (module: string, permission: string) => {
     setPermissions((prev) => {
       const current = prev[module] || [];
@@ -196,7 +223,8 @@ export default function EditRoleModal({
   };
 
   const handleToggleModuleAll = (module: string) => {
-    if (module === "Dashboard") return; // Dashboard solo tiene "Ver"
+    if (module === "Dashboard") return;
+
     setPermissions((prev) => {
       const current = prev[module] || [];
       const total =
@@ -206,15 +234,18 @@ export default function EditRoleModal({
       const updated = allSelected
         ? []
         : [
-          ...(permissionGroups.find((g) => g.title === module)?.permissions ||
-            []),
-        ];
+            ...(permissionGroups.find((g) => g.title === module)?.permissions ||
+              []),
+          ];
       const newPermissions = { ...prev, [module]: updated };
       validateForm(undefined, newPermissions);
       return newPermissions;
     });
   };
 
+  /** ------------------------------ */
+  /** Guardar cambios                */
+  /** ------------------------------ */
   const handleSubmit = async () => {
     const formattedPermissions: string[] = [];
     Object.entries(permissions).forEach(([module, perms]) =>
@@ -234,6 +265,7 @@ export default function EditRoleModal({
     });
   };
 
+  /** Checkbox reutilizable */
   const Checkbox = ({
     checked,
     onChange,
@@ -249,12 +281,16 @@ export default function EditRoleModal({
       aria-pressed={checked}
     >
       <CheckIcon
-        className={`w-3 h-3 text-white transition-opacity duration-150 ${checked ? "opacity-100" : "opacity-0"
-          }`}
+        className={`w-3 h-3 text-white transition-opacity duration-150 ${
+          checked ? "opacity-100" : "opacity-0"
+        }`}
       />
     </button>
   );
 
+  /** ------------------------------ */
+  /** UI                             */
+  /** ------------------------------ */
   return (
     <AnimatePresence>
       {isOpen && (
@@ -338,7 +374,6 @@ export default function EditRoleModal({
                 </h3>
               </div>
 
-
               {errors.permissions && (
                 <p className="text-left text-xs text-red-500">
                   {errors.permissions}
@@ -365,6 +400,7 @@ export default function EditRoleModal({
                       const allSelected =
                         (permissions[group.title]?.length ?? 0) ===
                         group.permissions.length;
+
                       return (
                         <tr key={group.title}>
                           <td className="px-4 py-3 font-medium text-gray-800">
