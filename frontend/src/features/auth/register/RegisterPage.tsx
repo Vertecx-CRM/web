@@ -7,6 +7,8 @@ import { useAuth } from "@/features/auth/authcontext";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import { useDocumentTypes } from "@/features/dashboard/Users/hooks/useDocumentTypes";
 import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
+import { useRouter } from "next/navigation";
+
 
 type FormState = {
   name: string;
@@ -162,6 +164,7 @@ function hasErrors(errors: FormErrors): boolean {
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
   const { register } = useAuth();
   const { documentTypes } = useDocumentTypes();
   const { roles } = useRoles();
@@ -264,7 +267,7 @@ export default function RegisterPage() {
 
     if (res.ok) {
       showSuccess("Cuenta creada correctamente, revise su correo");
-      window.location.href = "/auth/login";
+      router.replace("/auth/login");
     } else {
       showError(res.message || "Error al registrar");
     }
