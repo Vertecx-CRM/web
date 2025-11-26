@@ -42,22 +42,19 @@ const permissionGroups: PermissionGroup[] = [
     permissions: ["Crear", "Editar", "Eliminar", "Ver"],
   },
 
-  /** ✔ NUEVO — Módulo de ventas */
   { title: "Ventas", permissions: ["Crear", "Ver", "Desactivar"] },
 
   { title: "Dashboard", permissions: ["Ver"] },
 ];
 
-/** ✔ Privilegios backend → UI */
 const PRIV_BACK_TO_UI: Record<string, string> = {
   create: "Crear",
   read: "Ver",
   update: "Editar",
   delete: "Eliminar",
-  deactivate: "Desactivar", // ← agregado
+  deactivate: "Desactivar", 
 };
 
-/** ✔ Módulos backend → UI */
 const MODULE_BACK_TO_UI: Record<string, string> = {
   Roles: "Roles",
 
@@ -108,7 +105,6 @@ const MODULE_BACK_TO_UI: Record<string, string> = {
   Categories: "Categoría de Productos",
   categoryProducts: "Categoría de Productos",
 
-  /** ✔ NUEVO — Ventas */
   sales: "Ventas",
   Sales: "Ventas",
 };
@@ -135,9 +131,7 @@ export default function EditRoleModal({
     {}
   );
 
-  /** ------------------------------ */
-  /** Backend → UI normalización      */
-  /** ------------------------------ */
+
   useEffect(() => {
     if (!role) return;
 
@@ -174,9 +168,7 @@ export default function EditRoleModal({
 
   if (!isOpen || !role) return null;
 
-  /** ------------------------------ */
-  /** Validación frontend            */
-  /** ------------------------------ */
+
   const validateForm = (
     nameVal?: string,
     permsVal?: Record<string, string[]>
@@ -207,9 +199,6 @@ export default function EditRoleModal({
     return Object.keys(newErrors).length === 0;
   };
 
-  /** ------------------------------ */
-  /** Manejo de toggles              */
-  /** ------------------------------ */
   const handleTogglePermission = (module: string, permission: string) => {
     setPermissions((prev) => {
       const current = prev[module] || [];
@@ -243,9 +232,6 @@ export default function EditRoleModal({
     });
   };
 
-  /** ------------------------------ */
-  /** Guardar cambios                */
-  /** ------------------------------ */
   const handleSubmit = async () => {
     const formattedPermissions: string[] = [];
     Object.entries(permissions).forEach(([module, perms]) =>
@@ -265,7 +251,6 @@ export default function EditRoleModal({
     });
   };
 
-  /** Checkbox reutilizable */
   const Checkbox = ({
     checked,
     onChange,
@@ -288,9 +273,6 @@ export default function EditRoleModal({
     </button>
   );
 
-  /** ------------------------------ */
-  /** UI                             */
-  /** ------------------------------ */
   return (
     <AnimatePresence>
       {isOpen && (

@@ -67,9 +67,6 @@ export const useRoles = () => {
   const DEFAULT_ADMIN_WARNING =
     "El rol administrador inicial no puede ser editado ni eliminado.";
 
-  /** ----------------------------------
-   * Cargar roles
-   * ---------------------------------- */
   const loadRoles = useCallback(async () => {
     const rows = await apiGetRoles();
     const mapped: Role[] = rows.map((r) => ({
@@ -85,9 +82,7 @@ export const useRoles = () => {
     loadRoles();
   }, [loadRoles]);
 
-  /** ----------------------------------
-   * Crear Rol
-   * ---------------------------------- */
+
   const handleCreateRole = async (payload: CreateRoleData) => {
     const errors = validateRoleForm(payload, roles);
     if (errors.name) return showWarning(errors.name);
@@ -128,9 +123,6 @@ export const useRoles = () => {
     }
   };
 
-  /** ----------------------------------
-   * Construcción de matriz para actualizar
-   * ---------------------------------- */
   const buildMatrixFromTokens = (tokens: string[]) => {
     const map = new Map<number, number[]>();
 
@@ -157,9 +149,7 @@ export const useRoles = () => {
     }));
   };
 
-  /** ----------------------------------
-   * Editar Rol
-   * ---------------------------------- */
+
   const handleEditRole = async (id: number, payload: EditRoleData) => {
     if (isDefaultAdmin({ id })) {
       return showWarning(DEFAULT_ADMIN_WARNING);
@@ -214,9 +204,6 @@ export const useRoles = () => {
     }
   };
 
-  /** ----------------------------------
-   * Edit Modal
-   * ---------------------------------- */
   const handleEdit = async (role: Role) => {
     if (isDefaultAdmin(role)) {
       return showWarning(DEFAULT_ADMIN_WARNING);
@@ -246,9 +233,6 @@ export const useRoles = () => {
     }
   };
 
-  /** ----------------------------------
-   * Eliminar Rol
-   * ---------------------------------- */
   const handleDelete = async (role: Role) => {
     if (isDefaultAdmin(role)) {
       return showWarning(DEFAULT_ADMIN_WARNING);
@@ -289,9 +273,6 @@ export const useRoles = () => {
     );
   };
 
-  /** ----------------------------------
-   * Cerrar modales
-   * ---------------------------------- */
   const closeModals = () => {
     setIsCreateModalOpen(false);
     setEditingRole(null);
