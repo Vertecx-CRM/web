@@ -263,7 +263,7 @@ export default function RegisterPage() {
     setLoading(false);
 
     if (res.ok) {
-      showSuccess("Cuenta creada correctamente");
+      showSuccess("Cuenta creada correctamente, revise su correo");
       window.location.href = "/auth/login";
     } else {
       showError(res.message || "Error al registrar");

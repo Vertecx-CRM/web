@@ -32,7 +32,7 @@ let isRefreshing = false;
 let queue: Array<(t: string) => void> = [];
 
 async function refreshToken(): Promise<string> {
-  const { data } = await api.post("/auth/refresh", {});
+  const { data } = await api.post("auth/refresh", {});
   const newAccess = data?.accessToken as string;
   setAccessToken(newAccess);
   return newAccess;

@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
 import { showError } from "@/shared/utils/notifications";
+import {
+  getServiceOptions,
+  getCustomerOptions,
+} from "@/features/dashboard/requests/services/lookups.service";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -38,8 +42,8 @@ export default function CreateRequestModal({
   onClose,
   onSave,
   title = "Crear Solicitud",
-  servicios = [],
-  clientes = [],
+  servicios,
+  clientes,
   initialDate = null,
   initialTime = null,
 }: Props) {
@@ -53,23 +57,67 @@ export default function CreateRequestModal({
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setTipo(null);
-      setServiceId("");
-      setClientId("");
-      setDescription("");
-      setDireccion("");
-      setProgramada(initialDate);
-      setHoraProgramada(initialTime);
-      setErrors({});
-      setSaving(false);
-    }
-  }, [isOpen, initialDate, initialTime]);
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [serviciosLocal, setServiciosLocal] = useState<Option[]>([]);
+  const [clientesLocal, setClientesLocal] = useState<Option[]>([]);
 
-  useEffect(() => {
-    if (!programada) setHoraProgramada(null);
-  }, [programada]);
+  const finalServicios = useMemo(() => {
+    const fromProps = Array.isArray(servicios) ? servicios : [];
+    return fromProps.length ? fromProps : serviciosLocal;
+  }, [servicios, serviciosLocal]);
+
+  const finalClientes = useMemo(() => {
+    const fromProps = Array.isArray(clientes) ? clientes : [];
+    return fromProps.length ? fromProps : clientesLocal;
+  }, [clientes, clientesLocal]);
+
+useEffect(() => {
+  if (!isOpen) return;
+
+  let alive = true;
+
+  (async () => {
+    const hasServicios = Array.isArray(servicios) && servicios.length > 0;
+    const hasClientes = Array.isArray(clientes) && clientes.length > 0;
+
+    if (hasServicios) setServiciosLocal(servicios!);
+    if (hasClientes) setClientesLocal(clientes!);
+
+    if (hasServicios && hasClientes) return;
+
+    setLoadingLookups(true);
+
+    const [sr, cr] = await Promise.allSettled([
+      hasServicios ? Promise.resolve(servicios!) : getServiceOptions(),
+      hasClientes ? Promise.resolve(clientes!) : getCustomerOptions(),
+    ]);
+
+    if (!alive) return;
+
+    if (sr.status === "fulfilled") setServiciosLocal(sr.value);
+    else {
+      setServiciosLocal([]);
+      const status = (sr.reason as any)?.response?.status;
+      showError(status ? `No se pudieron cargar los servicios (${status}).` : "No se pudieron cargar los servicios.");
+      console.error("LOOKUP services ERROR →", sr.reason);
+    }
+
+    if (cr.status === "fulfilled") setClientesLocal(cr.value);
+    else {
+      setClientesLocal([]);
+      const status = (cr.reason as any)?.response?.status;
+      showError(status ? `No se pudieron cargar los clientes (${status}).` : "No se pudieron cargar los clientes.");
+      console.error("LOOKUP customers ERROR →", cr.reason);
+    }
+
+    setLoadingLookups(false);
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, [isOpen, servicios, clientes]);
+
 
   function validate() {
     const e: Record<string, string | null> = {};
@@ -84,6 +132,7 @@ export default function CreateRequestModal({
     else e.direccion = null;
 
     if (programada && !horaProgramada) e.horaProgramada = "Selecciona la hora.";
+
     setErrors(e);
     return Object.values(e).every((x) => !x);
   }
@@ -95,8 +144,9 @@ export default function CreateRequestModal({
     const serviceType: "MANTENIMIENTO" | "INSTALACION" =
       tipo === "Mantenimiento" ? "MANTENIMIENTO" : "INSTALACION";
 
-    const scheduledAt =
-      programada ? toIsoFromLocalDateTime(programada, horaProgramada || "09:00") : null;
+    const scheduledAt = programada
+      ? toIsoFromLocalDateTime(programada, horaProgramada || "09:00")
+      : null;
 
     const dir = String(direccion ?? "").trim().slice(0, 255);
 
@@ -151,6 +201,7 @@ export default function CreateRequestModal({
             <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
             <span className="text-[11px] text-gray-500">Selecciona uno</span>
           </div>
+
           <div className="inline-grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -164,6 +215,7 @@ export default function CreateRequestModal({
             >
               Mantenimiento
             </button>
+
             <button
               type="button"
               onClick={() => setTipo("Instalacion")}
@@ -177,6 +229,7 @@ export default function CreateRequestModal({
               Instalación
             </button>
           </div>
+
           {errors.tipo && <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>}
         </div>
 
@@ -187,10 +240,17 @@ export default function CreateRequestModal({
               <select
                 value={serviceId === "" ? "" : String(serviceId)}
                 onChange={(e) => setServiceId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+                disabled={saving || loadingLookups}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
               >
-                <option value="">Selecciona el servicio</option>
-                {servicios.map((s) => (
+                <option value="">
+                  {loadingLookups
+                    ? "Cargando servicios..."
+                    : finalServicios.length
+                      ? "Selecciona el servicio"
+                      : "No hay servicios"}
+                </option>
+                {finalServicios.map((s) => (
                   <option key={s.id} value={String(s.id)}>
                     {s.label}
                   </option>
@@ -209,10 +269,17 @@ export default function CreateRequestModal({
               <select
                 value={clientId === "" ? "" : String(clientId)}
                 onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+                disabled={saving || loadingLookups}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
               >
-                <option value="">Selecciona el cliente</option>
-                {clientes.map((c) => (
+                <option value="">
+                  {loadingLookups
+                    ? "Cargando clientes..."
+                    : finalClientes.length
+                      ? "Selecciona el cliente"
+                      : "No hay clientes"}
+                </option>
+                {finalClientes.map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.label}
                   </option>

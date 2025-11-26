@@ -1,27 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
-import CreateSuppliersModal, {
-  SupplierSubmitPayload,
-} from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
+import CreateSuppliersModal, { SupplierSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
 import EditSupplierModal from "@/features/dashboard/suppliers/components/EditSupplierModal";
 import SupplierDetailsModal from "@/features/dashboard/suppliers/components/SupplierDetailsModal";
-import {
-  useSuppliers,
-  useCreateSupplier,
-  useUpdateSupplier,
-} from "@/features/dashboard/suppliers/services/useSuppliers";
-import type {
-  SupplierDTO,
-  CreateSupplierInput,
-  UpdateSupplierInput,
-} from "@/features/dashboard/suppliers/services/suppliers.service";
+import { useSuppliers, useCreateSupplier, useUpdateSupplier } from "@/features/dashboard/suppliers/services/useSuppliers";
+import type { SupplierDTO, CreateSupplierInput, UpdateSupplierInput } from "@/features/dashboard/suppliers/services/suppliers.service";
 import { updateSupplier as updateSupplierSvc } from "@/features/dashboard/suppliers/services/suppliers.service";
 import { useQueryClient } from "@tanstack/react-query";
+import { showError, showInfo, showSuccess, showWarning } from "@/shared/utils/notifications";
 
 type Row = {
   id: number;
@@ -36,6 +27,13 @@ type Row = {
   imageUrl?: string | null;
 };
 
+function getErrorMessage(err: any) {
+  const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? err?.message;
+  if (Array.isArray(msg)) return msg.join(" · ");
+  if (typeof msg === "string" && msg.trim()) return msg;
+  return "Ocurrió un error inesperado.";
+}
+
 export default function SuppliersPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -47,6 +45,11 @@ export default function SuppliersPage() {
   const { data, isLoading, error } = useSuppliers();
   const createMut = useCreateSupplier();
   const updateMut = useUpdateSupplier(selected?.id ?? 0);
+
+  useEffect(() => {
+    if (error) showError(getErrorMessage(error));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   const rows: Row[] = useMemo(() => {
     const list = Array.isArray(data) ? data : [];
@@ -69,9 +72,7 @@ export default function SuppliersPage() {
     {
       key: "name",
       header: "Nombre",
-      render: (r) => (
-        <span className="font-medium text-gray-900">{r.name}</span>
-      ),
+      render: (r) => <span className="font-medium text-gray-900">{r.name}</span>,
     },
     { key: "nit", header: "NIT" },
     { key: "phone", header: "Teléfono" },
@@ -91,14 +92,7 @@ export default function SuppliersPage() {
     },
   ];
 
-  const searchableKeys: (keyof Row)[] = [
-    "name",
-    "contact",
-    "nit",
-    "status",
-    "phone",
-    "email",
-  ];
+  const searchableKeys: (keyof Row)[] = ["name", "contact", "nit", "status", "phone", "email"];
 
   const onView = (row: Row) => {
     setSelected(row);
@@ -122,80 +116,81 @@ export default function SuppliersPage() {
       reverseButtons: true,
       focusCancel: true,
     });
-    if (!res.isConfirmed) return;
+
+    if (!res.isConfirmed) {
+      showInfo("Acción cancelada.");
+      return;
+    }
 
     try {
       const dto: UpdateSupplierInput = { stateid: 2 };
       await updateSupplierSvc(row.id, dto);
+
       setOpenDetails(false);
       setSelected(null);
+
       await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      await Swal.fire({
-        icon: "success",
-        title: "Inactivado",
-        text: "El proveedor fue marcado como Inactivo.",
-        timer: 1400,
-        showConfirmButton: false,
-      });
+      showSuccess("Proveedor inactivado correctamente.");
     } catch (e: any) {
-      await Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: e?.message || "No se pudo inactivar",
-      });
+      showError(getErrorMessage(e));
     }
   };
 
   const handleSaveSupplier = async (form: SupplierSubmitPayload) => {
-    const dto: CreateSupplierInput = {
-      name: form.name.trim(),
-      nit: form.nit.trim(),
-      phone: form.phone?.trim() || "",
-      email: form.email?.trim() || "",
-      address: form.address?.trim() || "",
-      stateid: 1,
-      contactname: form.contactName?.trim() || "",
-      image: form.imageUrl?.trim() || "",
-      rating: Number(form.rating) || 0,
-    };
-    await createMut.mutateAsync(dto);
-    setOpenCreate(false);
-    await Swal.fire({
-      icon: "success",
-      title: "Creado",
-      text: "Proveedor creado correctamente.",
-      timer: 1400,
-      showConfirmButton: false,
-    });
+    try {
+      const dto: CreateSupplierInput = {
+        name: form.name.trim(),
+        nit: form.nit.trim(),
+        phone: form.phone?.trim() || "",
+        email: form.email?.trim() || "",
+        address: form.address?.trim() || "",
+        stateid: 1,
+        contactname: form.contactName?.trim() || "",
+        image: form.imageUrl?.trim() || "",
+        rating: Number(form.rating) || 0,
+      };
+
+      await createMut.mutateAsync(dto);
+      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+
+      setOpenCreate(false);
+      showSuccess("Proveedor creado correctamente.");
+    } catch (e: any) {
+      showError(getErrorMessage(e));
+      throw e;
+    }
   };
 
-  const handleUpdateSupplier = async (
-    form: SupplierSubmitPayload & { statusid?: 1 | 2 }
-  ) => {
-    if (!selected) return;
-    const stateid: 1 | 2 = form.statusid ?? (form.status === "Activo" ? 1 : 2);
+  const handleUpdateSupplier = async (form: SupplierSubmitPayload & { statusid?: 1 | 2 }) => {
+    if (!selected) {
+      showWarning("No hay proveedor seleccionado para editar.");
+      return;
+    }
 
-    const dto: UpdateSupplierInput = {
-      name: form.name?.trim(),
-      nit: form.nit?.trim(),
-      phone: form.phone?.trim() || "",
-      email: form.email?.trim() || "",
-      address: form.address?.trim() || "",
-      stateid,
-      contactname: form.contactName?.trim() || "",
-      image: form.imageUrl?.trim() || selected.imageUrl || "",
-      rating: Number(form.rating) || 0,
-    };
+    try {
+      const stateid: 1 | 2 = form.statusid ?? (form.status === "Activo" ? 1 : 2);
 
-    await updateMut.mutateAsync(dto);
-    setOpenEdit(false);
-    await Swal.fire({
-      icon: "success",
-      title: "Actualizado",
-      text: "Proveedor actualizado correctamente.",
-      timer: 1400,
-      showConfirmButton: false,
-    });
+      const dto: UpdateSupplierInput = {
+        name: form.name?.trim(),
+        nit: form.nit?.trim(),
+        phone: form.phone?.trim() || "",
+        email: form.email?.trim() || "",
+        address: form.address?.trim() || "",
+        stateid,
+        contactname: form.contactName?.trim() || "",
+        image: form.imageUrl?.trim() || selected.imageUrl || "",
+        rating: Number(form.rating) || 0,
+      };
+
+      await updateMut.mutateAsync(dto);
+      await queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+
+      setOpenEdit(false);
+      showSuccess("Proveedor actualizado correctamente.");
+    } catch (e: any) {
+      showError(getErrorMessage(e));
+      throw e;
+    }
   };
 
   const mapRowToEditForm = (row: Row) =>
@@ -230,9 +225,7 @@ export default function SuppliersPage() {
   if (isLoading) {
     return (
       <RequireAuth>
-        <main className="flex-1 flex items-center justify-center bg-gray-100 p-8">
-          Cargando proveedores…
-        </main>
+        <main className="flex-1 flex items-center justify-center bg-gray-100 p-8">Cargando proveedores…</main>
       </RequireAuth>
     );
   }
@@ -258,15 +251,13 @@ export default function SuppliersPage() {
           searchableKeys={searchableKeys}
           onView={onView}
           onEdit={onEdit}
-          onDelete={onDelete}
+          onCancel={onDelete}
           onCreate={() => setOpenCreate(true)}
           createButtonText="Crear Proveedor"
         />
-        <CreateSuppliersModal
-          isOpen={openCreate}
-          onClose={() => setOpenCreate(false)}
-          onSave={handleSaveSupplier}
-        />
+
+        <CreateSuppliersModal isOpen={openCreate} onClose={() => setOpenCreate(false)} onSave={handleSaveSupplier} />
+
         <EditSupplierModal
           key={selected?.id ?? "new"}
           isOpen={openEdit}
