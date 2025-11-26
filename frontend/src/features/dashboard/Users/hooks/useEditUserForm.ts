@@ -13,6 +13,12 @@ import {
 import { showWarning } from "@/shared/utils/notifications";
 import { useRoles } from "./useRoles";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 export const useEditUserForm = ({
   isOpen,
   onClose,
@@ -50,7 +56,7 @@ export const useEditUserForm = ({
 
   const getRoleName = (roleId: number): string => {
     const found = roles.find((r) => r.roleid === roleId);
-    return found?.name?.toLowerCase() || "";
+    return normalizeRoleName(found?.name || "");
   };
 
   const uploadToCloudinary = async (file: File): Promise<string | null> => {

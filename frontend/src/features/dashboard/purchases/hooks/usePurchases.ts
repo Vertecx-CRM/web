@@ -41,6 +41,8 @@ export function usePurchases() {
   /**  Catálogo de proveedores */
   const [suppliers, setSuppliers] = useState<any[]>([]);
 
+  const [cancelLoading, setCancelLoading] = useState(false);
+
   /**  Formulario principal */
   const [form, setForm] = useState({
     orderNumber: "",
@@ -261,11 +263,14 @@ export function usePurchases() {
   /**  Cancelar compra */
   const handleCancelPurchase = async (id: number) => {
     try {
+      setCancelLoading(true);
       await cancelPurchase(id);
       await fetchPurchases();
     } catch (error) {
       console.error("Error canceling purchase:", error);
       throw error;
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -299,11 +304,13 @@ export function usePurchases() {
     suppliers,
     years,
     daysInMonth,
+    cancelLoading,
 
     // Acciones
     handleChange,
     handleAddProduct,
     handleAddPurchase,
     handleCancelPurchase,
+    
   };
 }

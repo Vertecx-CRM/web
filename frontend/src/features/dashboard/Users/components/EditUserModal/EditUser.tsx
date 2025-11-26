@@ -9,6 +9,12 @@ import { useRoles } from "../../hooks/useRoles";
 import { useTechnicianTypes } from "../../hooks/useTechnicianTypes";
 import Modal from "@/features/dashboard/components/Modal";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 const EditUserModal: React.FC<EditUserModalProps> = ({
   isOpen,
   onClose,
@@ -48,8 +54,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   // Determinar rol seleccionado
   const selectedRole =
     roles.find((r) => r.roleid === formData.roleid)?.name || "";
-  const isTecnico = selectedRole.toLowerCase() === "tecnico";
-  const isCliente = selectedRole.toLowerCase() === "cliente";
+  const normalizedRole = normalizeRoleName(selectedRole);
+  const isTecnico = normalizedRole === "tecnico";
+  const isCliente = normalizedRole === "cliente";
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleInputChange(e.target.name as keyof typeof formData, e.target.value);
