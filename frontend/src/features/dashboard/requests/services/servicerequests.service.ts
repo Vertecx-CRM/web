@@ -7,6 +7,20 @@ export type StateDTO = {
   description?: string | null;
 };
 
+type TechnicianDTO = {
+  technicianid?: number;
+  technicianId?: number;
+  id?: number;
+  title?: string | null;
+  users?: { name?: string | null; lastname?: string | null; roles?: { name?: string | null } | null } | null;
+  technician?: {
+    technicianid?: number;
+    technicianId?: number;
+    users?: { name?: string | null; lastname?: string | null; roles?: { name?: string | null } | null } | null;
+    title?: string | null;
+  } | null;
+};
+
 export type ServiceRequestDTO = {
   serviceRequestId: number;
   scheduledAt: string | null;
@@ -25,6 +39,12 @@ export type ServiceRequestDTO = {
     customerzipcode?: string | null;
     users?: { userid: number; name?: string | null; lastname?: string | null; email?: string | null };
   };
+  technicians?: TechnicianDTO[];
+  serviceRequestTechnicians?: TechnicianDTO[];
+  requestTechnicians?: TechnicianDTO[];
+  assignedTechnicians?: TechnicianDTO[];
+  technicianId?: number;
+  technicianid?: number;
 };
 
 export type CreateServiceRequestInput = {
