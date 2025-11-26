@@ -33,11 +33,62 @@ import type { ServiceRequestDTO } from "../../requests/services/servicerequests.
 import type { CreateRequestPayload } from "../../requests/components/CreateRequestModal";
 import type { EditRequestPayload } from "../../requests/components/EditRequestModal";
 import { buildScheduledAt } from "../../requests/utils/schedule";
+import { useAuth } from "@/features/auth/authcontext";
+
+const normalizeRoleName = (name?: string) => (name || "").toLowerCase().trim();
+
+const toNumberId = (value: any): number => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+};
+
+const mapTechniciansFromRequest = (req: ServiceRequestDTO): Technician[] => {
+    const normalizeTech = (raw: any): Technician | null => {
+        if (!raw) return null;
+        const tech = raw?.technician ?? raw;
+        const id = toNumberId(tech?.technicianid ?? tech?.technicianId ?? tech?.id);
+        if (!id) return null;
+        const first = tech?.users?.name ?? tech?.name ?? "";
+        const last = tech?.users?.lastname ?? tech?.lastname ?? "";
+        const nombre = [first, last].filter(Boolean).join(" ").trim() || `Tecnico ${id}`;
+        const titulo = tech?.title ?? tech?.users?.roles?.name ?? "Tecnico";
+        return { id, nombre, titulo };
+    };
+
+    const sources = [
+        (req as any).technicians,
+        (req as any).serviceRequestTechnicians,
+        (req as any).requestTechnicians,
+        (req as any).assignedTechnicians,
+    ];
+
+    const firstArray = sources.find((s) => Array.isArray(s)) as any[] | undefined;
+    const mapped = (firstArray ?? [])
+        .map(normalizeTech)
+        .filter((t): t is Technician => Boolean(t));
+
+    if (mapped.length > 0) return mapped;
+
+    const fallback = normalizeTech((req as any).technician);
+    if (fallback) return [fallback];
+
+    const singleId = toNumberId((req as any).technicianId ?? (req as any).technicianid);
+    if (singleId) {
+        return [{ id: singleId, nombre: `Tecnico ${singleId}`, titulo: "Tecnico" }];
+    }
+
+    return [];
+};
 
 export const useAppointments = () => {
+    const { user, profile } = useAuth();
     const { data: requestData = [] } = useServiceRequests();
     const createRequest = useCreateServiceRequest();
     const updateRequest = useUpdateServiceRequest();
+    const roleName = normalizeRoleName(profile?.roles?.name || user?.rolename);
+    const isAdmin = roleName === "admin" || Number(user?.roleid) === 1 || Number((profile as any)?.roleid ?? (profile as any)?.roles?.roleid) === 1;
+    const technicianId = toNumberId((profile as any)?.technicians?.[0]?.technicianid ?? (user as any)?.technicianid ?? (user as any)?.technicianId);
+    const customerId = toNumberId((profile as any)?.customers?.[0]?.customerid ?? (user as any)?.customerid ?? (user as any)?.customerId ?? user?.userid);
 
     const normalizeServiceType = useCallback((value?: string): "mantenimiento" | "instalacion" => {
         const lower = String(value || "").toLowerCase();
@@ -81,18 +132,20 @@ export const useAppointments = () => {
                 .filter(Boolean)
                 .join(" ") || "Cliente";
         const tipoServicio = normalizeServiceType(req.serviceType);
+        const clientId = toNumberId(req.clientId ?? (req.customer as any)?.customerid ?? (req.customer as any)?.id);
+        const tecnicosAsignados = mapTechniciansFromRequest(req);
 
         return {
             id: Number(req.serviceRequestId),
             requestId: Number(req.serviceRequestId),
             serviceId: req.serviceId,
-            clientId: req.clientId,
+            clientId,
             stateId: req.stateId,
             scheduledAt: req.scheduledAt ?? null,
             start,
             end,
             title: `Solicitud #${req.serviceRequestId} - ${clientName}`,
-            tecnicos: [],
+            tecnicos: tecnicosAsignados,
             horaInicio: start.getHours().toString().padStart(2, "0"),
             minutoInicio: start.getMinutes().toString().padStart(2, "0"),
             horaFin: end.getHours().toString().padStart(2, "0"),
@@ -119,10 +172,31 @@ export const useAppointments = () => {
         };
     }, [mapEstado, normalizeServiceType]);
 
-    const events = useMemo(() => {
+    const mappedEvents = useMemo(() => {
         const list = Array.isArray(requestData) ? requestData : [];
         return list.map(requestToEvent);
     }, [requestData, requestToEvent]);
+
+    const events = useMemo(() => {
+        if (isAdmin) return mappedEvents;
+
+        if (roleName === "cliente") {
+            if (!customerId) return [];
+            return mappedEvents.filter((ev) => toNumberId(ev.clientId ?? (ev as any)?.clienteId) === customerId);
+        }
+
+        if (roleName === "tecnico") {
+            if (!technicianId) return [];
+            return mappedEvents.filter((ev) => {
+                const ids = (ev.tecnicos || []).map((t) => t.id).filter((id) => Number.isFinite(id));
+                if (ids.includes(technicianId)) return true;
+                const fallbackTechId = toNumberId((ev as any)?.technicianId ?? (ev as any)?.technicianid);
+                return fallbackTechId === technicianId;
+            });
+        }
+
+        return mappedEvents;
+    }, [mappedEvents, isAdmin, roleName, customerId, technicianId]);
 
     const handleCreateAppointment = async (
         payload: CreateRequestPayload,

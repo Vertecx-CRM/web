@@ -13,10 +13,12 @@ interface MonthlyGraphProps {
   data: { month: string; total: number }[];
   onBack: () => void;
   isCurrency?: boolean;
+  year?: number;
 }
 
-export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: MonthlyGraphProps) => {
+export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, year }: MonthlyGraphProps) => {
   const [dailyData, setDailyData] = useState<{ day: number; total: number }[]>([]);
+  const isClientsChart = title === "Clientes";
 
   // Convertir "Ene" -> 1, "Feb" -> 2, ...
   const monthMap: Record<string, number> = {
@@ -39,7 +41,8 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
 
   // Total del mes (para mostrar en el título)
   const monthData = data.find((m) => m.month === month);
-  const total = monthData ? monthData.total : 0;
+  const rawTotal = monthData ? monthData.total : 0;
+  const displayTotal = isClientsChart ? Math.max(0, Math.round(rawTotal)) : rawTotal;
 
   // CARGAR DATOS DIARIOS DESDE BACKEND
   useEffect(() => {
@@ -53,24 +56,33 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
 
         if (!apiFunction) return;
 
-        const response = await apiFunction(monthIndex);
-        setDailyData(response);
+        const response = await apiFunction(monthIndex, year);
+        const sanitizedResponse = isClientsChart
+          ? response.map((item: { day: number; total: number }) => ({
+              ...item,
+              total: Math.max(0, Math.round(item.total)),
+            }))
+          : response;
+
+        setDailyData(sanitizedResponse);
       } catch (error) {
         console.error("Error cargando datos diarios:", error);
       }
     };
 
     loadDailyData();
-  }, [month, title]);
+  }, [month, title, monthIndex, isClientsChart, year]);
 
   // Formato del eje Y
   const formatYAxisTick = (value: number) => {
+    if (isClientsChart) return Math.max(0, Math.round(value)).toString();
     return isCurrency ? `$${value}` : value.toString();
   };
 
   // Formato del tooltip
   const formatTooltipValue = (value: number) => {
-    return isCurrency ? `$${value}` : value;
+    const sanitizedValue = isClientsChart ? Math.max(0, Math.round(value)) : value;
+    return isCurrency ? `$${sanitizedValue}` : sanitizedValue;
   };
 
   return (
@@ -78,7 +90,7 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
       {/* Header del gráfico */}
       <div className="w-full flex justify-between items-center px-4">
         <h2 className="text-lg font-bold">
-          {title} {month}: {isCurrency ? `$${total}` : total}
+          {title} {month}: {isCurrency ? `$${displayTotal}` : displayTotal}
         </h2>
 
         <button
@@ -97,7 +109,10 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
 
       {/* Gráfico diario */}
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={dailyData}>
+        <LineChart
+          data={dailyData}
+          margin={{ top: 10, right: 20, left: 32, bottom: 20 }}
+        >
           <XAxis
             dataKey="day"
             tick={{ fill: Colors.texts.primary }}
@@ -108,7 +123,13 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true }: 
               fill: Colors.texts.primary,
             }}
           />
-          <YAxis tickFormatter={formatYAxisTick} tick={{ fill: Colors.texts.primary }} />
+          <YAxis
+            tickFormatter={formatYAxisTick}
+            tick={{ fill: Colors.texts.primary }}
+            tickMargin={8}
+            allowDecimals={!isClientsChart}
+            domain={isClientsChart ? [0, "dataMax"] : undefined}
+          />
 
           <Tooltip
             formatter={(value) => [formatTooltipValue(Number(value)), "Total"]}

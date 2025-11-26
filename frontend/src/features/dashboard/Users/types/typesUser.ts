@@ -120,7 +120,7 @@ export interface CreateUserModalProps {
 
 export interface EditUserModalProps {
   isOpen: boolean;
-  user: User | null;
+  user: EditUser | null;
   onClose: () => void;
   onSave: (userData: EditUser) => void;
   users: User[];

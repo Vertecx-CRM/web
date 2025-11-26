@@ -91,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       throw new Error(res.message || "No se pudo actualizar la contrasena");
     }
     setForcePasswordModal(false);
-    toast.success("Contrasena actualizada exitosamente");
+    toast.success("Contrasena actualizada exitosamente", { position: "bottom-right" });
   };
 
   const handleForcePasswordClose = () => {
@@ -130,6 +130,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onClose={handleForcePasswordClose}
         onSave={handleForcePasswordSave}
         requireCurrent
+        disableDismiss={mustChangePassword}
       />
     </RequireAuth>
   );

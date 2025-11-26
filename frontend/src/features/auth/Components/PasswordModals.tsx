@@ -7,20 +7,29 @@ type ModalProps = {
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
+  closable?: boolean;
+  loading?: boolean;
 };
 
-export function Modal({ open, title, onClose, children, className }: ModalProps) {
+export function Modal({ open, title, onClose, children, className, closable = true, loading = false }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!open || !mounted) return null;
 
   const node = (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/70" onClick={closable ? onClose : undefined} />
       <div className={`relative w-[540px] max-w-[92vw] rounded-2xl border border-white/10 bg-neutral-900 text-neutral-100 shadow-2xl ${className || ""}`}>
+        {loading && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/50">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+          </div>
+        )}
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <h2 className="text-base font-semibold tracking-wide text-neutral-50">{title}</h2>
-          <button aria-label="Cerrar" onClick={onClose} className="h-8 w-8 rounded-full transition hover:bg-white/10">X</button>
+          {closable && (
+            <button aria-label="Cerrar" onClick={onClose} className="h-8 w-8 rounded-full transition hover:bg-white/10">X</button>
+          )}
         </div>
         <div className="px-6 py-5">{children}</div>
       </div>
@@ -180,14 +189,16 @@ type ChangePasswordModalProps = {
   onClose: () => void;
   requireCurrent?: boolean;
   onSave: (payload: { newPassword: string; currentPassword?: string }) => Promise<void> | void;
+  disableDismiss?: boolean;
 };
-export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = false }: ChangePasswordModalProps) {
+export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = false, disableDismiss = false }: ChangePasswordModalProps) {
   const [current, setCurrent] = useState("");
   const [showCurrent, setShowCurrent] = useState(false);
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const strength = useMemo(() => {
     let s = 0;
@@ -208,6 +219,7 @@ export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = fa
   const submit = async () => {
     setErr(null);
     if (!canSave) { setErr("Verifica la contrasena"); return; }
+    setLoading(true);
     try {
       await onSave({
         newPassword: pwd,
@@ -218,11 +230,13 @@ export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = fa
       setConfirm("");
     } catch (e: any) {
       setErr(e?.message || "No se pudo actualizar la contrasena");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Modal open={open} title="Cambiar Contrasena" onClose={onClose}>
+    <Modal open={open} title="Cambiar Contrasena" onClose={onClose} closable={!disableDismiss && !loading} loading={loading}>
       {requireCurrent && (
         <Field label="Ingrese su contrasena actual">
           <div className="relative">
@@ -231,11 +245,13 @@ export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = fa
               value={current}
               onChange={e => setCurrent(e.target.value)}
               placeholder="********"
+              disabled={loading}
             />
             <button
               type="button"
+              disabled={loading}
               onClick={() => setShowCurrent(v => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {showCurrent ? "Ocultar" : "Mostrar"}
             </button>
@@ -244,8 +260,8 @@ export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = fa
       )}
       <Field label="Ingrese la nueva contrasena">
         <div className="relative">
-          <TextInput type={show ? "text" : "password"} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="********" />
-          <button type="button" onClick={() => setShow(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10">{show ? "Ocultar" : "Mostrar"}</button>
+          <TextInput type={show ? "text" : "password"} value={pwd} onChange={e => setPwd(e.target.value)} placeholder="********" disabled={loading} />
+          <button type="button" disabled={loading} onClick={() => setShow(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 text-xs text-neutral-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed">{show ? "Ocultar" : "Mostrar"}</button>
         </div>
       </Field>
       <div className="mb-3 flex items-center gap-2">
@@ -255,12 +271,14 @@ export function ChangePasswordModal({ open, onClose, onSave, requireCurrent = fa
         <span className="text-xs text-neutral-400">Seguridad</span>
       </div>
       <Field label="Confirmar contrasena">
-        <TextInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="********" />
+        <TextInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="********" disabled={loading} />
       </Field>
       {err && <p className="mb-3 text-sm text-red-400">{err}</p>}
       <div className="mt-6 flex items-center justify-end gap-3">
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button onClick={submit} disabled={!canSave}>Guardar</Button>
+        {!disableDismiss && (
+          <Button variant="ghost" onClick={onClose} disabled={loading}>Cancelar</Button>
+        )}
+        <Button onClick={submit} disabled={!canSave || loading}>{loading ? "Guardando..." : "Guardar"}</Button>
       </div>
     </Modal>
   );
