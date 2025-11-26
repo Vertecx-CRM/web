@@ -10,40 +10,20 @@ import { showWarning } from "@/shared/utils/notifications";
 const permissionGroups: PermissionGroup[] = [
   { title: "Roles", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Usuarios", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  {
-    title: "Categoría de Productos",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
+  { title: "Categoría de Productos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Productos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Proveedores", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  {
-    title: "Órdenes de Compra",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
+  { title: "Órdenes de Compra", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Compras", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Servicios", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Técnicos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  {
-    title: "Horarios de los técnicos",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
+  { title: "Horarios de los técnicos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Clientes", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  {
-    title: "Solicitud de Servicio",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
+  { title: "Solicitud de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  {
-    title: "Cotización de Servicio",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
-  {
-    title: "Orden de Servicio",
-    permissions: ["Crear", "Editar", "Eliminar", "Ver"],
-  },
-
+  { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
+  { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
   { title: "Ventas", permissions: ["Crear", "Ver", "Desactivar"] },
-
   { title: "Dashboard", permissions: ["Ver"] },
 ];
 
@@ -52,59 +32,44 @@ const PRIV_BACK_TO_UI: Record<string, string> = {
   read: "Ver",
   update: "Editar",
   delete: "Eliminar",
-  deactivate: "Desactivar", 
+  deactivate: "Desactivar",
 };
 
 const MODULE_BACK_TO_UI: Record<string, string> = {
   Roles: "Roles",
-
   users: "Usuarios",
   User: "Usuarios",
-
   Products: "Productos",
   products: "Productos",
-
   suppliers: "Proveedores",
   Supplier: "Proveedores",
-
   purchases: "Compras",
   Purchases: "Compras",
-
   purchaseOrders: "Órdenes de Compra",
   Orders: "Órdenes de Compra",
-
   services: "Servicios",
   Service: "Servicios",
-
   technicians: "Técnicos",
   Technician: "Técnicos",
-
   customers: "Clientes",
   Client: "Clientes",
-
   servicesRequest: "Solicitud de Servicio",
   "Service Request": "Solicitud de Servicio",
   "Service Requests": "Solicitud de Servicio",
   Requests: "Solicitud de Servicio",
-
   appointments: "Citas",
   Appointments: "Citas",
   Appointment: "Citas",
-
   quotes: "Cotización de Servicio",
   Quotes: "Cotización de Servicio",
   Quotation: "Cotización de Servicio",
-
   orderServices: "Orden de Servicio",
   "Service Orders": "Orden de Servicio",
   "Service Order": "Orden de Servicio",
-
   dashboard: "Dashboard",
   Dashboard: "Dashboard",
-
   Categories: "Categoría de Productos",
   categoryProducts: "Categoría de Productos",
-
   sales: "Ventas",
   Sales: "Ventas",
 };
@@ -115,6 +80,7 @@ interface EditRoleModalProps {
   onClose: () => void;
   onSave: (id: number, data: EditRoleData) => void | Promise<void>;
   existingRoles: Role[];
+  loading?: boolean;
 }
 
 export default function EditRoleModal({
@@ -123,14 +89,12 @@ export default function EditRoleModal({
   onClose,
   onSave,
   existingRoles,
+  loading = false,
 }: EditRoleModalProps) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"Activo" | "Inactivo">("Activo");
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
-  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>(
-    {}
-  );
-
+  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
 
   useEffect(() => {
     if (!role) return;
@@ -168,11 +132,7 @@ export default function EditRoleModal({
 
   if (!isOpen || !role) return null;
 
-
-  const validateForm = (
-    nameVal?: string,
-    permsVal?: Record<string, string[]>
-  ) => {
+  const validateForm = (nameVal?: string, permsVal?: Record<string, string[]>) => {
     const newErrors: { name?: string; permissions?: string } = {};
     const nameToCheck = (nameVal ?? name).trim();
     const permsToCheck = permsVal ?? permissions;
@@ -181,25 +141,21 @@ export default function EditRoleModal({
       newErrors.name = "El nombre del rol es obligatorio";
     } else {
       const isDuplicate = existingRoles.some(
-        (r) =>
-          r.name.toLowerCase() === nameToCheck.toLowerCase() &&
-          r.id !== role.id
+        (r) => r.name.toLowerCase() === nameToCheck.toLowerCase() && r.id !== role.id
       );
       if (isDuplicate) newErrors.name = "Ya existe un rol con ese nombre";
     }
 
-    const selectedCount = Object.values(permsToCheck).reduce(
-      (acc, arr) => acc + arr.length,
-      0
-    );
-    if (selectedCount === 0)
-      newErrors.permissions = "Debe asignar al menos un permiso al rol";
+    const selectedCount = Object.values(permsToCheck).reduce((acc, arr) => acc + arr.length, 0);
+    if (selectedCount === 0) newErrors.permissions = "Debe asignar al menos un permiso al rol";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleTogglePermission = (module: string, permission: string) => {
+    if (loading) return;
+
     setPermissions((prev) => {
       const current = prev[module] || [];
       const updated = current.includes(permission)
@@ -212,20 +168,15 @@ export default function EditRoleModal({
   };
 
   const handleToggleModuleAll = (module: string) => {
-    if (module === "Dashboard") return;
+    if (module === "Dashboard" || loading) return;
 
     setPermissions((prev) => {
       const current = prev[module] || [];
-      const total =
-        permissionGroups.find((g) => g.title === module)?.permissions.length ??
-        0;
+      const total = permissionGroups.find((g) => g.title === module)?.permissions.length ?? 0;
       const allSelected = current.length === total;
       const updated = allSelected
         ? []
-        : [
-            ...(permissionGroups.find((g) => g.title === module)?.permissions ||
-              []),
-          ];
+        : [...(permissionGroups.find((g) => g.title === module)?.permissions || [])];
       const newPermissions = { ...prev, [module]: updated };
       validateForm(undefined, newPermissions);
       return newPermissions;
@@ -251,19 +202,14 @@ export default function EditRoleModal({
     });
   };
 
-  const Checkbox = ({
-    checked,
-    onChange,
-  }: {
-    checked: boolean;
-    onChange: () => void;
-  }) => (
+  const Checkbox = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
     <button
       type="button"
       onClick={onChange}
       className={`w-5 h-5 rounded-md border border-gray-400 flex items-center justify-center transition-all duration-150 
-        ${checked ? "bg-[#B20000] scale-110" : "bg-white"}`}
+        ${checked ? "bg-[#B20000] scale-110" : "bg-white"} ${loading ? "opacity-60" : ""}`}
       aria-pressed={checked}
+      disabled={loading}
     >
       <CheckIcon
         className={`w-3 h-3 text-white transition-opacity duration-150 ${
@@ -291,9 +237,10 @@ export default function EditRoleModal({
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2 className="text-lg font-semibold">Editar Rol</h2>
               <button
-                onClick={onClose}
-                className="cursor-pointer text-gray-500 hover:text-black"
+                onClick={loading ? undefined : onClose}
+                className="cursor-pointer text-gray-500 hover:text-black disabled:opacity-60"
                 aria-label="Cerrar"
+                disabled={loading}
               >
                 <XMarkIcon className="h-5 w-5" />
               </button>
@@ -302,43 +249,33 @@ export default function EditRoleModal({
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label
-                    className="block text-base font-semibold mb-1"
-                    style={{ color: Colors.texts.primary }}
-                  >
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
                     Nombre del rol <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={name}
+                    disabled={loading}
                     onChange={(e) => {
                       setName(e.target.value);
                       validateForm(e.target.value, permissions);
                     }}
                     placeholder="Ingrese nombre de rol"
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
-                    style={{
-                      borderColor: errors.name ? "red" : Colors.table.lines,
-                    }}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-60"
+                    style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
                   />
-                  {errors.name && (
-                    <span className="text-xs text-red-500">{errors.name}</span>
-                  )}
+                  {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
                 </div>
 
                 <div>
-                  <label
-                    className="block text-base font-semibold mb-1"
-                    style={{ color: Colors.texts.primary }}
-                  >
+                  <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
                     Estado
                   </label>
                   <select
                     value={status}
-                    onChange={(e) =>
-                      setStatus(e.target.value as "Activo" | "Inactivo")
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300"
+                    disabled={loading}
+                    onChange={(e) => setStatus(e.target.value as "Activo" | "Inactivo")}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-300 disabled:opacity-60"
                     style={{ borderColor: Colors.table.lines }}
                   >
                     <option value="Activo">Activo</option>
@@ -348,75 +285,53 @@ export default function EditRoleModal({
               </div>
 
               <div className="flex items-center justify-between">
-                <h3
-                  className="text-base font-semibold"
-                  style={{ color: Colors.texts.primary }}
-                >
+                <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
                   Permisos Asignados <span className="text-red-500">*</span>
                 </h3>
               </div>
 
               {errors.permissions && (
-                <p className="text-left text-xs text-red-500">
-                  {errors.permissions}
-                </p>
+                <p className="text-left text-xs text-red-500">{errors.permissions}</p>
               )}
 
               <div className="overflow-hidden rounded-xl border max-h-64 overflow-y-auto custom-scroll">
                 <table className="min-w-full text-sm">
-                  <thead
-                    style={{ backgroundColor: "#B20000" }}
-                    className="sticky top-0 z-10"
-                  >
+                  <thead style={{ backgroundColor: "#B20000" }} className="sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-white">
-                        Módulo
-                      </th>
+                      <th className="px-4 py-3 text-left font-semibold text-white">Módulo</th>
                       <th className="px-4 py-3 text-center font-semibold text-white">
                         Permisos / Privilegios
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y">
                     {permissionGroups.map((group) => {
                       const allSelected =
-                        (permissions[group.title]?.length ?? 0) ===
-                        group.permissions.length;
+                        (permissions[group.title]?.length ?? 0) === group.permissions.length;
 
                       return (
                         <tr key={group.title}>
-                          <td className="px-4 py-3 font-medium text-gray-800">
-                            {group.title}
-                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{group.title}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap justify-center gap-4">
                               {group.title !== "Dashboard" && (
                                 <div className="flex items-center gap-2">
                                   <Checkbox
                                     checked={allSelected}
-                                    onChange={() =>
-                                      handleToggleModuleAll(group.title)
-                                    }
+                                    onChange={() => handleToggleModuleAll(group.title)}
                                   />
                                   <span className="text-sm">Todos</span>
                                 </div>
                               )}
+
                               {group.permissions.map((perm) => {
-                                const isChecked =
-                                  permissions[group.title]?.includes(perm);
+                                const isChecked = permissions[group.title]?.includes(perm);
                                 return (
-                                  <div
-                                    key={`${group.title}-${perm}`}
-                                    className="flex items-center gap-2"
-                                  >
+                                  <div key={`${group.title}-${perm}`} className="flex items-center gap-2">
                                     <Checkbox
                                       checked={isChecked || false}
-                                      onChange={() =>
-                                        handleTogglePermission(
-                                          group.title,
-                                          perm
-                                        )
-                                      }
+                                      onChange={() => handleTogglePermission(group.title, perm)}
                                     />
                                     <span className="text-sm">{perm}</span>
                                   </div>
@@ -436,16 +351,18 @@ export default function EditRoleModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+                disabled={loading}
+                className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto disabled:opacity-60"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+                disabled={loading}
+                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto disabled:opacity-60"
               >
-                Guardar
+                {loading ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </motion.div>

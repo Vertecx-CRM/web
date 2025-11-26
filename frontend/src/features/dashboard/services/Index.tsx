@@ -33,8 +33,8 @@ export default function ServiciosIndex() {
       <ToastContainer position="bottom-right" />
 
       {loading && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30">
-          <div className="h-14 w-14 rounded-full border-4 border-[#B20000] border-t-transparent animate-spin" />
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-[99999]">
+          <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
