@@ -2,19 +2,23 @@ export interface Service {
   id: number;
   name: string;
   description?: string;
+  image: string | File | null;
+
   category: string;
-  image: string | File | null; 
   state: "Activo" | "Inactivo";
+
+  typeofserviceid: number;
+  stateid: number;
 }
 
-export interface CreateServiceData {
+export type CreateServicePayload = {
   name: string;
   description?: string;
-  category: string;
   image: string | File | null;
-}
+  typeofserviceid: number;
+};
 
-export interface EditServiceData extends CreateServiceData {
+export type EditServicePayload = CreateServicePayload & {
   id: number;
-  state: "Activo" | "Inactivo";
-}
+  stateid: number;
+};

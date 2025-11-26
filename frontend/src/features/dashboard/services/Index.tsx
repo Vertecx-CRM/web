@@ -1,44 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 import ServicesTable from "./components/ServicesTable";
 import CreateServiceModal from "./components/CreateServicesModal/CreateServicesModal";
 import EditServiceModal from "./components/EditServicesModal/EditServicesModal";
 import ViewServiceModal from "./components/ViewServicesModal/ViewServicesModal";
+
 import { Service } from "./types/typesServices";
 import { useServices } from "./hooks/useServices";
-import { useState } from "react";
-
-const mockServices: Service[] = Array.from({ length: 20 }, (_, i) => {
-  const category =
-    i % 3 === 0
-      ? "Mantenimiento Preventivo"
-      : i % 3 === 1
-      ? "Mantenimiento Correctivo"
-      : "Instalación";
-
-  const image =
-    category === "Mantenimiento Preventivo"
-      ? "/assets/imgs/services/preventive.png"
-      : category === "Mantenimiento Correctivo"
-      ? "/assets/imgs/services/corrective.png"
-      : "/assets/imgs/services/installation.png";
-
-  return {
-    id: i + 1,
-    name: `Servicio ${i + 1}`,
-    description: `Descripción del servicio ${i + 1}`,
-    category,
-    image,
-    state: i % 2 === 0 ? "Activo" : "Inactivo",
-  };
-});
-
 
 export default function ServiciosIndex() {
   const {
     services,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     isEditModalOpen,
@@ -47,13 +24,20 @@ export default function ServiciosIndex() {
     handleCreateService,
     handleEditService,
     handleDeleteService,
-  } = useServices(mockServices);
+  } = useServices();
 
   const [viewingService, setViewingService] = useState<Service | null>(null);
 
   return (
     <div className="min-h-screen flex">
       <ToastContainer position="bottom-right" />
+
+      {loading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30">
+          <div className="h-14 w-14 rounded-full border-4 border-[#B20000] border-t-transparent animate-spin" />
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col">
         <main className="flex-1 flex flex-col">
           <div className="px-6 pt-6">

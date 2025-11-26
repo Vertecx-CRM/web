@@ -1,4 +1,3 @@
-// servicesValidations.ts
 import { Service } from "@/features/dashboard/services/types/typesServices";
 
 export interface ServiceErrors {
@@ -15,18 +14,16 @@ export const validateServiceField = (
   currentId?: number
 ): string | undefined => {
   switch (field) {
-    case "name":
-      if (!String(value).trim()) return "El nombre es obligatorio";
-      if (
-        services.some(
-          (s) =>
-            s.name.toLowerCase() === String(value).trim().toLowerCase() &&
-            s.id !== currentId
-        )
-      ) {
-        return "Ya existe un servicio con este nombre";
-      }
+    case "name": {
+      const v = String(value ?? "").trim();
+      if (!v) return "El nombre es obligatorio";
+
+      const exists = services.some(
+        (s) => s.name.toLowerCase() === v.toLowerCase() && s.id !== currentId
+      );
+      if (exists) return "Ya existe un servicio con este nombre";
       return;
+    }
 
     case "category":
       if (!value) return "La categoría es obligatoria";
@@ -34,10 +31,10 @@ export const validateServiceField = (
 
     case "image":
       if (!value) return "Debe seleccionar una imagen";
+      if (typeof value === "string" && !value.trim()) return "Debe seleccionar una imagen";
       return;
 
     case "description":
-      // descripción NO lleva validación obligatoria
       return;
 
     default:
@@ -60,9 +57,9 @@ export const validateServiceForm = (
   ];
 
   fields.forEach((field) => {
-    const value = data[field]; // ✅ TypeScript infiere el tipo correcto
+    const value = data[field];
     const error = validateServiceField(field, value, services, currentId);
-    if (error) errors[field] = error;
+    if (error) (errors as any)[field] = error;
   });
 
   return errors;
