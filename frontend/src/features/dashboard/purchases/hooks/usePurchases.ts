@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getPurchases,
   createPurchase,
@@ -37,6 +37,7 @@ export const months = [
   "Noviembre",
   "Diciembre",
 ];
+let CACHE: IPurchase[] | null = null;
 
 export function usePurchases() {
   const [purchases, setPurchases] = useState<IPurchase[]>([]);
@@ -135,19 +136,34 @@ export function usePurchases() {
     return `ORD-${year}-${nextConsecutive}`;
   };
 
-  const fetchPurchases = async () => {
+  const abortRef = useRef<AbortController | null>(null);
+
+  const fetchPurchases = useCallback(async () => {
+    if (CACHE) {
+      setPurchases(CACHE);
+      setLoading(false);
+      return;
+    }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const data = await getPurchases();
+      const data = await getPurchases(controller.signal);
+      CACHE = data;
       setPurchases(data);
 
       const nextOrder = generateNextOrderNumber(data);
       setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
-    } catch (error) {
-      console.error("Error fetching purchases:", error);
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("Error fetching purchases:", error);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -276,7 +292,8 @@ export function usePurchases() {
 
   useEffect(() => {
     fetchPurchases();
-  }, []);
+    return () => abortRef.current?.abort();
+  }, [fetchPurchases]);
 
   return {
     purchases,

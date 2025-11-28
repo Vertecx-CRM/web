@@ -3,10 +3,14 @@ import { IPurchase } from "../Types/Purchase.type";
 import { showError } from "@/shared/utils/notifications";
 
 // Obtener todas las compras
-export const getPurchases = async (): Promise<IPurchase[]> => {
-  const { data } = await api.get("/purchasesmanagement");
+export const getPurchases = async (
+  signal?: AbortSignal
+): Promise<IPurchase[]> => {
+  const { data } = await api.get("/purchasesmanagement", {
+    signal,
+    timeout: 4000,
+  });
 
-  // Normalizamos el amount a number
   return data.map((p: any) => ({
     ...p,
     amount: parseFloat(p.amount),

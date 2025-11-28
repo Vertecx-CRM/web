@@ -1,125 +1,112 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo } from "react";
+import RequireAuth from "../../auth/requireauth";
 import {
   Column,
   DataTable,
 } from "@/features/dashboard/components/datatable/DataTable";
-import { useLoader } from "@/shared/components/loader";
+import { ToastContainer } from "react-toastify";
+import { useSales } from "./hooks/useSales";
+import { ISale } from "./types/Sales.type";
+import Swal from "sweetalert2";
 
-type Sale = {
-  id: number;
-  codigo: string;
-  cliente: string;
-  fecha: string;
-  total: number;
-  estado: "Finalizada" | "Anulada";
-};
-
-const mockSales: Sale[] = [
-  {
-    id: 1,
-    codigo: "VEN-001",
-    cliente: "Diana Inguia",
-    fecha: "02/05/2025",
-    total: 310000,
-    estado: "Finalizada",
-  },
-  {
-    id: 2,
-    codigo: "VEN-002",
-    cliente: "Juliana Gómez",
-    fecha: "02/05/2025",
-    total: 2567500,
-    estado: "Anulada",
-  },
-  {
-    id: 3,
-    codigo: "VEN-003",
-    cliente: "Wayne Perez",
-    fecha: "01/04/2025",
-    total: 2250.0,
-    estado: "Anulada",
-  },
-  {
-    id: 4,
-    codigo: "VEN-004",
-    cliente: "Nataly Martinez",
-    fecha: "28/03/2025",
-    total: 850000,
-    estado: "Finalizada",
-  },
-];
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-[spin_0.8s_linear_1]" />
+    </div>
+  );
+}
 
 export default function SalesIndex() {
-  const [sales, setSales] = useState<Sale[]>(mockSales);
-  const { showLoader, hideLoader } = useLoader();
+  const { sales, loading } = useSales();
 
-  const handleDelete = async (row: Sale) => {
-    if (!confirm(`¿Eliminar venta "${row.codigo}"?`)) return;
-    showLoader();
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // simula petición
-      setSales((prev) => prev.filter((s) => s.id !== row.id));
-    } finally {
-      hideLoader();
-    }
-  };
+  const confirmDeleteSale = useCallback((sale: ISale) => {
+    Swal.fire({
+      title: "¿Eliminar?",
+      text: `Venta ${sale.salecode}`,
+      showCancelButton: true,
+      confirmButtonColor: "#b20000",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log("Eliminar:", sale.saleid);
+      }
+    });
+  }, []);
 
-  const columns: Column<Sale>[] = [
-    {
-      key: "id",
-      header: "#",
-      render: (row) => row.id.toString(),
-    },
-    {
-      key: "codigo",
-      header: "Código Venta",
-    },
-    {
-      key: "cliente",
-      header: "Cliente",
-    },
-    {
-      key: "fecha",
-      header: "Fecha",
-    },
-    {
-      key: "total",
-      header: "Total",
-      render: (row) => `$${row.total.toLocaleString("es-CO")}`,
-    },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (row) => (
-        <span
-          className={
-            row.estado === "Finalizada"
-              ? "text-green-600 font-medium"
-              : "text-red-600 font-medium"
-          }
-        >
-          {row.estado}
-        </span>
-      ),
-    },
-  ];
+  const columns: Column<ISale>[] = useMemo(
+    () => [
+      {
+        key: "saleid",
+        header: "#",
+        render: (row) => row.saleid.toString(),
+      },
+      {
+        key: "salecode",
+        header: "Código Venta",
+      },
+      {
+        key: "customerid",
+        header: "Cliente",
+        render: (row) => `ID ${row.customerid}`,
+      },
+      {
+        key: "saledate",
+        header: "Fecha",
+        render: (row) => new Date(row.saledate).toLocaleDateString("es-CO"),
+      },
+      {
+        key: "totalamount",
+        header: "Total",
+        render: (row) =>
+          row.totalamount.toLocaleString("es-CO", {
+            style: "currency",
+            currency: "COP",
+          }),
+      },
+      {
+        key: "salestatus",
+        header: "Estado",
+        render: (row) => {
+          const s = row.salestatus?.toLowerCase();
+          const color =
+            s === "completed"
+              ? "text-green-600"
+              : s === "cancelled"
+              ? "text-red-600"
+              : "text-gray-600";
+          return (
+            <span className={`${color} font-medium`}>{row.salestatus}</span>
+          );
+        },
+      },
+    ],
+    []
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <DataTable<Sale>
-        module="sales"
-        data={sales}
-        columns={columns}
-        searchableKeys={["codigo", "cliente", "estado"]}
-        pageSize={10}
-        onView={(row) => alert(`Ver venta "${row.codigo}"`)}
-        onEdit={(row) => alert(`Editar venta "${row.codigo}"`)}
-        onDelete={handleDelete}
-        onCreate={() => alert("Abrir modal: crear venta")}
-        createButtonText="Nueva Venta"
-      />
-    </div>
+    <RequireAuth>
+      <div className="p-6">
+        <ToastContainer position="bottom-right" />
+        <h1 className="text-xl font-semibold mb-4">Listado de Ventas</h1>
+
+        {loading ? (
+          <Loader />
+        ) : (
+          <DataTable
+            module="sales"
+            data={sales}
+            columns={columns}
+            searchableKeys={["salecode", "salestatus"]}
+            pageSize={8}
+            onDelete={confirmDeleteSale}
+            onView={(row) => alert(`Ver venta "${row.salecode}"`)}
+            onCreate={() => alert("Abrir modal: crear venta")}
+            createButtonText="Registrar venta"
+          />
+        )}
+      </div>
+    </RequireAuth>
   );
 }
