@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import {
@@ -29,13 +29,8 @@ export const useUser = () => {
   const applyUsersResponse = async (response: any) => {
     const payload = response?.data ?? response;
     const sortUsers = (list: User[]) =>
-      [...list].sort((a, b) =>
-        `${a.name ?? ""} ${a.lastname ?? ""}`.localeCompare(
-          `${b.name ?? ""} ${b.lastname ?? ""}`,
-          "es",
-          { sensitivity: "base" }
-        )
-      );
+      [...list].sort((a, b) => (a.userid ?? 0) - (b.userid ?? 0));
+
 
     if (Array.isArray(payload)) {
       setUsers(sortUsers(payload));

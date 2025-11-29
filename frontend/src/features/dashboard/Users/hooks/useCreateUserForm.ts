@@ -114,7 +114,7 @@ export const useCreateUserForm = ({
     const UPLOAD_PRESET = "Vertecx";
     const data = new FormData();
     data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);
+    data.append("upload_preset", UPLOAD_PRESET);  
 
     try {
       const res = await fetch(
