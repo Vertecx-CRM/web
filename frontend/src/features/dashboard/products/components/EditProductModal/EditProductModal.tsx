@@ -115,7 +115,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       supplierCategory,
       supplierPrice,
 
-      // 👇 OBLIGATORIOS (no null)
       salePrice,
       code,
 
@@ -145,7 +144,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       supplierCategory: supplierCategory.trim(),
       supplierPrice: Number(String(supplierPrice).replace(/\./g, "")),
 
-      // 👇 OBLIGATORIOS (no null)
       salePrice: Number(String(salePrice).replace(/\./g, "")),
       code: code.trim(),
 
