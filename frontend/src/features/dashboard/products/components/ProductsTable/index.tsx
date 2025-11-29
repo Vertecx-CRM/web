@@ -36,8 +36,6 @@ const cleanText = (v: unknown) => {
   return s;
 };
 
-// Trunca por caracteres + tooltip con el contenido completo (para hover)
-// + SALTO DE LÍNEA (máximo 2) para no estirar la tabla horizontalmente
 const Trunc: React.FC<{
   value: unknown;
   max?: number;
@@ -96,7 +94,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         <Trunc value={p.supplierCategory} max={24} className="max-w-[170px]" lines={2} />,
     },
 
-    // ✅ CAMBIO: mostrar precio de VENTA (salePrice)
     {
       key: "salePrice",
       header: "Precio",

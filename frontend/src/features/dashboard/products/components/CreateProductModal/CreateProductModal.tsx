@@ -89,8 +89,8 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
       description: description ?? null,
       supplierCategory,
       supplierPrice,
-      salePrice, // <- YA NO debe ir null
-      code, // <- YA NO debe ir null
+      salePrice, 
+      code,
       categoryId,
       image,
     };

@@ -1,4 +1,3 @@
-// src/features/dashboard/products/components/ViewProductModal/ViewProductModal.tsx
 "use client";
 
 import React from "react";
