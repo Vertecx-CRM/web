@@ -1,7 +1,7 @@
-import Swal from 'sweetalert2';
-import withReactContent from 'sweetalert2-react-content';
-import { showSuccess, showError } from '../notifications';
-import { ConfirmDeleteOptions } from './typeConfirmDelete';
+import Swal from "sweetalert2";
+import withReactContent from "sweetalert2-react-content";
+import { showSuccess } from "../notifications";
+import { ConfirmDeleteOptions } from "./typeConfirmDelete";
 
 const MySwal = withReactContent(Swal);
 
@@ -11,56 +11,63 @@ export const confirmDelete = async (
 ): Promise<boolean> => {
   const {
     itemName,
-    itemType = 'elemento',
+    itemType = "elemento",
     customMessage,
     successMessage,
-    errorMessage
+    errorMessage,
+    title,
+    confirmButtonText,
+    cancelButtonText,
+    skipSuccessToast,
+
+    showConfirmButton,
+    showCancelButton,
   } = options;
 
+  const finalShowConfirm = showConfirmButton ?? true;
+  const finalShowCancel = showCancelButton ?? true;
+
   const result = await MySwal.fire({
-    title: '¿Estás seguro?',
+    title: title ?? "¿Estás seguro?",
     text: customMessage || `¿Deseas eliminar "${itemName}"? Esta acción no se puede deshacer.`,
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
+    icon: "warning",
+
+    showConfirmButton: finalShowConfirm,
+    showCancelButton: finalShowCancel,
+
+    confirmButtonColor: "#d33",
+    cancelButtonColor: "#3085d6",
+
+    confirmButtonText: confirmButtonText ?? "Sí, eliminar",
+    cancelButtonText: cancelButtonText ?? (finalShowConfirm ? "Cancelar" : "Cerrar"),
+
     reverseButtons: true,
     customClass: {
-      confirmButton: 'swal2-confirm',
-      cancelButton: 'swal2-cancel'
-    }
+      confirmButton: "swal2-confirm",
+      cancelButton: "swal2-cancel",
+    },
   });
 
-  if (result.isConfirmed) {
-    try {
-      await onConfirm();
-      
-      // Mensaje de éxito
-      showSuccess(
-        successMessage || `${itemType} "${itemName}" ha sido eliminado correctamente.`
-      );
-      return true;
-    } catch (error) {
-      // Mensaje de error
-      MySwal.fire({
-        title: 'Error',
-        text: errorMessage || `No se pudo eliminar el ${itemType}. Por favor, intenta nuevamente.`,
-        icon: 'error'
-      });
-      return false;
+  if (!result.isConfirmed) return false;
+
+  try {
+    await onConfirm();
+    if (!skipSuccessToast) {
+      showSuccess(successMessage || `${itemType} "${itemName}" ha sido eliminado correctamente.`);
     }
+    return true;
+  } catch (error) {
+    await MySwal.fire({
+      title: "Error",
+      text: errorMessage || `No se pudo eliminar el ${itemType}. Por favor, intenta nuevamente.`,
+      icon: "error",
+    });
+    return false;
   }
-  
-  return false;
 };
 
-// Versión simplificada para uso rápido
 export const confirmDeleteSimple = async (
   itemName: string,
   onConfirm: () => Promise<void> | void,
-  itemType: string = 'elemento'
-): Promise<boolean> => {
-  return confirmDelete({ itemName, itemType }, onConfirm);
-};
+  itemType: string = "elemento"
+): Promise<boolean> => confirmDelete({ itemName, itemType }, onConfirm);

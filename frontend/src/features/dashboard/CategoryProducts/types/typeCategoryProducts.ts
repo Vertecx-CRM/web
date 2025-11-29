@@ -12,10 +12,8 @@ export interface CategoryBase {
   icon?: File | string | null; 
 }
 
-// Crear: solo usa los campos base
 export interface CreateCategoryData extends CategoryBase {}
 
-// Editar: base + extras
 export interface EditCategoryData extends CategoryBase {
   id: number;
   status: boolean;

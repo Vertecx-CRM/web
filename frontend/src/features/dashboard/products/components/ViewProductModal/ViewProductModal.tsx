@@ -1,3 +1,4 @@
+// src/features/dashboard/products/components/ViewProductModal/ViewProductModal.tsx
 "use client";
 
 import React from "react";
@@ -11,17 +12,22 @@ interface ViewProductModalProps {
   onClose: () => void;
 }
 
-const ViewProductModal: React.FC<ViewProductModalProps> = ({
-  isOpen,
-  product,
-  onClose,
-}) => {
-  if (!product) return null;
+const cleanText = (v: unknown) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "—";
+  const lower = s.toLowerCase();
+  if (lower === "null" || lower === "undefined") return "—";
+  return s;
+};
 
-  const imageSrc =
-    product.image instanceof File
-      ? URL.createObjectURL(product.image)
-      : product.image;
+const moneyCO = (v: unknown) => {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/\./g, "").trim());
+  if (!Number.isFinite(n)) return "—";
+  return `$${n.toLocaleString("es-CO")}`;
+};
+
+const ViewProductModal: React.FC<ViewProductModalProps> = ({ isOpen, product, onClose }) => {
+  if (!product) return null;
 
   return (
     <Modal
@@ -44,108 +50,99 @@ const ViewProductModal: React.FC<ViewProductModalProps> = ({
         <div className="grid grid-cols-2 gap-3 p-1">
           <div className="col-span-2 flex flex-col items-center mb-3">
             <div className="w-20 h-20 rounded-full border flex items-center justify-center bg-gray-50 overflow-hidden">
-              {imageSrc ? (
+              {product.image ? (
                 <img
-                  src={imageSrc}
-                  alt={product.name}
+                  src={product.image}
+                  alt={cleanText(product.name)}
                   className="w-full h-full object-cover rounded-full"
                 />
               ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
+                <div className="text-gray-400 text-xs italic">Sin imagen</div>
               )}
             </div>
           </div>
 
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
+          <div className="col-span-2">
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Nombre
             </label>
-            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-              {product.name}
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm break-words">
+              {cleanText(product.name)}
             </div>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Precio
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Código
             </label>
-            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-              {Number(product.price).toLocaleString("es-CO")}
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm break-words">
+              {cleanText(product.code)}
             </div>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Cantidad
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Stock
             </label>
-            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-              {product.stock}
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm tabular-nums">
+              {Number.isFinite(Number(product.stock)) ? Number(product.stock) : "—"}
             </div>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Categoría
             </label>
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm break-words">
+              {cleanText(product.categoryName)}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Estado
+            </label>
             <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-              {product.category}
+              {cleanText(product.state)}
             </div>
           </div>
 
           <div className="col-span-2">
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Descripción
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Categoría del proveedor
             </label>
-            <div
-              className="px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-line break-words"
-              style={{
-                maxHeight: "100px",
-                minHeight: "80px",
-                overflowY: "auto",
-                overflowX: "hidden",
-              }}
-            >
-              {product.description || "Sin descripción"}
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm break-words">
+              {cleanText(product.supplierCategory)}
             </div>
           </div>
 
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Estado
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Precio proveedor
             </label>
-            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm">
-              {product.state}
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm tabular-nums">
+              {moneyCO(product.supplierPrice)}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Precio venta
+            </label>
+            <div className="px-2 py-1 border rounded-md bg-gray-50 text-sm tabular-nums">
+              {moneyCO(product.salePrice)}
+            </div>
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Descripción
+            </label>
+            <div
+              className="px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-line break-words"
+              style={{ maxHeight: "120px", minHeight: "80px", overflowY: "auto", overflowX: "hidden" }}
+            >
+              {cleanText(product.description) === "—" ? "Sin descripción" : cleanText(product.description)}
             </div>
           </div>
         </div>
