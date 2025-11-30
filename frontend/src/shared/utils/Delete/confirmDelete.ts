@@ -57,9 +57,14 @@ export const confirmDelete = async (
     }
     return true;
   } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : errorMessage ??
+          `No se pudo eliminar el ${itemType}. Por favor, intenta nuevamente.`;
     await MySwal.fire({
       title: "Error",
-      text: errorMessage || `No se pudo eliminar el ${itemType}. Por favor, intenta nuevamente.`,
+      text: message,
       icon: "error",
     });
     return false;
