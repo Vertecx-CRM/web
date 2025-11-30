@@ -156,8 +156,17 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       const appointmentTipoMantenimiento = a.tipoMantenimientoSolicitud ?? a.orden?.tipoMantenimiento ?? "";
       const matchTipoMantenimiento = !filters.tipoMantenimiento || appointmentTipoMantenimiento === filters.tipoMantenimiento;
 
-      // Tipo de cita
-      const matchTipoCita = !filters.tipoCita || a.tipoCita === filters.tipoCita;
+      // Tipo de servicio (Solicitud / Orden)
+      const matchTipoCita = (() => {
+        if (!filters.tipoCita) return true;
+        if (filters.tipoCita === "solicitud") {
+          return !Boolean(a.serviceOrderId);
+        }
+        if (filters.tipoCita === "orden") {
+          return Boolean(a.serviceOrderId);
+        }
+        return true;
+      })();
 
       // Estado
       let matchEstado = true;
