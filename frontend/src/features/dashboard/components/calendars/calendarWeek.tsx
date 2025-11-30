@@ -33,6 +33,16 @@ import EditRequestModal, { type EditRequestPayload } from '../../requests/compon
 import ViewRequestModal from '../../requests/components/ViewRequestModal';
 import { useLookups } from '../../requests/hooks/useLookups';
 import dynamic from 'next/dynamic';
+import { useRouter, usePathname } from 'next/navigation';
+import { routes } from '@/shared/routes';
+
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 const locales = { es };
 
@@ -123,8 +133,11 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     handleCreateAppointment: createAppointmentInHook,
     handleUpdateAppointment: updateAppointmentInHook,
     handleUpdateRequest,
+    isLoading,
   } = useAppointments();
   const { serviceOptions, customerOptions } = useLookups();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const filteredAppointments = useMemo(() => {
     return events.filter((a) => {
@@ -320,6 +333,14 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
 
   const handleEditAppointment = (appointment: AppointmentEvent) => {
     setIsDetailsModalOpen(false);
+    if (appointment.serviceOrderId) {
+      const returnTo = encodeURIComponent(pathname ?? routes.dashboard.appointments);
+      router.push(
+        `${routes.dashboard.ordersServices}/edit?id=${appointment.serviceOrderId}&returnTo=${returnTo}`
+      );
+      return;
+    }
+
     setEditingAppointment(appointment);
     setIsEditModalOpen(true);
   };
@@ -435,6 +456,10 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     </div>
   );
 
+  if (isLoading) {
+    return <Loader />;
+  }
+
   const defaultSlot: SlotDateTime = {
     horaInicio: '00',
     minutoInicio: '00',
@@ -444,6 +469,26 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     mes: '11',
     año: '2025',
   };
+
+  const isViewingOrder = Boolean(viewingAppointment?.serviceOrderId);
+  const viewCodigo = isViewingOrder
+    ? `OS-${String(viewingAppointment?.serviceOrderId ?? 0).padStart(6, "0")}`
+    : `SRV-${String(viewingAppointment?.id ?? 0).padStart(6, "0")}`;
+  const viewTitle = isViewingOrder
+    ? `Detalle de la orden ${viewingAppointment?.orden?.id ?? viewCodigo}`
+    : "Detalle de la Solicitud";
+  const viewCliente = viewingAppointment?.nombreCliente || viewingAppointment?.orden?.cliente || "";
+  const viewDireccion = viewingAppointment?.direccion || viewingAppointment?.orden?.lugar || "";
+  const viewServicio = viewingAppointment?.servicio || viewingAppointment?.orden?.tipoServicio || "Servicio";
+  const viewDescripcion = viewingAppointment?.descripcion || viewingAppointment?.orden?.tipoServicio || "";
+  const viewProgramada = viewingAppointment?.start ? new Date(viewingAppointment.start).toISOString() : null;
+  const viewTipos = viewingAppointment?.tipoServicioSolicitud
+    ? [
+        viewingAppointment.tipoServicioSolicitud === "instalacion"
+          ? "Instalacion"
+          : "Mantenimiento",
+      ]
+    : [];
 
   return (
     <div id="calendar-pdf" className="calendar-wrapper w-full">
@@ -559,19 +604,17 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
                 setViewingAppointment(null);
               }}
               data={{
-                tipos: viewingAppointment.tipoServicioSolicitud
-                  ? [viewingAppointment.tipoServicioSolicitud === "instalacion" ? "Instalacion" : "Mantenimiento"]
-                  : [],
-                servicio: viewingAppointment.servicio || "Servicio",
-                descripcion: viewingAppointment.descripcion || "",
-                direccion: viewingAppointment.direccion || "",
-                cliente: viewingAppointment.nombreCliente || "",
+                tipos: viewTipos,
+                servicio: viewServicio,
+                descripcion: viewDescripcion,
+                direccion: viewDireccion,
+                cliente: viewCliente,
                 fecha: viewingAppointment.start,
                 estado: viewingAppointment.estado,
-                codigo: `SRV-${String(viewingAppointment.id).padStart(6, "0")}`,
-                programada: viewingAppointment.start ? new Date(viewingAppointment.start).toISOString() : null,
+                codigo: viewCodigo,
+                programada: viewProgramada,
               }}
-              title="Detalle de la Solicitud"
+              title={viewTitle}
             />
           )}
 
