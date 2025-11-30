@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import moment from 'moment';
 import 'moment/locale/es';
+import { useAppointments } from '../../appointments/hooks/useAppointment';
 
 interface CalendarMonthProps {
   onDateSelect: (date: Date) => void;
@@ -11,6 +12,17 @@ const CalendarMonth = ({ onDateSelect, selectedDate }: CalendarMonthProps) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string[]>([]);
+  const { events } = useAppointments();
+
+  const eventDays = useMemo(() => {
+    const dates = new Set<string>();
+    events.forEach(event => {
+      const day = event.start ? new Date(event.start) : new Date();
+      const dayStr = moment(day).format('YYYY-MM-DD');
+      dates.add(dayStr);
+    });
+    return dates;
+  }, [events]);
 
   // Calcular la semana completa de la fecha seleccionada
   useEffect(() => {
@@ -59,13 +71,18 @@ const CalendarMonth = ({ onDateSelect, selectedDate }: CalendarMonthProps) => {
     const isInSelectedWeek = selectedWeek.includes(dayStr);
     const isSelectedDate = selectedDate && moment(selectedDate).isSame(day, 'day');
     const isHovered = hoveredDate === dayStr;
+    const hasEvent = eventDays.has(dayStr);
 
     let bgClass = '';
     let textClass = '';
     let shadowClass = '';
     let borderClass = '';
 
-    if (!isInSelectedWeek) {
+    if (!isInSelectedWeek && hasEvent) {
+      bgClass = 'bg-[#5b84ff]';
+      textClass = 'text-white';
+      shadowClass = 'shadow-[0px_1px_1px_0px_rgba(0,14,51,0.05)]';
+    } else if (!isInSelectedWeek) {
       bgClass = !isCurrentMonth
         ? 'text-blue-950/20'
         : isToday
