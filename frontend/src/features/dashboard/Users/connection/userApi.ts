@@ -61,8 +61,20 @@ export const updateUser = async (id: number, data: any) => {
 
 export const deleteUser = async (id: number) => {
   const response = await fetchWithTimeout(`${API_URL}/${id}`, { method: "DELETE" });
-  if (!response.ok) throw new Error("Error al eliminar el usuario");
-  const payload = await response.json();
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      (typeof payload === "object" && payload?.message) ||
+      (typeof payload === "string" ? payload : undefined) ||
+      "Error al eliminar el usuario";
+    throw new Error(message);
+  }
   return payload?.data ?? payload;
 };
 
