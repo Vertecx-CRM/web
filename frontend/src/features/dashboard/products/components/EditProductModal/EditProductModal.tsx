@@ -1,24 +1,35 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
-import { Product } from "@/features/dashboard/products/types/typesProducts";
+
 import { useCategories } from "@/features/dashboard/CategoryProducts/hooks/useCategories";
+import type { Category } from "@/features/dashboard/CategoryProducts/types/typeCategoryProducts";
+
+import type {
+  Product,
+  EditProductData,
+  ProductState,
+} from "@/features/dashboard/products/types/typesProducts";
 import {
   validateProductField,
   validateProductForm,
-  ProductErrors,
+  type ProductErrors,
+  type ProductFormField,
+  type ProductFormDraft,
 } from "@/features/dashboard/products/validations/productsValidations";
+
 import { showWarning } from "@/shared/utils/notifications";
-import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { Upload } from "lucide-react";
+
+type CategoryOption = Pick<Category, "id" | "name">;
 
 interface EditProductModalProps {
   isOpen: boolean;
   product: Product | null;
   onClose: () => void;
-  onSave: (data: Product) => void;
+  onSave: (data: EditProductData) => void | Promise<void>;
   products: Product[];
 }
 
@@ -29,91 +40,90 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   onSave,
   products,
 }) => {
-  const { categories } = useCategories();
+  const { categories } = useCategories() as { categories: CategoryOption[] };
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>("");
-  const [stock, setStock] = useState<string>("");
-  const [category, setCategory] = useState("");
-  const [image, setImage] = useState<File | string | undefined>(undefined);
-  const [state, setState] = useState<"Activo" | "Inactivo">("Activo");
-  const [isImageDeleted, setIsImageDeleted] = useState(false);
+
+  const [supplierCategory, setSupplierCategory] = useState("");
+  const [supplierPrice, setSupplierPrice] = useState<string>("");
+
+  const [salePrice, setSalePrice] = useState<string>("");
+  const [code, setCode] = useState<string>("");
+
+  const [categoryId, setCategoryId] = useState<string>("");
+
+  const [image, setImage] = useState<string | File | null>(null);
+  const [state, setState] = useState<ProductState>("Activo");
+
   const [errors, setErrors] = useState<ProductErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const formatPrice = (num: number | string) => {
-    if (!num && num !== 0) return "";
+  const formatMoney = (num: number | null | undefined) => {
+    if (num === null || num === undefined) return "";
     return Number(num).toLocaleString("es-CO");
   };
 
-  const handlePriceChange = (value: string) => {
+  const handleMoneyChange = (setter: (v: string) => void) => (value: string) => {
     const numericValue = value.replace(/\D/g, "");
-    setPrice(formatPrice(Number(numericValue)));
+    const formatted = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    setter(formatted);
   };
 
-  const validateField = (
-    field: keyof Omit<Product, "id" | "state">,
-    value: string | number | File | undefined
-  ) => {
-    let filteredProducts = products;
-    if (product && field === "name") {
-      filteredProducts = products.filter((p) => p.id !== product.id);
-    }
-    const error = validateProductField(field, value, filteredProducts);
+  const validateField = (field: ProductFormField, value: unknown) => {
+    const error = validateProductField(field, value, products, product?.id);
+
     setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (error) newErrors[field] = error;
-      else delete newErrors[field];
-      return newErrors;
+      const next = { ...prev };
+      if (error) next[field] = error;
+      else delete next[field];
+      return next;
     });
   };
 
   useEffect(() => {
     if (isOpen && product) {
-      const stored = localStorage.getItem(`product-${product.id}`);
-      const data: Product = stored ? JSON.parse(stored) : product;
+      setName(product.name);
+      setDescription(product.description ?? "");
 
-      setName(data.name);
-      setDescription(data.description || "");
-      setPrice(formatPrice(data.price));
-      setStock(data.stock.toString());
-      setCategory(data.category);
-      setImage(typeof data.image === "string" ? data.image : undefined);
-      setState(data.state ?? "Activo");
-      setIsImageDeleted(false);
+      setSupplierCategory(product.supplierCategory ?? "");
+      setSupplierPrice(formatMoney(product.supplierPrice));
+
+      setSalePrice(
+        product.salePrice === null || product.salePrice === undefined
+          ? ""
+          : formatMoney(product.salePrice)
+      );
+      setCode(product.code ?? "");
+
+      setCategoryId(String(product.categoryId));
+
+      setImage(product.image ?? null);
+      setState(product.state ?? "Activo");
+
       setErrors({});
     }
   }, [isOpen, product]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price || !category) {
-      showWarning("Por favor completa los campos obligatorios");
-      return;
-    }
     if (!product) return;
 
-    let imageString = "";
-
-    if (image instanceof File) {
-      imageString = await uploadImageToCloudinary(image);
-    } else if (typeof image === "string") {
-      imageString = image;
-    }
-
-    const payload: Product = {
-      id: product.id,
+    const draft: ProductFormDraft = {
       name,
-      description,
-      price: Number(price.replace(/\./g, "")),
-      stock: Number(stock),
-      category,
-      image: isImageDeleted ? undefined : imageString,
-      state,
+      description: description ?? null,
+      supplierCategory,
+      supplierPrice,
+
+      salePrice,
+      code,
+
+      categoryId,
+      image,
     };
 
     const filteredProducts = products.filter((p) => p.id !== product.id);
-    const formErrors = validateProductForm(payload, filteredProducts);
+    const formErrors = validateProductForm(draft, filteredProducts, product.id);
     setErrors(formErrors);
 
     if (Object.keys(formErrors).length > 0) {
@@ -121,12 +131,36 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       return;
     }
 
-    localStorage.setItem(`product-${payload.id}`, JSON.stringify(payload));
-    onSave(payload);
+    if (image === null) {
+      showWarning("No se puede guardar un producto sin imagen. Debes subir otra.");
+      return;
+    }
+
+    const payload: EditProductData = {
+      id: product.id,
+      name: name.trim(),
+      description: description ?? null,
+
+      supplierCategory: supplierCategory.trim(),
+      supplierPrice: Number(String(supplierPrice).replace(/\./g, "")),
+
+      salePrice: Number(String(salePrice).replace(/\./g, "")),
+      code: code.trim(),
+
+      categoryId: Number(categoryId),
+
+      image,
+      state,
+    };
+
+    await onSave(payload);
     onClose();
   };
 
   if (!product) return null;
+
+  const imageSrc =
+    image instanceof File ? URL.createObjectURL(image) : typeof image === "string" ? image : "";
 
   return (
     <Modal
@@ -152,13 +186,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         </div>
       }
     >
-      <form
-        id="edit-product-form"
-        onSubmit={handleSubmit}
-        className="flex flex-col h-full"
-      >
+      <form id="edit-product-form" onSubmit={handleSubmit} className="flex flex-col h-full">
         <div className="flex-1 grid grid-cols-2 gap-3 p-1">
-          {/* Nombre */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Nombre <span className="text-red-500">*</span>
@@ -176,63 +205,102 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
           </div>
 
-          {/* Precio */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Precio <span className="text-red-500">*</span>
+              Precio proveedor <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              value={price}
-              onChange={(e) => handlePriceChange(e.target.value)}
-              onBlur={() => validateField("price", price)}
+              value={supplierPrice}
+              onChange={(e) => handleMoneyChange(setSupplierPrice)(e.target.value)}
+              onBlur={() => validateField("supplierPrice", supplierPrice)}
               inputMode="numeric"
               className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.price ? "red" : Colors.table.lines }}
+              style={{ borderColor: errors.supplierPrice ? "red" : Colors.table.lines }}
             />
-            {errors.price && <span className="text-xs text-red-500">{errors.price}</span>}
+            {errors.supplierPrice && (
+              <span className="text-xs text-red-500">{errors.supplierPrice}</span>
+            )}
           </div>
 
-          {/* Stock */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Stock
+              Categoría del proveedor <span className="text-red-500">*</span>
             </label>
             <input
-              type="number"
-              value={stock}
-              disabled
-              className="w-full px-2 py-1 border rounded-md bg-gray-100 cursor-not-allowed"
-              style={{ borderColor: Colors.table.lines }}
+              type="text"
+              value={supplierCategory}
+              onChange={(e) => {
+                setSupplierCategory(e.target.value);
+                validateField("supplierCategory", e.target.value);
+              }}
+              onBlur={() => validateField("supplierCategory", supplierCategory)}
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.supplierCategory ? "red" : Colors.table.lines }}
             />
+            {errors.supplierCategory && (
+              <span className="text-xs text-red-500">{errors.supplierCategory}</span>
+            )}
           </div>
 
-          {/* Categoría */}
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Categoría <span className="text-red-500">*</span>
             </label>
             <select
-              value={category}
+              value={categoryId}
               onChange={(e) => {
-                setCategory(e.target.value);
-                validateField("category", e.target.value);
+                setCategoryId(e.target.value);
+                validateField("categoryId", e.target.value);
               }}
-              onBlur={() => validateField("category", category)}
+              onBlur={() => validateField("categoryId", categoryId)}
               className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.category ? "red" : Colors.table.lines }}
+              style={{ borderColor: errors.categoryId ? "red" : Colors.table.lines }}
             >
               <option value="">Seleccione categoría</option>
               {categories.map((c) => (
-                <option key={c.id} value={c.nombre}>
-                  {c.nombre}
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
                 </option>
               ))}
             </select>
-            {errors.category && <span className="text-xs text-red-500">{errors.category}</span>}
+            {errors.categoryId && <span className="text-xs text-red-500">{errors.categoryId}</span>}
           </div>
 
-          {/* Descripción + Imagen */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Precio venta <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={salePrice}
+              onChange={(e) => handleMoneyChange(setSalePrice)(e.target.value)}
+              onBlur={() => validateField("salePrice", salePrice)}
+              inputMode="numeric"
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.salePrice ? "red" : Colors.table.lines }}
+            />
+            {errors.salePrice && <span className="text-xs text-red-500">{errors.salePrice}</span>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Código <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                validateField("code", e.target.value);
+              }}
+              onBlur={() => validateField("code", code)}
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.code ? "red" : Colors.table.lines }}
+            />
+            {errors.code && <span className="text-xs text-red-500">{errors.code}</span>}
+          </div>
+
           <div className="col-span-2 grid grid-cols-3 gap-3">
             <div className="col-span-2 flex flex-col">
               <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
@@ -247,62 +315,58 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
               />
             </div>
 
-            {/* Imagen */}
             <div className="col-span-1 flex flex-col">
               <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Imagen
+                Imagen <span className="text-red-500">*</span>
               </label>
+
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className="flex flex-1 w-full items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
               >
-                {image ? (
-                  <img
-                    src={image instanceof File ? URL.createObjectURL(image) : (image as string)}
-                    alt="Producto"
-                    className="h-full w-full object-cover"
-                  />
+                {imageSrc ? (
+                  <img src={imageSrc} alt="Producto" className="h-full w-full object-cover" />
                 ) : (
                   <Upload size={24} />
                 )}
               </div>
-              {image && (
+
+              {(image instanceof File || typeof image === "string") && (
                 <button
                   type="button"
                   onClick={() => {
-                    setImage(undefined);
-                    setIsImageDeleted(true);
-                    validateField("image", undefined);
+                    setImage(null);
+                    validateField("image", null);
                   }}
                   className="mt-2 text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
                 >
                   Eliminar
                 </button>
               )}
+
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  setImage(file ?? undefined);
-                  setIsImageDeleted(false);
+                  const file = e.target.files?.[0] ?? null;
+                  setImage(file);
                   validateField("image", file);
                 }}
               />
+
               {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
             </div>
           </div>
 
-          {/* Estado */}
           <div className="col-span-2">
             <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Estado
             </label>
             <select
               value={state}
-              onChange={(e) => setState(e.target.value as "Activo" | "Inactivo")}
+              onChange={(e) => setState(e.target.value as ProductState)}
               className="w-full px-2 py-1 border rounded-md"
               style={{ borderColor: Colors.table.lines }}
             >

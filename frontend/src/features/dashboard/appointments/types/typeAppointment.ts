@@ -103,6 +103,7 @@ export interface AppointmentEvent {
   clientId?: number;
   stateId?: number;
   scheduledAt?: string | Date | null;
+  serviceOrderId?: number;
 }
 
 

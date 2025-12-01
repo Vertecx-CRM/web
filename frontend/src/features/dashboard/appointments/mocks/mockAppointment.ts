@@ -192,8 +192,7 @@ export const estadoColors = [
 
 export const tipoCitaColors = [
   { label: "Solicitud", color: "#828299" },
-  { label: "Ejecución", color: "#5b84ff" },
-  { label: "Garantía", color: "#ff6347" },
+  { label: "Orden", color: "#5b84ff" },
 ];
 
 

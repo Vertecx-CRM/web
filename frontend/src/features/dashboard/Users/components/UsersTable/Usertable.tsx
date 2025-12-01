@@ -31,6 +31,13 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   }));
 
   const actionGuard = (u: UserForTable) => {
+    if (u.hasAssociations) {
+      return {
+        disableDelete: true,
+        deleteTitle: "El usuario no se puede eliminar porque tiene registros asociados",
+      };
+    }
+
     const roleName = u.roles?.name?.toLowerCase();
     const isAdmin = roleName === "admin" || u.roleid === 1;
     const isFirstUser = u.id === 1 || u.userid === 1;

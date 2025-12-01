@@ -34,6 +34,7 @@ import type { CreateRequestPayload } from "../../requests/components/CreateReque
 import type { EditRequestPayload } from "../../requests/components/EditRequestModal";
 import { buildScheduledAt } from "../../requests/utils/schedule";
 import { useAuth } from "@/features/auth/authcontext";
+import { useOrderServices, type OrderServiceDTO } from "../../OrdersServices/hooks/useOrderServices";
 
 const normalizeRoleName = (name?: string) => (name || "").toLowerCase().trim();
 
@@ -82,7 +83,8 @@ const mapTechniciansFromRequest = (req: ServiceRequestDTO): Technician[] => {
 
 export const useAppointments = () => {
     const { user, profile } = useAuth();
-    const { data: requestData = [] } = useServiceRequests();
+    const { data: requestData = [], isLoading: isLoadingRequests } = useServiceRequests();
+    const { data: orderData = [], updateOrderService, isLoading: isLoadingOrders } = useOrderServices();
     const createRequest = useCreateServiceRequest();
     const updateRequest = useUpdateServiceRequest();
     const roleName = normalizeRoleName(profile?.roles?.name || user?.rolename);
@@ -104,6 +106,88 @@ export const useAppointments = () => {
         return "Pendiente";
     }, []);
 
+    const mapTechniciansFromOrder = useCallback((order: OrderServiceDTO): Technician[] => {
+        const technicians = Array.isArray(order.technicians) ? order.technicians : [];
+
+        return technicians
+            .map((tech) => {
+                if (!tech?.technicianid) return null;
+                const first = tech.users?.name ?? "";
+                const last = tech.users?.lastname ?? "";
+                const nombre = [first, last].filter(Boolean).join(" ").trim() || `Tecnico ${tech.technicianid}`;
+                return {
+                    id: tech.technicianid,
+                    nombre,
+                    titulo: "Tecnico",
+                };
+            })
+            .filter((t): t is Technician => Boolean(t));
+    }, []);
+
+    const orderToEvent = useCallback((order: OrderServiceDTO): AppointmentEvent => {
+        const start = buildOrderDateTime(order.fechainicio, order.horainicio);
+        const end = buildOrderDateTime(order.fechafin, order.horafin);
+
+        const clientNameParts = [
+            order.client?.users?.name ?? "",
+            order.client?.users?.lastname ?? "",
+        ].filter(Boolean);
+
+        const clientName = clientNameParts.length
+            ? clientNameParts.join(" ")
+            : order.client
+                ? `Cliente ${order.client.customerid ?? order.client.userid ?? order.ordersservicesid}`
+                : "Cliente";
+
+        const materiales = (order.products ?? []).map((item) => ({
+            id: item.product?.productid ?? item.ordersservicesproductsid,
+            nombre: item.product?.productname ?? "Material",
+            cantidad: item.cantidad,
+        }));
+
+        const assignedTechnicians = mapTechniciansFromOrder(order);
+        const estado = mapEstado(order.state?.name ?? "");
+        const tipoServicio = "mantenimiento";
+        const servicioLabel = order.description?.trim() || "Orden de servicio";
+
+        return {
+            id: order.ordersservicesid,
+            title: `[ORDEN] ${clientName} - ${servicioLabel}`,
+            start,
+            end,
+            tecnicos: assignedTechnicians,
+            horaInicio: start.getHours().toString().padStart(2, "0"),
+            minutoInicio: start.getMinutes().toString().padStart(2, "0"),
+            horaFin: end.getHours().toString().padStart(2, "0"),
+            minutoFin: end.getMinutes().toString().padStart(2, "0"),
+            dia: start.getDate().toString(),
+            mes: (start.getMonth() + 1).toString(),
+            ano: start.getFullYear().toString(),
+            observaciones: order.description ?? "",
+            estado,
+            tipoCita: "ejecucion",
+            nombreCliente: clientName,
+            direccion: order.client?.customercity ?? "",
+            tipoServicioSolicitud: tipoServicio,
+            servicio: servicioLabel,
+            descripcion: order.description ?? "",
+            materiales,
+            clientId: order.client?.customerid,
+            stateId: order.state?.stateid,
+            scheduledAt: start.toISOString(),
+            orden: {
+                id: String(order.ordersservicesid),
+                tipoServicio,
+                tipoMantenimiento: undefined,
+                monto: order.total ?? 0,
+                cliente: clientName,
+                lugar: order.client?.customercity ?? "",
+                materiales,
+            },
+            serviceOrderId: order.ordersservicesid,
+        };
+    }, [mapEstado, mapTechniciansFromOrder]);
+
     const slotToDate = (slot?: SlotDateTime | null) => {
         if (!slot) return null;
         const year = parseInt(((slot as any).ano ?? (slot as any)["ano"] ?? "0") as string);
@@ -116,12 +200,32 @@ export const useAppointments = () => {
     };
 
     const getDateParts = (date: Date) => {
-        const pad = (v: number) => String(v).padStart(2, "0");
-        return {
-            date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-            time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
-        };
+    const pad = (v: number) => String(v).padStart(2, "0");
+    return {
+        date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+        time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
     };
+};
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const buildOrderDateTime = (dateValue?: string | Date | null, timeValue?: string | null) => {
+    const base = dateValue ? new Date(dateValue) : new Date();
+    const [hours, minutes, seconds] = (timeValue ?? "")
+        .split(":")
+        .map((part) => Number(part));
+
+    if (Number.isFinite(hours)) {
+        const normalizedMinutes = Number.isFinite(minutes) ? minutes : 0;
+        const normalizedSeconds = Number.isFinite(seconds) ? seconds : 0;
+        base.setHours(hours, normalizedMinutes, normalizedSeconds, 0);
+    }
+
+    return base;
+};
+
+const formatOrderDate = (date: Date) => date.toISOString().split("T")[0];
+const formatOrderTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
 
     const requestToEvent = useCallback((req: ServiceRequestDTO): AppointmentEvent => {
         const start = req.scheduledAt ? new Date(req.scheduledAt) : req.createdAt ? new Date(req.createdAt) : new Date();
@@ -177,17 +281,24 @@ export const useAppointments = () => {
         return list.map(requestToEvent);
     }, [requestData, requestToEvent]);
 
+    const orderEvents = useMemo(() => {
+        const list = Array.isArray(orderData) ? orderData : [];
+        return list.map(orderToEvent);
+    }, [orderData, orderToEvent]);
+
     const events = useMemo(() => {
-        if (isAdmin) return mappedEvents;
+        const combined = [...mappedEvents, ...orderEvents];
+
+        if (isAdmin) return combined;
 
         if (roleName === "cliente") {
             if (!customerId) return [];
-            return mappedEvents.filter((ev) => toNumberId(ev.clientId ?? (ev as any)?.clienteId) === customerId);
+            return combined.filter((ev) => toNumberId(ev.clientId ?? (ev as any)?.clienteId) === customerId);
         }
 
         if (roleName === "tecnico") {
             if (!technicianId) return [];
-            return mappedEvents.filter((ev) => {
+            return combined.filter((ev) => {
                 const ids = (ev.tecnicos || []).map((t) => t.id).filter((id) => Number.isFinite(id));
                 if (ids.includes(technicianId)) return true;
                 const fallbackTechId = toNumberId((ev as any)?.technicianId ?? (ev as any)?.technicianid);
@@ -195,8 +306,8 @@ export const useAppointments = () => {
             });
         }
 
-        return mappedEvents;
-    }, [mappedEvents, isAdmin, roleName, customerId, technicianId]);
+        return combined;
+    }, [mappedEvents, orderEvents, isAdmin, roleName, customerId, technicianId]);
 
     const handleCreateAppointment = async (
         payload: CreateRequestPayload,
@@ -252,9 +363,25 @@ export const useAppointments = () => {
 
     const handleUpdateAppointment = async (updated: AppointmentEvent) => {
         const startDate = updated.start instanceof Date ? updated.start : new Date(updated.start);
+        const endDate = updated.end instanceof Date ? updated.end : new Date(updated.end);
+
+        if (updated.serviceOrderId) {
+            await updateOrderService.mutateAsync({
+                id: updated.serviceOrderId,
+                payload: {
+                    fechainicio: formatOrderDate(startDate),
+                    fechafin: formatOrderDate(endDate),
+                    horainicio: formatOrderTime(startDate),
+                    horafin: formatOrderTime(endDate),
+                },
+            });
+            showSuccess("Orden actualizada");
+            return;
+        }
+
         await updateRequest.mutateAsync({
             id: Number(updated.requestId ?? updated.id),
-            payload: { scheduledAt: startDate.toISOString() }
+            payload: { scheduledAt: startDate.toISOString() },
         });
     };
 
@@ -262,14 +389,33 @@ export const useAppointments = () => {
         appointment: AppointmentEvent,
         newDate: { start: Date; end: Date }
     ) => {
+        if (appointment.serviceOrderId) {
+            await updateOrderService.mutateAsync({
+                id: appointment.serviceOrderId,
+                payload: {
+                    fechainicio: formatOrderDate(newDate.start),
+                    fechafin: formatOrderDate(newDate.end),
+                    horainicio: formatOrderTime(newDate.start),
+                    horafin: formatOrderTime(newDate.end),
+                },
+            });
+            showSuccess("Orden reprogramada");
+            return;
+        }
+
         await updateRequest.mutateAsync({
             id: Number(appointment.requestId ?? appointment.id),
-            payload: { scheduledAt: newDate.start.toISOString() }
+            payload: { scheduledAt: newDate.start.toISOString() },
         });
         showSuccess("Solicitud reprogramada");
     };
 
     const handleCancelAppointment = async (appointment: AppointmentEvent, _reason?: string) => {
+        if (appointment.serviceOrderId) {
+            showWarning("La cancelación de órdenes se realiza desde el módulo de órdenes.");
+            return;
+        }
+
         await updateRequest.mutateAsync({
             id: Number(appointment.requestId ?? appointment.id),
             payload: { stateId: 4 }
@@ -277,8 +423,11 @@ export const useAppointments = () => {
         showInfo("Solicitud cancelada");
     };
 
+    const isLoading = isLoadingRequests || isLoadingOrders;
+
     return {
         events,
+        isLoading,
         isCreateModalOpen: false,
         openCreateModal: () => { },
         selectedDateTime: { horaInicio: "", minutoInicio: "", horaFin: "", minutoFin: "", dia: "", mes: "", ano: "" },

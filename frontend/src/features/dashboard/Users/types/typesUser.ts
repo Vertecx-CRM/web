@@ -33,6 +33,7 @@ export interface User {
     customercity: string | null;
     customerzipcode: string | null;
   }[];
+  hasAssociations?: boolean;
 }
 
 export interface UserForTable extends User {

@@ -3,21 +3,28 @@
 import React, { useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
+
 import { useCategories } from "@/features/dashboard/CategoryProducts/hooks/useCategories";
-import { Product } from "@/features/dashboard/products/types/typesProducts";
+import type { Category } from "@/features/dashboard/CategoryProducts/types/typeCategoryProducts";
+
+import type { Product, CreateProductData } from "@/features/dashboard/products/types/typesProducts";
 import {
   validateProductField,
   validateProductForm,
-  ProductErrors,
+  type ProductErrors,
+  type ProductFormField,
+  type ProductFormDraft,
 } from "@/features/dashboard/products/validations/productsValidations";
+
 import { showWarning } from "@/shared/utils/notifications";
-import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { Upload } from "lucide-react";
+
+type CategoryOption = Pick<Category, "id" | "name">;
 
 interface CreateProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Product, "id" | "state">) => void;
+  onSave: (data: CreateProductData) => void | Promise<void>;
   products: Product[];
 }
 
@@ -27,69 +34,93 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
   onSave,
   products,
 }) => {
-  const { categories } = useCategories();
+  const { categories } = useCategories() as { categories: CategoryOption[] };
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<string>("");
-  const [stock, setStock] = useState<string>("");
-  const [category, setCategory] = useState("");
-  const [image, setImage] = useState<File | string | undefined>(undefined);
+
+  const [supplierCategory, setSupplierCategory] = useState("");
+  const [supplierPrice, setSupplierPrice] = useState<string>("");
+
+  const [salePrice, setSalePrice] = useState<string>("");
+  const [code, setCode] = useState<string>("");
+
+  const [categoryId, setCategoryId] = useState<string>("");
+
+  const [image, setImage] = useState<File | null>(null);
+
   const [errors, setErrors] = useState<ProductErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value.replace(/\D/g, "");
-    const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    setPrice(formatted);
-  };
+  const handleMoneyChange =
+    (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawValue = e.target.value.replace(/\D/g, "");
+      const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      setter(formatted);
+    };
 
-  const validateField = (
-    field: keyof Omit<Product, "id" | "state">,
-    value: unknown
-  ) => {
+  const validateField = (field: ProductFormField, value: unknown) => {
     const error = validateProductField(field, value, products);
-    setErrors((prev) => ({ ...prev, [field]: error }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (error) next[field] = error;
+      else delete next[field];
+      return next;
+    });
   };
 
   const resetForm = () => {
     setName("");
     setDescription("");
-    setPrice("");
-    setStock("");
-    setCategory("");
-    setImage(undefined);
+    setSupplierCategory("");
+    setSupplierPrice("");
+    setSalePrice("");
+    setCode("");
+    setCategoryId("");
+    setImage(null);
     setErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const data: Omit<Product, "id" | "state"> = {
+    const draft: ProductFormDraft = {
       name,
-      description,
-      price: Number(price.replace(/\./g, "")),
-      stock: stock === "" ? 0 : Number(stock),
-      category,
-      image: image as unknown as string,
+      description: description ?? null,
+      supplierCategory,
+      supplierPrice,
+      salePrice, 
+      code,
+      categoryId,
+      image,
     };
 
-    const formErrors = validateProductForm(data, products);
-    if (stock === "") formErrors.stock = "La cantidad es obligatoria";
-
+    const formErrors = validateProductForm(draft, products);
     setErrors(formErrors);
+
     if (Object.keys(formErrors).length > 0) {
       showWarning("Por favor completa los campos requeridos", { autoClose: 5000 });
       return;
     }
 
-    let imageString = "";
-    if (image instanceof File) {
-      imageString = await uploadImageToCloudinary(image);
-    } else if (typeof image === "string") {
-      imageString = image;
+    if (!image) {
+      setErrors((prev) => ({ ...prev, image: "Debe seleccionar una imagen" }));
+      showWarning("Debe seleccionar una imagen", { autoClose: 5000 });
+      return;
     }
 
-    onSave({ ...data, image: imageString });
+    const payload: CreateProductData = {
+      name: name.trim(),
+      description: description ?? null,
+      supplierCategory: supplierCategory.trim(),
+      supplierPrice: Number(supplierPrice.replace(/\./g, "")),
+      salePrice: Number(salePrice.replace(/\./g, "")), // <- OBLIGATORIO
+      code: code.trim(), // <- OBLIGATORIO
+      categoryId: Number(categoryId),
+      image,
+    };
+
+    await onSave(payload);
     resetForm();
     onClose();
   };
@@ -121,131 +152,139 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
         </div>
       }
     >
-      <form
-        id="create-product-form"
-        onSubmit={handleSubmit}
-        className="flex flex-col h-full"
-      >
+      <form id="create-product-form" onSubmit={handleSubmit} className="flex flex-col h-full">
         <div className="flex-1 grid grid-cols-2 gap-3 p-1">
-          {/* Nombre */}
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Nombre <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              placeholder="Ingrese nombre"
               value={name}
+              placeholder="Panel solar 550W"
               onChange={(e) => {
                 setName(e.target.value);
                 validateField("name", e.target.value);
               }}
               onBlur={() => validateField("name", name)}
               className="w-full px-2 py-1 border rounded-md"
-              style={{
-                borderColor: errors.name ? "red" : Colors.table.lines,
-              }}
+              style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
             />
-            {errors.name && (
-              <span className="text-xs text-red-500">{errors.name}</span>
-            )}
+            {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
           </div>
 
-          {/* Precio */}
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Precio <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Precio proveedor <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              placeholder="Ingrese precio"
-              value={price}
-              onChange={handlePriceChange}
-              onBlur={() => validateField("price", price)}
+              value={supplierPrice}
+              placeholder="350.000"
+              onChange={handleMoneyChange(setSupplierPrice)}
+              onBlur={() => validateField("supplierPrice", supplierPrice)}
               inputMode="numeric"
               className="w-full px-2 py-1 border rounded-md"
-              style={{
-                borderColor: errors.price ? "red" : Colors.table.lines,
-              }}
+              style={{ borderColor: errors.supplierPrice ? "red" : Colors.table.lines }}
             />
-            {errors.price && (
-              <span className="text-xs text-red-500">{errors.price}</span>
+            {errors.supplierPrice && (
+              <span className="text-xs text-red-500">{errors.supplierPrice}</span>
             )}
           </div>
 
-          {/* Stock */}
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Cantidad <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Categoría del proveedor <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              value={stock}
+              value={supplierCategory}
+              placeholder="Paneles solares ahorrativos"
               onChange={(e) => {
-                if (/^\d*$/.test(e.target.value)) setStock(e.target.value);
+                setSupplierCategory(e.target.value);
+                validateField("supplierCategory", e.target.value);
               }}
-              onBlur={() => validateField("stock", stock)}
+              onBlur={() => validateField("supplierCategory", supplierCategory)}
               className="w-full px-2 py-1 border rounded-md"
-              style={{
-                borderColor: errors.stock ? "red" : Colors.table.lines,
-              }}
+              style={{ borderColor: errors.supplierCategory ? "red" : Colors.table.lines }}
             />
-            {errors.stock && (
-              <span className="text-xs text-red-500">{errors.stock}</span>
+            {errors.supplierCategory && (
+              <span className="text-xs text-red-500">{errors.supplierCategory}</span>
             )}
           </div>
 
-          {/* Categoría */}
           <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
               Categoría <span className="text-red-500">*</span>
             </label>
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              onBlur={() => validateField("category", category)}
-              className="w-full px-2 py-1 border rounded-md"
-              style={{
-                borderColor: errors.category ? "red" : Colors.table.lines,
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                validateField("categoryId", e.target.value);
               }}
+              onBlur={() => validateField("categoryId", categoryId)}
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.categoryId ? "red" : Colors.table.lines }}
             >
-              <option value="">Seleccione categoría</option>
+              <option value="" disabled>
+                Seleccione una categoría...
+              </option>
               {categories.map((c) => (
-                <option key={c.id} value={c.nombre}>
-                  {c.nombre}
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
                 </option>
               ))}
             </select>
-            {errors.category && (
-              <span className="text-xs text-red-500">{errors.category}</span>
-            )}
+            {errors.categoryId && <span className="text-xs text-red-500">{errors.categoryId}</span>}
           </div>
 
-          {/* Descripción + Imagen */}
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Precio venta <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={salePrice}
+              placeholder="420.000"
+              onChange={handleMoneyChange((v) => {
+                setSalePrice(v);
+              })}
+              onBlur={() => validateField("salePrice", salePrice)}
+              inputMode="numeric"
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.salePrice ? "red" : Colors.table.lines }}
+            />
+            {errors.salePrice && <span className="text-xs text-red-500">{errors.salePrice}</span>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              Código <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={code}
+              placeholder="PROD-001"
+              onChange={(e) => {
+                setCode(e.target.value);
+                validateField("code", e.target.value);
+              }}
+              onBlur={() => validateField("code", code)}
+              className="w-full px-2 py-1 border rounded-md"
+              style={{ borderColor: errors.code ? "red" : Colors.table.lines }}
+            />
+            {errors.code && <span className="text-xs text-red-500">{errors.code}</span>}
+          </div>
+
           <div className="col-span-2 grid grid-cols-3 gap-3">
-            {/* Descripción */}
             <div className="col-span-2 flex flex-col">
-              <label
-                className="block text-sm font-medium mb-1"
-                style={{ color: Colors.texts.primary }}
-              >
+              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
                 Descripción
               </label>
               <textarea
-                placeholder="Ingrese descripción"
                 value={description}
+                placeholder="Panel solar monocristalino, alta eficiencia, ideal para hogares..."
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 className="w-full flex-1 px-2 py-1 border rounded-md resize-none"
@@ -253,25 +292,19 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
               />
             </div>
 
-            {/* Imagen */}
             <div className="col-span-1 flex flex-col">
-              <label
-                className="block text-sm font-medium mb-1"
-                style={{ color: Colors.texts.primary }}
-              >
-                Imagen
+              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+                Imagen <span className="text-red-500">*</span>
               </label>
+
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className="flex flex-1 w-full items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+                title={image ? "Cambiar imagen" : "Subir imagen"}
               >
                 {image ? (
                   <img
-                    src={
-                      image instanceof File
-                        ? URL.createObjectURL(image)
-                        : (image as string)
-                    }
+                    src={URL.createObjectURL(image)}
                     alt="Producto"
                     className="h-full w-full object-cover"
                   />
@@ -279,32 +312,33 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   <Upload size={24} />
                 )}
               </div>
+
               {image && (
                 <button
                   type="button"
                   onClick={() => {
-                    setImage(undefined);
-                    validateField("image", undefined);
+                    setImage(null);
+                    validateField("image", null);
                   }}
                   className="mt-2 text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700"
                 >
                   Eliminar
                 </button>
               )}
+
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  setImage(file ?? undefined);
+                  const file = e.target.files?.[0] ?? null;
+                  setImage(file);
                   validateField("image", file);
                 }}
               />
-              {errors.image && (
-                <p className="mt-1 text-xs text-red-600">{errors.image}</p>
-              )}
+
+              {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
             </div>
           </div>
         </div>
