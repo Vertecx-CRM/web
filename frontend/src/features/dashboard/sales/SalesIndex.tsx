@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import RequireAuth from "../../auth/requireauth";
 import {
   Column,
@@ -10,6 +10,8 @@ import { ToastContainer } from "react-toastify";
 import { useSales } from "./hooks/useSales";
 import { ISale } from "./types/Sales.type";
 import Swal from "sweetalert2";
+import Modal from "../components/Modal";
+import RegisterSaleForm from "./components/RegisterSale";
 
 function Loader() {
   return (
@@ -20,7 +22,10 @@ function Loader() {
 }
 
 export default function SalesIndex() {
-  const { sales, loading } = useSales();
+  const salesHook = useSales();
+  const { sales, loading } = salesHook;
+
+  const [isRegisterOpen, setRegisterOpen] = useState(false);
 
   const confirmDeleteSale = useCallback((sale: ISale) => {
     Swal.fire({
@@ -102,10 +107,24 @@ export default function SalesIndex() {
             pageSize={8}
             onDelete={confirmDeleteSale}
             onView={(row) => alert(`Ver venta "${row.salecode}"`)}
-            onCreate={() => alert("Abrir modal: crear venta")}
+            onCreate={() => setRegisterOpen(true)}
             createButtonText="Registrar venta"
           />
         )}
+
+        {/* Modal Registro de Venta */}
+        <Modal
+          title="Registrar venta"
+          isOpen={isRegisterOpen}
+          onClose={() => setRegisterOpen(false)}
+          footer={null}
+          widthClass="md:max-w-6xl"
+        >
+          <RegisterSaleForm
+            hook={salesHook}
+            onClose={() => setRegisterOpen(false)}
+          />
+        </Modal>
       </div>
     </RequireAuth>
   );

@@ -11,7 +11,7 @@ type ModalProps = {
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  widthClass?: string;
+  widthClass?: string; // ej: "md:max-w-5xl"
 };
 
 export default function Modal({
@@ -20,7 +20,7 @@ export default function Modal({
   onClose,
   children,
   footer,
-  widthClass = "max-w-5xl",
+  widthClass = "md:max-w-lg", // 👈 por defecto, igual a antes
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
 
@@ -46,11 +46,11 @@ export default function Modal({
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="
-              bg-white rounded-2xl shadow-lg 
-              w-full sm:w-[90%] md:max-w-lg 
+            className={`
+              bg-white rounded-2xl shadow-lg
+              w-full sm:w-[90%] ${widthClass}
               max-h-[90vh] flex flex-col
-            "
+            `}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
