@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import RequireAuth from "@/features/auth/requireauth";
-import { OrderServiceDTO, useOrderServiceDetail } from "../hooks/useOrderServices";
+import { OrderServiceDTO, useOrderServiceDetail, useOrderServiceHistory } from "../hooks/useOrderServices";
 
 const currencyFormatter = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -30,6 +30,7 @@ const buildDateTime = (date?: string, time?: string) => {
 };
 const formatDateTime = (value?: Date | null) =>
   value ? value.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" }) : "-";
+const formatHistoryDate = (value?: string) => formatDateTime(value ? new Date(value) : null);
 
 const isImageFile = (value: string) =>
   /\.(jpe?g|png|gif|webp|bmp)$/i.test(value);
@@ -106,6 +107,8 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO }> = ({ order
   const stateLabel = order.state?.name ?? "Sin estado";
   const formattedFiles = (order.files ?? []).filter(Boolean);
   const headerStateColor = stateStyles[stateLabel] ?? "bg-slate-200 text-slate-900";
+  const { data: history, isLoading: isHistoryLoading } = useOrderServiceHistory(order.ordersservicesid);
+  const historyEntries = history ?? [];
 
   const clientLabel = useMemo(() => {
     if (!order.client) return "Cliente no asignado";
@@ -250,6 +253,40 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO }> = ({ order
           </section>
         </div>
       </div>
+      <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Historial de actividad</h2>
+          <span className="text-xs uppercase tracking-wide text-slate-400">
+            {isHistoryLoading
+              ? "Cargando..."
+              : `${historyEntries.length} evento${historyEntries.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+        <div className="mt-4 space-y-3">
+          {isHistoryLoading ? (
+            <p className="text-sm text-slate-500">Cargando historial...</p>
+          ) : historyEntries.length === 0 ? (
+            <p className="text-sm text-slate-500">No hay registros para esta orden.</p>
+          ) : (
+            historyEntries.map((entry) => (
+              <div
+                key={entry.ordersserviceshistoryid}
+                className="space-y-1 rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3"
+              >
+                <div className="flex items-center justify-between text-xs uppercase tracking-wide text-slate-500">
+                  <span>{formatHistoryDate(entry.createdat)}</span>
+                  <span>{entry.action}</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-900">{entry.actionlabel}</p>
+                {entry.description && <p className="text-sm text-slate-600">{entry.description}</p>}
+                {entry.actoruserid != null && (
+                  <p className="text-xs text-slate-500">Actor ID: {entry.actoruserid}</p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 };
