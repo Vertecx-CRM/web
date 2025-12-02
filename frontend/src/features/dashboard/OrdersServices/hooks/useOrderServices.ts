@@ -7,6 +7,10 @@ export const orderServiceKeys = {
   detail: (id: number) => [...orderServiceKeys.all, 'detail', id] as const,
 };
 
+export const orderServiceHistoryKeys = {
+  list: (id: number) => [...orderServiceKeys.detail(id), 'history'] as const,
+};
+
 export interface OrderServiceDTO {
   ordersservicesid: number;
   description: string;
@@ -58,6 +62,16 @@ export interface OrderServiceDTO {
   files?: string[];
 }
 
+export interface OrderServiceHistoryEntry {
+  ordersserviceshistoryid: number;
+  action: string;
+  actionlabel: string;
+  description: string | null;
+  payload: any;
+  actoruserid: number | null;
+  createdat: string;
+}
+
 export interface UpdateOrderServicePayload {
   fechainicio: string;
   fechafin: string;
@@ -99,12 +113,27 @@ export async function getOrderServiceDetail(id: number): Promise<OrderServiceDTO
   return res.data;
 }
 
+export async function getOrderServiceHistory(id: number): Promise<OrderServiceHistoryEntry[]> {
+  const res = await api.get(`/orders-services/${id}/history`);
+  return Array.isArray(res.data) ? res.data : [];
+}
+
 export function useOrderServiceDetail(id?: number) {
   const normalizedId = Number(id);
   const canFetch = Number.isFinite(normalizedId) && normalizedId > 0;
   return useQuery({
     queryKey: orderServiceKeys.detail(canFetch ? normalizedId : -1),
     queryFn: () => getOrderServiceDetail(normalizedId),
+    enabled: canFetch,
+  });
+}
+
+export function useOrderServiceHistory(id?: number) {
+  const normalizedId = Number(id);
+  const canFetch = Number.isFinite(normalizedId) && normalizedId > 0;
+  return useQuery({
+    queryKey: orderServiceHistoryKeys.list(canFetch ? normalizedId : -1),
+    queryFn: () => getOrderServiceHistory(normalizedId),
     enabled: canFetch,
   });
 }
