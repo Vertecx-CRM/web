@@ -63,24 +63,19 @@ export const CustomEventComponent = ({ event }: CustomEventProps) => {
     switch (event.tipoCita) {
       case "solicitud":
         return "Solicitud";
-      case "ejecucion":
-        return "Ejecución";
-      case "garantia":
-        return "Garantía";
+      case "orden":
+        return "Orden de servicio";
       default:
         return "Cita";
     }
   };
 
-  // Colores por tipo de cita (mantengo esto separado)
   const getEventColor = (): string => {
     switch (event.tipoCita) {
       case "solicitud":
         return "#828299";
-      case "ejecucion":
+      case "orden":
         return "#5b84ff";
-      case "garantia":
-        return "#ff6347";
       default:
         return Colors.calendar.primary;
     }

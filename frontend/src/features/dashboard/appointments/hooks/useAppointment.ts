@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, KeyboardEvent, RefObject, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, KeyboardEvent, RefObject, useRef, useMemo, useCallback } from "react";
 import {
     Appointment,
     AppointmentFormData,
@@ -165,7 +165,7 @@ export const useAppointments = () => {
             ano: start.getFullYear().toString(),
             observaciones: order.description ?? "",
             estado,
-            tipoCita: "ejecucion",
+            tipoCita: "orden",
             nombreCliente: clientName,
             direccion: order.client?.customercity ?? "",
             tipoServicioSolicitud: tipoServicio,
@@ -412,7 +412,7 @@ const formatOrderTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.ge
 
     const handleCancelAppointment = async (appointment: AppointmentEvent, _reason?: string) => {
         if (appointment.serviceOrderId) {
-            showWarning("La cancelación de órdenes se realiza desde el módulo de órdenes.");
+            showWarning("La cancelaci�n de �rdenes se realiza desde el m�dulo de �rdenes.");
             return;
         }
 
@@ -590,7 +590,7 @@ export const useCreateAppointmentForm = ({
     useEffect(() => {
         if (
             selectedOrdenServicio &&
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia")
+            formData.tipoCita === "orden"
         ) {
             setFormData((prev) => ({
                 ...prev,
@@ -801,8 +801,7 @@ export const useCreateAppointmentForm = ({
                     "El tipo de mantenimiento es requerido";
             }
         } else if (
-            formData.tipoCita === "ejecucion" ||
-            formData.tipoCita === "garantia"
+            formData.tipoCita === "orden"
         ) {
             if (!selectedOrdenServicio) {
                 newErrors.orden = "Debe seleccionar una orden de servicio";
@@ -852,7 +851,7 @@ export const useCreateAppointmentForm = ({
                 lugar: formData.direccion!,
             };
         } else if (
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") &&
+            formData.tipoCita === "orden" &&
             selectedOrdenServicio
         ) {
             ordenParaGuardar = {
@@ -1003,10 +1002,7 @@ export const useEditAppointmentForm = ({
                 if (appointment.tipoCita === "solicitud") {
                     initialSolicitud =
                         solicitudesOrden.find((s) => s.id.toString() === orderId) || null;
-                } else if (
-                    appointment.tipoCita === "ejecucion" ||
-                    appointment.tipoCita === "garantia"
-                ) {
+                } else if (appointment.tipoCita === "orden") {
                     initialOrdenServicio =
                         ordenesServicio.find((o) => o.id.toString() === orderId) || null;
                 }
@@ -1116,7 +1112,7 @@ export const useEditAppointmentForm = ({
     useEffect(() => {
         if (
             selectedOrdenServicio &&
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia")
+            formData.tipoCita === "orden"
         ) {
             setFormData((prev) => ({
                 ...prev,
@@ -1358,8 +1354,7 @@ export const useEditAppointmentForm = ({
                     "El tipo de mantenimiento es requerido";
             }
         } else if (
-            formData.tipoCita === "ejecucion" ||
-            formData.tipoCita === "garantia"
+            formData.tipoCita === "orden"
         ) {
             if (!selectedOrdenServicio) {
                 newErrors.orden = "Debe seleccionar una orden de servicio";
@@ -1409,7 +1404,7 @@ export const useEditAppointmentForm = ({
                 lugar: formData.direccion!,
             };
         } else if (
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") &&
+            formData.tipoCita === "orden" &&
             selectedOrdenServicio
         ) {
             ordenParaGuardar = {
@@ -1658,6 +1653,7 @@ export const useClickOutside = (
         };
     }, [ref, callback, isActive]);
 };
+
 
 
 

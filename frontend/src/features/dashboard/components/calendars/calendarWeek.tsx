@@ -30,7 +30,6 @@ import { ReprogramAppointmentModal } from '../../appointments/components/resched
 import { useAppointments } from '../../appointments/hooks/useAppointment';
 import CreateRequestModal, { type CreateRequestPayload } from '../../requests/components/CreateRequestModal';
 import EditRequestModal, { type EditRequestPayload } from '../../requests/components/EditRequestModal';
-import ViewRequestModal from '../../requests/components/ViewRequestModal';
 import { useLookups } from '../../requests/hooks/useLookups';
 import dynamic from 'next/dynamic';
 import { useRouter, usePathname } from 'next/navigation';
@@ -91,8 +90,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   const calendarRef = useRef<HTMLDivElement>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentEvent | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewingAppointment, setViewingAppointment] = useState<AppointmentEvent | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isReprogramModalOpen, setIsReprogramModalOpen] = useState(false);
   const [appointmentToReprogram, setAppointmentToReprogram] = useState<AppointmentEvent | null>(null);
@@ -372,9 +369,13 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   };
 
   const handleViewAppointment = (appointment: AppointmentEvent) => {
-    setViewingAppointment(appointment);
     setIsDetailsModalOpen(false);
-    setIsViewModalOpen(true);
+    const basePath = appointment.serviceOrderId ? "/dashboard/orders" : routes.dashboard.requestsServices;
+    const detailId = appointment.serviceOrderId || appointment.requestId || appointment.id;
+    if (!detailId) {
+      return;
+    }
+    router.push(`${basePath}/${detailId}`);
   };
 
   const handleCancel = async (appointment: AppointmentEvent) => {
@@ -478,26 +479,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     mes: '11',
     año: '2025',
   };
-
-  const isViewingOrder = Boolean(viewingAppointment?.serviceOrderId);
-  const viewCodigo = isViewingOrder
-    ? `OS-${String(viewingAppointment?.serviceOrderId ?? 0).padStart(6, "0")}`
-    : `SRV-${String(viewingAppointment?.id ?? 0).padStart(6, "0")}`;
-  const viewTitle = isViewingOrder
-    ? `Detalle de la orden ${viewingAppointment?.orden?.id ?? viewCodigo}`
-    : "Detalle de la Solicitud";
-  const viewCliente = viewingAppointment?.nombreCliente || viewingAppointment?.orden?.cliente || "";
-  const viewDireccion = viewingAppointment?.direccion || viewingAppointment?.orden?.lugar || "";
-  const viewServicio = viewingAppointment?.servicio || viewingAppointment?.orden?.tipoServicio || "Servicio";
-  const viewDescripcion = viewingAppointment?.descripcion || viewingAppointment?.orden?.tipoServicio || "";
-  const viewProgramada = viewingAppointment?.start ? new Date(viewingAppointment.start).toISOString() : null;
-  const viewTipos = viewingAppointment?.tipoServicioSolicitud
-    ? [
-        viewingAppointment.tipoServicioSolicitud === "instalacion"
-          ? "Instalacion"
-          : "Mantenimiento",
-      ]
-    : [];
 
   return (
     <div id="calendar-pdf" className="calendar-wrapper w-full">
@@ -604,28 +585,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
             }}
 
           />
-
-          {isViewModalOpen && viewingAppointment && (
-            <ViewRequestModal
-              isOpen={isViewModalOpen}
-              onClose={() => {
-                setIsViewModalOpen(false);
-                setViewingAppointment(null);
-              }}
-              data={{
-                tipos: viewTipos,
-                servicio: viewServicio,
-                descripcion: viewDescripcion,
-                direccion: viewDireccion,
-                cliente: viewCliente,
-                fecha: viewingAppointment.start,
-                estado: viewingAppointment.estado,
-                codigo: viewCodigo,
-                programada: viewProgramada,
-              }}
-              title={viewTitle}
-            />
-          )}
 
           <AppointmentDetailsModal
             isOpen={isDetailsModalOpen}
