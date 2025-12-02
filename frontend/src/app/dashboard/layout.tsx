@@ -117,7 +117,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <TopNav />
 
-          <main className="flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden overflow-y-hidden scrollbar-thin">
+          <main className="flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin">
             {children}
           </main>
         </div>

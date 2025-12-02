@@ -36,7 +36,7 @@ export interface Order {
 }
 
 // Nuevo tipo para el tipo de cita
-export type TipoCita = "solicitud" | "ejecucion" | "garantia";
+export type TipoCita = "solicitud" | "orden";
 
 export interface AppointmentFormData {
   horaInicio: string;
@@ -104,6 +104,8 @@ export interface AppointmentEvent {
   stateId?: number;
   scheduledAt?: string | Date | null;
   serviceOrderId?: number;
+  ordersservicesid?: number;
+  serviceRequestId?: number;
 }
 
 

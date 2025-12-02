@@ -176,9 +176,8 @@ export const appointmentStates: { value: "Pendiente" | "Finalizado" | "Cancelado
 ];
 
 export const tiposCita: { value: TipoCita; label: string }[] = [
-  { value: "solicitud", label: "Solicitud de Cita" },
-  { value: "ejecucion", label: "Ejecución de Cita" },
-  { value: "garantia", label: "Garantía de Cita" }
+  { value: "solicitud", label: "Solicitud de Servicio" },
+  { value: "orden", label: "Orden de Servicio" }
 ];
 
 export const estadoColors = [

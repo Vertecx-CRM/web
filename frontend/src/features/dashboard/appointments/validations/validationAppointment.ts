@@ -76,7 +76,7 @@ export const validateAppointmentField = (
       break;
 
     case "tipoCita":
-      if (!value || !["solicitud", "ejecucion", "garantia"].includes(value)) {
+      if (!value || !["solicitud", "orden"].includes(value)) {
         return "Selecciona un tipo de cita válido";
       }
       break;
@@ -107,12 +107,12 @@ export const validateAppointmentForm = (formData: AppointmentFormData | Appointm
   const errors: AppointmentErrors = {};
 
   // Validar tipo de cita
-  if (!formData.tipoCita || !["solicitud", "ejecucion", "garantia"].includes(formData.tipoCita)) {
+  if (!formData.tipoCita || !["solicitud", "orden"].includes(formData.tipoCita)) {
     errors.tipoCita = 'Selecciona un tipo de cita válido';
   }
 
-  // Validar orden solo para ejecucion y garantia
-  if ((formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") && !formData.orden) {
+  // Validar orden solo para ordenes de servicio
+  if (formData.tipoCita === "orden" && !formData.orden) {
     errors.orden = 'Selecciona un número de orden';
   }
   // Para solicitud, la orden no es obligatoria

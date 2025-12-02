@@ -7,11 +7,8 @@ import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Modal from "@/features/dashboard/components/Modal";
-import { CreateAppointmentModal } from "@/features/dashboard/appointments/components/CreateAppointmentModal/createAppointment";
-import type { SlotDateTime } from "@/features/dashboard/appointments/types/typeAppointment";
 
 const ICONS = {
-  calendar: "/icons/calendar.svg",
   cancel: "/icons/minus-circle.svg",
   print: "/icons/printer.svg",
   report: "/icons/alert-triangle.svg",
@@ -233,33 +230,6 @@ function GarantiaChip({ info }: { info?: WarrantyInfo }) {
   );
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function parseDDMMYYYY(s: string): Date | null {
-  const [dd, mm, yyyy] = s.split("/").map((n) => Number(n));
-  if (!dd || !mm || !yyyy) return null;
-  const d = new Date(yyyy, mm - 1, dd);
-  return isNaN(d.getTime()) ? null : d;
-}
-function dateToSlot(d: Date): SlotDateTime {
-  const startH = d.getHours();
-  const startM = d.getMinutes();
-  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startH, startM + 60);
-  return {
-    dia: pad2(d.getDate()),
-    mes: pad2(d.getMonth() + 1),
-    año: String(d.getFullYear()),
-    horaInicio: pad2(startH),
-    minutoInicio: pad2(startM),
-    horaFin: pad2(end.getHours()),
-    minutoFin: pad2(end.getMinutes()),
-  };
-}
-function slotToDDMMYYYY(slot: SlotDateTime): string {
-  return `${slot.dia}/${slot.mes}/${slot.año}`;
-}
-
 export default function OrdersServicesIndexPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -272,10 +242,6 @@ export default function OrdersServicesIndexPage() {
   const [detalle, setDetalle] = useState("");
   const [notifyClient, setNotifyClient] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState("");
-
-  const [openAppointment, setOpenAppointment] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<SlotDateTime | null>(null);
-  const [appointmentRowId, setAppointmentRowId] = useState<number | null>(null);
 
   useEffect(() => {
     const no = searchParams.get("newOrder");
@@ -329,13 +295,6 @@ export default function OrdersServicesIndexPage() {
     } catch {}
     window.history.replaceState(null, "", pathname);
   }, [searchParams, pathname]);
-
-  function openAppointmentModal(row: Row) {
-    const d = parseDDMMYYYY(row.fechaProgramada) ?? new Date();
-    setSelectedSlot(dateToSlot(d));
-    setAppointmentRowId(row.id);
-    setOpenAppointment(true);
-  }
 
   async function cancelRow(row: Row) {
     if (row.estado === "Anulada") return;
@@ -632,13 +591,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
             onEdit={(r) => openEdit(r)}
             renderExtraActions={(row) => (
               <>
-                <button
-                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                  title="Programar"
-                  onClick={() => openAppointmentModal(row)}
-                >
-                  <img src={ICONS.calendar} className="h-4 w-4" />
-                </button>
                 {row.estado !== "Garantia" && row.estado !== "GarantiaReportada" && (
                   <button
                     className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
@@ -742,21 +694,6 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
           </div>
         </Modal>
 
-        {openAppointment && selectedSlot && (
-          <CreateAppointmentModal
-            isOpen={openAppointment}
-            onClose={() => setOpenAppointment(false)}
-            selectedDateTime={selectedSlot}
-            onSave={(slot?: SlotDateTime) => {
-              if (!slot || appointmentRowId == null) return;
-              const nuevaFecha = slotToDDMMYYYY(slot);
-              setRows((prev) => prev.map((r) => (r.id === appointmentRowId ? { ...r, fechaProgramada: nuevaFecha } : r)));
-              setOpenAppointment(false);
-              setAppointmentRowId(null);
-              Swal.fire({ icon: "success", title: "Programada", text: `Fecha guardada: ${nuevaFecha}`, timer: 1400, showConfirmButton: false });
-            }}
-          />
-        )}
       </main>
     </RequireAuth>
   );
