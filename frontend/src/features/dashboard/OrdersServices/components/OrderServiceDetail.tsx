@@ -91,10 +91,12 @@ const TechnicianCard: React.FC<{ tech: OrderServiceDTO["technicians"][0] }> = ({
           </a>
         )}
       </div>
-      {tech?.technicianid && (
-        <p className="text-xs text-slate-500">ID: {tech.technicianid}</p>
+      {tech?.users?.phone && (
+        <p className="text-xs text-slate-500">Telefono: {tech.users.phone}</p>
       )}
-      {tech?.userid && <p className="text-xs text-slate-500">Usuario: {tech.userid}</p>}
+      {tech?.users?.email && (
+        <p className="text-xs text-slate-500">Correo: {tech.users.email}</p>
+      )}
     </div>
   );
 };
@@ -212,7 +214,6 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO }> = ({ order
           <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Tecnicos asignados</h2>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Roles</p>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {(order.technicians ?? []).map((tech) => (

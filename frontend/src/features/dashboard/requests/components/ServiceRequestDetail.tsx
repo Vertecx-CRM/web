@@ -60,7 +60,19 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
   }, [data]);
 
   const scheduled = formatDateTime(data.scheduledAt);
+  const scheduledEnd = formatDateTime(data.scheduledEndAt);
   const created = formatDateTime(data.createdAt);
+  const customerUser = data.customer?.users;
+  const customerFullName = [customerUser?.name, customerUser?.lastname].filter(Boolean).join(" ");
+  const customerDocument = customerUser?.documentnumber;
+  const customerEmail = customerUser?.email;
+  const customerPhone = customerUser?.phone;
+  const customerCity = data.customer?.customercity ?? "-";
+  const customerZip = data.customer?.customerzipcode ?? "-";
+  const stateLabel = data.state?.name ?? "-";
+  const stateDescription = data.state?.description ?? "Sin descripcion del estado.";
+  const serviceDescription = data.service?.description;
+  const serviceImage = data.service?.image;
 
   return (
     <div className="space-y-6">
@@ -75,6 +87,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
           <div className="text-right text-sm text-slate-600">
             <p className="font-semibold text-slate-800">{data.service?.name ?? "Servicio sin nombre"}</p>
             <p>{data.serviceType ?? "-"}</p>
+            <p className="text-xs text-slate-500">Estado actual: {stateLabel}</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -82,13 +95,13 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="text-xs uppercase tracking-wide text-slate-500">Cliente</p>
             <p className="mt-2 text-sm font-medium text-slate-800">{clientLabel}</p>
             <p className="text-xs text-slate-500">
-              Ciudad: {data.customer?.customercity ?? "-"} · Codigo postal: {data.customer?.customerzipcode ?? "-"}
+              Ciudad: {customerCity} · Codigo postal: {customerZip}
             </p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Programada</p>
             <p className="mt-2 text-sm font-medium text-slate-800">{scheduled}</p>
-            <p className="text-xs text-slate-500">Estado actual: {data.state?.name ?? "-"}</p>
+            <p className="text-xs text-slate-500">Fin estimado: {scheduledEnd}</p>
           </div>
         </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -97,12 +110,16 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="mt-2 text-sm font-medium text-slate-800">{created}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Cliente ID</p>
-            <p className="mt-2 text-sm font-medium text-slate-800">{data.clientId ?? "-"}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Servicio</p>
+            <p className="mt-2 text-sm font-medium text-slate-800">{data.service?.name ?? "-"}</p>
+            <p className="text-xs text-slate-500">Tipo: {data.serviceType ?? "-"}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Servicio ID</p>
-            <p className="mt-2 text-sm font-medium text-slate-800">{data.serviceId ?? "-"}</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Estado</p>
+            <p className="mt-2 text-sm font-medium text-slate-800">
+              {stateLabel}
+            </p>
+            <p className="text-xs text-slate-500">{stateDescription}</p>
           </div>
         </div>
       </section>
@@ -110,7 +127,6 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Descripcion y detalles</h2>
-          <p className="text-xs uppercase tracking-wide text-slate-400">{data.state?.description ?? "-"}</p>
         </div>
         <p className="mt-4 text-sm text-slate-700">{data.description || "Sin descripcion adicional."}</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -120,8 +136,61 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Estado</p>
-            <p className="mt-2 text-sm font-medium text-slate-800">{data.state?.name ?? "-"}</p>
-            <p className="text-xs text-slate-500">ID: {data.state?.stateid ?? "-"}</p>
+            <p className="mt-2 text-sm font-medium text-slate-800">{stateLabel}</p>
+            <p className="text-xs text-slate-500">{stateDescription}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Servicio</h2>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr,200px]">
+          <div className="space-y-3">
+            <p className="text-base font-semibold text-slate-900">{data.service?.name ?? "Servicio sin nombre"}</p>
+            <p className="text-sm text-slate-600">{serviceDescription ?? "No hay descripcion disponible."}</p>
+            <div className="">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Tipo de servicio</p>
+                <p className="text-sm font-medium text-slate-800">{data.serviceType ?? "-"}</p>
+              </div>
+            </div>
+          </div>
+          {serviceImage ? (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Imagen del servicio</p>
+              <img
+                src={serviceImage}
+                alt={`Imagen del servicio ${data.service?.name ?? ""}`}
+                className="mt-3 h-32 w-full rounded-xl object-cover"
+              />
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Imagen del servicio</p>
+              <p className="mt-3 text-sm text-slate-500">No disponible</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Cliente</h2>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Nombre</p>
+            <p className="mt-2 text-sm font-medium text-slate-800">{customerFullName || "-"}</p>
+            <p className="text-xs text-slate-500">Documento: {customerDocument ?? "-"}</p>
+            <p className="text-xs text-slate-500">Correo: {customerEmail ?? "-"}</p>
+            <p className="text-xs text-slate-500">Telefono: {customerPhone ?? "-"}</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Datos adicionales</p>
+            <p className="mt-2 text-sm font-medium text-slate-800">{customerCity}</p>
+            <p className="text-xs text-slate-500">Codigo postal: {customerZip}</p>
           </div>
         </div>
       </section>
@@ -189,23 +258,7 @@ const ServiceRequestDetail: React.FC<Props> = ({ requestId }) => {
 
   return (
     <RequireAuth>
-      <div className="min-h-screen bg-slate-50 py-6">
-        <div
-          className="mx-auto w-full max-w-6xl space-y-4 px-4 overflow-y-auto"
-          style={{ maxHeight: "calc(100vh - 3rem)" }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-slate-400">Detalle de solicitud</p>
-              <h1 className="text-base font-semibold text-slate-600">
-                SRV-{String(requestId).padStart(6, "0")}
-              </h1>
-            </div>
-            {isFetching && <p className="text-xs text-slate-500">Actualizando informacion...</p>}
-          </div>
           <ServiceRequestDetailContent data={data} />
-        </div>
-      </div>
     </RequireAuth>
   );
 };

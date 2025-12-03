@@ -27,7 +27,7 @@ export default function UsersPage() {
     handleEditUser,
     handleView,
     handleEdit,
-    handleDelete, 
+    handleDelete,
     closeModals
   } = useUser();
 
@@ -53,8 +53,9 @@ export default function UsersPage() {
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col">
-        <main className="flex-1 flex flex-col">
-          <div className="px-6 pt-6">
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-6 pt-6 overflow-hidden">
+
             <CreateUserModal
               isOpen={isCreateModalOpen}
               onClose={() => setIsCreateModalOpen(false)}

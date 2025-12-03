@@ -37,6 +37,7 @@ interface IRoutes {
     quotes: string;
     settings: string;
     profile: string;
+    orders: string;
   };
   notFound: string;
 }
@@ -74,6 +75,7 @@ export const routes: IRoutes = {
     clients: "/dashboard/clients",
     requestsServices: "/dashboard/requests",
     ordersServices: "/dashboard/orders-services",
+    orders: "/dashboard/orders",
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",
     profile: "/dashboard/profile",
