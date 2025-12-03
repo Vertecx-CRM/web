@@ -2,10 +2,9 @@ import Colors from "@/shared/theme/colors";
 import React from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-interface CategoryData {
+export interface CategoryData {
   category: string;
   value: number;
-  [key: string]: string | number;
 }
 
 export const PieChartCategoryAndProducts = ({ data }: { data: CategoryData[] }) => {

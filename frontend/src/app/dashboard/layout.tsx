@@ -10,6 +10,7 @@ import { showSuccess } from "@/shared/utils/notifications";
 import { MODULE_TO_PATH, pickDefaultDashboardRoute } from "@/features/auth/authz";
 import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
 import { toast } from "react-toastify";
+import { routes } from "@/shared/routes";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -25,6 +26,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const noScrollRoutes = [
+    routes.dashboard.users,
+    routes.dashboard.clients,
+    routes.dashboard.orders,
+    routes.dashboard.ordersServices,
+    routes.dashboard.products,
+    routes.dashboard.productsCategories,
+    routes.dashboard.purchases,
+    routes.dashboard.purchasesGraph,
+    routes.dashboard.purchasesOrders,
+    routes.dashboard.quotes,
+    routes.dashboard.requestsServices,
+    routes.dashboard.roles,
+    routes.dashboard.sales,
+    routes.dashboard.services,
+    routes.dashboard.suppliers,
+    routes.dashboard.technicians,
+  ];
+
+  const isNoScrollRoute = noScrollRoutes.includes(pathname);
+
 
   const hideAside = allowedModules.length <= 1;
 
@@ -117,7 +139,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <TopNav />
 
-          <main className="flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin">
+          <main
+            className={`flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin ${isNoScrollRoute ? "overflow-y-hidden" : ""
+              }`}
+          >
+
             {children}
           </main>
         </div>

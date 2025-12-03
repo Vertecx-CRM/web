@@ -5,9 +5,17 @@ import Image from "next/image";
 import Colors from "@/shared/theme/colors";
 import { YearlyGraph } from "./components/BarChar/YearlySalesGraph";
 import { MonthlyGraph } from "./components/BarChar/monthlySalesGraph";
-import { PieChartCategoryAndProducts } from "./components/PieChart/pieChart";
+import {
+  PieChartCategoryAndProducts,
+  CategoryData,
+} from "./components/PieChart/pieChart";
 import { CustomBarChart } from "./components/BarChar/barChart";
 import { dashboardApi } from "./api/dashboardApi";
+
+type CategoryProductsResponse = {
+  category: string;
+  value: number | string | null;
+};
 
 function Loader() {
   return (
@@ -25,7 +33,7 @@ export const IndexDashboard = () => {
   const [purchasesYear, setPurchasesYear] = useState([]);
   const [totalPurchases, setTotalPurchases] = useState(0);
 
-  const [categoryProducts, setCategoryProducts] = useState([]);
+  const [categoryProducts, setCategoryProducts] = useState<CategoryData[]>([]);
 
   const [ordersState, setOrdersState] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -64,7 +72,14 @@ export const IndexDashboard = () => {
         setTotalPurchases((await dashboardApi.getTotalPurchases(selectedYear)).total);
 
         // PRODUCTOS POR CATEGORÍA
-        setCategoryProducts(await dashboardApi.getCategoryProducts(selectedYear));
+        const rawCategoryProducts =
+          (await dashboardApi.getCategoryProducts(selectedYear)) as CategoryProductsResponse[];
+        setCategoryProducts(
+          rawCategoryProducts.map(({ category, value }) => ({
+            category,
+            value: Number(value ?? 0),
+          }))
+        );
 
         // ÓRDENES
         setOrdersState(await dashboardApi.getOrdersByState(selectedYear));
@@ -96,7 +111,7 @@ export const IndexDashboard = () => {
   };
 
   return (
-    <div className="w-full h-screen overflow-y-auto overflow-x-hidden p-4">
+    <div className="w-full h-screen p-4">
       {loading && <Loader />}
 
       <div className="flex w-full justify-end mb-4">

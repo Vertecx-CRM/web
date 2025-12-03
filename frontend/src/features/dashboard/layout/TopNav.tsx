@@ -12,22 +12,25 @@ const titles: Record<string, string> = {
   [routes.dashboard.users]: "Usuarios",
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
-  [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Gráficas de Compras",
+  [routes.dashboard.purchasesOrders]: "Ordenes de Compras",
+  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
   [routes.dashboard.services]: "Servicios",
-  [routes.dashboard.technicians]: "Técnicos",
+  [routes.dashboard.technicians]: "Tecnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
   [routes.dashboard.clients]: "Clientes",
   [routes.dashboard.newClient]: "Nuevo Cliente",
-  [routes.dashboard.settings]: "Configuración",
+  [routes.dashboard.settings]: "Configuracion",
   [routes.dashboard.products]: "Productos",
-  [routes.dashboard.productsCategories]: "Categorías de Productos",
+  [routes.dashboard.productsCategories]: "Categorias de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
   [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
-  [routes.dashboard.ordersServices]: "Órdenes de Servicio",
+  [routes.dashboard.ordersServices]: "Ordenes de Servicio",
+  [routes.dashboard.orders]: "Ordenes de Servicio",
   [routes.dashboard.appointments]: "Citas",
   [routes.dashboard.sales]: "Ventas",
 };
+
+
 
 type TopNavProps = {
   logoutRedirectTo?: string;
@@ -64,7 +67,7 @@ export default function TopNav({
     Object.entries(titles)
       .sort((a, b) => b[0].length - a[0].length)
       .find(([path]) => pathname.startsWith(path))?.[1] ||
-    "Dashboard";
+    "Órdenes de Servicio";
 
   const display = useMemo(() => {
     const name =
