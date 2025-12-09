@@ -16,6 +16,12 @@ const formatDateTime = (value?: string | null) => {
   return date.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
 };
 
+const RequestLoader = () => (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+    <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 const buildTechnicianLabel = (tech: { technicianid?: number; technicianId?: number; users?: { name?: string | null; lastname?: string | null }; title?: string | null } | null | undefined) => {
   if (!tech) return null;
   const parts = [
@@ -218,7 +224,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
 };
 
 const ServiceRequestDetail: React.FC<Props> = ({ requestId }) => {
-  const { data, isLoading, isError, isFetching } = useServiceRequest(requestId, requestId > 0);
+  const { data, isLoading, isError } = useServiceRequest(requestId, requestId > 0);
   const invalidId = !Number.isFinite(requestId) || requestId <= 0;
 
   if (invalidId) {
@@ -237,9 +243,7 @@ const ServiceRequestDetail: React.FC<Props> = ({ requestId }) => {
   if (isLoading) {
     return (
       <RequireAuth>
-        <div className="flex min-h-[60vh] items-center justify-center px-4 py-6">
-          <p className="text-sm font-medium text-slate-500">Cargando solicitud...</p>
-        </div>
+        <RequestLoader />
       </RequireAuth>
     );
   }

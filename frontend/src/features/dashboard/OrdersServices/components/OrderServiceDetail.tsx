@@ -22,6 +22,12 @@ interface OrderServiceDetailProps {
   orderId: number;
 }
 
+const RequestLoader = () => (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+    <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
 const buildDateTime = (date?: string, time?: string) => {
   if (!date) return null;
@@ -312,9 +318,7 @@ const OrderServiceDetail: React.FC<OrderServiceDetailProps> = ({ orderId }) => {
   if (isLoading) {
     return (
       <RequireAuth>
-        <div className="flex min-h-[60vh] items-center justify-center px-4 py-6">
-          <p className="text-sm font-medium text-slate-500">Cargando orden de servicio...</p>
-        </div>
+        <RequestLoader />
       </RequireAuth>
     );
   }
