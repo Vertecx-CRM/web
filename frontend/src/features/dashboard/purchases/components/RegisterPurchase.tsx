@@ -90,6 +90,7 @@ export default function RegisterPurchaseForm({
   const { showLoader, hideLoader } = useLoader();
   const [productDescription, setProductDescription] = useState("");
   const [saving, setSaving] = useState(false);
+  const [duplicateProductError, setDuplicateProductError] = useState("");
 
   const handleFieldValidation = (
     field: keyof Omit<IPurchase, "id">,
@@ -136,7 +137,7 @@ export default function RegisterPurchaseForm({
 
       await onSave(); // ✅ aquí SÍ llama la API vía hook del padre
 
-      showSuccess("✅ Compra registrada con éxito.");
+      showSuccess("Compra registrada con éxito.");
       onClose();
     } catch (error) {
       console.error(error);
@@ -370,6 +371,12 @@ export default function RegisterPurchaseForm({
               onChange={(e) => setSelectedProduct(e.target.value)}
               className="flex-1 rounded-md border px-2 py-2 text-sm"
             >
+              {duplicateProductError && (
+                <p className="text-xs text-red-500 mt-1">
+                  {duplicateProductError}
+                </p>
+              )}
+
               <option value="">Selecciona un producto</option>
               {products.map((p) => (
                 <option key={p.productid} value={p.productid}>
@@ -432,6 +439,21 @@ export default function RegisterPurchaseForm({
               showWarning("Completa los datos del nuevo producto.");
               return;
             }
+
+            // Validar duplicado cuando no es producto nuevo
+            if (!isNewProduct) {
+              const exists = cart.some(
+                (item) => item.productid === Number(selectedProduct)
+              );
+
+              if (exists) {
+                setDuplicateProductError("⚠️ Este producto ya fue agregado.");
+                return;
+              }
+            }
+
+            // Si no hay error, limpiar mensaje
+            setDuplicateProductError("");
 
             handleAddProduct({
               isNew: isNewProduct,

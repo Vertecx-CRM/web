@@ -6,15 +6,25 @@ import { showError } from "@/shared/utils/notifications";
 export const getPurchases = async (
   signal?: AbortSignal
 ): Promise<IPurchase[]> => {
-  const { data } = await api.get("/purchasesmanagement", {
-    signal,
-    timeout: 4000,
-  });
+  try {
+    const { data } = await api.get("/purchasesmanagement", {
+      signal,
+      timeout: 4000,
+    });
 
-  return data.map((p: any) => ({
-    ...p,
-    amount: parseFloat(p.amount),
-  }));
+    return data.map((p: any) => ({
+      ...p,
+      amount: parseFloat(p.amount),
+    }));
+  } catch (error: any) {
+    // 🔥 Si la petición fue cancelada, NO mostrar error
+    if (error.name === "CanceledError" || error.code === "ERR_CANCELED") {
+      return [];
+    }
+
+    console.error("Error cargando compras:", error);
+    throw error;
+  }
 };
 
 export const getPurchaseById = async (id: number): Promise<IPurchase> => {
@@ -42,7 +52,7 @@ export const createPurchase = async (purchase: Partial<IPurchase>) => {
 // Anular una compra (actualizar estado)
 export const cancelPurchase = async (id: number) => {
   try {
-    const { data } = await api.post(`/purchasesmanagement/${id}/cancel`);
+    const { data } = await api.post(`/purchasesmanagement/${id}/cancel`, {});
     return data;
   } catch (error) {
     console.error("Error al anular la compra:", error);

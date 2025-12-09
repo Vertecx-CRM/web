@@ -9,6 +9,7 @@ export interface PurchaseErrors {
   amount?: string;
   status?: string;
   description?: string;
+  products?: string;
 }
 
 /**

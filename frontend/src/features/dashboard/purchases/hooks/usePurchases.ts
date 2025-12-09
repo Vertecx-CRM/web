@@ -208,6 +208,18 @@ export function usePurchases() {
       );
       if (!product) return;
 
+      // 🔥 VALIDACIÓN: Productos duplicados
+      const exists = cart.some((c) => c.productid === Number(selectedProduct));
+
+      if (exists) {
+        setError(
+          "❌ Este producto ya fue agregado. No se permiten duplicados."
+        );
+        return;
+      }
+
+      setError("");
+
       setCart((prev) => [
         ...prev,
         {
@@ -219,6 +231,20 @@ export function usePurchases() {
         },
       ]);
     } else {
+      // 🔥 VALIDACIÓN: Nuevo producto no duplicado por nombre
+      const exists = cart.some(
+        (c) => c.productname?.toLowerCase() === productName.toLowerCase()
+      );
+
+      if (exists) {
+        setError(
+          "❌ Este producto ya fue agregado. No se permiten duplicados."
+        );
+        return;
+      }
+
+      setError("");
+
       setCart((prev) => [
         ...prev,
         {
@@ -265,13 +291,12 @@ export function usePurchases() {
 
     try {
       const res = await createPurchase(payload);
+
+      //  recarga
+      CACHE = null;
+
       await fetchPurchases();
-      setCart([]); // limpiar carrito
       return res;
-    } catch (err) {
-      console.error(err);
-      setError("❌ Error al registrar la compra.");
-      throw err;
     } finally {
       setSaving(false);
     }
@@ -280,6 +305,9 @@ export function usePurchases() {
   const handleCancelPurchase = async (id: number) => {
     try {
       setCancelLoading(true);
+
+      CACHE = null;
+
       await cancelPurchase(id);
       await fetchPurchases();
     } catch (error) {
@@ -287,6 +315,32 @@ export function usePurchases() {
       throw error;
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      orderNumber: "",
+      invoiceNumber: "",
+      supplier: "",
+      registerDate: "",
+      amount: 0,
+      status: "Aprobado",
+      day: "",
+      month: "",
+      year: "",
+      description: "",
+    });
+
+    setSelectedProduct("");
+    setQuantity(1);
+    setCart([]);
+    setError("");
+
+    // regenerar nuevo número de orden
+    if (purchases.length > 0) {
+      const nextOrder = generateNextOrderNumber(purchases);
+      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
     }
   };
 
@@ -304,6 +358,7 @@ export function usePurchases() {
     setForm,
     error,
     setError,
+    resetForm,
 
     selectedProduct,
     setSelectedProduct,
