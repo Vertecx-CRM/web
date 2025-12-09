@@ -21,7 +21,6 @@ interface ProductsProps {
 
 export default function ProductsLanding({ className = "" }: ProductsProps) {
   const mockProducts: Product[] = [
-    // (deja tu mock tal cual si quieres fallback)
   ];
 
   const { addToCart } = useCart();
