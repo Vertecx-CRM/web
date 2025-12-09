@@ -208,7 +208,7 @@ export function usePurchases() {
       );
       if (!product) return;
 
-      // 🔥 VALIDACIÓN: Productos duplicados
+      // VALIDACIÓN: Productos duplicados
       const exists = cart.some((c) => c.productid === Number(selectedProduct));
 
       if (exists) {
