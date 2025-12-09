@@ -33,6 +33,7 @@ export default function ProductsLanding({ className = "" }: ProductsProps) {
     searchTerm,
     setSearchTerm,
     filteredProducts,
+    availableCategories,
   } = useProducts(mockProducts);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -79,6 +80,7 @@ export default function ProductsLanding({ className = "" }: ProductsProps) {
           <FilterBar
             selectedFilters={selectedFilters}
             handleToggle={handleToggleFilter}
+            categories={availableCategories}
             className="w-full lg:w-64 flex-shrink-0"
           />
 
