@@ -1,4 +1,7 @@
-import { useState, useMemo } from "react";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { getLandingProducts } from "../api/products.api";
 
 export interface Product {
   id: string;
@@ -9,15 +12,43 @@ export interface Product {
   price?: number;
 }
 
-export const useProducts = (products: Product[]) => {
+export const useProducts = (fallbackProducts: Product[] = []) => {
+  const [products, setProducts] = useState<Product[]>(fallbackProducts);
+  const [loading, setLoading] = useState(true);
+
   const [selectedFilters, setSelectedFilters] = useState<string[]>(["all"]);
   const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const list = await getLandingProducts();
+        if (!alive) return;
+        setProducts(list);
+      } catch (e) {
+        if (!alive) return;
+        console.error("Landing products: error cargando del backend:", e);
+        // fallbackProducts se queda
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const handleToggleFilter = (id: string) => {
     if (id === "all") {
       setSelectedFilters(["all"]);
     } else {
-      let updated;
+      let updated: string[];
       if (selectedFilters.includes(id)) {
         updated = selectedFilters.filter((f) => f !== id);
       } else {
@@ -55,6 +86,7 @@ export const useProducts = (products: Product[]) => {
   }, [products, selectedFilters, searchTerm]);
 
   return {
+    loading,
     selectedFilters,
     handleToggleFilter,
     searchTerm,
