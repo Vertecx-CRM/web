@@ -98,7 +98,7 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                       src={
                         product?.image && product.image.trim() !== ""
                           ? product.image
-                          : "/assets/imgs/laptop.png"
+                          : "https://cdn-icons-png.flaticon.com/512/679/679720.png"
                       }
                       alt={product?.productname ?? "Producto"}
                       width={80}

@@ -51,6 +51,7 @@ interface Props {
   years: number;
   daysInMonth: number;
   total: number;
+  removeFromCart: (index: number) => void;
   handleChange: (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -83,6 +84,7 @@ export default function RegisterPurchaseForm({
   total,
   handleChange,
   handleAddProduct,
+  removeFromCart,
   products,
   suppliers,
 }: Props) {
@@ -377,13 +379,13 @@ export default function RegisterPurchaseForm({
       </div>
 
       {/* Productos */}
-      <div className="p-3 border rounded-lg bg-gray-50">
-        <label className="block text-sm mb-2">
+      <div className="p-4 border rounded-lg bg-gray-50 shadow-sm">
+        <label className="block text-sm font-semibold mb-3">
           Productos <span className="text-red-500">*</span>
         </label>
 
         {/* Toggle Seleccionar / Crear */}
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-2 mb-4">
           <button
             type="button"
             onClick={() => {
@@ -392,8 +394,10 @@ export default function RegisterPurchaseForm({
               setNewProductPrice("");
               setNewProductSalePrice("");
             }}
-            className={`text-xs px-2 py-1 rounded cursor-pointer ${
-              !isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            className={`text-xs px-3 py-2 rounded-md transition ${
+              !isNewProduct
+                ? "bg-black text-white shadow"
+                : "bg-gray-200 hover:bg-gray-300"
             }`}
           >
             Seleccionar
@@ -406,17 +410,20 @@ export default function RegisterPurchaseForm({
               setSelectedProduct("");
               setExistingSalePrice("");
             }}
-            className={`text-xs px-2 py-1 rounded cursor-pointer ${
-              isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            className={`text-xs px-3 py-2 rounded-md transition ${
+              isNewProduct
+                ? "bg-black text-white shadow"
+                : "bg-gray-200 hover:bg-gray-300"
             }`}
           >
             Crear producto
           </button>
         </div>
 
+        {/* FORMULARIO DE PRODUCTO */}
         {!isNewProduct ? (
           <>
-            <div className="flex flex-col sm:flex-col gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <select
                 value={selectedProduct}
                 onChange={(e) => {
@@ -432,13 +439,12 @@ export default function RegisterPurchaseForm({
                     setExistingSalePrice("");
                   }
                 }}
-                className="flex-1 rounded-md border px-2 py-2 text-sm"
+                className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
               >
                 <option value="">Selecciona un producto</option>
                 {products.map((p) => (
                   <option key={p.productid} value={p.productid}>
-                    {p.productname} - {formatCOP(p.productpriceofsupplier)}{" "}
-                    (compra)
+                    {p.productname} — {formatCOP(p.productpriceofsupplier)}
                   </option>
                 ))}
               </select>
@@ -448,21 +454,22 @@ export default function RegisterPurchaseForm({
                 value={quantity}
                 min={1}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
+                className="w-full rounded-md border px-2 py-2 text-center text-sm shadow-sm"
               />
 
               <input
                 type="number"
-                placeholder="Precio de venta (opcional)"
+                placeholder="Precio venta (opcional)"
                 value={existingSalePrice}
                 onChange={(e) =>
                   setExistingSalePrice(
                     e.target.value === "" ? "" : Number(e.target.value)
                   )
                 }
-                className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+                className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
               />
             </div>
+
             {duplicateProductError && (
               <p className="text-xs text-red-500 mt-1">
                 {duplicateProductError}
@@ -470,13 +477,13 @@ export default function RegisterPurchaseForm({
             )}
           </>
         ) : (
-          <div className="flex flex-col sm:flex-col gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
               type="text"
               placeholder="Nombre del producto"
               value={newProductName}
               onChange={(e) => setNewProductName(e.target.value)}
-              className="flex-1 rounded-md border px-2 py-2 text-sm"
+              className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
             />
 
             <input
@@ -488,19 +495,19 @@ export default function RegisterPurchaseForm({
                   e.target.value === "" ? "" : Number(e.target.value)
                 )
               }
-              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+              className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
             />
 
             <input
               type="number"
-              placeholder="Precio de venta (opcional)"
+              placeholder="Precio venta (opcional)"
               value={newProductSalePrice}
               onChange={(e) =>
                 setNewProductSalePrice(
                   e.target.value === "" ? "" : Number(e.target.value)
                 )
               }
-              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+              className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
             />
 
             <input
@@ -508,7 +515,7 @@ export default function RegisterPurchaseForm({
               value={quantity}
               min={1}
               onChange={(e) => setQuantity(Number(e.target.value))}
-              className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
+              className="w-full rounded-md border px-2 py-2 text-center text-sm shadow-sm sm:col-span-3"
             />
           </div>
         )}
@@ -518,7 +525,7 @@ export default function RegisterPurchaseForm({
           placeholder="Descripción del producto"
           value={productDescription}
           onChange={(e) => setProductDescription(e.target.value)}
-          className="w-full rounded-md border px-2 py-2 text-sm resize-none mt-2"
+          className="w-full rounded-md border px-3 py-2 text-sm resize-none mt-3 shadow-sm"
           rows={2}
         />
 
@@ -526,45 +533,62 @@ export default function RegisterPurchaseForm({
           type="button"
           onClick={handleAddProductClick}
           style={{ backgroundColor: Colors.buttons.primary }}
-          className="cursor-pointer mt-3 w-full px-3 py-2 rounded-md text-white text-sm hover:bg-opacity-90 transition hover:scale-103"
+          className="cursor-pointer mt-4 w-full px-4 py-2 rounded-md text-white text-sm font-medium shadow hover:scale-[1.02] hover:bg-opacity-95 transition"
         >
-          Añadir más productos +
+          Añadir producto +
         </button>
 
+        {/* LISTA DE PRODUCTOS AGREGADOS */}
         {cart.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-5 space-y-3">
             {cart.map((item, index) => (
               <div
                 key={index}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-2 rounded-md shadow-sm border gap-1"
+                className="flex items-start justify-between bg-white p-3 rounded-md shadow border gap-3 hover:shadow-md transition"
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-gray-700">
-                    {item.productname ||
-                      products.find((p) => p.productid === item.productid)
-                        ?.productname}
-                  </span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-gray-800">
+                      {item.productname ||
+                        products.find((p) => p.productid === item.productid)
+                          ?.productname}
+                    </span>
 
-                  <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {item.quantity}
-                  </span>
-                </div>
+                    <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {item.quantity}
+                    </span>
+                  </div>
 
-                <div className="flex flex-col items-end text-xs text-gray-600">
-                  <span>
-                    Compra: {formatCOP(item.unitprice)} · Total:{" "}
+                  <p className="text-xs text-gray-600 mt-1">
+                    Compra: {formatCOP(item.unitprice)} • Total:{" "}
                     {formatCOP(item.unitprice * item.quantity)}
-                  </span>
+                  </p>
+
                   {item.saleprice !== undefined && (
-                    <span>Venta: {formatCOP(item.saleprice)}</span>
+                    <p className="text-xs text-gray-700">
+                      Venta: {formatCOP(item.saleprice)}
+                    </p>
+                  )}
+
+                  {item.description && (
+                    <p className="text-xs text-gray-500 mt-1 italic">
+                      {item.description}
+                    </p>
                   )}
                 </div>
 
-                {item.description && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {item.description}
-                  </p>
-                )}
+                {/* Botón eliminar con ícono */}
+                <button
+                  type="button"
+                  onClick={() => removeFromCart(index)}
+                  className="p-2 rounded hover:bg-red-100 transition shrink-0"
+                >
+                  <img
+                    src="/icons/delete.svg"
+                    alt="Eliminar"
+                    className="w-5 h-5 opacity-80 hover:opacity-100"
+                  />
+                </button>
               </div>
             ))}
           </div>

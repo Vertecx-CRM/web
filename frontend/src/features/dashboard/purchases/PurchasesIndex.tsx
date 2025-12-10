@@ -18,6 +18,8 @@ export default function PurchasesIndex() {
   const { showLoader, hideLoader } = useLoader();
   const [isCancelling, setIsCancelling] = useState<number | null>(null);
   const { fetchPurchases } = purchasesHook;
+
+  // Solo extraer lo necesario para el DataTable
   const {
     purchases,
     loading,
@@ -35,6 +37,8 @@ export default function PurchasesIndex() {
     handleAddProduct,
     products,
     suppliers,
+    removeFromCart,
+    resetForm,
   } = purchasesHook;
 
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
@@ -53,7 +57,6 @@ export default function PurchasesIndex() {
       initialLoadDone.current = true;
       showLoader();
       fetchPurchases().finally(() => {
-        // Marcar que los datos están cargados
         dataLoaded.current = true;
       });
     }
@@ -62,7 +65,6 @@ export default function PurchasesIndex() {
   // Manejar el loader basado en el estado de loading
   useEffect(() => {
     if (!loading && initialLoadDone.current) {
-      // Ocultar loader después de un breve delay para suavizar
       const timer = setTimeout(() => {
         if (dataLoaded.current) {
           hideLoader();
@@ -77,13 +79,13 @@ export default function PurchasesIndex() {
     if (saving) {
       showLoader();
     } else {
-      // Solo ocultar si no estamos en carga inicial
       if (!loading) {
         hideLoader();
       }
     }
   }, [saving, loading, showLoader, hideLoader]);
 
+  // Memorizar columnas - MANTENER ESTE ORDEN
   const columns: Column<IPurchase>[] = useMemo(
     () => [
       { key: "numberoforder", header: "N° Orden" },
@@ -133,11 +135,11 @@ export default function PurchasesIndex() {
     []
   );
 
-  // Memorizar las funciones de callback
+  // Memorizar las funciones de callback con dependencias específicas
   const handleCreate = useCallback(() => {
-    purchasesHook.resetForm();
+    resetForm();
     setRegisterModalOpen(true);
-  }, [purchasesHook]);
+  }, [resetForm]);
 
   const handleView = useCallback((row: IPurchase) => {
     setSelectedPurchase(row);
@@ -151,7 +153,6 @@ export default function PurchasesIndex() {
 
   const confirmCancelPurchase = useCallback(
     async (purchase: IPurchase) => {
-      // Verificar si ya está anulada
       if (purchase.state?.name?.toLowerCase() === "revoke") {
         Swal.fire({
           icon: "info",
@@ -246,30 +247,34 @@ export default function PurchasesIndex() {
     };
   }, [hideLoader]);
 
+  // Memorizar el DataTable con dependencias estrictas
+  const memoizedDataTable = useMemo(() => {
+    return (
+      <DataTable
+        module="purchases"
+        data={purchases}
+        columns={columns}
+        searchableKeys={searchableKeys}
+        pageSize={8}
+        onCancel={confirmCancelPurchase}
+        onCreate={handleCreate}
+        onView={handleView}
+        createButtonText="Registrar compra"
+        isCancelDisabled={isCancelDisabled}
+        disabled={isCancelling !== null}
+        freeze={isRegisterModalOpen || isDetailModalOpen}
+      />
+    );
+  }, [purchases]);
+
   return (
     <RequireAuth>
       <div className="p-6">
         <ToastContainer position="bottom-right" />
         <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
-        {/* Solo renderizar DataTable cuando haya datos o loading haya terminado */}
-        {(!loading || purchases.length > 0) && (
-          <DataTable
-            module="purchases"
-            data={purchases}
-            columns={columns}
-            searchableKeys={searchableKeys}
-            pageSize={8}
-            onCancel={confirmCancelPurchase}
-            onCreate={handleCreate}
-            onView={handleView}
-            createButtonText="Registrar compra"
-            isCancelDisabled={isCancelDisabled}
-            disabled={isCancelling !== null}
-            // Agregar key para forzar un solo render inicial
-            key={purchases.length > 0 ? "data-loaded" : "empty"}
-          />
-        )}
+        {/* Renderizar DataTable memoizado */}
+        {(!loading || purchases.length > 0) && memoizedDataTable}
 
         {/* Mostrar skeleton/placeholder mientras carga */}
         {loading && purchases.length === 0 && (
@@ -302,6 +307,7 @@ export default function PurchasesIndex() {
             handleAddProduct={handleAddProduct}
             products={products}
             suppliers={suppliers}
+            removeFromCart={removeFromCart}
             fetchPurchases={fetchPurchases}
           />
         </Modal>
@@ -313,7 +319,7 @@ export default function PurchasesIndex() {
           footer={
             <button
               onClick={() => setDetailModalOpen(false)}
-              className="px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-200"
+              className="cursor-pointer px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-200"
             >
               Cerrar
             </button>
