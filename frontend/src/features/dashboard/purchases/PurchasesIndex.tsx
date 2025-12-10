@@ -157,22 +157,23 @@ export default function PurchasesIndex() {
         Swal.fire({
           icon: "info",
           title: "Compra ya anulada",
-          text: `La compra #${purchase.numberoforder} ya se encuentra anulada.`,
+          text: `La compra #${purchase.numberoforder} ya está anulada.`,
           confirmButtonText: "Aceptar",
           confirmButtonColor: "#3085d6",
         });
         return;
       }
 
-      Swal.fire({
+      const { value: observation, isConfirmed } = await Swal.fire({
         html: `
         <div class="flex flex-col items-center">
           <div class="text-red-600 mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-20 w-20" fill="none" 
+                viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 
-              1.732-3L13.732 4a2 2 0 00-3.464 0L3.34 
-              16c-.77 1.333.192 3 1.732 3z" />
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 
+                1.732-3L13.732 4a2 2 0 00-3.464 0L3.34 
+                16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
 
@@ -181,14 +182,25 @@ export default function PurchasesIndex() {
           <p class="text-gray-700 mb-1">
             ¿Desea anular la compra #${purchase.numberoforder}?
           </p>
-          <p class="text-gray-500 text-sm">
-            Fecha: ${new Date(purchase.createdat).toLocaleDateString()}
+
+          <p class="text-gray-500 text-sm mb-3">
+            Puedes agregar una observación (opcional)
           </p>
+
+          <textarea id="obs" class="w-full p-2 border rounded resize-none" 
+            rows="3" placeholder="Escribe una observación (opcional)..."></textarea>
         </div>
       `,
         showCancelButton: true,
         confirmButtonText: "Confirmar",
         cancelButtonText: "Cancelar",
+        focusConfirm: false,
+        preConfirm: () => {
+          const obs = (
+            document.getElementById("obs") as HTMLTextAreaElement
+          )?.value.trim();
+          return obs || undefined;
+        },
 
         customClass: {
           popup: "rounded-2xl p-6",
@@ -199,37 +211,36 @@ export default function PurchasesIndex() {
         },
 
         buttonsStyling: false,
-        width: "380px",
-      }).then(async (result) => {
-        if (result.isConfirmed) {
-          setIsCancelling(purchase.purchaseorderid);
-          showLoader();
-
-          try {
-            await handleCancelPurchase(purchase.purchaseorderid);
-
-            Swal.fire({
-              icon: "success",
-              title: "¡Anulado!",
-              text: `La compra #${purchase.numberoforder} ha sido anulada exitosamente.`,
-              timer: 2000,
-              showConfirmButton: false,
-            });
-          } catch (error) {
-            console.error("Error al anular la compra:", error);
-            Swal.fire({
-              icon: "error",
-              title: "Error",
-              text: "No se pudo anular la compra. Por favor, intente nuevamente.",
-            });
-          } finally {
-            setTimeout(() => {
-              hideLoader();
-              setIsCancelling(null);
-            }, 500);
-          }
-        }
+        width: "420px",
       });
+
+      if (!isConfirmed) return;
+
+      setIsCancelling(purchase.purchaseorderid);
+      showLoader();
+
+      try {
+        await handleCancelPurchase(purchase.purchaseorderid, observation);
+
+        Swal.fire({
+          icon: "success",
+          title: "¡Anulado!",
+          text: `La compra #${purchase.numberoforder} ha sido anulada correctamente.`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } catch (error) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "No se pudo anular la compra. Intenta nuevamente.",
+        });
+      } finally {
+        setTimeout(() => {
+          hideLoader();
+          setIsCancelling(null);
+        }, 400);
+      }
     },
     [handleCancelPurchase, showLoader, hideLoader]
   );
@@ -291,6 +302,7 @@ export default function PurchasesIndex() {
           isOpen={isRegisterModalOpen}
           onClose={() => setRegisterModalOpen(false)}
           footer={null}
+          widthClass="md:max-w-6xl"
         >
           <RegisterPurchaseForm
             onClose={() => setRegisterModalOpen(false)}
@@ -316,6 +328,7 @@ export default function PurchasesIndex() {
           title="Detalle de compra"
           isOpen={isDetailModalOpen}
           onClose={() => setDetailModalOpen(false)}
+          widthClass="md:max-w-6xl"
           footer={
             <button
               onClick={() => setDetailModalOpen(false)}

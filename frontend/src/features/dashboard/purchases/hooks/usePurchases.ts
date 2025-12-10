@@ -335,11 +335,17 @@ export function usePurchases() {
     }
   };
 
-  const handleCancelPurchase = async (id: number) => {
+  const handleCancelPurchase = async (id: number, observation?: string) => {
     try {
       setCancelLoading(true);
+
+      // Limpiar cache para forzar actualización fresca
       CACHE = null;
-      await cancelPurchase(id);
+
+      // Enviar con observación opcional
+      await cancelPurchase(id, observation);
+
+      // Volver a cargar compras (solo una vez)
       await fetchPurchases();
     } catch (error) {
       console.error("Error canceling purchase:", error);

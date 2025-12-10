@@ -107,9 +107,15 @@ export const createPurchase = async (purchase: Partial<IPurchase>) => {
 };
 
 // Anular una compra (actualizar estado)
-export const cancelPurchase = async (id: number) => {
+export const cancelPurchase = async (id: number, observation?: string) => {
   try {
-    const { data } = await api.post(`/purchasesmanagement/${id}/cancel`, {});
+    const params: any = {};
+    if (observation) params.observation = observation;
+
+    const { data } = await api.post(`/purchasesmanagement/${id}/cancel`, {}, {
+      params,
+    });
+
     return data;
   } catch (error) {
     console.error("Error al anular la compra:", error);
