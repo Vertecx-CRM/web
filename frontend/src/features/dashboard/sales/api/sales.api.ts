@@ -18,3 +18,13 @@ export const createSale = async (sale: Partial<ISale>) => {
     throw error;
   }
 };
+
+export const getSaleById = async (id: number): Promise<ISale> => {
+  try {
+    const { data } = await api.get(`/sales/${id}`);
+    return data;
+  } catch (error) {
+    console.error("Error al obtener la venta:", error);
+    throw error;
+  }
+};
