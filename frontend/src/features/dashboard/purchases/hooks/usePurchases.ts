@@ -17,9 +17,6 @@ export interface PurchaseFormState {
   registerDate: string;
   amount: number;
   status: string;
-  day: string;
-  month: string;
-  year: string;
   description: string;
 }
 
@@ -37,6 +34,18 @@ export const months = [
   "Noviembre",
   "Diciembre",
 ];
+
+type CartItem = {
+  isNew: boolean;
+  productid?: number;
+  productname?: string;
+  description?: string;
+  productpriceofsupplier?: number; // precio del proveedor (compra)
+  saleprice?: number; // precio de venta opcional
+  quantity: number;
+  unitprice: number; // precio unitario de compra
+};
+
 let CACHE: IPurchase[] | null = null;
 
 export function usePurchases() {
@@ -49,6 +58,8 @@ export function usePurchases() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [error, setError] = useState<string>("");
+
   const [form, setForm] = useState<PurchaseFormState>({
     orderNumber: "",
     invoiceNumber: "",
@@ -56,92 +67,46 @@ export function usePurchases() {
     registerDate: "",
     amount: 0,
     status: "Aprobado",
-    day: "",
-    month: "",
-    year: "",
     description: "",
   });
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const data = await getProductsForPurchase();
-        setProducts(data);
-      } catch (err) {
-        console.error("Error cargando productos", err);
-      }
-    };
-
-    fetchProducts();
-  }, []);
-
-  useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        const data = await getSuppliersForPurchase();
-        const actives = data.filter((s: any) => s.stateid === 1);
-        setSuppliers(actives);
-      } catch (err) {
-        console.error("Error cargando proveedores", err);
-      }
-    };
-
-    fetchSuppliers();
-  }, []);
-
-  const [error, setError] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
-  const [cart, setCart] = useState<
-    {
-      isNew: boolean;
-      productid?: number;
-      productname?: string;
-      description?: string;
-      productpriceofsupplier?: number;
-      quantity: number;
-      unitprice: number;
-    }[]
-  >([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const currentYear = new Date().getFullYear();
   const years = useMemo(
     () => Array.from({ length: 6 }, (_, i) => currentYear - i),
-    []
+    [currentYear]
   );
-
-  const daysInMonth = useMemo(() => {
-    if (!form.month || !form.year) return 31;
-    const monthIndex = months.indexOf(form.month);
-    return new Date(Number(form.year), monthIndex + 1, 0).getDate();
-  }, [form.month, form.year]);
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
     [cart]
   );
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const generateNextOrderNumber = (data: IPurchase[]) => {
     const year = new Date().getFullYear();
     const currentYearOrders = data
-      .map((p) => p.numberoforder || p.orderNumber)
+      .map((p) => p.numberoforder || (p as any).orderNumber)
       .filter((n) => n?.includes(`ORD-${year}-`));
 
     if (currentYearOrders.length === 0) return `ORD-${year}-001`;
 
     const maxConsecutive = Math.max(
-      ...currentYearOrders.map((o) => parseInt(o.split("-")[2]))
+      ...currentYearOrders.map((o) => parseInt(o.split("-")[2], 10))
     );
     const nextConsecutive = (maxConsecutive + 1).toString().padStart(3, "0");
     return `ORD-${year}-${nextConsecutive}`;
   };
 
-  const abortRef = useRef<AbortController | null>(null);
-
   const fetchPurchases = useCallback(async () => {
     if (CACHE) {
       setPurchases(CACHE);
-      setLoading(false);
+      // que el loader dure al menos 400ms antes de ocultarse
+      setTimeout(() => setLoading(false), 300);
       return;
     }
 
@@ -165,6 +130,40 @@ export function usePurchases() {
     }
   }, []);
 
+  // Cargar productos
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getProductsForPurchase();
+        setProducts(data);
+      } catch (err) {
+        console.error("Error cargando productos", err);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Cargar proveedores
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const data = await getSuppliersForPurchase();
+        const actives = data.filter((s: any) => s.stateid === 1);
+        setSuppliers(actives);
+      } catch (err) {
+        console.error("Error cargando proveedores", err);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
+
+  useEffect(() => {
+    fetchPurchases();
+    return () => abortRef.current?.abort();
+  }, [fetchPurchases]);
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -172,28 +171,14 @@ export function usePurchases() {
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "invoiceNumber") validateInvoiceYear(value, form.year);
-    if (name === "year" && form.invoiceNumber)
-      validateInvoiceYear(form.invoiceNumber, value);
   };
 
-  const validateInvoiceYear = (invoice: string, year: string) => {
-    const match = invoice.match(/^FAC-(\d{4})-\d{4}$/);
-    if (match) {
-      const invoiceYear = match[1];
-      if (year && invoiceYear !== year) {
-        setError(
-          `⚠️ El año de la factura (${invoiceYear}) no coincide con la fecha seleccionada (${year}).`
-        );
-      } else {
-        setError("");
-      }
-    } else {
-      setError("");
-    }
-  };
-
+  /**
+   * Añadir producto al carrito
+   * Soporta:
+   * - Producto existente (productid)
+   * - Producto nuevo (productname + productpriceofsupplier)
+   */
   const handleAddProduct = ({
     isNew,
     productName,
@@ -201,19 +186,39 @@ export function usePurchases() {
     selectedProduct,
     quantity,
     description,
-  }: any) => {
+    salePrice,
+  }: {
+    isNew: boolean;
+    productName: string;
+    supplierPrice: number;
+    selectedProduct: string;
+    quantity: number;
+    description: string;
+    salePrice?: number;
+  }) => {
     if (!isNew) {
       const product = products.find(
         (p) => p.productid === Number(selectedProduct)
       );
       if (!product) return;
 
-      // VALIDACIÓN: Productos duplicados
-      const exists = cart.some((c) => c.productid === Number(selectedProduct));
-
+      // Validación: duplicados por productid
+      const exists = cart.some((c) => c.productid === product.productid);
       if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
+      }
+
+      if (quantity <= 0 || supplierPrice <= 0) {
         setError(
-          "❌ Este producto ya fue agregado. No se permiten duplicados."
+          "La cantidad y el precio del proveedor deben ser mayores a cero."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
         );
         return;
       }
@@ -226,19 +231,32 @@ export function usePurchases() {
           isNew: false,
           productid: product.productid,
           quantity,
-          unitprice: product.productpriceofsupplier,
+          unitprice: supplierPrice,
+          productpriceofsupplier: supplierPrice,
+          saleprice: salePrice,
           description,
         },
       ]);
     } else {
-      // 🔥 VALIDACIÓN: Nuevo producto no duplicado por nombre
+      // Producto nuevo: validar por nombre
       const exists = cart.some(
-        (c) => c.productname?.toLowerCase() === productName.toLowerCase()
+        (c) => c.productname?.toLowerCase() === productName.trim().toLowerCase()
       );
-
       if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
+      }
+
+      if (!productName.trim() || supplierPrice <= 0 || quantity <= 0) {
         setError(
-          "❌ Este producto ya fue agregado. No se permiten duplicados."
+          "Para crear un producto nuevo debes ingresar nombre, precio proveedor y cantidad válidos."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
         );
         return;
       }
@@ -249,54 +267,72 @@ export function usePurchases() {
         ...prev,
         {
           isNew: true,
-          productname: productName,
+          productname: productName.trim(),
           productpriceofsupplier: supplierPrice,
           quantity,
           unitprice: supplierPrice,
+          saleprice: salePrice,
           description,
         },
       ]);
     }
   };
 
+  /**
+   * Construye y envía el payload al endpoint /purchasesmanagement
+   * adaptado a la documentación del backend.
+   */
   const handleAddPurchase = async () => {
     if (cart.length === 0) {
-      setError("⚠️ Agrega al menos un producto.");
+      setError("Agrega al menos un producto.");
       return;
     }
 
     setSaving(true);
 
-    const day = form.day.padStart(2, "0");
-    const month = (months.indexOf(form.month) + 1).toString().padStart(2, "0");
-    const year = form.year;
-    const created = `${year}-${month}-${day}`;
+    const created = form.registerDate;
 
-    const payload = {
-      numberoforder: form.orderNumber,
-      reference: form.invoiceNumber,
-      supplierid: Number(form.supplier),
-      stateid: 3,
-      createdat: created,
-      updatedat: new Date().toISOString(),
-      products: cart.map((item) => ({
-        productid: item.productid ?? 0,
+    // Backend espera Date -> enviamos ISO string coherente
+
+    const productsPayload = cart.map((item) => {
+      const base: any = {
         quantity: item.quantity,
         unitprice: item.unitprice,
-        productname: item.productname,
-        productpriceofsupplier: item.productpriceofsupplier,
         description: item.description || "",
-      })),
+      };
+
+      if (item.productid) {
+        base.productid = item.productid;
+      }
+
+      if (item.productname) {
+        base.productname = item.productname;
+      }
+
+      if (item.productpriceofsupplier) {
+        base.productpriceofsupplier = item.productpriceofsupplier;
+      }
+
+      if (item.saleprice !== undefined) {
+        base.saleprice = item.saleprice;
+      }
+
+      return base;
+    });
+
+    const payload = {
+      numberoforder: form.orderNumber || "TEMP-001",
+      reference: form.invoiceNumber,
+      supplierid: Number(form.supplier),
+      observation: form.description || "",
+      stateid: 3, // Aprobado
+      createdat: created,
+      updatedat: new Date().toISOString(),
+      products: productsPayload,
     };
 
     try {
-      const res = await createPurchase(payload);
-
-      //  recarga
-      CACHE = null;
-
-      await fetchPurchases();
-      return res;
+      return await createPurchase(payload);
     } finally {
       setSaving(false);
     }
@@ -305,9 +341,7 @@ export function usePurchases() {
   const handleCancelPurchase = async (id: number) => {
     try {
       setCancelLoading(true);
-
       CACHE = null;
-
       await cancelPurchase(id);
       await fetchPurchases();
     } catch (error) {
@@ -326,9 +360,6 @@ export function usePurchases() {
       registerDate: "",
       amount: 0,
       status: "Aprobado",
-      day: "",
-      month: "",
-      year: "",
       description: "",
     });
 
@@ -337,17 +368,11 @@ export function usePurchases() {
     setCart([]);
     setError("");
 
-    // regenerar nuevo número de orden
     if (purchases.length > 0) {
       const nextOrder = generateNextOrderNumber(purchases);
       setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
     }
   };
-
-  useEffect(() => {
-    fetchPurchases();
-    return () => abortRef.current?.abort();
-  }, [fetchPurchases]);
 
   return {
     purchases,
@@ -371,12 +396,12 @@ export function usePurchases() {
     products,
     suppliers,
     years,
-    daysInMonth,
     cancelLoading,
 
     handleChange,
     handleAddProduct,
     handleAddPurchase,
     handleCancelPurchase,
+    fetchPurchases,
   };
 }

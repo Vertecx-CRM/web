@@ -95,11 +95,19 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                     </p>
 
                     <Image
-                      src="/assets/imgs/laptop.png"
+                      src={
+                        product?.image && product.image.trim() !== ""
+                          ? product.image
+                          : "/assets/imgs/laptop.png"
+                      }
                       alt={product?.productname ?? "Producto"}
                       width={80}
                       height={80}
-                      className="object-contain mt-2"
+                      className="object-contain mt-2 rounded-lg"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "/assets/imgs/laptop.png";
+                      }}
                     />
                   </div>
 

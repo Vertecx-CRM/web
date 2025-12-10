@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Calendar } from "lucide-react";
-import { ISale } from "../types/Sales.type";
+import ProductSelectorModal from "./ProductSelectorModal";
 
 interface Props {
   hook: any;
@@ -11,6 +11,16 @@ interface Props {
 
 export default function RegisterSaleForm({ hook, onClose }: Props) {
   const [saleStatus] = useState("Pendiente");
+  const [isProductModalOpen, setProductModalOpen] = useState(false);
+
+  const [form, setForm] = useState({
+    salecode: "",
+    customerid: "",
+    saledate: "",
+    salestatus: "Pending",
+    notes: "",
+    paymentmethod: "Efectivo",
+  });
 
   return (
     <div className="w-full max-h-[75vh] overflow-y-auto pr-2">
@@ -23,12 +33,16 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
             <h2 className="text-lg font-semibold mb-4">Datos de la Venta</h2>
 
             {/* Cliente */}
-            <label className="block text-sm mb-1 font-medium">Cliente</label>
+            <label className="block text-sm mb-1 font-medium">
+              Cliente (ID)
+            </label>
             <input
               type="text"
-              value="Hernan Dario Correa"
-              className="w-full border rounded-lg px-3 py-2 mb-4 bg-gray-100"
-              disabled
+              name="customerid"
+              value={hook.form.customerid}
+              placeholder="Ingrese ID del cliente"
+              onChange={hook.handleChange}
+              className="w-full border rounded-lg px-3 py-2 mb-4"
             />
 
             {/* Fecha + Estado */}
@@ -38,17 +52,18 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
                 <label className="block text-sm font-medium mb-1">
                   Fecha venta
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    defaultValue="03/06/2025"
-                    className="w-full border rounded-lg px-3 py-2 bg-gray-100"
-                  />
-                  <Calendar
-                    size={18}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600"
-                  />
-                </div>
+                <input
+                  type="date"
+                  name="saledate"
+                  value={hook.form.saledate}
+                  onChange={(e) =>
+                    hook.setForm((prev) => ({
+                      ...prev,
+                      saledate: e.target.value,
+                    }))
+                  }
+                  className="w-full border rounded-lg px-3 py-2"
+                />
               </div>
 
               {/* Estado */}
@@ -57,11 +72,14 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
                   Estado Venta
                 </label>
                 <select
-                  className="w-full border rounded-lg px-3 py-2 bg-gray-100"
-                  disabled
-                  value={saleStatus}
+                  name="salestatus"
+                  value={hook.form.salestatus}
+                  onChange={hook.handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
                 >
-                  <option>Pendiente</option>
+                  <option value="Pending">Pendiente</option>
+                  <option value="Completed">Completada</option>
+                  <option value="Cancelled">Cancelada</option>
                 </select>
               </div>
             </div>
@@ -87,55 +105,54 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
               </thead>
 
               <tbody>
-                <tr className="border-b">
-                  <td className="py-3 px-3">Monitor LG</td>
-                  <td className="py-3 px-3">Producto</td>
-                  <td className="py-3 px-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      👤
-                    </div>
-                  </td>
-                  <td className="py-3 px-3">2</td>
-                  <td className="py-3 px-3">$500,000</td>
-                  <td className="py-3 px-3">$1,000,000</td>
-                  <td className="py-3 px-3">
-                    <button className="hover:opacity-70 transition">
-                      <img
-                        src="/icons/delete.svg"
-                        alt="Eliminar"
-                        className="w-5 h-5"
-                      />
-                    </button>
-                  </td>
-                </tr>
+                {hook.cart.map((item, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="py-3 px-3">{item.productname}</td>
+                    <td className="py-3 px-3">Producto</td>
+                    <td className="py-3 px-3">
+                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                        👤
+                      </div>
+                    </td>
+                    <td className="py-3 px-3">{item.quantity}</td>
+                    <td className="py-3 px-3">
+                      ${item.unitprice.toLocaleString("es-CO")}
+                    </td>
+                    <td className="py-3 px-3">
+                      $
+                      {(item.unitprice * item.quantity).toLocaleString("es-CO")}
+                    </td>
+                    <td className="py-3 px-3">
+                      <button
+                        className="hover:opacity-70 transition"
+                        onClick={() =>
+                          hook.setCart((prev) =>
+                            prev.filter((_, i) => i !== index)
+                          )
+                        }
+                      >
+                        <img src="/icons/delete.svg" className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
 
-                <tr>
-                  <td className="py-3 px-3">Instalación PC</td>
-                  <td className="py-3 px-3">Servicio</td>
-                  <td className="py-3 px-3">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      👤
-                    </div>
-                  </td>
-                  <td className="py-3 px-3">1</td>
-                  <td className="py-3 px-3">$100,000</td>
-                  <td className="py-3 px-3">$100,000</td>
-                  <td className="py-3 px-3">
-                    <button className="hover:opacity-70 transition">
-                      <img
-                        src="/icons/delete.svg"
-                        alt="Eliminar"
-                        className="w-5 h-5"
-                      />
-                    </button>
-                  </td>
-                </tr>
+                {hook.cart.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="text-center py-4 text-gray-500">
+                      No hay productos agregados.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 
             {/* Botones */}
             <div className="flex gap-4 mt-4">
-              <button className="flex items-center gap-2 border rounded-lg px-4 py-2 hover:bg-gray-100">
+              <button
+                className="flex items-center gap-2 border rounded-lg px-4 py-2 hover:bg-gray-100"
+                onClick={() => setProductModalOpen(true)}
+              >
                 <span className="text-xl">+</span> Agregar Producto
               </button>
 
@@ -151,8 +168,11 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
               Observaciones
             </label>
             <textarea
+              name="notes"
+              value={hook.form.notes}
+              onChange={hook.handleChange}
               placeholder="Ingrese su Observación"
-              className="w-full border rounded-lg px-3 py-2 h-32 bg-gray-50"
+              className="w-full border rounded-lg px-3 py-2 h-32"
             ></textarea>
           </div>
         </section>
@@ -192,12 +212,50 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
               Cancelar
             </button>
 
-            <button className="cursor-pointer transition transform hover:scale-100   px-6 py-2 rounded-lg bg-black text-white hover:bg-gray-800 transition">
+            <button
+              className="cursor-pointer bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800"
+              onClick={async () => {
+                try {
+                  await hook.handleCreateSale();
+                  onClose();
+                } catch (err) {
+                  console.error(err);
+                  alert("Error al crear la venta.");
+                }
+              }}
+            >
               Guardar
             </button>
           </div>
         </aside>
       </div>
+      <ProductSelectorModal
+        isOpen={isProductModalOpen}
+        onClose={() => setProductModalOpen(false)}
+        products={hook.products}
+        onSelect={(product, qty) => {
+          hook.setCart((prev) => [
+            ...prev,
+            {
+              productid: product.productid,
+              productname: product.productname,
+              quantity: qty,
+              unitprice: product.productpriceofsale,
+            },
+          ]);
+        }}
+        onCreate={(newProd) => {
+          hook.setCart((prev) => [
+            ...prev,
+            {
+              productid: null,
+              productname: newProd.name,
+              quantity: 1,
+              unitprice: newProd.price,
+            },
+          ]);
+        }}
+      />
     </div>
   );
 }

@@ -26,26 +26,29 @@ const formatCOP = (value: number) =>
     minimumFractionDigits: 0,
   }).format(value);
 
+type CartItem = {
+  isNew: boolean;
+  productid?: number;
+  productname?: string;
+  description?: string;
+  productpriceofsupplier?: number;
+  saleprice?: number;
+  quantity: number;
+  unitprice: number;
+};
+
 interface Props {
   onSave: () => Promise<any>;
   onClose: () => void;
   purchases: IPurchase[];
-
+  fetchPurchases: () => Promise<void>;
   form: PurchaseFormState;
   selectedProduct: string;
   setSelectedProduct: (value: string) => void;
   quantity: number;
   setQuantity: (value: number) => void;
-  cart: {
-    isNew: boolean;
-    productid?: number;
-    productname?: string;
-    description?: string;
-    productpriceofsupplier?: number;
-    quantity: number;
-    unitprice: number;
-  }[];
-  years: number[];
+  cart: CartItem[];
+  years: number;
   daysInMonth: number;
   total: number;
   handleChange: (
@@ -60,6 +63,7 @@ interface Props {
     selectedProduct: string;
     quantity: number;
     description: string;
+    salePrice?: number;
   }) => void;
   products: any[];
   suppliers: any[];
@@ -71,12 +75,11 @@ export default function RegisterPurchaseForm({
   purchases,
   form,
   selectedProduct,
+  fetchPurchases,
   setSelectedProduct,
   quantity,
   setQuantity,
   cart,
-  years,
-  daysInMonth,
   total,
   handleChange,
   handleAddProduct,
@@ -85,12 +88,19 @@ export default function RegisterPurchaseForm({
 }: Props) {
   const [errors, setErrors] = useState<PurchaseErrors>({});
   const [isNewProduct, setIsNewProduct] = useState(false);
+
   const [newProductName, setNewProductName] = useState("");
-  const [newProductPrice, setNewProductPrice] = useState(0);
-  const { showLoader, hideLoader } = useLoader();
+  const [newProductPrice, setNewProductPrice] = useState<number | "">("");
+  const [newProductSalePrice, setNewProductSalePrice] = useState<number | "">(
+    ""
+  );
+
+  const [existingSalePrice, setExistingSalePrice] = useState<number | "">("");
   const [productDescription, setProductDescription] = useState("");
-  const [saving, setSaving] = useState(false);
   const [duplicateProductError, setDuplicateProductError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { showLoader, hideLoader } = useLoader();
 
   const handleFieldValidation = (
     field: keyof Omit<IPurchase, "id">,
@@ -104,7 +114,7 @@ export default function RegisterPurchaseForm({
     e.preventDefault();
 
     if (cart.length === 0) {
-      showWarning("⚠️ Agrega al menos un producto al carrito.");
+      showWarning("Agrega al menos un producto al carrito.");
       return;
     }
 
@@ -113,10 +123,7 @@ export default function RegisterPurchaseForm({
         orderNumber: form.orderNumber,
         invoiceNumber: form.invoiceNumber,
         supplier: form.supplier,
-        registerDate:
-          form.year && form.month && form.day
-            ? `${form.year}-${form.month}-${form.day}`
-            : "",
+        registerDate: form.registerDate,
         amount: total,
         status: "Aprobado",
         description: form.description,
@@ -135,16 +142,96 @@ export default function RegisterPurchaseForm({
       showLoader();
       setSaving(true);
 
-      await onSave(); // ✅ aquí SÍ llama la API vía hook del padre
+      await onSave();
+      await fetchPurchases();
 
       showSuccess("Compra registrada con éxito.");
       onClose();
     } catch (error) {
       console.error(error);
-      showError("❌ Error al registrar la compra.");
+      showError("Error al registrar la compra.");
     } finally {
       hideLoader();
       setSaving(false);
+    }
+  };
+
+  const getSelectedProduct = () =>
+    products.find((p) => p.productid === Number(selectedProduct));
+
+  const handleAddProductClick = () => {
+    if (!isNewProduct && !selectedProduct) {
+      showWarning("Selecciona un producto.");
+      return;
+    }
+
+    if (
+      isNewProduct &&
+      (!newProductName || !newProductPrice || newProductPrice <= 0)
+    ) {
+      showWarning(
+        "Completa los datos del nuevo producto (nombre y precio proveedor)."
+      );
+      return;
+    }
+
+    let supplierPrice = 0;
+    let salePrice: number | undefined;
+
+    if (isNewProduct) {
+      supplierPrice = Number(newProductPrice);
+      salePrice =
+        newProductSalePrice === "" ? undefined : Number(newProductSalePrice);
+    } else {
+      const product = getSelectedProduct();
+      if (!product) return;
+
+      supplierPrice = product.productpriceofsupplier;
+      salePrice =
+        existingSalePrice === "" ? undefined : Number(existingSalePrice);
+    }
+
+    // Validación rápida coherente con backend
+    if (salePrice !== undefined && salePrice < supplierPrice) {
+      showError(
+        "El precio de venta no puede ser menor que el precio proveedor."
+      );
+      return;
+    }
+
+    // Validar duplicado cuando no es producto nuevo
+    if (!isNewProduct) {
+      const exists = cart.some(
+        (item) => item.productid === Number(selectedProduct)
+      );
+
+      if (exists) {
+        setDuplicateProductError("Este producto ya fue agregado.");
+        return;
+      }
+    }
+
+    setDuplicateProductError("");
+
+    handleAddProduct({
+      isNew: isNewProduct,
+      productName: newProductName,
+      supplierPrice,
+      selectedProduct,
+      quantity,
+      description: productDescription,
+      salePrice,
+    });
+
+    // Reset campos de producto
+    setProductDescription("");
+    if (isNewProduct) {
+      setNewProductName("");
+      setNewProductPrice("");
+      setNewProductSalePrice("");
+    } else {
+      setExistingSalePrice("");
+      setSelectedProduct("");
     }
   };
 
@@ -158,69 +245,23 @@ export default function RegisterPurchaseForm({
         <label className="block text-sm font-medium mb-1">
           Fecha de Registro <span className="text-red-500">*</span>
         </label>
-        <div className="grid grid-cols-3 gap-2">
-          <select
-            name="day"
-            value={form.day}
-            onChange={(e) => {
-              handleChange(e);
-              handleFieldValidation("createdAt", form.registerDate);
-            }}
-            required
-            className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.createdAt ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Día</option>
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={d.toString().padStart(2, "0")}>
-                {d}
-              </option>
-            ))}
-          </select>
 
-          <select
-            name="month"
-            value={form.month}
-            onChange={(e) => {
-              handleChange(e);
-              handleFieldValidation("createdAt", form.registerDate);
-            }}
-            required
-            className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.createdAt ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Mes</option>
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+        <input
+          type="date"
+          name="registerDate"
+          value={form.registerDate}
+          onChange={(e) => {
+            handleChange(e);
+            handleFieldValidation("registerDate", e.target.value);
+          }}
+          required
+          className={`w-full rounded-md border px-2 py-2 text-sm ${
+            errors.createdAt ? "border-red-500" : "border-gray-300"
+          }`}
+        />
 
-          <select
-            name="year"
-            value={form.year}
-            onChange={(e) => {
-              handleChange(e);
-              handleFieldValidation("createdAt", form.registerDate);
-            }}
-            required
-            className={`rounded-md border px-2 py-2 text-sm w-full ${
-              errors.createdAt ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Año</option>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        {errors.createdAt && (
-          <p className="text-xs text-red-500 mt-1">{errors.createdAt}</p>
+        {errors.registerDate && (
+          <p className="text-xs text-red-500 mt-1">{errors.registerDate}</p>
         )}
       </div>
 
@@ -345,7 +386,12 @@ export default function RegisterPurchaseForm({
         <div className="flex gap-2 mb-2">
           <button
             type="button"
-            onClick={() => setIsNewProduct(false)}
+            onClick={() => {
+              setIsNewProduct(false);
+              setNewProductName("");
+              setNewProductPrice("");
+              setNewProductSalePrice("");
+            }}
             className={`text-xs px-2 py-1 rounded cursor-pointer ${
               !isNewProduct ? "bg-black text-white" : "bg-gray-200"
             }`}
@@ -355,7 +401,11 @@ export default function RegisterPurchaseForm({
 
           <button
             type="button"
-            onClick={() => setIsNewProduct(true)}
+            onClick={() => {
+              setIsNewProduct(true);
+              setSelectedProduct("");
+              setExistingSalePrice("");
+            }}
             className={`text-xs px-2 py-1 rounded cursor-pointer ${
               isNewProduct ? "bg-black text-white" : "bg-gray-200"
             }`}
@@ -365,34 +415,60 @@ export default function RegisterPurchaseForm({
         </div>
 
         {!isNewProduct ? (
-          <div className="flex flex-col sm:flex-col gap-2">
-            <select
-              value={selectedProduct}
-              onChange={(e) => setSelectedProduct(e.target.value)}
-              className="flex-1 rounded-md border px-2 py-2 text-sm"
-            >
-              {duplicateProductError && (
-                <p className="text-xs text-red-500 mt-1">
-                  {duplicateProductError}
-                </p>
-              )}
+          <>
+            <div className="flex flex-col sm:flex-col gap-2">
+              <select
+                value={selectedProduct}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedProduct(value);
 
-              <option value="">Selecciona un producto</option>
-              {products.map((p) => (
-                <option key={p.productid} value={p.productid}>
-                  {p.productname} - {formatCOP(p.productpriceofsale)}
-                </option>
-              ))}
-            </select>
+                  const prod = products.find(
+                    (p) => p.productid === Number(value)
+                  );
+                  if (prod?.productpriceofsale) {
+                    setExistingSalePrice(prod.productpriceofsale);
+                  } else {
+                    setExistingSalePrice("");
+                  }
+                }}
+                className="flex-1 rounded-md border px-2 py-2 text-sm"
+              >
+                <option value="">Selecciona un producto</option>
+                {products.map((p) => (
+                  <option key={p.productid} value={p.productid}>
+                    {p.productname} - {formatCOP(p.productpriceofsupplier)}{" "}
+                    (compra)
+                  </option>
+                ))}
+              </select>
 
-            <input
-              type="number"
-              value={quantity}
-              min={1}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
-            />
-          </div>
+              <input
+                type="number"
+                value={quantity}
+                min={1}
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
+              />
+
+              <input
+                type="number"
+                placeholder="Precio de venta (opcional)"
+                value={existingSalePrice}
+                onChange={(e) =>
+                  setExistingSalePrice(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+              />
+            </div>
+            {duplicateProductError && (
+              <p className="text-xs text-red-500 mt-1">
+                {duplicateProductError}
+              </p>
+            )}
+          </>
         ) : (
           <div className="flex flex-col sm:flex-col gap-2">
             <input
@@ -407,7 +483,23 @@ export default function RegisterPurchaseForm({
               type="number"
               placeholder="Precio proveedor"
               value={newProductPrice}
-              onChange={(e) => setNewProductPrice(Number(e.target.value))}
+              onChange={(e) =>
+                setNewProductPrice(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
+              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
+            />
+
+            <input
+              type="number"
+              placeholder="Precio de venta (opcional)"
+              value={newProductSalePrice}
+              onChange={(e) =>
+                setNewProductSalePrice(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
               className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
             />
 
@@ -432,41 +524,7 @@ export default function RegisterPurchaseForm({
 
         <button
           type="button"
-          onClick={() => {
-            if (!isNewProduct && !selectedProduct) return;
-
-            if (isNewProduct && (!newProductName || newProductPrice <= 0)) {
-              showWarning("Completa los datos del nuevo producto.");
-              return;
-            }
-
-            // Validar duplicado cuando no es producto nuevo
-            if (!isNewProduct) {
-              const exists = cart.some(
-                (item) => item.productid === Number(selectedProduct)
-              );
-
-              if (exists) {
-                setDuplicateProductError("⚠️ Este producto ya fue agregado.");
-                return;
-              }
-            }
-
-            // Si no hay error, limpiar mensaje
-            setDuplicateProductError("");
-
-            handleAddProduct({
-              isNew: isNewProduct,
-              productName: newProductName,
-              supplierPrice: newProductPrice,
-              selectedProduct: selectedProduct,
-              quantity: quantity,
-              description: productDescription,
-            });
-
-            setProductDescription("");
-            showSuccess("Producto agregado al carrito 🛒");
-          }}
+          onClick={handleAddProductClick}
           style={{ backgroundColor: Colors.buttons.primary }}
           className="cursor-pointer mt-3 w-full px-3 py-2 rounded-md text-white text-sm hover:bg-opacity-90 transition hover:scale-103"
         >
@@ -478,7 +536,7 @@ export default function RegisterPurchaseForm({
             {cart.map((item, index) => (
               <div
                 key={index}
-                className="flex items-center justify-between bg-white p-2 rounded-md shadow-sm border"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-2 rounded-md shadow-sm border gap-1"
               >
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm text-gray-700">
@@ -492,9 +550,15 @@ export default function RegisterPurchaseForm({
                   </span>
                 </div>
 
-                <span className="text-sm font-semibold text-gray-800">
-                  {formatCOP(item.unitprice * item.quantity)}
-                </span>
+                <div className="flex flex-col items-end text-xs text-gray-600">
+                  <span>
+                    Compra: {formatCOP(item.unitprice)} · Total:{" "}
+                    {formatCOP(item.unitprice * item.quantity)}
+                  </span>
+                  {item.saleprice !== undefined && (
+                    <span>Venta: {formatCOP(item.saleprice)}</span>
+                  )}
+                </div>
 
                 {item.description && (
                   <p className="text-xs text-gray-500 mt-1">
@@ -505,6 +569,22 @@ export default function RegisterPurchaseForm({
             ))}
           </div>
         )}
+      </div>
+
+      {/* Observaciones */}
+      <div>
+        <label className="block text-sm mb-1 font-medium">Observaciones</label>
+        <textarea
+          name="description"
+          value={form.description}
+          onChange={(e) => {
+            handleChange(e);
+            handleFieldValidation("description" as any, e.target.value);
+          }}
+          className="w-full rounded-md border px-2 py-2 text-sm resize-none"
+          rows={3}
+          placeholder="Notas adicionales de la compra"
+        />
       </div>
 
       {/* Botones */}

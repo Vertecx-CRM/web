@@ -30,8 +30,6 @@ export const months = [
   "Diciembre",
 ];
 
-let CACHE: ISale [] | null = null;
-
 export function useSales() {
   const [sales, setSales] = useState<ISale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,10 +37,6 @@ export function useSales() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [cart, setCart] = useState<any[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [discount, setDiscount] = useState(0);
-
   const abortRef = useRef<AbortController | null>(null);
 
   const [form, setForm] = useState<SaleFormState>({
@@ -56,10 +50,7 @@ export function useSales() {
   });
 
   const currentYear = new Date().getFullYear();
-  const years = useMemo(
-    () => Array.from({ length: 6 }, (_, i) => currentYear - i),
-    []
-  );
+  const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
 
   const daysInMonth = useMemo(() => {
     if (!form.month || !form.year) return 31;
@@ -75,6 +66,7 @@ export function useSales() {
   const taxamount = Math.round(subtotal * 0.19);
   const totalamount = subtotal + taxamount;
 
+  // FETCH SALES
   const fetchSales = useCallback(async () => {
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -95,29 +87,12 @@ export function useSales() {
     return () => abortRef.current?.abort();
   }, [fetchSales]);
 
+  // FORM CHANGE
   const handleChange = (e: any) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleAddProduct = () => {
-    const product = products.find(
-      (p) => p.productid === Number(selectedProduct)
-    );
-    if (!product) return;
-
-    setCart((prev) => [
-      ...prev,
-      {
-        productid: product.productid,
-        quantity,
-        unitprice: product.productpriceofsale,
-        discountpercent: discount,
-        notes: "",
-      },
-    ]);
-  };
-
+  // Crear la venta FINAL
   const handleCreateSale = async () => {
     if (cart.length === 0) throw new Error("Carrito vacío");
 
@@ -127,6 +102,7 @@ export function useSales() {
       .toString()
       .padStart(2, "0")}-${form.day.padStart(2, "0")}T05:00:00.000Z`;
 
+    // Construcción del payload EXACTO que pide el backend
     const payload = {
       subtotal,
       taxamount,
@@ -138,14 +114,24 @@ export function useSales() {
       createdby: "admin",
       notes: form.notes,
       paymentmethod: form.paymentmethod,
-      salestatus: "Completada",
-      details: cart,
+      salestatus: "Pending",
+      details: cart.map((item) => ({
+        productid: item.productid ?? null, // null si fue creado desde front
+        quantity: item.quantity,
+        unitprice: item.unitprice,
+        discountpercent: item.discountpercent ?? 0,
+        notes: item.notes ?? "",
+      })),
+      taxpercent: 19,
     };
+
+    console.log("PAYLOAD FINAL:", payload);
 
     const res = await createSale(payload);
     await fetchSales();
     setCart([]);
     setSaving(false);
+
     return res;
   };
 
@@ -153,28 +139,17 @@ export function useSales() {
     sales,
     loading,
     saving,
-
     form,
     setForm,
     products,
     cart,
     setCart,
-
-    selectedProduct,
-    setSelectedProduct,
-    quantity,
-    setQuantity,
-    discount,
-    setDiscount,
-
     years,
     daysInMonth,
     subtotal,
     taxamount,
     totalamount,
-
     handleChange,
-    handleAddProduct,
     handleCreateSale,
   };
 }

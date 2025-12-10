@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "../../auth/requireauth";
 import { DataTable } from "../components/datatable/DataTable";
@@ -11,18 +11,13 @@ import ViewPurchase from "./components/ViewPurchase";
 import { ToastContainer } from "react-toastify";
 import { Column } from "../components/datatable/types/column.types";
 import { usePurchases } from "./hooks/usePurchases";
-
-function Loader() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-[spin_0.8s_linear_1]" />
-    </div>
-  );
-}
+import { useLoader } from "@/shared/components/loader";
 
 export default function PurchasesIndex() {
   const purchasesHook = usePurchases();
-
+  const { showLoader, hideLoader } = useLoader();
+  const [isCancelling, setIsCancelling] = useState<number | null>(null);
+  const { fetchPurchases } = purchasesHook;
   const {
     purchases,
     loading,
@@ -35,8 +30,6 @@ export default function PurchasesIndex() {
     quantity,
     setQuantity,
     cart,
-    years,
-    daysInMonth,
     total,
     handleChange,
     handleAddProduct,
@@ -49,6 +42,47 @@ export default function PurchasesIndex() {
   const [selectedPurchase, setSelectedPurchase] = useState<IPurchase | null>(
     null
   );
+
+  // Refs para controlar renderizados
+  const initialLoadDone = useRef(false);
+  const dataLoaded = useRef(false);
+
+  // Ejecutar solo cuando el componente se monta (primera carga)
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      showLoader();
+      fetchPurchases().finally(() => {
+        // Marcar que los datos están cargados
+        dataLoaded.current = true;
+      });
+    }
+  }, []);
+
+  // Manejar el loader basado en el estado de loading
+  useEffect(() => {
+    if (!loading && initialLoadDone.current) {
+      // Ocultar loader después de un breve delay para suavizar
+      const timer = setTimeout(() => {
+        if (dataLoaded.current) {
+          hideLoader();
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, hideLoader]);
+
+  // Manejar el loader durante el guardado
+  useEffect(() => {
+    if (saving) {
+      showLoader();
+    } else {
+      // Solo ocultar si no estamos en carga inicial
+      if (!loading) {
+        hideLoader();
+      }
+    }
+  }, [saving, loading, showLoader, hideLoader]);
 
   const columns: Column<IPurchase>[] = useMemo(
     () => [
@@ -99,8 +133,36 @@ export default function PurchasesIndex() {
     []
   );
 
+  // Memorizar las funciones de callback
+  const handleCreate = useCallback(() => {
+    purchasesHook.resetForm();
+    setRegisterModalOpen(true);
+  }, [purchasesHook]);
+
+  const handleView = useCallback((row: IPurchase) => {
+    setSelectedPurchase(row);
+    setDetailModalOpen(true);
+  }, []);
+
+  const searchableKeys = useMemo(
+    () => ["numberoforder", "reference", "createdat", "amount"],
+    []
+  );
+
   const confirmCancelPurchase = useCallback(
-    (purchase: IPurchase) => {
+    async (purchase: IPurchase) => {
+      // Verificar si ya está anulada
+      if (purchase.state?.name?.toLowerCase() === "revoke") {
+        Swal.fire({
+          icon: "info",
+          title: "Compra ya anulada",
+          text: `La compra #${purchase.numberoforder} ya se encuentra anulada.`,
+          confirmButtonText: "Aceptar",
+          confirmButtonColor: "#3085d6",
+        });
+        return;
+      }
+
       Swal.fire({
         html: `
         <div class="flex flex-col items-center">
@@ -139,12 +201,50 @@ export default function PurchasesIndex() {
         width: "380px",
       }).then(async (result) => {
         if (result.isConfirmed) {
-          await handleCancelPurchase(purchase.purchaseorderid);
+          setIsCancelling(purchase.purchaseorderid);
+          showLoader();
+
+          try {
+            await handleCancelPurchase(purchase.purchaseorderid);
+
+            Swal.fire({
+              icon: "success",
+              title: "¡Anulado!",
+              text: `La compra #${purchase.numberoforder} ha sido anulada exitosamente.`,
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          } catch (error) {
+            console.error("Error al anular la compra:", error);
+            Swal.fire({
+              icon: "error",
+              title: "Error",
+              text: "No se pudo anular la compra. Por favor, intente nuevamente.",
+            });
+          } finally {
+            setTimeout(() => {
+              hideLoader();
+              setIsCancelling(null);
+            }, 500);
+          }
         }
       });
     },
-    [handleCancelPurchase]
+    [handleCancelPurchase, showLoader, hideLoader]
   );
+
+  const isCancelDisabled = useCallback((row: IPurchase) => {
+    return row.state?.name?.toLowerCase() === "revoke";
+  }, []);
+
+  // Limpieza al desmontar el componente
+  useEffect(() => {
+    return () => {
+      hideLoader();
+      initialLoadDone.current = false;
+      dataLoaded.current = false;
+    };
+  }, [hideLoader]);
 
   return (
     <RequireAuth>
@@ -152,31 +252,33 @@ export default function PurchasesIndex() {
         <ToastContainer position="bottom-right" />
         <h1 className="text-xl font-semibold mb-4">Listado de Compras</h1>
 
-        {loading || saving ? (
-          <Loader />
-        ) : (
+        {/* Solo renderizar DataTable cuando haya datos o loading haya terminado */}
+        {(!loading || purchases.length > 0) && (
           <DataTable
             module="purchases"
             data={purchases}
             columns={columns}
-            searchableKeys={[
-              "numberoforder",
-              "reference",
-              "createdat",
-              "amount",
-            ]}
+            searchableKeys={searchableKeys}
             pageSize={8}
             onCancel={confirmCancelPurchase}
-            onCreate={() => {
-              purchasesHook.resetForm();
-              setRegisterModalOpen(true);
-            }}
-            onView={(row) => {
-              setSelectedPurchase(row);
-              setDetailModalOpen(true);
-            }}
+            onCreate={handleCreate}
+            onView={handleView}
             createButtonText="Registrar compra"
+            isCancelDisabled={isCancelDisabled}
+            disabled={isCancelling !== null}
+            // Agregar key para forzar un solo render inicial
+            key={purchases.length > 0 ? "data-loaded" : "empty"}
           />
+        )}
+
+        {/* Mostrar skeleton/placeholder mientras carga */}
+        {loading && purchases.length === 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-4">
+            <div className="animate-pulse space-y-4">
+              <div className="h-10 bg-gray-200 rounded"></div>
+              <div className="h-64 bg-gray-100 rounded"></div>
+            </div>
+          </div>
         )}
 
         <Modal
@@ -195,13 +297,12 @@ export default function PurchasesIndex() {
             quantity={quantity}
             setQuantity={setQuantity}
             cart={cart}
-            years={years}
-            daysInMonth={daysInMonth}
             total={total}
             handleChange={handleChange}
             handleAddProduct={handleAddProduct}
             products={products}
             suppliers={suppliers}
+            fetchPurchases={fetchPurchases}
           />
         </Modal>
 

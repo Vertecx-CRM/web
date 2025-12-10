@@ -46,6 +46,7 @@ export interface IPurchase {
       productpriceofsupplier: number;
       productpriceofsale: number;
       description?: string;
+      image?: string;
     };
   }[];
 }

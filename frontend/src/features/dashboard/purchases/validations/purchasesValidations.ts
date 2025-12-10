@@ -38,11 +38,6 @@ export const validatePurchaseField = (
     case "invoiceNumber":
       if (!String(value).trim()) return "El número de factura es obligatorio";
 
-      // Validar formato tipo FAC-2025-1001 (sin importar mayúsculas/minúsculas)
-      const invoicePattern = /^fac-\d{4}-\d{4}$/i;
-      if (!invoicePattern.test(String(value).trim()))
-        return "El formato debe ser FAC-AAAA-NNNN (ej: FAC-2025-1001)";
-
       if (
         (purchases ?? []).some(
           (p) =>
