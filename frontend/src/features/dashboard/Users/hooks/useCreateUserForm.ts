@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { showWarning } from "@/shared/utils/notifications";
 import {
   CreateUserModalProps,
@@ -13,12 +13,23 @@ import {
 } from "../Validations/UserValidations";
 import { useRoles } from "./useRoles";
 
+// Helpers externos
+import { uploadFile } from "../helpers/uploadFile";
+import { buildUserPayload } from "../helpers/buildUserPayload";
+
+// ----------------------------
+// Normalizador de roles
+// ----------------------------
 const normalizeRoleName = (name: string) =>
   (name ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
 
+// =========================================================
+// HOOK PRINCIPAL
+// =========================================================
 export const useCreateUserForm = ({
   isOpen,
   onClose,
@@ -27,6 +38,9 @@ export const useCreateUserForm = ({
 }: CreateUserModalProps) => {
   const { roles } = useRoles();
 
+  // ----------------------------
+  // Estados base
+  // ----------------------------
   const [formData, setFormData] = useState<CreateUserData>({
     name: "",
     lastname: "",
@@ -86,132 +100,63 @@ export const useCreateUserForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isNit, setIsNit] = useState(false);
 
+  // --------------------------------------------------------
+  // Obtener nombre del rol
+  // --------------------------------------------------------
   const getRoleName = (roleId: number): string => {
-    const found = roles.find((r) => r.roleid === roleId);
-    return normalizeRoleName(found?.name || "");
+    return normalizeRoleName(
+      roles.find((r) => r.roleid === roleId)?.name ?? ""
+    );
   };
 
+  // --------------------------------------------------------
+  // Efecto A: detectar si es NIT
+  // --------------------------------------------------------
   useEffect(() => {
     setIsNit(formData.typeid === 4);
   }, [formData.typeid]);
 
+  // --------------------------------------------------------
+  // Efecto D: sincronizar NIT → apellido vacío + rol cliente
+  // --------------------------------------------------------
   useEffect(() => {
-    if (isNit) {
-      const clienteRole = roles.find(
-        (r) => normalizeRoleName(r.name) === "cliente"
-      );
+    if (!isNit) return;
 
-      setFormData((prev) => ({
-        ...prev,
-        lastname: "",
-        roleid: clienteRole?.roleid || prev.roleid,
-      }));
-    }
+    const cliente = roles.find(
+      (r) => normalizeRoleName(r.name) === "cliente"
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      lastname: "",
+      roleid: cliente?.roleid || prev.roleid,
+    }));
   }, [isNit, roles]);
 
-  const uploadToCloudinary = async (file: File): Promise<string | null> => {
-    const CLOUD_NAME = "ditjhxzre";
-    const UPLOAD_PRESET = "Vertecx";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);  
+  // =========================================================
+  // C — Función unificada para actualizar campos
+  // =========================================================
+  const updateField = useCallback(
+    (field: keyof CreateUserData, value: any) => {
+      setFormData((prev) => ({ ...prev, [field]: value }));
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        { method: "POST", body: data }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message);
-      return json.secure_url;
-    } catch (error) {
-      console.error("Error al subir imagen:", error);
-      showWarning("Error al subir la imagen");
-      return null;
-    }
-  };
+      if (touched[field]) {
+        validateFieldOnChange(field, String(value ?? ""));
+      }
+    },
+    [touched]
+  );
 
-  const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
-    const CLOUD_NAME = "ditjhxzre";
-    const UPLOAD_PRESET = "Vertecx";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);
+  // Compatibilidad con el modal actual
+  const handleInputChange = updateField;
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-        { method: "POST", body: data }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message);
-      return json.secure_url;
-    } catch (error) {
-      console.error("Error al subir CV:", error);
-      showWarning("Error al subir el CV");
-      return null;
-    }
-  };
-
-  const handleInputChange = (
-    field: keyof CreateUserData,
-    value: string | number | File | null
+  // =========================================================
+  // Validación
+  // =========================================================
+  const validateFieldOnChange = (
+    field: keyof FormErrors,
+    value: string
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-
-    if (touched[field]) {
-      const strValue = typeof value === "string" ? value : String(value ?? "");
-      validateFieldOnChange(field as string, strValue);
-    }
-  };
-
-  const handleTechnicianTypeChange = (typeId: number, checked: boolean) => {
-    setFormData((prev) => {
-      const current = prev.techniciantypeids || [];
-      return {
-        ...prev,
-        techniciantypeids: checked
-          ? [...current, typeId]
-          : current.filter((id) => id !== typeId),
-      };
-    });
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      setFormData((prev) => ({ ...prev, image: file }));
-      setPreviewImage(URL.createObjectURL(file));
-    }
-  };
-
-  const handleCVChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      setFormData((prev) => ({ ...prev, CV: file }));
-      setPreviewCV(file.name);
-    }
-  };
-
-  const removeImage = () => {
-    setFormData((prev) => ({ ...prev, image: null }));
-    setPreviewImage(null);
-  };
-
-  const removeCV = () => {
-    setFormData((prev) => ({ ...prev, CV: null }));
-    setPreviewCV(null);
-  };
-
-  const handleBlur = (field: keyof FormTouched) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-    const value = formData[field as keyof CreateUserData];
-    if (typeof value === "string" || typeof value === "number") {
-      validateFieldOnChange(field as string, String(value));
-    }
-  };
-
-  const validateFieldOnChange = (field: string, value: string) => {
     const error = validateField(
       field,
       value,
@@ -226,6 +171,59 @@ export const useCreateUserForm = ({
     setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
+  const handleBlur = (field: keyof FormTouched) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const val = formData[field as keyof CreateUserData];
+    validateFieldOnChange(field, String(val ?? ""));
+  };
+
+  // =========================================================
+  // Subida de imagen
+  // =========================================================
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+
+    updateField("image", file);
+    setPreviewImage(URL.createObjectURL(file));
+  };
+
+  const handleCVChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+
+    updateField("CV", file);
+    setPreviewCV(file.name);
+  };
+
+  const removeImage = () => {
+    updateField("image", null);
+    setPreviewImage(null);
+  };
+
+  const removeCV = () => {
+    updateField("CV", null);
+    setPreviewCV(null);
+  };
+
+  // =========================================================
+  // Tipos de técnico
+  // =========================================================
+  const handleTechnicianTypeChange = (
+    typeId: number,
+    checked: boolean
+  ) => {
+    updateField(
+      "techniciantypeids",
+      checked
+        ? [...(formData.techniciantypeids ?? []), typeId]
+        : (formData.techniciantypeids ?? []).filter((id) => id !== typeId)
+    );
+  };
+
+  // =========================================================
+  // Submit
+  // =========================================================
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
@@ -246,25 +244,26 @@ export const useCreateUserForm = ({
       setIsSubmitting(true);
       onClose();
 
-      let imageUrl: string | null = null;
-      if (formData.image instanceof File)
-        imageUrl = await uploadToCloudinary(formData.image);
+      // Subir imagen
+      let imageUrl = null;
+      if (formData.image instanceof File) {
+        imageUrl = await uploadFile(formData.image);
+      }
 
-      let cvUrl: string | null = null;
-      if (formData.CV instanceof File)
-        cvUrl = await uploadCVToCloudinary(formData.CV);
-      else if (typeof formData.CV === "string") cvUrl = formData.CV;
+      // Subir CV
+      let cvUrl = null;
+      if (formData.CV instanceof File) {
+        cvUrl = await uploadFile(formData.CV);
+      } else if (typeof formData.CV === "string") {
+        cvUrl = formData.CV;
+      }
 
-      const payload = {
-        ...formData,
-        image: imageUrl,
-        CV: cvUrl,
-        techniciantypeids: formData.techniciantypeids?.length
-          ? formData.techniciantypeids
-          : undefined,
-        customercity: formData.customercity?.trim() || undefined,
-        customerzipcode: formData.customerzipcode?.trim() || undefined,
-      };
+      // B — Payload INMUTABLE
+      const payload = buildUserPayload({
+        formData,
+        imageUrl,
+        cvUrl,
+      });
 
       await onSave(payload);
     } catch (err) {
@@ -275,65 +274,74 @@ export const useCreateUserForm = ({
     }
   };
 
+  // =========================================================
+  // Reset al abrir modal
+  // =========================================================
   useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        name: "",
-        lastname: "",
-        email: "",
-        phone: "",
-        typeid: 0,
-        documentnumber: "",
-        image: null,
-        stateid: 1,
-        roleid: 0,
-        CV: null,
-        techniciantypeids: [],
-        customercity: "",
-        customerzipcode: "",
-      });
-      setErrors({
-        userid: "",
-        name: "",
-        lastname: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-        phone: "",
-        documentnumber: "",
-        typeid: "",
-        stateid: "",
-        image: "",
-        roleid: "",
-        CV: "",
-        techniciantypeids: "",
-        customercity: "",
-        customerzipcode: "",
-      });
-      setTouched({
-        userid: false,
-        name: false,
-        lastname: false,
-        email: false,
-        password: false,
-        confirmPassword: false,
-        phone: false,
-        documentnumber: false,
-        typeid: false,
-        stateid: false,
-        image: false,
-        roleid: false,
-        CV: false,
-        techniciantypeids: false,
-        customercity: false,
-        customerzipcode: false,
-      });
-      setPreviewImage(null);
-      setPreviewCV(null);
-      setIsNit(false);
-    }
+    if (!isOpen) return;
+
+    setFormData({
+      name: "",
+      lastname: "",
+      email: "",
+      phone: "",
+      typeid: 0,
+      documentnumber: "",
+      image: null,
+      stateid: 1,
+      roleid: 0,
+      CV: null,
+      techniciantypeids: [],
+      customercity: "",
+      customerzipcode: "",
+    });
+
+    setErrors({
+      userid: "",
+      name: "",
+      lastname: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      phone: "",
+      documentnumber: "",
+      typeid: "",
+      stateid: "",
+      image: "",
+      roleid: "",
+      CV: "",
+      techniciantypeids: "",
+      customercity: "",
+      customerzipcode: "",
+    });
+
+    setTouched({
+      userid: false,
+      name: false,
+      lastname: false,
+      email: false,
+      password: false,
+      confirmPassword: false,
+      phone: false,
+      documentnumber: false,
+      typeid: false,
+      stateid: false,
+      image: false,
+      roleid: false,
+      CV: false,
+      techniciantypeids: false,
+      customercity: false,
+      customerzipcode: false,
+    });
+
+    setPreviewImage(null);
+    setPreviewCV(null);
+    setIsNit(false);
   }, [isOpen]);
 
+  // =========================================================
+  // RETURN API DEL HOOK
+  // =========================================================
   return {
     formData,
     errors,
@@ -342,7 +350,11 @@ export const useCreateUserForm = ({
     previewCV,
     isSubmitting,
     isNit,
+
+    // IMPORTANTE para tu modal
     handleInputChange,
+
+    updateField,
     handleImageChange,
     handleCVChange,
     handleBlur,
