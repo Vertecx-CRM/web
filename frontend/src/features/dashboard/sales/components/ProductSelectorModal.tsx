@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 
 interface Props {
@@ -8,13 +8,6 @@ interface Props {
   onClose: () => void;
   products: any[];
   onSelect: (product: any, quantity: number) => void;
-  onCreate: (product: {
-    name: string;
-    description: string;
-    price: number;
-    stock: number;
-    image: string;
-  }) => void;
 }
 
 export default function ProductSelectorModal({
@@ -22,30 +15,24 @@ export default function ProductSelectorModal({
   onClose,
   products,
   onSelect,
-  onCreate,
 }: Props) {
-  const [mode, setMode] = useState<"select" | "create">("select");
-
-  // Campos para crear producto
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<number | "">("");
-  const [stock, setStock] = useState<number | "">("");
-  const [image, setImage] = useState("");
-
-  // Campos para seleccionar producto
+  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [quantity, setQuantity] = useState(1);
 
+  const [error, setError] = useState(""); // ← Mensaje de error (stock)
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) =>
+      p.productname.toLowerCase().includes(query.toLowerCase())
+    );
+  }, [query, products]);
+
   const reset = () => {
-    setMode("select");
+    setQuery("");
     setSelectedId("");
     setQuantity(1);
-    setName("");
-    setDescription("");
-    setPrice("");
-    setStock("");
-    setImage("");
+    setError("");
   };
 
   const handleClose = () => {
@@ -53,159 +40,98 @@ export default function ProductSelectorModal({
     onClose();
   };
 
+  const handleAdd = () => {
+    setError("");
+
+    if (!selectedId) return;
+
+    const product = products.find((p) => p.productid == selectedId);
+    if (!product) return;
+
+    // VALIDACIÓN DE STOCK
+    if (quantity > product.productstock) {
+      setError(
+        `No puedes vender ${quantity} unidades. Solo hay ${product.productstock} en stock.`
+      );
+      return;
+    }
+
+    onSelect(product, quantity);
+    handleClose();
+  };
+
   return (
     <Modal
-      title={mode === "select" ? "Seleccionar Producto" : "Crear Producto"}
+      title="Seleccionar Producto"
       isOpen={isOpen}
       onClose={handleClose}
       widthClass="md:max-w-xl"
       footer={null}
     >
       <div className="space-y-4">
-        {/* Toggle Select / Create */}
-        <div className="flex gap-2 mb-4">
-          <button
-            className={`px-3 py-1 rounded ${
-              mode === "select" ? "bg-black text-white" : "bg-gray-200"
-            }`}
-            onClick={() => setMode("select")}
-          >
-            Seleccionar
-          </button>
-
-          <button
-            className={`px-3 py-1 rounded ${
-              mode === "create" ? "bg-black text-white" : "bg-gray-200"
-            }`}
-            onClick={() => setMode("create")}
-          >
-            Crear nuevo
-          </button>
+        {/* BUSCADOR */}
+        <div>
+          <label className="block text-sm mb-1">Buscar producto</label>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Escribe para buscar..."
+            className="w-full border rounded-lg px-3 py-2"
+          />
         </div>
 
-        {/* ------------------------------------------------ */}
-        {/* ===========   MODO SELECCIONAR PRODUCTO   ====== */}
-        {/* ------------------------------------------------ */}
-        {mode === "select" && (
-          <div className="space-y-3">
-            <label className="block text-sm">Producto</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2"
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-            >
-              <option value="">Selecciona un producto</option>
-              {products.map((p) => (
-                <option key={p.productid} value={p.productid}>
-                  {p.productname} — $
-                  {p.productpriceofsale.toLocaleString("es-CO")}
-                </option>
-              ))}
-            </select>
+        {/* LISTA FILTRADA */}
+        <div className="border rounded-lg max-h-48 overflow-auto bg-white">
+          {filteredProducts.length === 0 && (
+            <p className="p-3 text-gray-500 text-sm">
+              No se encontraron productos.
+            </p>
+          )}
 
-            <label className="block text-sm">Cantidad</label>
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="w-32 border rounded-lg px-3 py-2"
-            />
-
-            <button
+          {filteredProducts.map((p) => (
+            <div
+              key={p.productid}
               onClick={() => {
-                if (!selectedId) return;
-                const product = products.find((p) => p.productid == selectedId);
-                onSelect(product, quantity);
-                handleClose();
+                setSelectedId(p.productid);
+                setError("");
               }}
-              className="w-full bg-black text-white rounded-lg py-2 mt-4"
+              className={`px-3 py-2 cursor-pointer hover:bg-gray-200 ${
+                selectedId == p.productid ? "bg-gray-300" : ""
+              }`}
             >
-              Agregar
-            </button>
-          </div>
-        )}
-
-        {/* ------------------------------------------------ */}
-        {/* ===========   MODO CREAR PRODUCTO   ============ */}
-        {/* ------------------------------------------------ */}
-        {mode === "create" && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm">Nombre</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="Ingrese nombre"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm">Descripción</label>
-              <textarea
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="Ingrese descripción"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              ></textarea>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm">Precio</label>
-                <input
-                  type="number"
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Ingrese precio"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm">Stock</label>
-                <input
-                  type="number"
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Ingrese stock"
-                  value={stock}
-                  onChange={(e) => setStock(Number(e.target.value))}
-                />
+              <div className="font-medium">{p.productname}</div>
+              <div className="text-xs text-gray-600">
+                ${p.productpriceofsale.toLocaleString("es-CO")} — Stock:{" "}
+                {p.productstock}
               </div>
             </div>
+          ))}
+        </div>
 
-            <div>
-              <label className="block text-sm">Imagen (URL)</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="https://..."
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-              />
-            </div>
+        {/* CANTIDAD */}
+        <label className="block text-sm">Cantidad</label>
+        <input
+          type="number"
+          min={1}
+          value={quantity}
+          onChange={(e) => {
+            setQuantity(Number(e.target.value));
+            setError("");
+          }}
+          className="w-32 border rounded-lg px-3 py-2"
+        />
 
-            <button
-              onClick={() => {
-                if (!name || !price) return;
+        {/* ERROR DE STOCK */}
+        {error && <p className="text-red-600 text-sm font-medium">{error}</p>}
 
-                onCreate({
-                  name,
-                  description,
-                  price: Number(price),
-                  stock: Number(stock || 0),
-                  image,
-                });
-
-                handleClose();
-              }}
-              className="w-full bg-black text-white rounded-lg py-2 mt-4"
-            >
-              Crear Producto
-            </button>
-          </div>
-        )}
+        {/* BOTÓN AGREGAR */}
+        <button
+          onClick={handleAdd}
+          className="w-full bg-black text-white rounded-lg py-2 mt-4"
+        >
+          Agregar
+        </button>
       </div>
     </Modal>
   );
