@@ -1,7 +1,6 @@
 import { useAuth } from "../authcontext";
 
 const MODULE_ALIASES: Record<string, string> = {
-  // compras / órdenes
   purchases: "purcharse",
   purcharse: "purcharse",
   compras: "purcharse",
@@ -10,28 +9,30 @@ const MODULE_ALIASES: Record<string, string> = {
   ordenesdecompra: "purchaseorders",
   purchaseorders: "purchaseorders",
 
-  // catálogos
   categories: "categoryproducts",
   categoryproducts: "categoryproducts",
   products: "products",
   suppliers: "suppliers",
 
-  // servicios
   servicesrequests: "servicesrequest",
   servicesrequest: "servicesrequest",
+
   orderservices: "orderservices",
+  ordersservices: "orderservices",
+  ordersservice: "orderservices",
+  orderservicesmanagement: "orderservices",
+  ordersservicesmanagement: "orderservices",
+
   services: "services",
   technicians: "technicians",
   quotes: "quotes",
 
-  // clientes / usuarios
   costumers: "customers",
   customers: "customers",
   clients: "customers",
   users: "users",
   roles: "roles",
 
-  // otros
   sales: "sales",
   sale: "sales",
   ventas: "sales",
@@ -76,7 +77,10 @@ function normalizePrivilege(name: string) {
 function parsePermission(item: string) {
   const sep = item.includes(".") ? "." : item.includes("-") ? "-" : ".";
   const [module, privilege] = item.split(sep);
-  return { module: normalizeModule(module), privilege: normalizePrivilege(privilege) };
+  return {
+    module: normalizeModule(module),
+    privilege: normalizePrivilege(privilege),
+  };
 }
 
 export function usePermissions() {
@@ -111,4 +115,3 @@ export function usePermissions() {
 
   return { has, canView, canCreate, canUpdate, canDelete };
 }
-
