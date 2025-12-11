@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { IPurchase } from "../Types/Purchase.type";
 import {
@@ -51,6 +51,7 @@ interface Props {
   years: number;
   daysInMonth: number;
   total: number;
+  removeFromCart: (index: number) => void;
   handleChange: (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -83,6 +84,7 @@ export default function RegisterPurchaseForm({
   total,
   handleChange,
   handleAddProduct,
+  removeFromCart,
   products,
   suppliers,
 }: Props) {
@@ -99,6 +101,20 @@ export default function RegisterPurchaseForm({
   const [productDescription, setProductDescription] = useState("");
   const [duplicateProductError, setDuplicateProductError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [searchProduct, setSearchProduct] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const [selectedSupplierPrice, setSelectedSupplierPrice] = useState<
+    number | ""
+  >("");
+
+  const filteredProducts = useMemo(() => {
+    if (!searchProduct.trim()) return products;
+    return products.filter((p) =>
+      p.productname.toLowerCase().includes(searchProduct.toLowerCase())
+    );
+  }, [searchProduct, products]);
 
   const { showLoader, hideLoader } = useLoader();
 
@@ -235,10 +251,25 @@ export default function RegisterPurchaseForm({
     }
   };
 
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <form
       onSubmit={handleFormSubmit}
-      className="space-y-5 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto rounded"
+      className="space-y-6 p-6 md:p-8 w-full mx-auto rounded-lg"
     >
       {/* Fecha */}
       <div>
@@ -266,7 +297,7 @@ export default function RegisterPurchaseForm({
       </div>
 
       {/* N° Orden y Proveedor */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm mb-1 font-medium">
             N° de Orden <span className="text-red-500">*</span>
@@ -377,13 +408,13 @@ export default function RegisterPurchaseForm({
       </div>
 
       {/* Productos */}
-      <div className="p-3 border rounded-lg bg-gray-50">
-        <label className="block text-sm mb-2">
+      <div className="p-4 border rounded-lg bg-gray-50 shadow-sm">
+        <label className="block text-center text-xl font-semibold mb-3">
           Productos <span className="text-red-500">*</span>
         </label>
 
         {/* Toggle Seleccionar / Crear */}
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-2 mb-4">
           <button
             type="button"
             onClick={() => {
@@ -392,8 +423,10 @@ export default function RegisterPurchaseForm({
               setNewProductPrice("");
               setNewProductSalePrice("");
             }}
-            className={`text-xs px-2 py-1 rounded cursor-pointer ${
-              !isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            className={`text-xs px-3 py-2 rounded-md transition ${
+              !isNewProduct
+                ? "bg-black text-white shadow"
+                : "bg-gray-200 hover:bg-gray-300"
             }`}
           >
             Seleccionar
@@ -404,112 +437,218 @@ export default function RegisterPurchaseForm({
             onClick={() => {
               setIsNewProduct(true);
               setSelectedProduct("");
+              setSearchProduct("");
               setExistingSalePrice("");
             }}
-            className={`text-xs px-2 py-1 rounded cursor-pointer ${
-              isNewProduct ? "bg-black text-white" : "bg-gray-200"
+            className={`text-xs px-3 py-2 rounded-md transition ${
+              isNewProduct
+                ? "bg-black text-white shadow"
+                : "bg-gray-200 hover:bg-gray-300"
             }`}
           >
             Crear producto
           </button>
         </div>
 
-        {!isNewProduct ? (
+        {/* =============================
+    MODO SELECCIONAR PRODUCTO
+   ============================= */}
+        {!isNewProduct && (
           <>
-            <div className="flex flex-col sm:flex-col gap-2">
-              <select
-                value={selectedProduct}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSelectedProduct(value);
+            {/* LABEL GENERAL */}
+            <label className="block text-sm font-medium mb-2">Producto</label>
 
-                  const prod = products.find(
-                    (p) => p.productid === Number(value)
-                  );
-                  if (prod?.productpriceofsale) {
-                    setExistingSalePrice(prod.productpriceofsale);
-                  } else {
-                    setExistingSalePrice("");
+            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+              {/* BUSCADOR / SELECT FILTRABLE */}
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Buscar o seleccionar
+                </label>
+
+                <div className="relative" ref={dropdownRef}>
+                  <input
+                    type="text"
+                    placeholder="Escribe el nombre del producto"
+                    className="w-100 border rounded-md px-3 py-2 text-sm shadow-sm"
+                    value={
+                      selectedProduct
+                        ? products.find(
+                            (p) => p.productid === Number(selectedProduct)
+                          )?.productname
+                        : searchProduct
+                    }
+                    onChange={(e) => {
+                      setSearchProduct(e.target.value);
+                      setSelectedProduct("");
+                      setDropdownOpen(true);
+                    }}
+                    onFocus={() => setDropdownOpen(true)}
+                  />
+
+                  {dropdownOpen && (
+                    <div className="absolute top-full mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                      {filteredProducts.length === 0 ? (
+                        <p className="p-3 text-sm text-gray-500">
+                          No hay productos que coincidan
+                        </p>
+                      ) : (
+                        filteredProducts.map((p) => (
+                          <div
+                            key={p.productid}
+                            onClick={() => {
+                              setSelectedProduct(String(p.productid));
+                              setSelectedSupplierPrice(
+                                p.productpriceofsupplier
+                              );
+                              setSearchProduct("");
+                              setDropdownOpen(false);
+                            }}
+                            className="p-2 cursor-pointer hover:bg-gray-100 text-sm flex justify-between"
+                          >
+                            <span>{p.productname}</span>
+                            <span className="text-gray-600 font-semibold">
+                              {formatCOP(p.productpriceofsupplier)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* PRECIO COMPRA */}
+              <div className="flex-1 sm:w-32">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Precio compra (unidad)
+                </label>
+
+                <input
+                  type="number"
+                  placeholder="Ej. 15000"
+                  value={selectedSupplierPrice}
+                  onChange={(e) =>
+                    setSelectedSupplierPrice(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
                   }
-                }}
-                className="flex-1 rounded-md border px-2 py-2 text-sm"
-              >
-                <option value="">Selecciona un producto</option>
-                {products.map((p) => (
-                  <option key={p.productid} value={p.productid}>
-                    {p.productname} - {formatCOP(p.productpriceofsupplier)}{" "}
-                    (compra)
-                  </option>
-                ))}
-              </select>
+                  className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
+                />
+              </div>
 
-              <input
-                type="number"
-                value={quantity}
-                min={1}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
-              />
+              {/* PRECIO VENTA */}
+              <div className="flex-1 sm:w-32">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Precio venta (unidad) — opcional
+                </label>
 
-              <input
-                type="number"
-                placeholder="Precio de venta (opcional)"
-                value={existingSalePrice}
-                onChange={(e) =>
-                  setExistingSalePrice(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
-              />
+                <input
+                  type="number"
+                  placeholder="Ej. 25000"
+                  value={existingSalePrice}
+                  onChange={(e) =>
+                    setExistingSalePrice(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
+                  className="w-full rounded-md border px-2 py-2 text-sm shadow-sm"
+                />
+              </div>
+
+              {/* CANTIDAD */}
+              <div className="flex-1 sm:w-20">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Cantidad
+                </label>
+
+                <input
+                  type="number"
+                  value={quantity}
+                  min={1}
+                  placeholder="0"
+                  onChange={(e) => setQuantity(Number(e.target.value))}
+                  className="w-12 rounded-md border px-2 py-2 text-center text-sm shadow-sm"
+                />
+              </div>
             </div>
+
             {duplicateProductError && (
               <p className="text-xs text-red-500 mt-1">
                 {duplicateProductError}
               </p>
             )}
           </>
-        ) : (
-          <div className="flex flex-col sm:flex-col gap-2">
-            <input
-              type="text"
-              placeholder="Nombre del producto"
-              value={newProductName}
-              onChange={(e) => setNewProductName(e.target.value)}
-              className="flex-1 rounded-md border px-2 py-2 text-sm"
-            />
+        )}
 
-            <input
-              type="number"
-              placeholder="Precio proveedor"
-              value={newProductPrice}
-              onChange={(e) =>
-                setNewProductPrice(
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
-              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
-            />
+        {/* =============================
+      MODO CREAR PRODUCTO
+     ============================= */}
+        {isNewProduct && (
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            {/* Nombre */}
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Nombre del producto
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. Taladro industrial"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+                className="w-100 rounded-md border px-3 py-2 text-sm shadow-sm"
+              />
+            </div>
 
-            <input
-              type="number"
-              placeholder="Precio de venta (opcional)"
-              value={newProductSalePrice}
-              onChange={(e) =>
-                setNewProductSalePrice(
-                  e.target.value === "" ? "" : Number(e.target.value)
-                )
-              }
-              className="w-full sm:w-40 rounded-md border px-2 py-2 text-sm"
-            />
+            {/* Precio proveedor */}
+            <div className="flex-1 sm:w-32">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Precio compra (unidad)
+              </label>
+              <input
+                type="number"
+                placeholder="Ej. 15000"
+                value={newProductPrice}
+                onChange={(e) =>
+                  setNewProductPrice(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                className="w-full rounded-md border px-3 py-2 text-sm shadow-sm"
+              />
+            </div>
 
-            <input
-              type="number"
-              value={quantity}
-              min={1}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="w-full sm:w-28 rounded-md border px-2 py-2 text-center text-sm"
-            />
+            {/* Precio venta */}
+            <div className="flex-1 sm:w-32">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Precio venta (unidad) — opcional
+              </label>
+              <input
+                type="number"
+                placeholder="Ej. 35000"
+                value={newProductSalePrice}
+                onChange={(e) =>
+                  setNewProductSalePrice(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                className="w-full rounded-md border px-3 py-2 text-sm shadow-sm"
+              />
+            </div>
+
+            {/* Cantidad */}
+            <div className="flex-1 sm:w-20">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Cantidad
+              </label>
+              <input
+                type="number"
+                value={quantity}
+                min={1}
+                placeholder="0"
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-12 rounded-md border px-3 py-2 text-center text-sm shadow-sm"
+              />
+            </div>
           </div>
         )}
 
@@ -518,53 +657,71 @@ export default function RegisterPurchaseForm({
           placeholder="Descripción del producto"
           value={productDescription}
           onChange={(e) => setProductDescription(e.target.value)}
-          className="w-full rounded-md border px-2 py-2 text-sm resize-none mt-2"
+          className="w-full rounded-md border px-3 py-2 text-sm resize-none mt-3 shadow-sm"
           rows={2}
         />
 
+        {/* Botón agregar */}
         <button
           type="button"
           onClick={handleAddProductClick}
           style={{ backgroundColor: Colors.buttons.primary }}
-          className="cursor-pointer mt-3 w-full px-3 py-2 rounded-md text-white text-sm hover:bg-opacity-90 transition hover:scale-103"
+          className="cursor-pointer mt-4 w-full px-4 py-2 rounded-md text-white text-sm font-medium shadow hover:scale-[1.02] transition"
         >
-          Añadir más productos +
+          Añadir producto +
         </button>
 
+        {/* Carrito */}
         {cart.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-5 space-y-3">
             {cart.map((item, index) => (
               <div
                 key={index}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white p-2 rounded-md shadow-sm border gap-1"
+                className="flex items-start justify-between bg-white p-3 rounded-md shadow border hover:shadow-md transition gap-3"
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-gray-700">
-                    {item.productname ||
-                      products.find((p) => p.productid === item.productid)
-                        ?.productname}
-                  </span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm text-gray-800">
+                      {item.productname ||
+                        products.find((p) => p.productid === item.productid)
+                          ?.productname}
+                    </span>
 
-                  <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {item.quantity}
-                  </span>
-                </div>
+                    <span className="bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {item.quantity}
+                    </span>
+                  </div>
 
-                <div className="flex flex-col items-end text-xs text-gray-600">
-                  <span>
-                    Compra: {formatCOP(item.unitprice)} · Total:{" "}
+                  <p className="text-xs text-gray-600 mt-1">
+                    Compra: {formatCOP(item.unitprice)} • Total:{" "}
                     {formatCOP(item.unitprice * item.quantity)}
-                  </span>
+                  </p>
+
                   {item.saleprice !== undefined && (
-                    <span>Venta: {formatCOP(item.saleprice)}</span>
+                    <p className="text-xs text-gray-700">
+                      Venta: {formatCOP(item.saleprice)}
+                    </p>
+                  )}
+
+                  {item.description && (
+                    <p className="text-xs text-gray-500 mt-1 italic">
+                      {item.description}
+                    </p>
                   )}
                 </div>
 
-                {item.description && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {item.description}
-                  </p>
-                )}
+                {/* Botón eliminar */}
+                <button
+                  type="button"
+                  onClick={() => removeFromCart(index)}
+                  className="p-2 rounded hover:bg-red-100 transition shrink-0"
+                >
+                  <img
+                    src="/icons/delete.svg"
+                    alt="Eliminar"
+                    className="w-5 h-5 opacity-80 hover:opacity-100"
+                  />
+                </button>
               </div>
             ))}
           </div>

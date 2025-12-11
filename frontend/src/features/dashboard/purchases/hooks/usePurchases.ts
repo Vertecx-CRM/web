@@ -103,13 +103,6 @@ export function usePurchases() {
   };
 
   const fetchPurchases = useCallback(async () => {
-    if (CACHE) {
-      setPurchases(CACHE);
-      // que el loader dure al menos 400ms antes de ocultarse
-      setTimeout(() => setLoading(false), 300);
-      return;
-    }
-
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -121,8 +114,8 @@ export function usePurchases() {
 
       const nextOrder = generateNextOrderNumber(data);
       setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
-    } catch (error: any) {
-      if (error?.name !== "AbortError") {
+    } catch (error) {
+      if (error.name !== "AbortError") {
         console.error("Error fetching purchases:", error);
       }
     } finally {
@@ -162,7 +155,7 @@ export function usePurchases() {
   useEffect(() => {
     fetchPurchases();
     return () => abortRef.current?.abort();
-  }, [fetchPurchases]);
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -278,6 +271,10 @@ export function usePurchases() {
     }
   };
 
+  const removeFromCart = (index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  };
+
   /**
    * Construye y envía el payload al endpoint /purchasesmanagement
    * adaptado a la documentación del backend.
@@ -338,11 +335,17 @@ export function usePurchases() {
     }
   };
 
-  const handleCancelPurchase = async (id: number) => {
+  const handleCancelPurchase = async (id: number, observation?: string) => {
     try {
       setCancelLoading(true);
+
+      // Limpiar cache para forzar actualización fresca
       CACHE = null;
-      await cancelPurchase(id);
+
+      // Enviar con observación opcional
+      await cancelPurchase(id, observation);
+
+      // Volver a cargar compras (solo una vez)
       await fetchPurchases();
     } catch (error) {
       console.error("Error canceling purchase:", error);
@@ -392,6 +395,7 @@ export function usePurchases() {
     cart,
     setCart,
     total,
+    removeFromCart,
 
     products,
     suppliers,
