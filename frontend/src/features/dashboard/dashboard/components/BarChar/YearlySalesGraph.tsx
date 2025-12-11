@@ -43,9 +43,8 @@ export const YearlyGraph = ({ title, data, onMonthClick, isCurrency = true }: Ye
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart
-
         data={data}
-        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+        margin={{ top: 10, right: 30, left: 32, bottom: 10 }}
       >
         <XAxis dataKey="month" axisLine={false} tickLine={false} />
         <Tooltip content={<CustomTooltip isCurrency={isCurrency} />} />

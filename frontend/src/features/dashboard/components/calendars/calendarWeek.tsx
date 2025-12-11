@@ -18,21 +18,30 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import './sytileWeek.css';
-import { Appointment, AppointmentEvent, SlotDateTime } from '../../appointments/types/typeAppointment';
+import { AppointmentEvent, SlotDateTime } from '../../appointments/types/typeAppointment';
 import { CustomEventComponent } from '../../appointments/components/events/CustomEventComponent';
-import { CreateAppointmentModal } from '../../appointments/components/CreateAppointmentModal/createAppointment';
 import { AppointmentDetailsModal } from '../../appointments/components/menuAppointmentModal/menuAppointment';
-import { EditAppointmentModal } from '../../appointments/components/EditAppointmentModal/editAppointmente';
-import { ViewAppointmentModal } from '../../appointments/components/ViewAppointmentModal/viewAppointment';
 import { confirmCancelAppointment } from '../../../../shared/utils/confirmCancel/confirmCancel';
 import { GroupedAppointmentsModal } from '../../appointments/components/GroupedAppointmentsModal/GroupedAppointments';
 import { showWarning } from '@/shared/utils/notifications';
 import 'react-toastify/dist/ReactToastify.css';
-import { ToastContainer } from "react-toastify";
 import { FiltersState } from '../../appointments/components/filtro/filtro';
 import { ReprogramAppointmentModal } from '../../appointments/components/rescheduleModal/rescheduleModal';
 import { useAppointments } from '../../appointments/hooks/useAppointment';
+import CreateRequestModal, { type CreateRequestPayload } from '../../requests/components/CreateRequestModal';
+import EditRequestModal, { type EditRequestPayload } from '../../requests/components/EditRequestModal';
+import { useLookups } from '../../requests/hooks/useLookups';
 import dynamic from 'next/dynamic';
+import { useRouter, usePathname } from 'next/navigation';
+import { routes } from '@/shared/routes';
+
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 const locales = { es };
 
@@ -81,13 +90,25 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   const calendarRef = useRef<HTMLDivElement>(null);
   const [editingAppointment, setEditingAppointment] = useState<AppointmentEvent | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [viewingAppointment, setViewingAppointment] = useState<AppointmentEvent | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isReprogramModalOpen, setIsReprogramModalOpen] = useState(false);
   const [appointmentToReprogram, setAppointmentToReprogram] = useState<AppointmentEvent | null>(null);
 
-  const [displayEvents, setDisplayEvents] = useState<GroupedEvent[]>([]);
+  const formatDate = (value?: Date | string | null) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (v: number) => String(v).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const formatTime = (value?: Date | string | null) => {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    const pad = (v: number) => String(v).padStart(2, "0");
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   const getWeekRange = useCallback((date: Date) => {
     const start = startOfWeek(date, { weekStartsOn: 1 });
@@ -108,7 +129,12 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     handleCancelAppointment,
     handleCreateAppointment: createAppointmentInHook,
     handleUpdateAppointment: updateAppointmentInHook,
+    handleUpdateRequest,
+    isLoading,
   } = useAppointments();
+  const { serviceOptions, customerOptions } = useLookups();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const filteredAppointments = useMemo(() => {
     return events.filter((a) => {
@@ -127,8 +153,17 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       const appointmentTipoMantenimiento = a.tipoMantenimientoSolicitud ?? a.orden?.tipoMantenimiento ?? "";
       const matchTipoMantenimiento = !filters.tipoMantenimiento || appointmentTipoMantenimiento === filters.tipoMantenimiento;
 
-      // Tipo de cita
-      const matchTipoCita = !filters.tipoCita || a.tipoCita === filters.tipoCita;
+      // Tipo de servicio (Solicitud / Orden)
+      const matchTipoCita = (() => {
+        if (!filters.tipoCita) return true;
+        if (filters.tipoCita === "solicitud") {
+          return !Boolean(a.serviceOrderId);
+        }
+        if (filters.tipoCita === "orden") {
+          return Boolean(a.serviceOrderId);
+        }
+        return true;
+      })();
 
       // Estado
       let matchEstado = true;
@@ -160,19 +195,14 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
   }, [events, search, filters]);
 
 
-  // 2. UseEffect para buscador + rango visible + agrupar:
-  useEffect(() => {
-    // en vez de partir de events, parte de filteredAppointments
+  // 2. Agrupar y filtrar eventos visibles (memoizado para evitar loops)
+  const displayEvents = useMemo(() => {
     let filtered = [...filteredAppointments];
 
-    // 2. Filtrar por rango visible
     filtered = filtered.filter(
-      ev =>
-        ev.start >= dateRange.start &&
-        ev.start <= dateRange.end
+      ev => ev.start >= dateRange.start && ev.start <= dateRange.end
     );
 
-    // 3. Ordenar y agrupar
     const sortedEvents = [...filtered].sort((a, b) => a.start.getTime() - b.start.getTime());
     const newDisplayEvents: GroupedEvent[] = [];
     let i = 0;
@@ -199,7 +229,7 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       }
     }
 
-    setDisplayEvents(newDisplayEvents);
+    return newDisplayEvents;
   }, [filteredAppointments, dateRange]);
 
   const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
@@ -301,18 +331,22 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     handleUpdateAppointment(updatedEvent);
   };
 
-  const handleSaveAppointment = (newEvent: Appointment) => {
-    const fixedEvent: AppointmentEvent = {
-      ...newEvent,
-      start: new Date(newEvent.start),
-      end: new Date(newEvent.end),
-    };
-    createAppointmentInHook(fixedEvent, fixedEvent.tecnicos || []);
+  const handleSaveRequest = async (data: CreateRequestPayload) => {
+    const slot = selectedSlot || defaultSlot;
+    await createAppointmentInHook(data, slot);
     setIsCreateModalOpen(false);
   };
 
   const handleEditAppointment = (appointment: AppointmentEvent) => {
     setIsDetailsModalOpen(false);
+    if (appointment.serviceOrderId) {
+      const returnTo = encodeURIComponent(pathname ?? routes.dashboard.appointments);
+      router.push(
+        `${routes.dashboard.ordersServices}/edit?id=${appointment.serviceOrderId}&returnTo=${returnTo}`
+      );
+      return;
+    }
+
     setEditingAppointment(appointment);
     setIsEditModalOpen(true);
   };
@@ -322,36 +356,35 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
       ...updated,
       start: updated.start instanceof Date ? updated.start : new Date(updated.start),
       end: updated.end instanceof Date ? updated.end : new Date(updated.end),
-      title: updated.orden
-        ? `Orden: ${typeof updated.orden === "object" ? updated.orden.id : updated.orden}`
-        : "Sin orden",
     };
 
     updateAppointmentInHook(fixedEvent);
+  };
+
+  const handleSaveEditRequest = async (values: EditRequestPayload) => {
+    if (!editingAppointment) return;
+    await handleUpdateRequest(Number(editingAppointment.id), values, editingAppointment);
     setIsEditModalOpen(false);
     setEditingAppointment(null);
   };
 
-
-  const ToastContainer = dynamic(
-    () => import("react-toastify").then((mod) => mod.ToastContainer),
-    { ssr: false }
-  );
-
-
   const handleViewAppointment = (appointment: AppointmentEvent) => {
-    setViewingAppointment(appointment);
     setIsDetailsModalOpen(false);
-    setIsViewModalOpen(true);
+    const basePath = appointment.serviceOrderId ? "/dashboard/orders" : routes.dashboard.requestsServices;
+    const detailId = appointment.serviceOrderId || appointment.requestId || appointment.id;
+    if (!detailId) {
+      return;
+    }
+    router.push(`${basePath}/${detailId}`);
   };
 
   const handleCancel = async (appointment: AppointmentEvent) => {
-    const appointmentLabel = appointment.orden
-      ? `Orden: ${appointment.orden.tipoServicio} - Cliente: ${appointment.orden.cliente}`
-      : appointment.title || "Cita sin título";
+    const appointmentLabel = appointment.servicio
+      ? `${appointment.servicio} - ${appointment.nombreCliente ?? ""}`
+      : appointment.title || "Solicitud";
 
-    await confirmCancelAppointment(appointmentLabel, async (reason) => {
-      handleCancelAppointment(appointment, reason); // hook actualiza appointments
+    await confirmCancelAppointment(appointmentLabel, async () => {
+      await handleCancelAppointment(appointment);
       setIsDetailsModalOpen(false);
     });
   };
@@ -433,6 +466,10 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     </div>
   );
 
+  if (isLoading) {
+    return <Loader />;
+  }
+
   const defaultSlot: SlotDateTime = {
     horaInicio: '00',
     minutoInicio: '00',
@@ -442,8 +479,6 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
     mes: '11',
     año: '2025',
   };
-
-  console.log(events);
 
   return (
     <div id="calendar-pdf" className="calendar-wrapper w-full">
@@ -500,57 +535,55 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
             </div>
           </div>
 
-          <CreateAppointmentModal
+          <CreateRequestModal
             isOpen={isCreateModalOpen}
             onClose={() => {
               setIsCreateModalOpen(false);
               setEditingAppointment(null);
             }}
-            onSave={handleSaveAppointment}
-            selectedDateTime={selectedSlot || defaultSlot}
-            editingAppointment={editingAppointment}
+            onSave={handleSaveRequest}
+            initialDate={formatDate(selectedSlot?.start ?? null)}
+            initialTime={formatTime(selectedSlot?.start ?? null)}
+            servicios={serviceOptions}
+            clientes={customerOptions}
           />
 
-          <EditAppointmentModal
-            isOpen={isEditModalOpen}
-            onClose={() => {
-              setIsEditModalOpen(false);
-              setEditingAppointment(null);
-            }}
-            appointment={editingAppointment}
-            onSave={handleUpdateAppointment}
-          />
+          {isEditModalOpen && editingAppointment && (
+            <EditRequestModal
+              isOpen={isEditModalOpen}
+              onClose={() => {
+                setIsEditModalOpen(false);
+                setEditingAppointment(null);
+              }}
+              initial={{
+                tipos: editingAppointment.tipoServicioSolicitud === "instalacion" ? ["Instalacion"] : ["Mantenimiento"],
+                servicio: editingAppointment.serviceId ? String(editingAppointment.serviceId) : "",
+                descripcion: editingAppointment.descripcion ?? "",
+                direccion: editingAppointment.direccion ?? "",
+                cliente: editingAppointment.clientId ? String(editingAppointment.clientId) : "",
+                programada: formatDate(editingAppointment.start),
+                horaProgramada: formatTime(editingAppointment.start),
+                estado: editingAppointment.stateId ? String(editingAppointment.stateId) : "",
+              }}
+              servicios={serviceOptions}
+              clientes={customerOptions}
+              onSave={handleSaveEditRequest}
+              title="Editar Solicitud"
+            />
+          )}
 
           <ReprogramAppointmentModal
             isOpen={isReprogramModalOpen}
             onClose={() => setIsReprogramModalOpen(false)}
             appointment={appointmentToReprogram}
             onReprogramSave={(start, end) => {
-              const slot: SlotDateTime = {
-                horaInicio: start.getHours().toString().padStart(2, "0"),
-                minutoInicio: start.getMinutes().toString().padStart(2, "0"),
-                horaFin: end.getHours().toString().padStart(2, "0"),
-                minutoFin: end.getMinutes().toString().padStart(2, "0"),
-                dia: start.getDate().toString(),
-                mes: (start.getMonth() + 1).toString(),
-                año: start.getFullYear().toString(),
-              };
-
               if (appointmentToReprogram) {
-                handleReprogramAppointment(appointmentToReprogram, slot);
+                // ✅ Pasar directamente los objetos Date al hook
+                handleReprogramAppointment(appointmentToReprogram, { start, end });
               }
-
               setIsReprogramModalOpen(false);
             }}
-          />
 
-          <ViewAppointmentModal
-            isOpen={isViewModalOpen}
-            onClose={() => {
-              setIsViewModalOpen(false);
-              setViewingAppointment(null);
-            }}
-            appointment={viewingAppointment}
           />
 
           <AppointmentDetailsModal
@@ -577,13 +610,13 @@ const WeeklyCalendar = ({ selectedDate, search, filters }: WeeklyCalendarProps) 
               setIsCreateModalOpen(true);
             }}
           />
-          <ToastContainer />
+
         </DndProvider>
       </div>
-
-
     </div>
   );
 };
 
 export default WeeklyCalendar;
+
+

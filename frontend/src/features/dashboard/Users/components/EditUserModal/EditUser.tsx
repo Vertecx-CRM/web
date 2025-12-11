@@ -1,357 +1,557 @@
+﻿"use client";
 import React from "react";
-import { createPortal } from "react-dom";
 import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
-import { editUserModalProps } from "../../types/typesUser";
-import { useEditUserForm } from "../../hooks/useUsers";
+import { EditUserModalProps } from "../../types/typesUser";
+import { useEditUserForm } from "../../hooks/useEditUserForm";
+import { useDocumentTypes } from "../../hooks/useDocumentTypes";
+import { useRoles } from "../../hooks/useRoles";
+import { useTechnicianTypes } from "../../hooks/useTechnicianTypes";
+import Modal from "@/features/dashboard/components/Modal";
 
+const normalizeRoleName = (name: string) =>
+  (name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
-export const EditUserModal: React.FC<editUserModalProps> = ({
+const EditUserModal: React.FC<EditUserModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  user
+  user,
+  users,
 }) => {
   const {
     formData,
     errors,
     touched,
+    previewImage,
+    previewCV,
     isSubmitting,
     handleInputChange,
+    handleImageChange,
+    handleCVChange,
     handleBlur,
-    handleSubmit
+    handleSubmit,
+    removeImage,
+    removeCV,
+    handleTechnicianTypeChange,
+    isNit,
   } = useEditUserForm({
     isOpen,
     onClose,
     onSave,
-    user
+    user,
+    users,
   });
 
-  // Función específica para manejar cambios de archivo
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null;
-    handleInputChange('imagen', file);
+  const { documentTypes, loading: loadingDocuments } = useDocumentTypes();
+  const { roles, loading: loadingRoles } = useRoles();
+  const { technicianTypes, loading: loadingTechnicianTypes } =
+    useTechnicianTypes();
+
+  // Determinar rol seleccionado
+  const selectedRole =
+    roles.find((r) => r.roleid === formData.roleid)?.name || "";
+  const normalizedRole = normalizeRoleName(selectedRole);
+  const isTecnico = normalizedRole === "tecnico";
+  const isCliente = normalizedRole === "cliente";
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(e.target.name as keyof typeof formData, e.target.value);
   };
 
-  // Función para manejar cambios en selects e inputs
-  const handleFieldChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    handleInputChange(event.target.name as keyof typeof formData, event.target.value);
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = Number(e.target.value);
+    handleInputChange(e.target.name as keyof typeof formData, value);
   };
 
-  const getImageSrc = () => {
-    if (formData.imagen instanceof File) {
-      return URL.createObjectURL(formData.imagen);
-    } else if (typeof formData.imagen === 'string') {
-      return formData.imagen;
-    } else if (user?.imagen) {
-      return typeof user.imagen === 'string' ? user.imagen : '';
-    }
-    return null;
-  };
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 rounded-md font-medium text-sm"
+        style={{
+          backgroundColor: Colors.buttons.tertiary,
+          color: Colors.texts.quaternary,
+        }}
+      >
+        Cancelar
+      </button>
 
-  const imageSrc = getImageSrc();
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="px-4 py-2 rounded-md font-medium text-sm disabled:opacity-50"
+        style={{
+          backgroundColor: Colors.buttons.quaternary,
+          color: Colors.texts.quaternary,
+        }}
+        form="edit-user-form"
+      >
+        Actualizar
+      </button>
+    </>
+  );
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <>
-      <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
-        <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg w-full max-w-lg relative z-50 max-h-[90vh] overflow-y-auto">
-          <button
-            onClick={onClose}
-            className="absolute top-2 right-2 md:top-4 md:right-4 z-10"
-          >
-            <img
-              src="/icons/X.svg"
-              alt="Cerrar"
-              className="w-5 h-5 md:w-6 md:h-6"
-            />
-          </button>
-
-          {/* Header */}
-          <div className="px-4 md:px-6 py-3 md:py-4 rounded-t-lg text-black font-semibold text-2xl md:text-3xl">
-            Editar usuario
-          </div>
-
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
-            {/* Imagen */}
-            <div>
-              <label
-                className="block text-sm font-medium mb-1"
-                style={{ color: Colors.texts.primary }}
-              >
-                Imagen
-              </label>
-
-              {/* Contenedor de la imagen que actúa como botón */}
-              <div className="flex justify-center mb-2">
+  return (
+    <Modal
+      title="Editar Usuario"
+      isOpen={isOpen}
+      onClose={onClose}
+      footer={footer}
+      widthClass="max-w-2xl"
+    >
+      <form id="edit-user-form" onSubmit={handleSubmit} className="space-y-5">
+        {/* Imagen */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Imagen</label>
+          <div className="border border-dashed border-gray-300 rounded-md p-2 text-center flex flex-col items-center justify-center gap-2">
+            {previewImage ? (
+              <>
+                <img
+                  src={previewImage}
+                  alt="preview"
+                  className="w-24 h-24 object-cover rounded-md border"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="text-xs text-red-500 underline"
+                >
+                  Eliminar imagen
+                </button>
+              </>
+            ) : (
+              <>
                 <input
                   type="file"
-                  name="imagen"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="imagen-upload"
+                  id="image-upload"
                   accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
                 />
-                <label htmlFor="imagen-upload" className="cursor-pointer">
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
-                    {imageSrc ? (
-                      <img
-                        src={imageSrc}
-                        alt="Imagen de usuario"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Manejar error de carga de imagen
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <div className="text-gray-500 text-xs text-center">
-                        <img
-                          src="/icons/Plus.svg"
-                          alt="Agregar imagen"
-                          className="w-6 h-6 mx-auto mb-1"
-                        />
-                        <span>Agregar</span>
-                      </div>
-                    )}
-                  </div>
-                </label>
-              </div>
-
-              {/* Texto del nombre del archivo seleccionado (solo si hay archivo) */}
-              {formData.imagen instanceof File && (
-                <div className="text-xs text-green-600 text-center mt-1 truncate">
-                  {formData.imagen.name}
-                </div>
-              )}
-            </div>
-
-            {/* Documento */}
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                Documento
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* Select de tipo de documento */}
-                <div className="flex relative w-full sm:w-auto">
-                  <select
-                    name="tipoDocumento"
-                    value={formData.tipoDocumento}
-                    onChange={handleFieldChange}
-                    onBlur={() => handleBlur('tipoDocumento')}
-                    className="w-full sm:w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-red-500"
-                    style={{
-                      borderColor: errors.tipoDocumento && touched.tipoDocumento ? 'red' : Colors.table.lines,
-                    }}
-                  >
-                    <option value="" disabled hidden>Seleccione</option>
-                    <option value="CC">CC</option>
-                    <option value="CE">CE</option>
-                    <option value="PPT">PPT</option>
-                    <option value="TI">TI</option>
-                    <option value="RC">RC</option>
-                  </select>
-                </div>
-
-                {/* Input de número de documento */}
-                <div className="flex-1 flex flex-col">
-                  <input
-                    type="text"
-                    name="numeroDocumento"
-                    placeholder="Ingrese su documento"
-                    value={formData.numeroDocumento}
-                    onChange={handleFieldChange}
-                    onBlur={() => handleBlur('numeroDocumento')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{
-                      borderColor: errors.numeroDocumento && touched.numeroDocumento ? 'red' : Colors.table.lines,
-                    }}
-                  />
-                  {errors.numeroDocumento && touched.numeroDocumento && (
-                    <span className="text-red-500 text-xs mt-1">{errors.numeroDocumento}</span>
-                  )}
-                </div>
-              </div>
-              {errors.tipoDocumento && touched.tipoDocumento && (
-                <span className="text-red-500 text-xs mt-1">{errors.tipoDocumento}</span>
-              )}
-            </div>
-
-            {/* Nombre y Apellido */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Nombre
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  placeholder="Ingrese su nombre"
-                  value={formData.nombre}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('nombre')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.nombre && touched.nombre ? 'red' : Colors.table.lines,
-                  }}
-                />
-                {errors.nombre && touched.nombre && (
-                  <span className="text-red-500 text-xs mt-1">{errors.nombre}</span>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Apellido
-                </label>
-                <input
-                  type="text"
-                  name="apellido"
-                  placeholder="Ingrese su apellido"
-                  value={formData.apellido}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('apellido')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.apellido && touched.apellido ? 'red' : Colors.table.lines,
-                  }}
-                />
-                {errors.apellido && touched.apellido && (
-                  <span className="text-red-500 text-xs mt-1">{errors.apellido}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Teléfono y Email */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Teléfono
-                </label>
-                <input
-                  type="tel"
-                  name="telefono"
-                  placeholder="Ingrese su teléfono"
-                  value={formData.telefono}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('telefono')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.telefono && touched.telefono ? 'red' : Colors.table.lines,
-                  }}
-                />
-                {errors.telefono && touched.telefono && (
-                  <span className="text-red-500 text-xs mt-1">{errors.telefono}</span>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Correo Electrónico
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="Ingrese su correo electronico"
-                  value={formData.email}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('email')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.email && touched.email ? 'red' : Colors.table.lines,
-                  }}
-                />
-                {errors.email && touched.email && (
-                  <span className="text-red-500 text-xs mt-1">{errors.email}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Estado y Rol */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Estado
-                </label>
-                <select
-                  name="estado"
-                  value={formData.estado}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('estado')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.estado && touched.estado ? 'red' : Colors.table.lines,
-                  }}
+                <label
+                  htmlFor="image-upload"
+                  className="cursor-pointer text-xs text-gray-500"
                 >
-                  <option value="Activo">Activo</option>
-                  <option value="Inactivo">Inactivo</option>
-                </select>
-                {errors.estado && touched.estado && (
-                  <span className="text-red-500 text-xs mt-1">{errors.estado}</span>
-                )}
-              </div>
-
-              {/* Campo Rol */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-                  Rol
+                  Haga clic para cargar imagen
                 </label>
-                <select
-                  name="rol"
-                  value={formData.rol}
-                  onChange={handleFieldChange}
-                  onBlur={() => handleBlur('rol')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{
-                    borderColor: errors.rol && touched.rol ? 'red' : Colors.table.lines,
-                  }}
-                >
-                  <option value="" disabled hidden>Seleccione un rol</option>
-                  <option value="Administrador">Administrador</option>
-                  <option value="Usuario">Usuario</option>
-                  <option value="Editor">Editor</option>
-                  <option value="Invitado">Invitado</option>
-                </select>
-                {errors.rol && touched.rol && (
-                  <span className="text-red-500 text-xs mt-1">{errors.rol}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Botones */}
-            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-md font-medium mt-2 sm:mt-0"
-                style={{
-                  backgroundColor: Colors.buttons.tertiary,
-                  color: Colors.texts.quaternary,
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 rounded-md font-medium disabled:opacity-50"
-                style={{
-                  backgroundColor: Colors.buttons.quaternary,
-                  color: Colors.texts.quaternary,
-                }}
-              >
-                {isSubmitting ? 'Actualizando...' : 'Actualizar'}
-              </button>
-            </div>
-          </form>
-          <div className="w-full h-0 outline outline-1 outline-offset-[-0.5px] outline-black mx-auto"></div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </>,
-    document.body
+
+        {/* Tipo y nmero de documento */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Documento <span className="text-red-500">*</span>
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <select
+              name="typeid"
+              value={formData.typeid}
+              onChange={handleSelectChange}
+              onBlur={() => handleBlur("typeid")}
+              className="w-full sm:w-32 px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor:
+                  errors.typeid && touched.typeid
+                    ? "red"
+                    : Colors.table.lines,
+              }}
+            >
+              <option value={0}>Seleccione tipo</option>
+              {loadingDocuments ? (
+                <option>Cargando...</option>
+              ) : (
+                documentTypes.map((doc) => (
+                  <option
+                    key={doc.typeofdocumentid}
+                    value={doc.typeofdocumentid}
+                  >
+                    {doc.name}
+                  </option>
+                ))
+              )}
+            </select>
+
+            <div className="flex-1 flex flex-col">
+              <input
+                type="text"
+                name="documentnumber"
+                placeholder="Nmero de documento"
+                value={formData.documentnumber}
+                onChange={handleTextChange}
+                onBlur={() => handleBlur("documentnumber")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor:
+                    errors.documentnumber && touched.documentnumber
+                      ? "red"
+                      : Colors.table.lines,
+                }}
+              />
+              {errors.documentnumber && touched.documentnumber && (
+                <span className="text-red-500 text-xs mt-1">
+                  {errors.documentnumber}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Nombre y Apellido */}
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-${isNit ? "1" : "2"} gap-4 transition-all duration-300`}
+        >
+          <div className={isNit ? "col-span-2" : ""}>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Nombre de la empresa" : "Nombre"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="name"
+              placeholder={
+                isNit ? "Ingrese el nombre de la empresa" : "Ingrese su nombre"
+              }
+              value={formData.name}
+              onChange={handleTextChange}
+              onBlur={() => handleBlur("name")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor:
+                  errors.name && touched.name ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.name && touched.name && (
+              <span className="text-red-500 text-xs mt-1">{errors.name}</span>
+            )}
+          </div>
+
+          {/* Apellido oculto si es NIT */}
+          {!isNit && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Apellido</label>
+              <input
+                type="text"
+                name="lastname"
+                placeholder="Ingrese su apellido"
+                value={formData.lastname || ""}
+                onChange={handleTextChange}
+                onBlur={() => handleBlur("lastname")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor:
+                    errors.lastname && touched.lastname
+                      ? "red"
+                      : Colors.table.lines,
+                }}
+              />
+              {errors.lastname && touched.lastname && (
+                <span className="text-red-500 text-xs mt-1">
+                  {errors.lastname}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+
+        {/* Telfono y Correo */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Teléfono de la empresa" : "Teléfono"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              name="phone"
+              placeholder="Ingrese su Teléfono"
+              value={formData.phone}
+              onChange={handleTextChange}
+              onBlur={() => handleBlur("phone")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor:
+                  errors.phone && touched.phone ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.phone && touched.phone && (
+              <span className="text-red-500 text-xs mt-1">{errors.phone}</span>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {isNit ? "Correo de la empresa" : "Correo"}{" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              name="email"
+              placeholder="Ingrese su correo"
+              value={formData.email}
+              onChange={handleTextChange}
+              onBlur={() => handleBlur("email")}
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor:
+                  errors.email && touched.email ? "red" : Colors.table.lines,
+              }}
+            />
+            {errors.email && touched.email && (
+              <span className="text-red-500 text-xs mt-1">{errors.email}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Rol */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Rol <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="roleid"
+            value={formData.roleid}
+            onChange={handleSelectChange}
+            onBlur={() => handleBlur("roleid")}
+            disabled={isNit} 
+            className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500 ${isNit ? "bg-gray-100 cursor-not-allowed" : ""
+              }`}
+            style={{
+              borderColor:
+                errors.roleid && touched.roleid
+                  ? "red"
+                  : Colors.table.lines,
+            }}
+          >
+            <option value={0}>Seleccione un rol</option>
+            {loadingRoles ? (
+              <option>Cargando roles...</option>
+            ) : roles.length === 0 ? (
+              <option>No hay roles disponibles</option>
+            ) : (
+                roles.map((r) => (
+                  <option
+                    key={r.roleid}
+                    value={r.roleid}
+                  >
+                    {r.name}
+                </option>
+              ))
+            )}
+          </select>
+          {errors.roleid && touched.roleid && (
+            <span className="text-red-500 text-xs mt-1">
+              {errors.roleid}
+            </span>
+          )}
+        </div>
+
+        {/* Estado */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Estado <span className="text-red-500">*</span></label>
+          <select
+            name="stateid"
+            value={formData.stateid}
+            onChange={handleSelectChange}
+            onBlur={() => handleBlur("stateid")}
+            className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+            style={{
+              borderColor:
+                errors.stateid && touched.stateid ? "red" : Colors.table.lines,
+            }}
+          >
+            <option value={1}>Activo</option>
+            <option value={2}>Inactivo</option>
+          </select>
+          {errors.stateid && touched.stateid && (
+            <span className="text-red-500 text-xs mt-1">{errors.stateid}</span>
+          )}
+        </div>
+
+        {/* CV y tipos de tecnico */}
+        {isTecnico && (
+          <>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                CV (PDF, DOC, DOCX) <span className="text-red-500">*</span>
+              </label>
+              <div
+                className="border border-dashed rounded-md px-4 py-3 text-center flex flex-col items-center justify-center gap-2"
+                style={{
+                  borderColor:
+                    errors.CV && touched.CV ? "red" : Colors.table.lines,
+                }}
+              >
+                {previewCV || formData.CV ? (
+                  <div className="flex flex-col items-center gap-1 text-sm text-gray-700">
+                    <a
+                      href={typeof formData.CV === "string" ? formData.CV : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 underline"
+                    >
+                      Ver CV existente
+                    </a>
+                    <button
+                      type="button"
+                      onClick={removeCV}
+                      className="text-xs text-red-500 underline"
+                    >
+                      Eliminar CV
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="file"
+                      id="cv-upload"
+                      accept=".pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={handleCVChange}
+                      onBlur={() => handleBlur("CV")}
+                    />
+                    <label
+                      htmlFor="cv-upload"
+                      className="w-full text-center text-sm text-gray-500 cursor-pointer"
+                    >
+                      Haga clic para cargar CV
+                    </label>
+                  </>
+                )}
+              </div>
+              {errors.CV && touched.CV && (
+                <span className="text-red-500 text-xs mt-1">{errors.CV}</span>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Tipos de técnico <span className="text-red-500">*</span>
+              </label>
+              {loadingTechnicianTypes ? (
+                <p className="text-sm text-gray-500">Cargando tipos...</p>
+              ) : technicianTypes.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No hay tipos disponibles
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {technicianTypes.map((type) => {
+                      const selected = Boolean(
+                        formData.techniciantypeids?.includes(
+                          type.techniciantypeid
+                        )
+                      );
+                      return (
+                        <button
+                          type="button"
+                          key={type.techniciantypeid}
+                          onClick={() =>
+                            handleTechnicianTypeChange(
+                              type.techniciantypeid,
+                              !selected
+                            )
+                          }
+                          onBlur={() => handleBlur("techniciantypeids")}
+                          className={`px-4 py-2 rounded-full border text-sm transition ${
+                            selected
+                              ? "bg-red-600 text-white border-red-600 shadow-sm"
+                              : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                          }`}
+                          aria-pressed={selected}
+                        >
+                          {type.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {errors.techniciantypeids && touched.techniciantypeids && (
+                    <span className="text-red-500 text-xs mt-1">
+                      {errors.techniciantypeids}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Campos cliente */}
+        {isCliente && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Ciudad <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="customercity"
+                placeholder="Ciudad"
+                value={formData.customercity || ""}
+                onChange={(e) =>
+                  handleInputChange("customercity", e.target.value)
+                }
+                onBlur={() => handleBlur("customercity")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor:
+                    errors.customercity && touched.customercity
+                      ? "red"
+                      : Colors.table.lines,
+                }}
+              />
+              {errors.customercity && touched.customercity && (
+                <span className="text-red-500 text-xs mt-1">
+                  {errors.customercity}
+                </span>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Código Postal <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="customerzipcode"
+                placeholder="Código postal"
+                value={formData.customerzipcode || ""}
+                onChange={(e) =>
+                  handleInputChange("customerzipcode", e.target.value)
+                }
+                onBlur={() => handleBlur("customerzipcode")}
+                className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-red-500"
+                style={{
+                  borderColor:
+                    errors.customerzipcode && touched.customerzipcode
+                      ? "red"
+                      : Colors.table.lines,
+                }}
+              />
+              {errors.customerzipcode && touched.customerzipcode && (
+                <span className="text-red-500 text-xs mt-1">
+                  {errors.customerzipcode}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </form>
+    </Modal>
   );
 };
 
 export default EditUserModal;
+
+
+
+

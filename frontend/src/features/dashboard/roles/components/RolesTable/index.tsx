@@ -20,6 +20,18 @@ export const RolesTable: React.FC<RolesTableProps> = ({
   onDelete,
   onCreate,
 }) => {
+  const protectDefaultAdmin = (role: Role) => {
+    const isFirstAdmin = Number(role.id) === 1;
+    if (!isFirstAdmin) return {};
+
+    return {
+      disableEdit: true,
+      disableDelete: true,
+      editTitle: "No puedes editar el rol administrador inicial",
+      deleteTitle: "No puedes eliminar el rol administrador inicial",
+    };
+  };
+
   const columns: Column<Role>[] = [
     { key: "id", header: "ID" },
     { key: "name", header: "Nombre" },
@@ -44,6 +56,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({
 
   return (
     <DataTable<Role>
+      module="roles"
       data={roles}
       columns={columns}
       pageSize={6}
@@ -54,6 +67,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({
       onCreate={onCreate}
       searchPlaceholder="Buscar roles..."
       createButtonText="Crear Rol"
+      actionGuard={protectDefaultAdmin}
     />
   );
 };

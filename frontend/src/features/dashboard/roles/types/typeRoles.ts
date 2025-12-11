@@ -1,9 +1,8 @@
-// src/features/dashboard/roles/types/typeRoles.ts
 export type Role = {
   id: number;
   name: string;
   state: "Activo" | "Inactivo";
-  permissions?: string[]; // lista de permisos (ej: "Roles-Crear")
+  permissions?: string[];
 };
 
 export type CreateRoleData = {
@@ -23,7 +22,6 @@ export type PermissionGroup = {
   permissions: string[];
 };
 
-/** Props para los modales */
 export interface CreateRoleModalProps {
   isOpen: boolean;
   onClose: () => void;

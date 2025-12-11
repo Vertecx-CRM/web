@@ -58,25 +58,21 @@ function sanitizePhone(v: string) {
 function sanitizeRating(v: string | number) {
   const n = typeof v === "number" ? v : parseFloat(v || "0");
   if (Number.isNaN(n)) return 0;
-  return Math.max(0, Math.min(5, Math.round(n * 10) / 10));
+  const clamped = Math.max(0, Math.min(5, n));
+  return Number(clamped.toFixed(1));
 }
-function sanitizeNITInput(v: string) {
-  let s = String(v ?? "").replace(/[^\d-]/g, "");
-  s = s.replace(/^-+/, "");
-  s = s.replace(/-{2,}/g, "-");
-  const parts = s.split("-");
-  const base = (parts[0] || "").replace(/\D/g, "").slice(0, 12);
-  if (s.endsWith("-") && parts.length === 2 && parts[1] === "") return `${base}-`;
-  const dv = (parts[1] || "").replace(/\D/g, "").slice(0, 1);
-  return parts.length > 1 ? `${base}-${dv}` : base;
+function roundToStep(n: number, step = 0.1) {
+  const r = Math.round(n / step) * step;
+  return Number(Math.max(0, Math.min(5, r)).toFixed(1));
 }
-function nitDV(num: string) {
-  const weights = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
-  const digits = num.split("").reverse().map((n) => parseInt(n, 10));
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) sum += digits[i] * weights[i];
-  const r = sum % 11;
-  return r > 1 ? 11 - r : r;
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function sanitizeNITBaseOnly(v: string) {
+  return String(v ?? "")
+    .replace(/[^\d]/g, "")
+    .slice(0, 12);
 }
 
 type ErrorMap = Partial<Record<keyof SupplierForm | "image", string | null>>;
@@ -89,13 +85,8 @@ const validators: Record<keyof SupplierForm | "image", (value: any, form: Suppli
     return null;
   },
   nit: (v) => {
-    const raw = String(v ?? "").replace(/[^\d-]/g, "");
-    if (!/^\d{5,12}$|^\d{5,12}-$|^\d{5,12}-\d$/.test(raw)) return "Formato: base (5–12 dígitos) o base-DV (1 dígito).";
-    if (raw.includes("-") && !raw.endsWith("-")) {
-      const [base, dv] = raw.split("-");
-      const expected = nitDV(base).toString();
-      if (dv !== expected) return `DV inválido, debería ser ${expected}.`;
-    }
+    const raw = String(v ?? "").replace(/[^\d]/g, "");
+    if (!/^\d{5,12}$/.test(raw)) return "Debe tener entre 5 y 12 dígitos (solo números).";
     return null;
   },
   phone: (v) => {
@@ -153,6 +144,102 @@ function firstError(e: ErrorMap): string | null {
   return null;
 }
 
+function DecimalStarRating({
+  value,
+  onChange,
+  disabled,
+  step = 0.1,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+  step?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const display = hover ?? value;
+
+  const pickValueFromClientX = (clientX: number) => {
+    const el = ref.current;
+    if (!el) return value;
+    const rect = el.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, rect.width);
+    const raw = (x / rect.width) * 5;
+    return roundToStep(raw, step);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onChange(pickValueFromClientX(e.clientX));
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const v = pickValueFromClientX(e.clientX);
+    setHover(v);
+    if (e.buttons === 1) onChange(v);
+  };
+
+  const handlePointerLeave = () => setHover(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onChange(roundToStep(value + step, step));
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onChange(roundToStep(value - step, step));
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      onChange(0);
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      onChange(5);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        ref={ref}
+        className={`flex items-center gap-1 select-none ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Calificación"
+        aria-valuemin={0}
+        aria-valuemax={5}
+        aria-valuenow={Number(value.toFixed(1))}
+        aria-valuetext={`${Number(value.toFixed(1))} de 5`}
+      >
+        {Array.from({ length: 5 }, (_, i) => {
+          const fill = clamp(display - i, 0, 1);
+          const pct = `${fill * 100}%`;
+
+          return (
+            <div key={i} className="relative h-5 w-5">
+              <Star className="h-5 w-5 text-gray-300 pointer-events-none" strokeWidth={1.5} />
+              <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ width: pct }}>
+                <Star className="h-5 w-5 text-yellow-500" strokeWidth={1.5} fill="currentColor" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <span className="text-xs text-gray-600">{Number(value).toFixed(1)} / 5.0</span>
+    </div>
+  );
+}
+
 export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, title = "Editar Proveedor" }: Props) {
   const [form, setForm] = useState<SupplierForm>(initialForm);
   const [saving, setSaving] = useState(false);
@@ -163,10 +250,11 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
   useEffect(() => {
     if (!isOpen) return;
     if (saving) return;
+
     if (supplier && !loadedFromProp) {
       setForm({
         name: supplier.name ?? "",
-        nit: supplier.nit ?? "",
+        nit: String(supplier.nit ?? "").replace(/[^\d]/g, ""),
         phone: supplier.phone ?? "",
         email: supplier.email ?? "",
         address: supplier.address ?? "",
@@ -178,7 +266,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
       });
       setLoadedFromProp(true);
     }
-  }, [isOpen, supplier, saving]);
+  }, [isOpen, supplier, saving, loadedFromProp]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -189,7 +277,8 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
     }
   }, [isOpen]);
 
-  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
 
   const validateField = (k: keyof SupplierForm | "image") => {
     const value = k === "image" ? form.imageFile : form[k as keyof SupplierForm];
@@ -222,29 +311,22 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
     evt.preventDefault();
     if (!validateAll()) return;
 
-    const raw = String(form.nit ?? "").replace(/[^\d-]/g, "");
-    if (!/^\d{5,12}-\d$/.test(raw)) {
-      showError("NIT inválido. Usa formato: base (5–12 dígitos) + '-' + DV.");
-      setErrors((er) => ({ ...er, nit: "Usa formato base-DV." }));
-      return;
-    }
-    const [base, dv] = raw.split("-");
-    const expected = nitDV(base).toString();
-    if (dv !== expected) {
-      showError(`DV inválido. El DV correcto para ${base} es ${expected}.`);
-      setErrors((er) => ({ ...er, nit: `DV inválido. Debe ser ${expected}.` }));
+    const nitBase = String(form.nit ?? "").replace(/[^\d]/g, "");
+    if (!/^\d{5,12}$/.test(nitBase)) {
+      showError("NIT inválido. Debe tener entre 5 y 12 dígitos (solo números).");
+      setErrors((er) => ({ ...er, nit: "Debe tener entre 5 y 12 dígitos (solo números)." }));
       return;
     }
 
     try {
       setSaving(true);
+
       let finalImageUrl = form.imageUrl ?? null;
-      if (form.imageFile) {
-        finalImageUrl = await uploadImageToCloudinary(form.imageFile);
-      }
+      if (form.imageFile) finalImageUrl = await uploadImageToCloudinary(form.imageFile);
+
       const payload: SupplierSubmitPayload = {
         name: form.name.trim(),
-        nit: `${base}-${dv}`,
+        nit: nitBase,
         phone: sanitizePhone(form.phone),
         email: form.email.trim(),
         address: form.address.trim(),
@@ -254,161 +336,175 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
         imageFile: null,
         imageUrl: finalImageUrl,
       };
+
       await onSave(payload);
       showSuccess("Proveedor actualizado correctamente.");
-      setSaving(false);
       onClose();
     } catch (err: any) {
-      setSaving(false);
       showError(err?.message || "Ocurrió un error al guardar.");
+    } finally {
+      setSaving(false);
     }
   }
 
+  const footer = (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={saving}
+        className="cursor-pointer px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-200 disabled:opacity-60"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        form="edit-supplier-form"
+        disabled={saving}
+        className="cursor-pointer px-4 py-2 rounded-lg bg-black text-white hover:bg-gray-900 disabled:opacity-60"
+      >
+        {saving ? "Guardando..." : "Guardar"}
+      </button>
+    </div>
+  );
+
   return (
-    <Modal title={title} isOpen={isOpen} onClose={onClose}>
-      <form id="supplier-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
+    <Modal title={title} isOpen={isOpen} onClose={onClose} footer={footer}>
+      <form id="edit-supplier-form" onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
         <div>
-          <label className="block text-sm text-gray-700">Nombre</label>
+          <label className="block text-sm font-medium mb-1">
+            Nombre <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.name}
             onChange={(e) => update("name", sanitizeName(e.target.value))}
             onBlur={() => validateField("name")}
             placeholder="Ingrese el nombre"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+          {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">NIT</label>
+          <label className="block text-sm font-medium mb-1">
+            Nit(Sin indicativo) <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.nit}
-            onChange={(e) => update("nit", sanitizeNITInput(e.target.value))}
+            onChange={(e) => update("nit", sanitizeNITBaseOnly(e.target.value))}
             onBlur={() => validateField("nit")}
-            placeholder="900123456-7"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            placeholder="900123456"
+            inputMode="numeric"
+            pattern="\d*"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.nit && <p className="mt-1 text-xs text-red-600">{errors.nit}</p>}
+          {errors.nit && <p className="text-xs text-red-600 mt-1">{errors.nit}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Dirección</label>
-          <input
-            value={form.address}
-            onChange={(e) => update("address", e.target.value)}
-            onBlur={() => validateField("address")}
-            placeholder="Calle 123 #45-67"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {errors.address && <p className="mt-1 text-xs text-red-600">{errors.address}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700">Nombre del contacto</label>
-          <input
-            value={form.contactName}
-            onChange={(e) => update("contactName", sanitizeContact(e.target.value))}
-            onBlur={() => validateField("contactName")}
-            placeholder="Nombre del contacto"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700">Teléfono</label>
+          <label className="block text-sm font-medium mb-1">
+            Teléfono <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.phone}
             onChange={(e) => update("phone", sanitizePhone(e.target.value))}
             onBlur={() => validateField("phone")}
             placeholder="+57 3001234567"
             inputMode="tel"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm text-gray-700">Estado</label>
-          <div className="mt-2 flex items-center gap-4 text-sm">
-            <label className="inline-flex items-center gap-2">
-              <input type="radio" name="status" checked={form.status === "Activo"} onChange={() => update("status", "Activo")} />
-              Activo
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input type="radio" name="status" checked={form.status === "Inactivo"} onChange={() => update("status", "Inactivo")} />
-              Inactivo
-            </label>
-          </div>
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm text-gray-700">Calificación</label>
-          <div className="mt-2 flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => {
-                const active = form.rating >= n;
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => update("rating", n)}
-                    onKeyDown={(e) => {
-                      if (e.key === "ArrowRight") update("rating", sanitizeRating(form.rating + 0.5));
-                      if (e.key === "ArrowLeft") update("rating", sanitizeRating(form.rating - 0.5));
-                    }}
-                    className="p-1"
-                  >
-                    <Star size={18} className={active ? "text-yellow-500" : "text-gray-300"} strokeWidth={1.5} fill={active ? "currentColor" : "none"} />
-                  </button>
-                );
-              })}
-            </div>
-            <input
-              type="number"
-              step="0.1"
-              min={0}
-              max={5}
-              value={form.rating}
-              onChange={(e) => update("rating", sanitizeRating(e.target.value))}
-              className="h-9 w-24 rounded-md border border-gray-300 bg-gray-100 px-2 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-            />
-            <span className="text-xs text-gray-500">0.0–5.0</span>
-          </div>
+          {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Imagen</label>
-          <div className="mt-1 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="h-10 w-10 rounded-md border flex items-center justify-center overflow-hidden"
-              aria-label="Seleccionar imagen"
-            >
-              {form.imageUrl ? <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center border-dashed text-gray-400"><Upload size={16} /></div>}
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} onBlur={() => validateField("image")} />
-          </div>
-          {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
+          <label className="block text-sm font-medium mb-1">
+            Correo <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => update("email", e.target.value)}
+            onBlur={() => validateField("email")}
+            placeholder="correo@dominio.com"
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
         </div>
 
-        <div className="md:col-span-2 flex justify-end gap-2 pt-2 border-t mt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-            disabled={saving}
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">
+            Dirección <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+            onBlur={() => validateField("address")}
+            placeholder="Calle 123 #45-67"
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.address && <p className="text-xs text-red-600 mt-1">{errors.address}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Nombre del contacto <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={form.contactName}
+            onChange={(e) => update("contactName", sanitizeContact(e.target.value))}
+            onBlur={() => validateField("contactName")}
+            placeholder="Nombre del contacto"
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.contactName && <p className="text-xs text-red-600 mt-1">{errors.contactName}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Imagen</label>
+          <div className="flex items-center gap-2">
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 cursor-pointer overflow-hidden"
+              role="button"
+              tabIndex={0}
+              aria-label="Seleccionar imagen"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") fileRef.current?.click();
+              }}
+            >
+              {form.imageUrl ? (
+                <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
+              ) : (
+                <Upload size={16} />
+              )}
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFile}
+              onBlur={() => validateField("image")}
+            />
+          </div>
+          {errors.image && <p className="text-xs text-red-600 mt-1">{errors.image}</p>}
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">Estado</label>
+          <select
+            value={form.status}
+            onChange={(e) => update("status", e.target.value as "Activo" | "Inactivo")}
+            className="w-full px-2 py-1 border rounded-md"
           >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-          >
-            {saving ? "Guardando..." : "Guardar"}
-          </button>
+            <option value="Activo">Activo</option>
+            <option value="Inactivo">Inactivo</option>
+          </select>
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">Calificación</label>
+          <DecimalStarRating value={sanitizeRating(form.rating)} onChange={(v) => update("rating", v)} disabled={saving} step={0.1} />
         </div>
       </form>
     </Modal>

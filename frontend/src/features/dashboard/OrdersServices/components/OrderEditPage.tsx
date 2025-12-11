@@ -1,77 +1,94 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
+import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
+import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
+import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
+import { api } from "@/lib/api";
+import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
 
-type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { id: string; nombre: string; cantidad: number; precio: number };
 
-type OrderPayload = {
-  id: number;
-  cliente: string;
-  tecnico: string;
-  tipo?: RowTipo | string;
-  fechaProgramada?: string;
-  monto?: number;
-  descripcion?: string;
-  servicios?: Array<{ nombre: string; cantidad: number; precio?: number }>;
-  materiales?: Array<{ nombre: string; cantidad: number; precio?: number }>;
+type CustomerOption = {
+  customerid: number;
+  label: string;
+  city?: string | null;
+  zipcode?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
-const TIPOS: RowTipo[] = ["Mantenimiento", "Instalación"];
+type TechnicianOption = {
+  technicianid: number;
+  label: string;
+};
+
+type ProductOption = {
+  productid: number;
+  productname: string;
+  productpriceofsale: number;
+};
+
+type ServiceTypeOption = {
+  typeofserviceid: number;
+  name: string;
+  label: string;
+};
+
+type ServiceOption = {
+  serviceid: number;
+  name: string;
+  typeofserviceid: number;
+  typeofservicename?: string | null;
+  stateid?: number | null;
+  statename?: string | null;
+};
+
 const IVA_PCT = 19;
-
-type CatalogItem = { id: string; nombre: string; precio: number; tipo: RowTipo };
-const SERVICIOS_DATA: CatalogItem[] = [
-  { id: "srv_inst_cctv", nombre: "Instalación de CCTV", precio: 450000, tipo: "Instalación" },
-  { id: "srv_cableado", nombre: "Cableado estructurado", precio: 280000, tipo: "Instalación" },
-  { id: "srv_impresora", nombre: "Instalación impresora de red", precio: 220000, tipo: "Instalación" },
-  { id: "srv_mant_camara", nombre: "Mantenimiento de cámara", precio: 120000, tipo: "Mantenimiento" },
-  { id: "srv_mant_servidor", nombre: "Mantenimiento de servidor", precio: 350000, tipo: "Mantenimiento" },
-  { id: "srv_mant_red", nombre: "Mantenimiento preventivo de red", precio: 190000, tipo: "Mantenimiento" },
-];
-
-const MATERIALES_DATA: { id: string; nombre: string; precio: number }[] = [
-  { id: "mat_cable_utp", nombre: "Cable UTP", precio: 2500 },
-  { id: "mat_cam_dome5", nombre: "Cámara Dome 5MP", precio: 260000 },
-  { id: "mat_rj45", nombre: "Conector RJ45", precio: 600 },
-  { id: "mat_ducto40", nombre: "Ducto 40mm", precio: 12000 },
-  { id: "mat_switch8", nombre: "Switch 8p", precio: 220000 },
-  { id: "mat_patch", nombre: "Patch Panel", precio: 180000 },
-  { id: "mat_rack12", nombre: "Rack 12U", precio: 540000 },
-];
 
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
+
 function formatCOP(n?: number) {
-  return n == null ? "—" : n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+  return n == null
+    ? "—"
+    : n.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0,
+      });
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toLocalYMD(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toLocalHM(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function titleCase(s: string) {
+  const x = String(s ?? "").trim();
+  if (!x) return "";
+  return x.charAt(0).toUpperCase() + x.slice(1);
 }
 
 type Errors = Partial<{
-  id: string;
-  cliente: string;
-  tecnico: string;
+  clientId: string;
   tipo: string;
-  fechaProgramada: string;
-  monto: string;
+  schedule: string;
+  technicians: string;
+  viaticos: string;
   servicios: string;
   materiales: string;
-  files: string;
 }>;
-
-function isValidDateDDMMYYYY(s: string): boolean {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s.trim());
-  if (!m) return false;
-  const dd = Number(m[1]);
-  const mm = Number(m[2]);
-  const yyyy = Number(m[3]);
-  if (mm < 1 || mm > 12) return false;
-  if (dd < 1 || dd > 31) return false;
-  const dt = new Date(yyyy, mm - 1, dd);
-  return dt.getFullYear() === yyyy && dt.getMonth() === mm - 1 && dt.getDate() === dd;
-}
 
 function useDesktopQuery() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -116,89 +133,611 @@ function useSidebarWidth(selector = "#app-sidebar") {
   return w;
 }
 
+function initials(name: string) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const a = parts[0]?.[0] ?? "";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return (a + b).toUpperCase() || "T";
+}
+
+function normalizeText(v: string) {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function parseYMD(ymd: string) {
+  const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function timeToMinutes(hm: string) {
+  const [h, m] = (hm || "").split(":").map((x) => Number(x));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  return h * 60 + m;
+}
+
+function minutesToTime(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+const SCHEDULE_MIN = 7 * 60;
+const SCHEDULE_MAX = 17 * 60;
+
+function isAllowedDate(ymd: string) {
+  const d = parseYMD(ymd);
+  if (!d) return false;
+  const day = d.getDay();
+  return day >= 1 && day <= 6;
+}
+
+function isAllowedTime(hm: string) {
+  const mins = timeToMinutes(hm);
+  if (!Number.isFinite(mins)) return false;
+  return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
+}
+
+function asNumber(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function pickNumber(...vals: any[]) {
+  for (const v of vals) {
+    const n = asNumber(v);
+    if (n != null) return n;
+  }
+  return undefined;
+}
+
+function pickString(...vals: any[]) {
+  for (const v of vals) {
+    const s = typeof v === "string" ? v : v == null ? "" : String(v);
+    const t = s.trim();
+    if (t) return t;
+  }
+  return "";
+}
+
+function toNumArray(v: any): number[] {
+  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+  if (typeof v === "string") {
+    return v
+      .split(",")
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }
+  return [];
+}
+
+function extractFreeTextFromDescription(desc: string) {
+  const s = String(desc || "").trim();
+  if (!s) return "";
+  const hasStructured =
+    /\bTipo:\s*/i.test(s) || /\bServicios:\s*/i.test(s) || /\bProductos:\s*/i.test(s) || /\bDescripción:\s*/i.test(s);
+  if (!hasStructured) return s;
+  const m = s.match(/Descripción:\s*([\s\S]*)$/i);
+  if (m && m[1]) return String(m[1]).trim();
+  return "";
+}
+
+function coerceAllowedDateOrNext(ymd: string) {
+  if (isAllowedDate(ymd)) return ymd;
+  const d = parseYMD(ymd);
+  if (!d) return toLocalYMD(new Date());
+  for (let i = 0; i < 10; i++) {
+    d.setDate(d.getDate() + 1);
+    const next = toLocalYMD(d);
+    if (isAllowedDate(next)) return next;
+  }
+  return toLocalYMD(new Date());
+}
+
+function coerceAllowedTime(hm: string, fallback: string) {
+  if (isAllowedTime(hm)) return hm;
+  return fallback;
+}
+
+type OrderNormalized = {
+  ordersservicesid?: number;
+  clientid?: number;
+  typeofserviceid?: number | null;
+  fechainicio?: string;
+  fechafin?: string;
+  horainicio?: string;
+  horafin?: string;
+  viaticos?: number;
+  technicians?: number[];
+  description?: string;
+  services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+  products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
+  files?: string[];
+  stateid?: number;
+};
+
+function normalizeOrder(order: any): OrderNormalized {
+  const root = order || {};
+  const clientid = pickNumber(
+    root?.client?.customerid,
+    root?.client?.customer_id,
+    root?.clientid,
+    root?.customerid
+  );
+  const fechainicio = pickString(root?.fechainicio);
+  const fechafin = pickString(root?.fechafin);
+  const horainicio = pickString(root?.horainicio);
+  const horafin = pickString(root?.horafin);
+  const viaticos = pickNumber(root?.viaticos, root?.viaticos) ?? 0;
+  const description = pickString(root?.description);
+  const files = Array.isArray(root?.files) ? root.files.map((x: any) => String(x || "")).filter(Boolean) : [];
+  const stateid = pickNumber(root?.state?.stateid, root?.stateid);
+
+  const servicesArr = Array.isArray(root?.services) ? root.services : [];
+  const productsArr = Array.isArray(root?.products) ? root.products : [];
+  const techniciansArr = Array.isArray(root?.technicians) ? root.technicians : [];
+
+  const services = servicesArr
+    .map((s: any) => {
+      const serviceid = pickNumber(s?.service?.serviceid, s?.serviceid, s?.id);
+      const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
+      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.subtotal) ?? 0;
+      if (!serviceid) return null;
+      return {
+        serviceid,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        unitprice: Math.max(0, Math.round(unitprice)),
+      };
+    })
+    .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+
+  const products = productsArr
+    .map((p: any) => {
+      const productid = pickNumber(p?.product?.productid, p?.productid, p?.id);
+      const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
+      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.subtotal);
+      if (!productid) return null;
+      return {
+        productid,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        unitprice: unitprice == null ? undefined : Math.max(0, Math.round(unitprice)),
+      };
+    })
+    .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
+
+  const technicians = techniciansArr
+    .map((t: any) => pickNumber(t?.technicianid, t?.id))
+    .filter((id) => Number.isFinite(id) && id > 0) as number[];
+
+  const typeofserviceid =
+    pickNumber(
+      root?.typeofserviceid,
+      root?.services?.[0]?.service?.typeofserviceid,
+      root?.services?.[0]?.service?.typeofservice?.typeofserviceid
+    ) ?? null;
+
+  return {
+    ordersservicesid: pickNumber(root?.ordersservicesid, root?.id),
+    clientid,
+    typeofserviceid,
+    fechainicio,
+    fechafin,
+    horainicio,
+    horafin,
+    viaticos,
+    technicians,
+    description,
+    services,
+    products,
+    files,
+    stateid,
+  };
+}
+
 export default function OrderEditPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isDesktop = useDesktopQuery();
-  const sidebarW = useSidebarWidth("#app-sidebar");
+  const returnTo = searchParams.get("returnTo") || "/dashboard/orders-services";
+  const idParam =
+    searchParams.get("id") ||
+    searchParams.get("ordersservicesid") ||
+    searchParams.get("orderId") ||
+    searchParams.get("orderid");
+  const orderId = useMemo(() => {
+    const n = Number(idParam);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }, [idParam]);
 
-  const returnTo = (() => {
-    const rt = searchParams.get("returnTo");
-    return rt ? decodeURIComponent(rt) : "/dashboard/orders-services";
-  })();
+  const {
+    loading: lookupsLoading,
+    error: lookupsError,
+    customers: customersRaw,
+    technicians: techniciansRaw,
+    products: productsRaw,
+    services: servicesRaw,
+    serviceTypes: serviceTypesRaw,
+    pendingStateId,
+  } = useOrdersServicesLookups();
 
-  const [id, setId] = useState<number | null>(null);
-  const [cliente, setCliente] = useState("");
-  const [tecnico, setTecnico] = useState("");
-  const [tipo, setTipo] = useState<RowTipo | "">("");
-  const [fechaProgramada, setFechaProgramada] = useState("");
-  const [monto, setMonto] = useState<string>("");
-  const [montoDirty, setMontoDirty] = useState(false);
+  const customers = useMemo<CustomerOption[]>(() => {
+    return (customersRaw || [])
+      .map((c: any) => {
+        const u = c?.users || c?.user || c?.Users || {};
+        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const label = name || `Cliente #${c?.customerid ?? c?.clientid ?? c?.id ?? "?"}`;
+        return {
+          customerid: Number(c?.customerid ?? c?.clientid ?? c?.id),
+          label,
+          city: c?.customercity ?? c?.city ?? null,
+          zipcode: c?.customerzipcode ?? c?.zipcode ?? null,
+          phone: u?.phone ?? c?.phone ?? null,
+          email: u?.email ?? c?.email ?? null,
+        } as CustomerOption;
+      })
+      .filter((x) => Number.isFinite(x.customerid) && x.customerid > 0);
+  }, [customersRaw]);
+
+  const technicians = useMemo<TechnicianOption[]>(() => {
+    return (techniciansRaw || [])
+      .map((t: any) => {
+        const u = t?.users || t?.user || t?.Users || {};
+        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
+      })
+      .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
+  }, [techniciansRaw]);
+
+  const productsCatalog = useMemo<ProductOption[]>(() => {
+    return (productsRaw || [])
+      .map((p: any) => {
+        const productid = Number(p?.productid ?? p?.id);
+        const productname = (p?.productname ?? p?.name ?? `Producto #${productid}`).toString();
+        const productpriceofsale = Number(p?.productpriceofsale ?? p?.priceofsale ?? p?.price ?? 0);
+        return { productid, productname, productpriceofsale } as ProductOption;
+      })
+      .filter((x) => Number.isFinite(x.productid) && x.productid > 0);
+  }, [productsRaw]);
+
+  const serviceTypes = useMemo<ServiceTypeOption[]>(() => {
+    return (serviceTypesRaw || [])
+      .map((t: any) => {
+        const id = Number(t?.typeofserviceid ?? t?.id);
+        const name = String(t?.name ?? t?.typeofservicename ?? t?.label ?? "").trim();
+        return { typeofserviceid: id, name, label: titleCase(name) || `Tipo #${id}` } as ServiceTypeOption;
+      })
+      .filter((x) => Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
+  }, [serviceTypesRaw]);
+
+  const servicesCatalog = useMemo<ServiceOption[]>(() => {
+    return (servicesRaw || [])
+      .map((s: any) => {
+        const serviceid = Number(s?.serviceid ?? s?.id);
+        const name = String(s?.name ?? s?.servicename ?? `Servicio #${serviceid}`).trim();
+        const typeofserviceid = Number(s?.typeofserviceid ?? s?.typeOfServiceId ?? s?.typeofservice?.typeofserviceid);
+        const typeofservicename = (s?.typeofservicename ?? s?.typeofservicename ?? s?.typeName ?? null) as any;
+        const stateid = s?.stateid != null ? Number(s.stateid) : null;
+        const statename = s?.statename != null ? String(s.statename) : null;
+        return { serviceid, name, typeofserviceid, typeofservicename, stateid, statename } as ServiceOption;
+      })
+      .filter(
+        (x) =>
+          Number.isFinite(x.serviceid) &&
+          x.serviceid > 0 &&
+          Number.isFinite(x.typeofserviceid) &&
+          x.typeofserviceid > 0
+      );
+  }, [servicesRaw]);
+
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [orderNormalized, setOrderNormalized] = useState<OrderNormalized | null>(null);
+
+  useEffect(() => {
+    if (!orderId) {
+      setOrderError("ID de orden inválido.");
+      return;
+    }
+    let cancelled = false;
+    async function run() {
+      setOrderLoading(true);
+      setOrderError(null);
+      try {
+        const { data } = await api.get(`orders-services/${orderId}`);
+        if (cancelled) return;
+        const n = normalizeOrder(data);
+        setOrderNormalized(n);
+      } catch (e: any) {
+        if (!cancelled) {
+          const msg = e?.response?.data?.message || e?.message || "Error cargando la orden.";
+          setOrderError(String(msg));
+          showError(String(msg));
+        }
+      } finally {
+        if (!cancelled) setOrderLoading(false);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId]);
+
+  const [clientId, setClientId] = useState<number | "">("");
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => c.customerid === clientId),
+    [customers, clientId]
+  );
+
+  const [tipoId, setTipoId] = useState<number | null>(null);
+  const tipoSeleccionado = useMemo(
+    () => serviceTypes.find((t) => t.typeofserviceid === tipoId) || null,
+    [serviceTypes, tipoId]
+  );
 
   const [descripcion, setDescripcion] = useState("");
-  const [servSel, setServSel] = useState("");
-  const [servQty, setServQty] = useState(1);
+
+  const [viaticosInput, setViaticosInput] = useState<string>("0");
+  const viaticosValue = useMemo(() => {
+    const raw = String(viaticosInput ?? "").trim();
+    if (raw === "") return 0;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return NaN;
+    return Math.max(0, Math.round(n));
+  }, [viaticosInput]);
+
+  const [dateStart, setDateStart] = useState(() => toLocalYMD(new Date()));
+  const [timeStart, setTimeStart] = useState(() => {
+    const now = new Date();
+    const hm = toLocalHM(now);
+    const mins = timeToMinutes(hm);
+    if (!Number.isFinite(mins)) return "07:00";
+    if (mins < SCHEDULE_MIN) return "07:00";
+    if (mins > SCHEDULE_MAX) return "17:00";
+    return hm;
+  });
+  const [dateEnd, setDateEnd] = useState(() => toLocalYMD(new Date()));
+  const [timeEnd, setTimeEnd] = useState(() => {
+    const now = new Date();
+    const hm = toLocalHM(now);
+    const mins = timeToMinutes(hm);
+    if (!Number.isFinite(mins)) return "08:00";
+    const end = Math.min(SCHEDULE_MAX, Math.max(SCHEDULE_MIN, mins) + 60);
+    return minutesToTime(end);
+  });
+
+  const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
+  const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+
+  const [techQuery, setTechQuery] = useState("");
+  const [techOpen, setTechOpen] = useState(false);
+  const [techActiveIndex, setTechActiveIndex] = useState(0);
+  const techBoxRef = useRef<HTMLDivElement>(null);
+  const techInputRef = useRef<HTMLInputElement>(null);
+
   const [servicios, setServicios] = useState<LineItem[]>([]);
   const [materiales, setMateriales] = useState<LineItem[]>([]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [existingFiles, setExistingFiles] = useState<string[]>([]);
 
   const [errors, setErrors] = useState<Errors>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
-  const inputBase = "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm";
+  const [saving, setSaving] = useState(false);
+
+  const isDesktop = useDesktopQuery();
+  const sidebarW = useSidebarWidth("#app-sidebar");
+
+  const inputBase =
+    "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200";
   const selectBase = `${inputBase} appearance-none pr-8`;
-  const selectWrap = "relative";
-  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2";
+  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400";
   const errorText = "mt-1 text-xs text-red-600";
   const errorRing = "border-red-500 ring-1 ring-red-500";
+
+  const hasErrors = useMemo(
+    () => Object.values(errors).some((v) => typeof v === "string" && v.trim().length > 0),
+    [errors]
+  );
 
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
     setPreviews(urls);
-    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
   }, [files]);
 
-  function precioServicioPorNombre(nombre: string) {
-    return SERVICIOS_DATA.find((x) => x.nombre === nombre)?.precio ?? 0;
-  }
-  function precioMaterialPorNombre(nombre: string) {
-    return MATERIALES_DATA.find((x) => x.nombre === nombre)?.precio ?? 0;
-  }
+  const shownLookupErr = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lookupsError) return;
+    if (shownLookupErr.current === lookupsError) return;
+    shownLookupErr.current = lookupsError;
+    showError(lookupsError);
+  }, [lookupsError]);
+
+  const skipClearOnTipoChangeRef = useRef(false);
 
   useEffect(() => {
-    const idParam = searchParams.get("id");
-    const orderParam = searchParams.get("order");
-    setId(idParam ? Number(idParam) : null);
-    if (!orderParam) return;
-    try {
-      const parsed = JSON.parse(decodeURIComponent(orderParam)) as OrderPayload;
-      setCliente(parsed.cliente ?? "");
-      setTecnico(parsed.tecnico ?? "");
-      setTipo((parsed.tipo as RowTipo) ?? "");
-      setFechaProgramada(parsed.fechaProgramada ?? "");
-      setMonto(parsed.monto != null ? String(parsed.monto) : "");
-      setMontoDirty(false);
-      setDescripcion(parsed.descripcion ?? "");
-      const svc: LineItem[] = (parsed.servicios ?? []).map((s) => ({ id: uid(), nombre: s.nombre, cantidad: s.cantidad, precio: s.precio ?? precioServicioPorNombre(s.nombre) }));
-      const mats: LineItem[] = (parsed.materiales ?? []).map((m) => ({ id: uid(), nombre: m.nombre, cantidad: m.cantidad, precio: m.precio ?? precioMaterialPorNombre(m.nombre) }));
-      setServicios(svc);
-      setMateriales(mats);
-      setServSel("");
-      setServQty(1);
-      setErrors({});
-    } catch {}
-  }, [searchParams]);
+    if (skipClearOnTipoChangeRef.current) {
+      skipClearOnTipoChangeRef.current = false;
+      return;
+    }
+    setServicios([]);
+    setErrors((prev) => ({ ...prev, tipo: undefined, servicios: undefined }));
+  }, [tipoId]);
 
-  const serviciosFiltrados = useMemo(() => SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo), [tipo]);
+  useEffect(() => {
+    if (!techOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!techBoxRef.current) return;
+      if (!techBoxRef.current.contains(t)) setTechOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [techOpen]);
 
-  const subtotalServicios = useMemo(() => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [servicios]);
-  const subtotalMateriales = useMemo(() => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [materiales]);
+  const servicesForTipo = useMemo(() => {
+    if (!tipoId) return [];
+    const list = servicesCatalog.filter((s) => s.typeofserviceid === tipoId);
+    const active = list.filter(
+      (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
+    );
+    return active.length ? active : list;
+  }, [servicesCatalog, tipoId]);
+
+  const selectedTechniciansFull = useMemo(() => {
+    const map = new Map(technicians.map((t) => [t.technicianid, t]));
+    return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
+  }, [technicians, selectedTechnicians]);
+
+  const techOptions = useMemo(() => {
+    const q = normalizeText(techQuery);
+    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((t) => {
+        const label = normalizeText(t.label);
+        const idStr = String(t.technicianid);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { t, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
+    return scored.slice(0, 10).map((x) => x.t);
+  }, [technicians, techQuery, selectedTechSet]);
+
+  useEffect(() => {
+    setTechActiveIndex(0);
+  }, [techQuery, techOpen]);
+
+  function addTechnician(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setErrors((p) => ({ ...p, technicians: undefined }));
+    setTechQuery("");
+    setTechOpen(false);
+    techInputRef.current?.focus();
+  }
+
+  function removeTechnician(id: number) {
+    setSelectedTechnicians((prev) => prev.filter((x) => x !== id));
+  }
+
+  function clearTechnicians() {
+    setSelectedTechnicians([]);
+    setErrors((p) => ({ ...p, technicians: undefined }));
+  }
+
+  function addServiceRow() {
+    if (!tipoId) return;
+    const first = servicesForTipo[0];
+    if (!first) return;
+    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, cantidad: 1, precio: 0 }]);
+    setErrors((prev) => ({ ...prev, servicios: undefined }));
+  }
+
+  function precioMaterialPorNombre(nombre: string) {
+    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  }
+
+  function addMaterialRow() {
+    const first = productsCatalog[0];
+    if (!first) return;
+    setMateriales((prev) => [
+      ...prev,
+      { id: uid(), nombre: first.productname, cantidad: 1, precio: first.productpriceofsale },
+    ]);
+    setErrors((prev) => ({ ...prev, materiales: undefined }));
+  }
+
+  function patchItem(id: string, patch: Partial<LineItem>, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    setList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }
+
+  function removeItem(id: string, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    setList((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  function dedupeAppend(newFs: File[]) {
+    setFiles((prev) => {
+      const map = new Map(prev.map((f) => [`${f.name}_${f.size}_${f.lastModified}`, f]));
+      newFs.forEach((f) => {
+        const k = `${f.name}_${f.size}_${f.lastModified}`;
+        if (!map.has(k)) map.set(k, f);
+      });
+      return Array.from(map.values());
+    });
+  }
+
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const fs = Array.from(e.target.files || []);
+    if (!fs.length) return;
+
+    const MAX_FILES = 12;
+    const MAX_SIZE = 5 * 1024 * 1024;
+
+    const accepteds: File[] = [];
+    const rejected: string[] = [];
+
+    fs.forEach((f) => {
+      const isImg = f.type.startsWith("image/");
+      const okSize = f.size <= MAX_SIZE;
+      if (isImg && okSize) accepteds.push(f);
+      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
+    });
+
+    const totalCount = accepteds.length + files.length;
+
+    if (totalCount > MAX_FILES) {
+      const allowed = Math.max(0, MAX_FILES - files.length);
+      if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
+      showWarning(`Máximo ${MAX_FILES} imágenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
+    } else {
+      dedupeAppend(accepteds);
+      if (rejected.length) showWarning("Algunas imágenes fueron rechazadas (tipo/tamaño).");
+    }
+
+    e.currentTarget.value = "";
+  }
+
+  function removeFile(file: File) {
+    setFiles((prev) =>
+      prev.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified))
+    );
+  }
+
+  const subtotalServicios = useMemo(
+    () => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [servicios]
+  );
+  const subtotalMateriales = useMemo(
+    () => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [materiales]
+  );
   const subtotal = subtotalServicios + subtotalMateriales;
-  const impuestos = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
-  const totalPagar = Math.max(0, Math.round(subtotal + impuestos));
+
+  const baseGravable = useMemo(() => {
+    const v = Number.isFinite(viaticosValue) ? viaticosValue : 0;
+    return Math.max(0, Math.round(subtotal + v));
+  }, [subtotal, viaticosValue]);
+
+  const impuestos = useMemo(() => Math.max(0, Math.round((baseGravable * IVA_PCT) / 100)), [baseGravable]);
+  const totalPagar = useMemo(() => Math.max(0, Math.round(baseGravable + impuestos)), [baseGravable, impuestos]);
 
   const serviciosMiniLista = useMemo(() => {
     const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
@@ -232,104 +771,74 @@ export default function OrderEditPage() {
     return Array.from(map.values());
   }, [materiales]);
 
-  useEffect(() => {
-    if (!montoDirty) setMonto(String(totalPagar));
-  }, [totalPagar, montoDirty]);
-
-  function addServicioDesdeFormulario() {
-    if (!tipo || !servSel || servQty <= 0) return;
-    const rec = SERVICIOS_DATA.find((s) => s.nombre === servSel && (!tipo || s.tipo === tipo));
-    if (!rec) return;
-    setServicios((prev) => [...prev, { id: uid(), nombre: rec.nombre, cantidad: servQty, precio: rec.precio }]);
-    setServSel("");
-    setServQty(1);
-    setErrors((p) => ({ ...p, servicios: undefined }));
-  }
-  function addMaterialRow() {
-    const first = MATERIALES_DATA[0];
-    setMateriales((prev) => [...prev, { id: uid(), nombre: first.nombre, cantidad: 1, precio: first.precio }]);
-    setErrors((p) => ({ ...p, materiales: undefined }));
-  }
-  function patchItem(id: string, patch: Partial<LineItem>, list: LineItem[], setList: (v: LineItem[]) => void) {
-    setList(list.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  }
-  function removeItem(id: string, list: LineItem[], setList: (v: LineItem[]) => void) {
-    setList(list.filter((x) => x.id !== id));
-  }
-
-  function dedupeAppend(newFs: File[]) {
-    setFiles((prev) => {
-      const map = new Map(prev.map((f) => [`${f.name}_${f.size}_${f.lastModified}`, f]));
-      newFs.forEach((f) => {
-        const k = `${f.name}_${f.size}_${f.lastModified}`;
-        if (!map.has(k)) map.set(k, f);
-      });
-      return Array.from(map.values());
-    });
-  }
-
-  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const fs = Array.from(e.target.files || []);
-    if (!fs.length) return;
-
-    const MAX_FILES = 12;
-    const MAX_SIZE = 5 * 1024 * 1024;
-    const accepted: File[] = [];
-    const rejected: string[] = [];
-
-    fs.forEach((f) => {
-      const isImg = f.type.startsWith("image/");
-      const okSize = f.size <= MAX_SIZE;
-      if (isImg && okSize) accepted.push(f);
-      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
-    });
-
-    const totalCount = accepted.length + files.length;
-    if (totalCount > MAX_FILES) {
-      const allowed = Math.max(0, MAX_FILES - files.length);
-      if (allowed > 0) dedupeAppend(accepted.slice(0, allowed));
-      setErrors((p) => ({
-        ...p,
-        files: `Máximo ${MAX_FILES} imágenes. ${rejected.length ? `Rechazadas: ${rejected.join(", ")}` : ""}`.trim(),
-      }));
-    } else {
-      dedupeAppend(accepted);
-      setErrors((p) => ({
-        ...p,
-        files: rejected.length ? `Rechazadas: ${rejected.join(", ")}` : undefined,
-      }));
-    }
-
-    e.currentTarget.value = "";
-  }
-
-  function removeFile(file: File) {
-    setFiles((prev) => prev.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)));
-  }
-
   function validateForm(): Errors {
     const errs: Errors = {};
-    if (!id) errs.id = "Falta el identificador de la orden.";
-    if (!cliente.trim()) errs.cliente = "El cliente es obligatorio.";
-    if (!tecnico.trim()) errs.tecnico = "El técnico es obligatorio.";
-    if (!tipo) errs.tipo = "Selecciona el tipo de servicio.";
-    if (fechaProgramada.trim()) {
-      if (!isValidDateDDMMYYYY(fechaProgramada)) errs.fechaProgramada = "Usa formato válido DD/MM/AAAA.";
+
+    if (!clientId) errs.clientId = "Selecciona un cliente.";
+    if (!tipoId) errs.tipo = "Selecciona el tipo de servicio.";
+
+    if (!dateStart || !timeStart || !dateEnd || !timeEnd) {
+      errs.schedule = "Completa fecha y hora de inicio y fin.";
+    } else {
+      if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) {
+        errs.schedule = "Solo se permite agendar de lunes a sábado.";
+      } else if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) {
+        errs.schedule = "Horario permitido: 07:00–17:00.";
+      } else {
+        const sDate = parseYMD(dateStart);
+        const eDate = parseYMD(dateEnd);
+        if (sDate && eDate) {
+          const s = new Date(sDate);
+          const e = new Date(eDate);
+          const sMin = timeToMinutes(timeStart);
+          const eMin = timeToMinutes(timeEnd);
+          s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
+          e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
+          if (!(e.getTime() > s.getTime())) errs.schedule = "La fecha/hora fin debe ser mayor que la de inicio.";
+        } else {
+          errs.schedule = "Fecha inválida.";
+        }
+      }
     }
-    if (montoDirty) {
-      const v = Number(monto);
-      if (!Number.isFinite(v) || v < 0) errs.monto = "El monto manual debe ser un número válido ≥ 0.";
+
+    if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
+
+    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
+    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
+
+    if (!tipoId) {
+      errs.servicios = "Selecciona el tipo de servicio.";
+    } else {
+      if (servicesForTipo.length === 0) errs.servicios = "No hay servicios disponibles para este tipo.";
+      if (servicios.length === 0)
+        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Debes añadir al menos un servicio.";
+      const invalidSvc =
+        servicios.length > 0 &&
+        servicios.some((s) => !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === tipoId));
+      if (invalidSvc)
+        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Hay servicios inválidos. Vuelve a seleccionarlos.";
     }
-    if (servicios.length === 0) errs.servicios = "Debes añadir al menos un servicio.";
+
+    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
+    if (materiales.length === 0)
+      errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
+    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
+      errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
+    }
+
     const badQtySvc = servicios.some((s) => !s.cantidad || s.cantidad < 1);
-    if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
+    const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
     const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
-    if (badQtyMat) errs.materiales = "Corrige cantidades de materiales.";
+
+    if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
+    if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
+    if (badQtyMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades de materiales.";
+
     return errs;
   }
 
   function focusFirstError(er: Errors) {
-    const order = ["id", "cliente", "tecnico", "tipo", "fechaProgramada", "monto", "servicios", "materiales", "files"];
+    const order = ["clientId", "tipo", "schedule", "technicians", "viaticos", "materiales", "servicios"] as const;
     const key = order.find((k) => (er as any)[k]);
     if (!key) return;
     const el = document.getElementById(`field-${key}`);
@@ -341,192 +850,872 @@ export default function OrderEditPage() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function uploadFilesToCloudinary(fs: File[]) {
+    const urls: string[] = [];
+    for (const f of fs) {
+      const res: any = await uploadImageToCloudinary(f);
+      if (typeof res === "string") urls.push(res);
+      else if (res?.secure_url) urls.push(res.secure_url);
+      else if (res?.url) urls.push(res.url);
+    }
+    return urls;
+  }
+
+  function clampAutoEnd(date: string, startHm: string) {
+    const s = timeToMinutes(startHm);
+    const end = Math.min(SCHEDULE_MAX, (Number.isFinite(s) ? s : SCHEDULE_MIN) + 60);
+    return { date, time: minutesToTime(end) };
+  }
+
+  const appliedOrderRef = useRef(false);
+  useEffect(() => {
+    if (appliedOrderRef.current) return;
+    if (lookupsLoading) return;
+    if (!orderNormalized) return;
+    if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
+
+    const n = orderNormalized;
+
+    let nextClient: number | "" = "";
+    if (n.clientid && customers.some((c) => c.customerid === n.clientid)) {
+      nextClient = n.clientid;
+    }
+    setClientId(nextClient as any);
+
+    const inferredTypeFromServices =
+      n.services && n.services.length
+        ? servicesCatalog.find((x) => x.serviceid === n.services![0].serviceid)?.typeofserviceid ?? null
+        : null;
+
+    const candidateType = n.typeofserviceid ?? inferredTypeFromServices;
+
+    const typeId =
+      candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType)
+        ? candidateType
+        : null;
+
+    skipClearOnTipoChangeRef.current = true;
+    setTipoId(typeId);
+
+    const techIds = (n.technicians || []).filter((id) => technicians.some((t) => t.technicianid === id));
+    setSelectedTechnicians(techIds);
+
+    const v = Number.isFinite(Number(n.viaticos)) ? Math.max(0, Math.round(Number(n.viaticos))) : 0;
+    setViaticosInput(String(v));
+
+    const ds = coerceAllowedDateOrNext(n.fechainicio || toLocalYMD(new Date()));
+    const de = coerceAllowedDateOrNext(n.fechafin || ds);
+
+    const baseTs = coerceAllowedTime(String((n.horainicio || "07:00")).slice(0, 5), "07:00");
+    let baseTe = coerceAllowedTime(
+      String((n.horafin || "08:00")).slice(0, 5),
+      minutesToTime(Math.min(SCHEDULE_MAX, timeToMinutes(baseTs) + 60))
+    );
+
+    const sMin = timeToMinutes(baseTs);
+    const eMin = timeToMinutes(baseTe);
+    if (Number.isFinite(sMin) && Number.isFinite(eMin) && eMin <= sMin) {
+      baseTe = minutesToTime(Math.min(SCHEDULE_MAX, sMin + 60));
+    }
+
+    setDateStart(ds);
+    setTimeStart(baseTs);
+    setDateEnd(de);
+    setTimeEnd(baseTe);
+
+    const freeText = extractFreeTextFromDescription(n.description || "");
+    setDescripcion(freeText);
+
+    const svcItems: LineItem[] = [];
+    if (Array.isArray(n.services) && n.services.length) {
+      for (const s of n.services) {
+        const rec = servicesCatalog.find((x) => x.serviceid === s.serviceid) || null;
+        const nombre = rec?.name || `Servicio #${s.serviceid}`;
+        const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
+        const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
+        svcItems.push({ id: uid(), nombre, cantidad, precio });
+      }
+    }
+    setServicios(svcItems);
+
+    const matItems: LineItem[] = [];
+    if (Array.isArray(n.products) && n.products.length) {
+      for (const p of n.products) {
+        const rec = productsCatalog.find((x) => x.productid === p.productid) || null;
+        const nombre = rec?.productname || `Producto #${p.productid}`;
+        const cantidad = Math.max(1, Math.round(Number(p.cantidad || 1)));
+        const precio =
+          p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec?.productpriceofsale ?? 0;
+        matItems.push({ id: uid(), nombre, cantidad, precio });
+      }
+    }
+    setMateriales(matItems);
+
+    const urls = Array.isArray(n.files)
+      ? n.files
+          .map((u) => String(u || "").trim())
+          .filter((u) => !!u)
+      : [];
+    setExistingFiles(urls);
+
+    setErrors({});
+    appliedOrderRef.current = true;
+  }, [
+    lookupsLoading,
+    orderNormalized,
+    customers,
+    technicians,
+    productsCatalog,
+    serviceTypes,
+    servicesCatalog,
+  ]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!orderId) {
+      showError("ID de orden inválido.");
+      return;
+    }
     const er = validateForm();
     setErrors(er);
     if (Object.keys(er).length > 0) {
+      showWarning("Revisa los campos marcados en rojo.");
       focusFirstError(er);
       return;
     }
-    const montoFinal = montoDirty && monto !== "" ? Number(monto) : totalPagar;
-    const payload: OrderPayload = {
-      id: id!,
-      cliente,
-      tecnico,
-      tipo: (tipo || "") as RowTipo,
-      fechaProgramada,
-      monto: montoFinal,
-      descripcion,
-      servicios: servicios.map((s) => ({ nombre: s.nombre, cantidad: s.cantidad, precio: s.precio })),
-      materiales: materiales.map((m) => ({ nombre: m.nombre, cantidad: m.cantidad, precio: m.precio })),
-    };
-    const url = `${returnTo}?editOrder=${encodeURIComponent(JSON.stringify(payload))}`;
-    router.push(url);
+
+    const productMap = new Map<number, number>();
+    for (const m of materiales) {
+      const rec = productsCatalog.find((p) => p.productname === m.nombre);
+      if (!rec) {
+        const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
+        setErrors(next);
+        showError(next.materiales || "Producto inválido.");
+        focusFirstError(next);
+        return;
+      }
+      const qty = Math.max(1, Number(m.cantidad || 1));
+      productMap.set(rec.productid, (productMap.get(rec.productid) || 0) + qty);
+    }
+
+    const products = Array.from(productMap.entries()).map(([productid, cantidad]) => ({ productid, cantidad }));
+
+    if (!tipoId) {
+      const next = { ...er, tipo: "Selecciona el tipo de servicio." };
+      setErrors(next);
+      showError(next.tipo || "Tipo inválido.");
+      focusFirstError(next);
+      return;
+    }
+
+    const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
+    for (const s of servicios) {
+      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === tipoId) || null;
+      if (!rec) {
+        const next = {
+          ...er,
+          servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo seleccionado.`,
+        };
+        setErrors(next);
+        showError(next.servicios || "Servicio inválido.");
+        focusFirstError(next);
+        return;
+      }
+      const cantidad = Math.max(1, Number(s.cantidad || 1));
+      const unitprice = Math.max(0, Math.round(Number(s.precio || 0)));
+      const key = `${rec.serviceid}_${unitprice}`;
+      const prev = serviceMap.get(key);
+      if (prev) prev.cantidad += cantidad;
+      else serviceMap.set(key, { serviceid: rec.serviceid, cantidad, unitprice });
+    }
+
+    const services = Array.from(serviceMap.values());
+
+    const descParts: string[] = [];
+    const tipoTxt = tipoSeleccionado?.label || tipoSeleccionado?.name || "";
+    if (tipoTxt) descParts.push(`Tipo: ${tipoTxt}`);
+    if (descripcion?.trim()) descParts.push(`Descripción: ${descripcion.trim()}`);
+    if (servicios.length) {
+      const svcTxt = servicios.map((s) => `- ${s.nombre} × ${Number(s.cantidad) || 0}`).join("\n");
+      descParts.push(`Servicios:\n${svcTxt}`);
+    }
+    if (materiales.length) {
+      const matTxt = materiales.map((m) => `- ${m.nombre} × ${Number(m.cantidad) || 0}`).join("\n");
+      descParts.push(`Productos:\n${matTxt}`);
+    }
+    const finalDescription = descParts.join("\n\n");
+
+    setSaving(true);
+    try {
+      const uploadedUrls = files.length ? await uploadFilesToCloudinary(files) : [];
+      const mergedFiles =
+        uploadedUrls.length > 0 ? [...existingFiles, ...uploadedUrls] : existingFiles;
+
+      const dto: CreateOrdersServiceDto = {
+        description: finalDescription,
+        clientid: Number(clientId),
+        stateid: orderNormalized?.stateid ?? pendingStateId ?? 1,
+        fechainicio: dateStart,
+        fechafin: dateEnd,
+        horainicio: timeStart,
+        horafin: timeEnd,
+        technicians: selectedTechnicians,
+        products,
+        services,
+        files: mergedFiles,
+        viaticos: Number.isFinite(viaticosValue) ? viaticosValue : 0,
+      };
+
+      const { data } = await api.patch(`orders-services/${orderId}`, dto);
+      showSuccess(`Orden #${data?.ordersservicesid ?? orderId} actualizada correctamente.`);
+      router.push(returnTo);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || "Error inesperado.");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  function handleDateStartChange(next: string) {
+    if (!isAllowedDate(next)) {
+      showWarning("Solo se permite agendar de lunes a sábado.");
+      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
+      return;
+    }
+    setDateStart(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+    if (!isAllowedDate(dateEnd)) setDateEnd(next);
+    if (dateEnd === next) return;
+  }
+
+  function handleDateEndChange(next: string) {
+    if (!isAllowedDate(next)) {
+      showWarning("Solo se permite agendar de lunes a sábado.");
+      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
+      return;
+    }
+    setDateEnd(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function handleTimeStartChange(next: string) {
+    if (!isAllowedTime(next)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
+      return;
+    }
+    const sMin = timeToMinutes(next);
+    if (Number.isFinite(sMin) && sMin === SCHEDULE_MAX) {
+      showWarning("La hora de inicio no puede ser 17:00.");
+      setErrors((p) => ({ ...p, schedule: "La hora de inicio no puede ser 17:00." }));
+      return;
+    }
+    setTimeStart(next);
+    const auto = clampAutoEnd(dateStart, next);
+    setDateEnd(auto.date);
+    setTimeEnd(auto.time);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function handleTimeEndChange(next: string) {
+    if (!isAllowedTime(next)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
+      return;
+    }
+    setTimeEnd(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  const StickyFooter = () => (
+    <div className="fixed bottom-0 left-0 right-0 z-40">
+      <div className="bg-white/85 backdrop-blur border-t">
+        <div className="mx-auto max-w-7xl px-4 py-3" style={{ paddingLeft: isDesktop ? sidebarW + 16 : 16 }}>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm">
+              <div className="text-xs text-gray-500">Total estimado</div>
+              <div className="text-lg font-semibold text-gray-900">{formatCOP(totalPagar)}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(returnTo)}
+                className="h-10 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                form="order-form"
+                className="h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+                disabled={saving || lookupsLoading || orderLoading || !orderId}
+              >
+                {saving ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const timeStartMax = "16:59";
+  const timeMin = "07:00";
+  const timeMax = "17:00";
 
   return (
     <RequireAuth>
       <div className="relative" style={{ paddingLeft: isDesktop ? sidebarW : 0 }}>
-        <main className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-100 pb-32 md:pb-48" style={{ scrollbarGutter: "stable both-edges" }}>
+        <main className="min-h-[100dvh] bg-gray-100 pb-36 md:pb-40">
           <div className="px-4 pt-4 max-w-7xl w-full mx-auto">
-            <div className="mb-4">
-              <h1 className="text-xl font-semibold text-gray-900">Editar orden #{id ?? ""}</h1>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 truncate">
+                  {orderId ? `Editar orden de servicio #${orderId}` : "Editar orden de servicio"}
+                </h1>
+                <p className="text-xs text-gray-500 mt-1">
+                  Actualiza el cliente, programación y detalles del servicio.
+                </p>
+              </div>
             </div>
 
-            {Object.keys(errors).length > 0 && (
-              <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+            {orderError && (
+              <div className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
+                {orderError}
+              </div>
+            )}
+
+            {hasErrors && (
+              <div
+                ref={summaryRef}
+                className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm"
+              >
                 <strong className="block mb-1">Hay errores en el formulario:</strong>
                 <ul className="list-disc pl-5 space-y-1">
-                  {errors.id && <li>{errors.id}</li>}
-                  {errors.cliente && <li>{errors.cliente}</li>}
-                  {errors.tecnico && <li>{errors.tecnico}</li>}
+                  {errors.clientId && <li>{errors.clientId}</li>}
                   {errors.tipo && <li>{errors.tipo}</li>}
-                  {errors.fechaProgramada && <li>{errors.fechaProgramada}</li>}
-                  {errors.monto && <li>{errors.monto}</li>}
-                  {errors.servicios && <li>{errors.servicios}</li>}
+                  {errors.schedule && <li>{errors.schedule}</li>}
+                  {errors.technicians && <li>{errors.technicians}</li>}
+                  {errors.viaticos && <li>{errors.viaticos}</li>}
                   {errors.materiales && <li>{errors.materiales}</li>}
-                  {errors.files && <li>{errors.files}</li>}
+                  {errors.servicios && <li>{errors.servicios}</li>}
                 </ul>
               </div>
             )}
 
             <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-              <section className="rounded-xl border bg-gray-50 lg:col-span-2">
-                <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Datos</header>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className={selectWrap}>
-                    <label htmlFor="field-cliente" className="block text-xs text-gray-700 mb-1">Cliente</label>
-                    <input
-                      id="field-cliente"
-                      value={cliente}
-                      onChange={(e) => { setCliente(e.target.value); setErrors((p) => ({ ...p, cliente: undefined })); }}
-                      className={`${inputBase} ${errors.cliente ? errorRing : ""}`}
-                      placeholder="Cliente"
-                    />
-                    {errors.cliente && <p className={errorText}>{errors.cliente}</p>}
-                  </div>
-                  <div className={selectWrap}>
-                    <label htmlFor="field-tecnico" className="block text-xs text-gray-700 mb-1">Técnico</label>
-                    <input
-                      id="field-tecnico"
-                      value={tecnico}
-                      onChange={(e) => { setTecnico(e.target.value); setErrors((p) => ({ ...p, tecnico: undefined })); }}
-                      className={`${inputBase} ${errors.tecnico ? errorRing : ""}`}
-                      placeholder="Técnico"
-                    />
-                    {errors.tecnico && <p className={errorText}>{errors.tecnico}</p>}
-                  </div>
-
-                  <div className="md:col-span-2" id="field-tipo">
-                    <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
-                    <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
-                      {TIPOS.map((t) => (
-                        <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
-                          <input
-                            type="radio"
-                            name="tipo-servicio"
-                            value={t}
-                            checked={tipo === t}
-                            onChange={(e) => { setTipo(e.target.value as RowTipo); setErrors((p) => ({ ...p, tipo: undefined })); }}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm">{t}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
-                  </div>
-
-                  <div id="field-fechaProgramada">
-                    <label className="block text-xs text-gray-700 mb-1">Fecha programada</label>
-                    <input
-                      value={fechaProgramada}
-                      onChange={(e) => { setFechaProgramada(e.target.value); setErrors((p) => ({ ...p, fechaProgramada: undefined })); }}
-                      placeholder="DD/MM/AAAA"
-                      className={`${inputBase} ${errors.fechaProgramada ? errorRing : ""}`}
-                    />
-                    {errors.fechaProgramada && <p className={errorText}>{errors.fechaProgramada}</p>}
-                  </div>
-
-                  <div id="field-monto">
-                    <label className="block text-xs text-gray-700 mb-1">Monto (COP)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={monto}
-                      onChange={(e) => {
-                        setMonto(e.target.value);
-                        setMontoDirty(true);
-                        setErrors((p) => ({ ...p, monto: undefined }));
-                      }}
-                      className={`${inputBase} ${errors.monto ? errorRing : ""}`}
-                    />
-                    {errors.monto && <p className={errorText}>{errors.monto}</p>}
-                    <p className="mt-1 text-xs text-gray-500">Si no editas el monto, se usará el total calculado.</p>
-                  </div>
-                </div>
-              </section>
-
               <div className="space-y-6">
-                <section className="rounded-xl border bg-gray-50">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Cliente</div>
+                    <div className="text-xs text-gray-500">
+                      {customers.length ? `${customers.length} disponibles` : "—"}
+                    </div>
+                  </header>
+
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-6">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">Servicio</label>
-                      <div className={selectWrap}>
-                        <select id="field-servicio" value={servSel} onChange={(e) => setServSel(e.target.value)} className={selectBase} disabled={!tipo}>
-                          <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
-                          {SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo).map((s) => (
-                            <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                    <div className="md:col-span-12" id="field-clientId">
+                      <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
+                        Seleccionar cliente
+                      </label>
+                      <div className="relative flex-1">
+                        <select
+                          id="field-clientId-input"
+                          value={clientId === "" ? "" : String(clientId)}
+                          onChange={(e) => {
+                            const v = e.target.value ? Number(e.target.value) : "";
+                            setClientId(v as any);
+                            setErrors((prev) => ({ ...prev, clientId: undefined }));
+                          }}
+                          className={`${selectBase} ${errors.clientId ? errorRing : ""}`}
+                          aria-invalid={!!errors.clientId}
+                          disabled={lookupsLoading}
+                        >
+                          <option value="">{lookupsLoading ? "Cargando..." : "Elige un cliente"}</option>
+                          {customers.map((c) => (
+                            <option key={c.customerid} value={String(c.customerid)}>
+                              #{c.customerid} — {c.label}
+                            </option>
                           ))}
                         </select>
                         <span className={chevron}>▾</span>
                       </div>
+                      {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-700 mb-1">Cantidad</label>
-                      <input type="number" min={1} value={servQty} onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))} className={inputBase} disabled={!servSel} />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
-                      <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
-                        {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
+                    {selectedCustomer && (
+                      <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Cliente</div>
+                          <div className="mt-1">{selectedCustomer.label}</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Contacto</div>
+                          <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Ubicación</div>
+                          <div className="mt-1">
+                            {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
+                          </div>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Programación</div>
+                    <div className="text-xs text-gray-500">Lun–Sáb · 07:00–17:00</div>
+                  </header>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateStart">
+                        Fecha inicio
+                      </label>
+                      <input
+                        id="field-dateStart"
+                        type="date"
+                        value={dateStart}
+                        onChange={(e) => handleDateStartChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
                     </div>
 
-                    <div className="md:col-span-2 flex items-end">
-                      <button type="button" onClick={addServicioDesdeFormulario} disabled={!tipo || !servSel} className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50">
-                        Añadir
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeStart">
+                        Hora inicio
+                      </label>
+                      <input
+                        id="field-timeStart"
+                        type="time"
+                        min={timeMin}
+                        max={timeStartMax}
+                        value={timeStart}
+                        onChange={(e) => handleTimeStartChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateEnd">
+                        Fecha fin
+                      </label>
+                      <input
+                        id="field-dateEnd"
+                        type="date"
+                        value={dateEnd}
+                        onChange={(e) => handleDateEndChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeEnd">
+                        Hora fin
+                      </label>
+                      <input
+                        id="field-timeEnd"
+                        type="time"
+                        min={timeMin}
+                        max={timeMax}
+                        value={timeEnd}
+                        onChange={(e) => handleTimeEndChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    {errors.schedule && (
+                      <div className="md:col-span-12">
+                        <p className={errorText}>{errors.schedule}</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm" id="field-technicians">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Técnicos</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-gray-500">
+                        Seleccionados: <span className="font-semibold text-gray-900">{selectedTechnicians.length}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearTechnicians}
+                        className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
+                        disabled={lookupsLoading || selectedTechnicians.length === 0}
+                      >
+                        Limpiar
                       </button>
+                    </div>
+                  </header>
+
+                  <div className="p-4 grid grid-cols-1 gap-3">
+                    <div className={`rounded-lg border bg-gray-50 p-3 ${errors.technicians ? errorRing : ""}`}>
+                      {selectedTechniciansFull.length === 0 ? (
+                        <div className="text-xs text-gray-500">No has seleccionado técnicos.</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTechniciansFull.map((t) => (
+                            <span
+                              key={t.technicianid}
+                              className="inline-flex items-center gap-2 rounded-full border bg-white px-2 py-1 text-xs"
+                            >
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border bg-gray-50 text-[10px] font-semibold">
+                                {initials(t.label)}
+                              </span>
+                              <span className="max-w-[220px] truncate">
+                                #{t.technicianid} — {t.label}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeTechnician(t.technicianid)}
+                                className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
+                                aria-label="Quitar técnico"
+                                title="Quitar"
+                                disabled={lookupsLoading}
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div ref={techBoxRef} className="relative">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-tech-search">
+                        Buscar y agregar técnico
+                      </label>
+                      <input
+                        id="field-tech-search"
+                        ref={techInputRef}
+                        value={techQuery}
+                        onChange={(e) => {
+                          setTechQuery(e.target.value);
+                          setTechOpen(true);
+                        }}
+                        onFocus={() => setTechOpen(true)}
+                        onKeyDown={(e) => {
+                          if (!techOpen) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techOptions.length - 1)));
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setTechActiveIndex((i) => Math.max(i - 1, 0));
+                          } else if (e.key === "Enter") {
+                            if (techOptions[techActiveIndex]) {
+                              e.preventDefault();
+                              addTechnician(techOptions[techActiveIndex].technicianid);
+                            }
+                          } else if (e.key === "Escape") {
+                            setTechOpen(false);
+                          }
+                        }}
+                        placeholder="Nombre, apellido o ID..."
+                        className={`${inputBase} ${errors.technicians ? errorRing : ""}`}
+                        disabled={lookupsLoading}
+                        aria-expanded={techOpen}
+                        aria-controls="tech-suggest"
+                        aria-autocomplete="list"
+                      />
+
+                      {techOpen && !lookupsLoading && (
+                        <div
+                          id="tech-suggest"
+                          className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm"
+                        >
+                          {techOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">
+                              {selectedTechnicians.length === technicians.length
+                                ? "Ya seleccionaste todos los técnicos."
+                                : "No hay coincidencias."}
+                            </div>
+                          ) : (
+                            <ul className="max-h-60 overflow-auto">
+                              {techOptions.map((t, idx) => (
+                                <li key={t.technicianid}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => addTechnician(t.technicianid)}
+                                    onMouseEnter={() => setTechActiveIndex(idx)}
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                      idx === techActiveIndex ? "bg-gray-100" : "bg-white"
+                                    }`}
+                                  >
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                      {initials(t.label)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">{t.label}</span>
+                                      <span className="block text-xs text-gray-500">
+                                        Técnico #{t.technicianid}
+                                      </span>
+                                    </span>
+                                    <span className="text-xs text-gray-400">Agregar</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.technicians && <p className={errorText}>{errors.technicians}</p>}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm" id="field-tipo">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
+                    <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
+                  </header>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-12">
+                      <span className="block text-xs text-gray-700 mb-2">Tipo de servicio</span>
+                      <div
+                        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${
+                          errors.tipo ? "rounded-lg p-3 border " + errorRing : ""
+                        }`}
+                      >
+                        {serviceTypes.length === 0 ? (
+                          <div className="text-xs text-gray-500">No hay tipos cargados desde la API.</div>
+                        ) : (
+                          serviceTypes.map((t) => (
+                            <label
+                              key={t.typeofserviceid}
+                              className={`flex items-center gap-2 rounded-lg border bg-white px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+                                tipoId === t.typeofserviceid ? "ring-2 ring-red-200 border-red-200" : ""
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tipo-servicio"
+                                value={String(t.typeofserviceid)}
+                                checked={tipoId === t.typeofserviceid}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  setTipoId(Number.isFinite(v) ? v : null);
+                                  setErrors((prev) => ({ ...prev, tipo: undefined }));
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-sm font-medium text-gray-900">{t.label}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                      {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
+                    </div>
+
+                    <div className="md:col-span-12" id="field-servicios">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div>
+                          <div className="text-xs text-gray-700">Servicios</div>
+                          <div className="text-xs text-gray-500">Agrega los servicios a realizar.</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addServiceRow}
+                          className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
+                          disabled={!tipoId || lookupsLoading || servicesForTipo.length === 0}
+                        >
+                          Añadir servicio
+                        </button>
+                      </div>
+
+                      <div className={`rounded-lg border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+                        <table className="w-full text-xs md:text-sm">
+                          <thead className="bg-gray-50">
+                            <tr className="text-gray-700">
+                              <th className="px-3 py-2 text-left">Servicio</th>
+                              <th className="px-3 py-2 text-right w-20">Cant.</th>
+                              <th className="px-3 py-2 text-right w-32">Precio</th>
+                              <th className="px-3 py-2 text-right w-32">Importe</th>
+                              <th className="px-3 py-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {servicios.map((it) => (
+                              <tr key={it.id} className="border-t">
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={it.nombre}
+                                    onChange={(e) => {
+                                      const n = e.target.value;
+                                      patchItem(it.id, { nombre: n }, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="w-full h-9 rounded-md border px-2"
+                                    disabled={!tipoId || servicesForTipo.length === 0 || lookupsLoading}
+                                  >
+                                    {servicesForTipo.map((opt) => (
+                                      <option key={`${it.id}-${opt.serviceid}`} value={opt.name}>
+                                        {opt.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={it.cantidad}
+                                    onChange={(e) => {
+                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-20 rounded-md border px-2 text-right"
+                                    disabled={lookupsLoading}
+                                  />
+                                </td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={1000}
+                                    value={it.precio}
+                                    onChange={(e) => {
+                                      const n = Number(e.target.value || 0);
+                                      patchItem(
+                                        it.id,
+                                        { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
+                                        setServicios
+                                      );
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-32 rounded-md border px-2 text-right"
+                                    disabled={lookupsLoading}
+                                  />
+                                </td>
+
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {formatCOP((Number(it.cantidad) || 0) * (Number(it.precio) || 0))}
+                                </td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeItem(it.id, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                    disabled={lookupsLoading}
+                                    aria-label="Quitar servicio"
+                                    title="Quitar"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+
+                            {servicios.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                                  {tipoId
+                                    ? servicesForTipo.length
+                                      ? "Aún no has añadido servicios."
+                                      : "No hay servicios para este tipo."
+                                    : "Selecciona primero el tipo de servicio."}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
 
                     <div className="md:col-span-12">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">Descripción</label>
-                      <textarea id="field-desc" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm" />
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
+                        Descripción
+                      </label>
+                      <textarea
+                        id="field-desc"
+                        value={descripcion}
+                        onChange={(e) => setDescripcion(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                        placeholder="Describe el servicio, alcance, observaciones, etc."
+                      />
                     </div>
 
                     <div className="md:col-span-12" id="field-files">
-                      <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="block text-xs text-gray-700">Imágenes del servicio</label>
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          className="h-8 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                          title="Subir imágenes"
+                          disabled={lookupsLoading}
+                        >
                           Subir imágenes
                         </button>
-                        <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
-                        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={handleFiles}
+                        />
                       </div>
-                      {errors.files && <p className={errorText}>{errors.files}</p>}
 
-                      <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="mt-1 text-xs text-gray-500">
+                        {files.length ? `${files.length} nuevas seleccionadas` : "Ninguna imagen nueva seleccionada"}
+                      </div>
+
+                      {existingFiles.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-xs text-gray-600 mb-1">Imágenes existentes</div>
+                          <div className="flex flex-wrap gap-2">
+                            {existingFiles.map((url, idx) => (
+                              <a
+                                key={`${url}_${idx}`}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center justify-center w-20 h-20 rounded-lg border bg-gray-50 text-[10px] text-gray-600 text-center px-1"
+                              >
+                                Ver imagen
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap gap-2">
                         {files.length === 0 ? (
-                          <p className="text-xs text-gray-500">No hay imágenes aún.</p>
+                          <div className="text-xs text-gray-500">No hay imágenes nuevas aún.</div>
                         ) : (
                           files.map((f, idx) => (
-                            <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
+                            <div
+                              key={`${f.name}_${f.lastModified}_${idx}`}
+                              className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white"
+                            >
                               <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
-                              <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
+                              <button
+                                type="button"
+                                onClick={() => removeFile(f)}
+                                className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1"
+                                aria-label="Quitar imagen"
+                                title="Quitar"
+                                disabled={lookupsLoading}
+                              >
                                 ✕
                               </button>
                             </div>
@@ -534,227 +1723,218 @@ export default function OrderEditPage() {
                         )}
                       </div>
                     </div>
-
-                    <div className="md:col-span-12" id="field-servicios">
-                      <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
-                      <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
-                        <table className="w-full text-xs md:text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-2 py-2 text-left">Servicio</th>
-                              <th className="px-2 py-2 text-right w-16">Cant.</th>
-                              <th className="px-2 py-2 text-right w-28">Precio</th>
-                              <th className="px-2 py-2 text-right w-28">Importe</th>
-                              <th className="px-2 py-2 w-8"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {servicios.map((it) => (
-                              <tr key={it.id} className="border-t">
-                                <td className="px-2 py-1">
-                                  <select
-                                    value={it.nombre}
-                                    onChange={(e) => {
-                                      const n = e.target.value;
-                                      const p = precioServicioPorNombre(n);
-                                      patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
-                                      setErrors((p) => ({ ...p, servicios: undefined }));
-                                    }}
-                                    className="w-full h-8 rounded-md border px-2"
-                                  >
-                                    {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
-                                      <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
-                                        {opt.nombre}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={it.cantidad}
-                                    onChange={(e) => {
-                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
-                                      setErrors((p) => ({ ...p, servicios: undefined }));
-                                    }}
-                                    className="h-8 w-16 rounded-md border px-2 text-right"
-                                  />
-                                </td>
-                                <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
-                                <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
-                                <td className="px-2 py-1 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      removeItem(it.id, servicios, setServicios);
-                                      setErrors((p) => ({ ...p, servicios: undefined }));
-                                    }}
-                                    className="h-8 px-2 rounded-md hover:bg-gray-200"
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                            {servicios.length === 0 && (
-                              <tr>
-                                <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
-                                  Aún no has añadido servicios.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
-                    </div>
                   </div>
                 </section>
               </div>
 
               <aside className="space-y-6">
-                <section className="rounded-xl border bg-gray-50" id="field-materiales">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
+                <section className="rounded-xl border bg-white shadow-sm" id="field-materiales">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
+                      <div className="text-xs text-gray-500">Agrega los materiales consumidos.</div>
+                    </div>
+                    <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
+                  </header>
+
                   <div className="p-4">
-                    <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
+                    <div className={`rounded-lg border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-2 py-2 text-left">Material</th>
-                            <th className="px-2 py-2 text-right w-16">Cant.</th>
-                            <th className="px-2 py-2 text-right w-28">Precio</th>
-                            <th className="px-2 py-2 w-8"></th>
+                        <thead className="bg-gray-50">
+                          <tr className="text-gray-700">
+                            <th className="px-3 py-2 text-left">Producto</th>
+                            <th className="px-3 py-2 text-right w-20">Cant.</th>
+                            <th className="px-3 py-2 text-right w-32">Precio</th>
+                            <th className="px-3 py-2 w-10"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {materiales.map((m) => (
                             <tr key={m.id} className="border-t">
-                              <td className="px-2 py-1">
+                              <td className="px-3 py-2">
                                 <select
                                   value={m.nombre}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
-                                    setErrors((p) => ({ ...p, materiales: undefined }));
+                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="w-full h-8 rounded-md border px-2"
+                                  className="w-full h-9 rounded-md border px-2"
+                                  disabled={!productsCatalog.length || lookupsLoading}
                                 >
-                                  {MATERIALES_DATA.map((opt) => (
-                                    <option key={opt.id} value={opt.nombre}>
-                                      {opt.nombre}
+                                  {productsCatalog.map((opt) => (
+                                    <option key={opt.productid} value={opt.productname}>
+                                      {opt.productname}
                                     </option>
                                   ))}
                                 </select>
                               </td>
-                              <td className="px-2 py-1 text-right">
+
+                              <td className="px-3 py-2 text-right">
                                 <input
                                   type="number"
                                   min={1}
                                   value={m.cantidad}
                                   onChange={(e) => {
-                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
-                                    setErrors((p) => ({ ...p, materiales: undefined }));
+                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="h-8 w-16 rounded-md border px-2 text-right"
+                                  className="h-9 w-20 rounded-md border px-2 text-right"
+                                  disabled={lookupsLoading}
                                 />
                               </td>
-                              <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
-                              <td className="px-2 py-1 text-right">
+
+                              <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+
+                              <td className="px-3 py-2 text-right">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    removeItem(m.id, materiales, setMateriales);
-                                    setErrors((p) => ({ ...p, materiales: undefined }));
+                                    removeItem(m.id, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="h-8 px-2 rounded-md hover:bg-gray-200"
+                                  className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                  disabled={lookupsLoading}
+                                  aria-label="Quitar producto"
+                                  title="Quitar"
                                 >
                                   ✕
                                 </button>
                               </td>
                             </tr>
                           ))}
+
                           {materiales.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
-                                Aún no has añadido materiales.
+                              <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
+                                Aún no has añadido productos.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+
                     {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
-                    <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
-                        Añadir material
+
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={addMaterialRow}
+                        className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
+                        disabled={!productsCatalog.length || lookupsLoading}
+                      >
+                        Añadir producto
                       </button>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-xl border bg-gray-50">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
+                <section className="rounded-xl border bg-white shadow-sm" id="field-viaticos">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Viáticos</div>
+                      <div className="text-xs text-gray-500">Afecta base e IVA.</div>
+                    </div>
+                  </header>
+                  <div className="p-4 space-y-2">
+                    <label className="block text-xs text-gray-700" htmlFor="field-viaticos-input">
+                      Valor (COP)
+                    </label>
+                    <input
+                      id="field-viaticos-input"
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={viaticosInput}
+                      onChange={(e) => {
+                        setViaticosInput(e.target.value);
+                        setErrors((prev) => ({ ...prev, viaticos: undefined }));
+                      }}
+                      className={`${inputBase} text-right ${errors.viaticos ? errorRing : ""}`}
+                      disabled={lookupsLoading || saving}
+                      aria-invalid={!!errors.viaticos}
+                      placeholder="0"
+                    />
+                    {errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
+                    <div className="pt-3 border-t text-sm flex justify-between">
+                      <span className="text-gray-600">Total viáticos</span>
+                      <span className="font-medium">
+                        {formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Totales</div>
+                    <div className="text-xs text-gray-500">Estimación</div>
+                  </header>
+
                   <div className="p-4 space-y-3 text-sm">
                     <div>
                       <div className="flex justify-between">
-                        <span>Subtotal servicios</span>
-                        <span>{formatCOP(subtotalServicios)}</span>
+                        <span className="text-gray-600">Subtotal servicios</span>
+                        <span className="font-medium">{formatCOP(subtotalServicios)}</span>
                       </div>
                       {serviciosMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {serviciosMiniLista.map((s) => (
-                            <li key={s.nombre} className="flex justify-between">
-                              <span className="truncate">{s.nombre} × {s.cantidad}</span>
+                            <li key={s.nombre} className="flex justify-between gap-2">
+                              <span className="truncate">
+                                {s.nombre} × {s.cantidad}
+                              </span>
                               <span>{formatCOP(s.total)}</span>
                             </li>
                           ))}
                         </ul>
                       )}
                     </div>
+
                     <div>
                       <div className="flex justify-between">
-                        <span>Subtotal materiales</span>
-                        <span>{formatCOP(subtotalMateriales)}</span>
+                        <span className="text-gray-600">Subtotal productos</span>
+                        <span className="font-medium">{formatCOP(subtotalMateriales)}</span>
                       </div>
                       {materialesMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {materialesMiniLista.map((m) => (
-                            <li key={m.nombre} className="flex justify-between">
-                              <span className="truncate">{m.nombre} × {m.cantidad}</span>
+                            <li key={m.nombre} className="flex justify-between gap-2">
+                              <span className="truncate">
+                                {m.nombre} × {m.cantidad}
+                              </span>
                               <span>{formatCOP(m.total)}</span>
                             </li>
                           ))}
                         </ul>
                       )}
                     </div>
+
                     <div className="flex justify-between">
-                      <span>IVA ({IVA_PCT}%)</span>
-                      <span>{formatCOP(impuestos)}</span>
+                      <span className="text-gray-600">Viáticos</span>
+                      <span className="font-medium">
+                        {formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}
+                      </span>
                     </div>
-                    <div className="flex justify-between text-base font-semibold pt-2 border-t">
-                      <span>Total</span>
+
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">IVA ({IVA_PCT}%)</span>
+                      <span className="font-medium">{formatCOP(impuestos)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-base font-semibold pt-3 border-t">
+                      <span>Total (estimado)</span>
                       <span>{formatCOP(totalPagar)}</span>
                     </div>
                   </div>
                 </section>
               </aside>
-
-              <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
-                <button
-                  type="button"
-                  onClick={() => router.push(returnTo)}
-                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
-                  Guardar
-                </button>
-              </div>
             </form>
           </div>
         </main>
+
+        <StickyFooter />
       </div>
     </RequireAuth>
   );

@@ -9,48 +9,52 @@ export interface PurchaseErrors {
   amount?: string;
   status?: string;
   description?: string;
+  products?: string;
 }
 
 /**
  * Valida un campo individual de una compra
  */
 export const validatePurchaseField = (
-  field: keyof Omit<IPurchase, "id">,
+  field: any,
   value: any,
-  purchases: IPurchase[],
+  purchases: IPurchase[] = [],
   currentId?: number
 ): string | undefined => {
   switch (field) {
     case "orderNumber":
-      if (!String(value).trim()) return "El número de orden es obligatorio";
+      const order = String(value).trim();
+      if (!order) return "El número de orden es obligatorio";
+
       if (
-        purchases.some(
-          (p) =>
-            p.orderNumber.toLowerCase() ===
-              String(value).trim().toLowerCase() && p.id !== currentId
-        )
+        (purchases ?? []).some((p) => {
+          const currentOrder = p.orderNumber || p.numberoforder || ""; // ← soportar ambos
+          return (
+            currentOrder.toLowerCase() === order.toLowerCase() &&
+            p.id !== currentId
+          );
+        })
       ) {
         return "Ya existe una compra con este número de orden";
       }
       return;
 
     case "invoiceNumber":
-      if (!String(value).trim()) return "El número de factura es obligatorio";
-
-      // Validar formato tipo FAC-2025-1001
-      const invoicePattern = /^FAC-\d{4}-\d{4}$/;
-      if (!invoicePattern.test(String(value).trim()))
-        return "El formato debe ser FAC-AAAA-NNNN (ej: FAC-2025-1001)";
+      const invoice = String(value).trim();
+      if (!invoice) return "El número de factura es obligatorio";
 
       if (
-        purchases.some(
-          (p) =>
-            p.invoiceNumber.toLowerCase() ===
-              String(value).trim().toLowerCase() && p.id !== currentId
-        )
+        (purchases ?? []).some((p) => {
+          const currentInvoice = p.invoiceNumber || p.reference || ""; // ← soportar ambos
+          return (
+            currentInvoice.toLowerCase() === invoice.toLowerCase() &&
+            p.id !== currentId
+          );
+        })
       ) {
         return "Ya existe una compra con este número de factura";
       }
+
       return;
 
     case "supplier":
@@ -98,21 +102,21 @@ export const validatePurchaseForm = (
 ): PurchaseErrors => {
   const errors: PurchaseErrors = {};
 
-  const fields: (keyof Omit<IPurchase, "id">)[] = [
+  const fields: any[] = [
+    "registerDate",
+    "status",
     "orderNumber",
     "invoiceNumber",
-    "supplier",
-    "registerDate",
+    "supplier", // ← ✔ CORREGIDO
     "amount",
-    "status",
     "description",
   ];
 
   fields.forEach((field) => {
     const error = validatePurchaseField(
-      field,
+      field as any,
       (data as any)[field],
-      purchases,
+      purchases ?? [],
       currentId
     );
     if (error) errors[field] = error;

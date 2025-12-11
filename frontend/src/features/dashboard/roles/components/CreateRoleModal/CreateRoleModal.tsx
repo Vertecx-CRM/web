@@ -12,6 +12,7 @@ interface CreateRoleModalProps {
   onClose: () => void;
   onSubmit: (data: { name: string; permissions: string[] }) => void;
   existingRoles: Role[];
+  loading?: boolean;
 }
 
 export default function CreateRoleModal({
@@ -19,11 +20,15 @@ export default function CreateRoleModal({
   onClose,
   onSubmit,
   existingRoles,
+  loading = false,
 }: CreateRoleModalProps) {
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
-  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; permissions?: string }>(
+    {}
+  );
 
+  /** ÚNICO CAMBIO NECESARIO → Se agregó "Ventas" */
   const allModulePermissions: Record<string, string[]> = {
     Roles: ["Editar", "Crear", "Eliminar", "Ver"],
     Usuarios: ["Editar", "Crear", "Eliminar", "Ver"],
@@ -40,6 +45,9 @@ export default function CreateRoleModal({
     Citas: ["Editar", "Crear", "Eliminar", "Ver"],
     "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
     "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
+
+    Ventas: ["Crear", "Ver", "Desactivar"],
+
     Dashboard: ["Ver"],
   };
 
@@ -73,28 +81,14 @@ export default function CreateRoleModal({
     setTimeout(validateForm, 0);
   };
 
-  const toggleAllPermissions = () => {
-    const allSelected =
-      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
-      Object.values(allModulePermissions).reduce((acc, arr) => acc + arr.length, 0);
-
-    if (allSelected) {
-      setPermissions({});
-    } else {
-      const fullSelection: Record<string, string[]> = {};
-      Object.entries(allModulePermissions).forEach(([module, perms]) => {
-        fullSelection[module] = [...perms];
-      });
-      setPermissions(fullSelection);
-    }
-  };
-
   const validateForm = (): boolean => {
     const newErrors: { name?: string; permissions?: string } = {};
     if (!roleName.trim()) {
       newErrors.name = "El nombre del rol es obligatorio";
     } else if (
-      existingRoles.some((r) => r.name.toLowerCase() === roleName.trim().toLowerCase())
+      existingRoles.some(
+        (r) => r.name.toLowerCase() === roleName.trim().toLowerCase()
+      )
     ) {
       newErrors.name = "Ya existe un rol con ese nombre";
     }
@@ -117,12 +111,12 @@ export default function CreateRoleModal({
       return;
     }
 
-    const formattedPermissions: string[] = [];
+    const formatted: string[] = [];
     Object.entries(permissions).forEach(([module, perms]) =>
-      perms.forEach((perm) => formattedPermissions.push(`${module}-${perm}`))
+      perms.forEach((perm) => formatted.push(`${module}-${perm}`))
     );
 
-    onSubmit({ name: roleName.trim(), permissions: formattedPermissions });
+    onSubmit({ name: roleName.trim(), permissions: formatted });
     onClose();
   };
 
@@ -162,18 +156,22 @@ export default function CreateRoleModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
-            {/* Header */}
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2 className="text-lg font-semibold">Crear Rol</h2>
-              <button onClick={onClose} className="cursor-pointer text-gray-500 hover:text-black">
+              <button
+                onClick={onClose}
+                className="cursor-pointer text-gray-500 hover:text-black"
+              >
                 <XMarkIcon className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
               <div>
-                <label className="block text-base font-semibold mb-1" style={{ color: Colors.texts.primary }}>
+                <label
+                  className="block text-base font-semibold mb-1"
+                  style={{ color: Colors.texts.primary }}
+                >
                   Nombre del rol <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -188,91 +186,108 @@ export default function CreateRoleModal({
                   }}
                   onBlur={validateForm}
                 />
-                {errors.name && <span className="text-xs text-red-500">{errors.name}</span>}
+                {errors.name && (
+                  <span className="text-xs text-red-500">{errors.name}</span>
+                )}
               </div>
 
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold" style={{ color: Colors.texts.primary }}>
-                  Asignar permisos y privilegios <span className="text-red-500">*</span>
+                <h3
+                  className="text-base font-semibold"
+                  style={{ color: Colors.texts.primary }}
+                >
+                  Asignar permisos y privilegios{" "}
+                  <span className="text-red-500">*</span>
                 </h3>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={
-                      Object.values(permissions).reduce((acc, arr) => acc + arr.length, 0) ===
-                      Object.values(allModulePermissions).reduce((acc, arr) => acc + arr.length, 0)
-                    }
-                    onChange={toggleAllPermissions}
-                  />
-                  <span className="text-sm">Seleccionar todos</span>
-                </div>
               </div>
 
               {errors.permissions && (
-                <p className="text-left text-xs text-red-500">{errors.permissions}</p>
+                <p className="text-left text-xs text-red-500">
+                  {errors.permissions}
+                </p>
               )}
 
               <div className="overflow-hidden rounded-xl border max-h-64 overflow-y-auto custom-scroll">
                 <table className="min-w-full text-sm">
-                  <thead className="sticky top-0 z-10" style={{ backgroundColor: "#B20000" }}>
+                  <thead
+                    className="sticky top-0 z-10"
+                    style={{ backgroundColor: "#B20000" }}
+                  >
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-white">Módulo</th>
+                      <th className="px-4 py-3 text-left font-semibold text-white">
+                        Módulo
+                      </th>
                       <th className="px-4 py-3 text-center font-semibold text-white">
                         Permisos / Privilegios
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {Object.entries(allModulePermissions).map(([module, perms]) => {
-                      const moduleAllSelected =
-                        (permissions[module]?.length ?? 0) === perms.length;
-                      return (
-                        <tr key={module}>
-                          <td className="px-4 py-3 font-medium text-gray-800">{module}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap justify-center gap-4">
-                              {module !== "Dashboard" && (
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    checked={moduleAllSelected}
-                                    onChange={() => toggleModuleAll(module)}
-                                  />
-                                  <span className="text-sm">Todos</span>
-                                </div>
-                              )}
-                              {perms.map((perm) => {
-                                const isChecked = permissions[module]?.includes(perm);
-                                return (
-                                  <div key={`${module}-${perm}`} className="flex items-center gap-2">
-                                    <Checkbox checked={isChecked || false} onChange={() => togglePermission(module, perm)} />
-                                    <span className="text-sm">{perm}</span>
+                    {Object.entries(allModulePermissions).map(
+                      ([module, perms]) => {
+                        const moduleAllSelected =
+                          (permissions[module]?.length ?? 0) === perms.length;
+                        return (
+                          <tr key={module}>
+                            <td className="px-4 py-3 font-medium text-gray-800">
+                              {module}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap justify-center gap-4">
+                                {module !== "Dashboard" && (
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      checked={moduleAllSelected}
+                                      onChange={() => toggleModuleAll(module)}
+                                    />
+                                    <span className="text-sm">Todos</span>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                )}
+                                {perms.map((perm) => {
+                                  const isChecked =
+                                    permissions[module]?.includes(perm);
+                                  return (
+                                    <div
+                                      key={`${module}-${perm}`}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <Checkbox
+                                        checked={!!isChecked}
+                                        onChange={() =>
+                                          togglePermission(module, perm)
+                                        }
+                                      />
+                                      <span className="text-sm">{perm}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Footer actualizado */}
             <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
                 type="button"
                 onClick={onClose}
                 className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+                disabled={loading}
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+                className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto disabled:opacity-60"
+                disabled={loading}
               >
-                Guardar
+                {loading ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </motion.div>

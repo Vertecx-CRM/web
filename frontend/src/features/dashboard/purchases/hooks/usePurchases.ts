@@ -1,17 +1,23 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getPurchases,
   createPurchase,
   cancelPurchase,
+  getProductsForPurchase,
+  getSuppliersForPurchase,
 } from "../api/purchases.api";
 import { IPurchase } from "../Types/Purchase.type";
 
-/** Productos base */
-interface Product {
-  price: number;
-  stock: number;
+export interface PurchaseFormState {
+  orderNumber: string;
+  invoiceNumber: string;
+  supplier: string;
+  registerDate: string;
+  amount: number;
+  status: string;
+  description: string;
 }
 
 export const months = [
@@ -29,95 +35,128 @@ export const months = [
   "Diciembre",
 ];
 
-export const suppliers = ["Proveedor A", "Proveedor B", "Proveedor C"];
+type CartItem = {
+  isNew: boolean;
+  productid?: number;
+  productname?: string;
+  description?: string;
+  productpriceofsupplier?: number; // precio del proveedor (compra)
+  saleprice?: number; // precio de venta opcional
+  quantity: number;
+  unitprice: number; // precio unitario de compra
+};
+
+let CACHE: IPurchase[] | null = null;
 
 export function usePurchases() {
   const [purchases, setPurchases] = useState<IPurchase[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** 📦 Catálogo de productos */
-  const [products] = useState<Record<string, Product>>({
-    "Cámara Hivision": { price: 500000, stock: 5 },
-    "Disco Duro 1TB": { price: 250000, stock: 10 },
-    "Router Mikrotik": { price: 400000, stock: 3 },
-    "Switch TP-Link 24p": { price: 350000, stock: 4 },
-    "Cable UTP Cat6": { price: 500, stock: 100 },
-    "Laptop Dell XPS": { price: 1200, stock: 2 },
-  });
+  const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
 
-  /** 🧾 Formulario principal */
-  const [form, setForm] = useState({
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState<string>("");
+
+  const [form, setForm] = useState<PurchaseFormState>({
     orderNumber: "",
     invoiceNumber: "",
     supplier: "",
     registerDate: "",
     amount: 0,
     status: "Aprobado",
-    day: "",
-    month: "",
-    year: "",
     description: "",
   });
 
-  const [error, setError] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
-  const [cart, setCart] = useState<
-    { name: string; qty: number; price: number }[]
-  >([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
-  /** 📅 Generar años (últimos 6) */
   const currentYear = new Date().getFullYear();
   const years = useMemo(
     () => Array.from({ length: 6 }, (_, i) => currentYear - i),
-    []
+    [currentYear]
   );
 
-  /** 📅 Calcular días según mes y año seleccionados */
-  const daysInMonth = useMemo(() => {
-    if (!form.month || !form.year) return 31;
-    const monthIndex = months.indexOf(form.month);
-    return new Date(Number(form.year), monthIndex + 1, 0).getDate();
-  }, [form.month, form.year]);
-
-  /** 🧮 Calcular total */
   const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.qty * item.price, 0),
+    () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
     [cart]
   );
 
-  /** 🧠 Generar número de orden basado en backend */
+  const abortRef = useRef<AbortController | null>(null);
+
   const generateNextOrderNumber = (data: IPurchase[]) => {
     const year = new Date().getFullYear();
     const currentYearOrders = data
-      .map((p) => p.numberoforder || p.orderNumber)
+      .map((p) => p.numberoforder || (p as any).orderNumber)
       .filter((n) => n?.includes(`ORD-${year}-`));
 
     if (currentYearOrders.length === 0) return `ORD-${year}-001`;
 
     const maxConsecutive = Math.max(
-      ...currentYearOrders.map((o) => parseInt(o.split("-")[2]))
+      ...currentYearOrders.map((o) => parseInt(o.split("-")[2], 10))
     );
     const nextConsecutive = (maxConsecutive + 1).toString().padStart(3, "0");
     return `ORD-${year}-${nextConsecutive}`;
   };
 
-  /** 🔄 Cargar compras desde backend */
-  const fetchPurchases = async () => {
+  const fetchPurchases = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const data = await getPurchases();
+      const data = await getPurchases(controller.signal);
+      CACHE = data;
       setPurchases(data);
 
       const nextOrder = generateNextOrderNumber(data);
       setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
     } catch (error) {
-      console.error("Error fetching purchases:", error);
+      if (error.name !== "AbortError") {
+        console.error("Error fetching purchases:", error);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  /** ⚙️ Cambio de campos del formulario */
+  // Cargar productos
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const data = await getProductsForPurchase();
+        setProducts(data);
+      } catch (err) {
+        console.error("Error cargando productos", err);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  // Cargar proveedores
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const data = await getSuppliersForPurchase();
+        const actives = data.filter((s: any) => s.stateid === 1);
+        setSuppliers(actives);
+      } catch (err) {
+        console.error("Error cargando proveedores", err);
+      }
+    };
+
+    fetchSuppliers();
+  }, []);
+
+  useEffect(() => {
+    fetchPurchases();
+    return () => abortRef.current?.abort();
+  }, []);
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -125,114 +164,230 @@ export function usePurchases() {
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "invoiceNumber") validateInvoiceYear(value, form.year);
-    if (name === "year" && form.invoiceNumber)
-      validateInvoiceYear(form.invoiceNumber, value);
   };
 
-  /** 🧾 Validar coincidencia de año en factura */
-  const validateInvoiceYear = (invoice: string, year: string) => {
-    const match = invoice.match(/^FAC-(\d{4})-\d{4}$/);
-    if (match) {
-      const invoiceYear = match[1];
-      if (year && invoiceYear !== year) {
-        setError(
-          `⚠️ El año de la factura (${invoiceYear}) no coincide con la fecha seleccionada (${year}).`
-        );
-      } else {
-        setError("");
+  /**
+   * Añadir producto al carrito
+   * Soporta:
+   * - Producto existente (productid)
+   * - Producto nuevo (productname + productpriceofsupplier)
+   */
+  const handleAddProduct = ({
+    isNew,
+    productName,
+    supplierPrice,
+    selectedProduct,
+    quantity,
+    description,
+    salePrice,
+  }: {
+    isNew: boolean;
+    productName: string;
+    supplierPrice: number;
+    selectedProduct: string;
+    quantity: number;
+    description: string;
+    salePrice?: number;
+  }) => {
+    if (!isNew) {
+      const product = products.find(
+        (p) => p.productid === Number(selectedProduct)
+      );
+      if (!product) return;
+
+      // Validación: duplicados por productid
+      const exists = cart.some((c) => c.productid === product.productid);
+      if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
       }
-    } else {
+
+      if (quantity <= 0 || supplierPrice <= 0) {
+        setError(
+          "La cantidad y el precio del proveedor deben ser mayores a cero."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
+        );
+        return;
+      }
+
       setError("");
+
+      setCart((prev) => [
+        ...prev,
+        {
+          isNew: false,
+          productid: product.productid,
+          quantity,
+          unitprice: supplierPrice,
+          productpriceofsupplier: supplierPrice,
+          saleprice: salePrice,
+          description,
+        },
+      ]);
+    } else {
+      // Producto nuevo: validar por nombre
+      const exists = cart.some(
+        (c) => c.productname?.toLowerCase() === productName.trim().toLowerCase()
+      );
+      if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
+      }
+
+      if (!productName.trim() || supplierPrice <= 0 || quantity <= 0) {
+        setError(
+          "Para crear un producto nuevo debes ingresar nombre, precio proveedor y cantidad válidos."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
+        );
+        return;
+      }
+
+      setError("");
+
+      setCart((prev) => [
+        ...prev,
+        {
+          isNew: true,
+          productname: productName.trim(),
+          productpriceofsupplier: supplierPrice,
+          quantity,
+          unitprice: supplierPrice,
+          saleprice: salePrice,
+          description,
+        },
+      ]);
     }
   };
 
-  /** 🛒 Agregar producto */
-  const handleAddProduct = () => {
-    if (!selectedProduct || quantity <= 0) return;
+  const removeFromCart = (index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  };
 
-    setCart((prev) => {
-      const existing = prev.find((p) => p.name === selectedProduct);
-      if (existing) {
-        return prev.map((p) =>
-          p.name === selectedProduct ? { ...p, qty: p.qty + quantity } : p
-        );
+  /**
+   * Construye y envía el payload al endpoint /purchasesmanagement
+   * adaptado a la documentación del backend.
+   */
+  const handleAddPurchase = async () => {
+    if (cart.length === 0) {
+      setError("Agrega al menos un producto.");
+      return;
+    }
+
+    setSaving(true);
+
+    const created = form.registerDate;
+
+    // Backend espera Date -> enviamos ISO string coherente
+
+    const productsPayload = cart.map((item) => {
+      const base: any = {
+        quantity: item.quantity,
+        unitprice: item.unitprice,
+        description: item.description || "",
+      };
+
+      if (item.productid) {
+        base.productid = item.productid;
       }
-      return [
-        ...prev,
-        {
-          name: selectedProduct,
-          qty: quantity,
-          price: products[selectedProduct].price,
-        },
-      ];
+
+      if (item.productname) {
+        base.productname = item.productname;
+      }
+
+      if (item.productpriceofsupplier) {
+        base.productpriceofsupplier = item.productpriceofsupplier;
+      }
+
+      if (item.saleprice !== undefined) {
+        base.saleprice = item.saleprice;
+      }
+
+      return base;
+    });
+
+    const payload = {
+      numberoforder: form.orderNumber || "TEMP-001",
+      reference: form.invoiceNumber,
+      supplierid: Number(form.supplier),
+      observation: form.description || "",
+      stateid: 3, // Aprobado
+      createdat: created,
+      updatedat: new Date().toISOString(),
+      products: productsPayload,
+    };
+
+    try {
+      return await createPurchase(payload);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelPurchase = async (id: number, observation?: string) => {
+    try {
+      setCancelLoading(true);
+
+      // Limpiar cache para forzar actualización fresca
+      CACHE = null;
+
+      // Enviar con observación opcional
+      await cancelPurchase(id, observation);
+
+      // Volver a cargar compras (solo una vez)
+      await fetchPurchases();
+    } catch (error) {
+      console.error("Error canceling purchase:", error);
+      throw error;
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      orderNumber: "",
+      invoiceNumber: "",
+      supplier: "",
+      registerDate: "",
+      amount: 0,
+      status: "Aprobado",
+      description: "",
     });
 
     setSelectedProduct("");
     setQuantity(1);
-  };
+    setCart([]);
+    setError("");
 
-  /** ✅ Registrar compra (backend) */
-  const handleAddPurchase = async () => {
-    if (error) return;
-    if (cart.length === 0) {
-      setError("⚠️ Agrega al menos un producto al carrito.");
-      return;
-    }
-
-    const day = form.day?.toString().padStart(2, "0");
-    const monthIndex = months.indexOf(form.month) + 1;
-    const month = monthIndex.toString().padStart(2, "0");
-    const year = form.year;
-    const registerDate = `${year}-${month}-${day}`;
-
-    const newPurchase: Partial<IPurchase> = {
-      numberoforder: form.orderNumber,
-      reference: form.invoiceNumber,
-      supplierid: Number(form.supplier),
-      amount: total,
-      createdat: registerDate,
-      updatedat: new Date().toISOString(),
-      stateid: 1, // Aprobado
-    };
-
-    try {
-      await createPurchase(newPurchase);
-      await fetchPurchases();
-    } catch (error) {
-      console.error("Error creating purchase:", error);
-      setError("❌ No se pudo registrar la compra.");
+    if (purchases.length > 0) {
+      const nextOrder = generateNextOrderNumber(purchases);
+      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
     }
   };
-
-  /** 🚫 Cancelar compra */
-  const handleCancelPurchase = async (id: number) => {
-    try {
-      await cancelPurchase(id);
-      await fetchPurchases();
-    } catch (error) {
-      console.error("Error canceling purchase:", error);
-    }
-  };
-
-  /** Cargar compras al inicio */
-  useEffect(() => {
-    fetchPurchases();
-  }, []);
 
   return {
-    // Backend
     purchases,
     loading,
+    saving,
 
-    // Formulario
     form,
     setForm,
     error,
     setError,
+    resetForm,
 
-    // Carrito
     selectedProduct,
     setSelectedProduct,
     quantity,
@@ -240,17 +395,17 @@ export function usePurchases() {
     cart,
     setCart,
     total,
+    removeFromCart,
 
-    // Auxiliares
     products,
     suppliers,
     years,
-    daysInMonth,
+    cancelLoading,
 
-    // Acciones
     handleChange,
     handleAddProduct,
     handleAddPurchase,
     handleCancelPurchase,
+    fetchPurchases,
   };
 }

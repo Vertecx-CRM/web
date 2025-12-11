@@ -19,12 +19,108 @@ export default function ViewRoleModal({
 }: ViewRoleModalProps) {
   if (!open || !role) return null;
 
+  const moduleTranslations: Record<string, string> = {
+    Roles: "Roles",
+
+    users: "Usuarios",
+    User: "Usuarios",
+
+    categoryProducts: "Categoría de Productos",
+    Categories: "Categoría de Productos",
+
+    products: "Productos",
+    Products: "Productos",
+
+    suppliers: "Proveedores",
+    Supplier: "Proveedores",
+
+    purchases: "Compras",
+    Purchases: "Compras",
+
+    purchaseOrders: "Órdenes de Compra",
+    Orders: "Órdenes de Compra",
+
+    services: "Servicios",
+    Service: "Servicios",
+
+    technicians: "Técnicos",
+    Technician: "Técnicos",
+
+    customers: "Clientes",
+    Client: "Clientes",
+
+    servicesRequest: "Solicitud de Servicio",
+    "Service Request": "Solicitud de Servicio",
+    "Service Requests": "Solicitud de Servicio",
+    Requests: "Solicitud de Servicio",
+
+    appointments: "Citas",
+    Appointment: "Citas",
+    Appointments: "Citas",
+
+    quotes: "Cotización de Servicio",
+    Quotes: "Cotización de Servicio",
+    Quotation: "Cotización de Servicio",
+
+    orderServices: "Orden de Servicio",
+    "Service Order": "Orden de Servicio",
+    "Service Orders": "Orden de Servicio",
+
+    dashboard: "Dashboard",
+    Dashboard: "Dashboard",
+
+    sales: "Ventas",
+    Sales: "Ventas",
+  };
+
+  const privilegeTranslations: Record<string, string> = {
+    create: "Crear",
+    read: "Ver",
+    update: "Editar",
+    delete: "Eliminar",
+
+    deactivate: "Desactivar",
+
+    all: "Todos",
+  };
+
   const groupedPermissions: Record<string, string[]> = {};
+
   role.permissions?.forEach((p) => {
-    const [module, perm] = p.split("-");
-    if (!groupedPermissions[module]) groupedPermissions[module] = [];
-    groupedPermissions[module].push(perm);
+    const [rawModule, rawPrivilege] = p.split("-");
+
+    const moduleName =
+      moduleTranslations[rawModule] ??
+      moduleTranslations[rawModule.toLowerCase()] ??
+      rawModule;
+
+    const privilegeName =
+      privilegeTranslations[rawPrivilege] ??
+      privilegeTranslations[rawPrivilege.toLowerCase()] ??
+      rawPrivilege;
+
+    if (!groupedPermissions[moduleName]) {
+      groupedPermissions[moduleName] = [];
+    }
+
+    groupedPermissions[moduleName].push(privilegeName);
   });
+
+  /** FILTRO FINAL EXACTO */
+  const filterPrivileges = (moduleName: string, privilege: string) => {
+    // Dashboard → solo Ver
+    if (moduleName === "Dashboard") return privilege === "Ver";
+
+    // Ventas → SOLO Ver, Crear, Desactivar
+    if (moduleName === "Ventas") {
+      return ["Ver", "Crear", "Desactivar"].includes(privilege);
+    }
+
+    // En todos los demás módulos → prohibir Desactivar
+    if (privilege === "Desactivar") return false;
+
+    return true;
+  };
 
   const Checkbox = ({ checked }: { checked: boolean }) => (
     <div
@@ -52,7 +148,7 @@ export default function ViewRoleModal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
-            {/* Header */}
+            {/* HEADER */}
             <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10 rounded-t-3xl">
               <h2
                 className="text-lg font-semibold"
@@ -68,7 +164,7 @@ export default function ViewRoleModal({
               </button>
             </div>
 
-            {/* Content */}
+            {/* BODY */}
             <div className="p-6 flex-1 space-y-6 overflow-hidden">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -96,11 +192,7 @@ export default function ViewRoleModal({
                   </label>
                   <input
                     type="text"
-                    value={
-                      String(role.state) === "1" || role.state === "Activo"
-                        ? "Activo"
-                        : "Inactivo"
-                    }
+                    value={role.state === "Activo" ? "Activo" : "Inactivo"}
                     readOnly
                     className="w-full px-3 py-2 border rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
                     style={{ borderColor: Colors.table.lines }}
@@ -130,23 +222,29 @@ export default function ViewRoleModal({
                       </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y">
-                    {Object.keys(groupedPermissions).map((module) => (
-                      <tr key={module}>
+                    {Object.keys(groupedPermissions).map((moduleName) => (
+                      <tr key={moduleName}>
                         <td className="px-4 py-3 font-medium text-gray-800">
-                          {module}
+                          {moduleName}
                         </td>
+
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap justify-center gap-4">
-                            {groupedPermissions[module].map((perm) => (
-                              <div
-                                key={`${module}-${perm}`}
-                                className="flex items-center gap-2"
-                              >
-                                <Checkbox checked={true} />
-                                <span className="text-sm">{perm}</span>
-                              </div>
-                            ))}
+                            {groupedPermissions[moduleName]
+                              .filter((priv) =>
+                                filterPrivileges(moduleName, priv)
+                              )
+                              .map((privilege, idx) => (
+                                <div
+                                  key={`${moduleName}-${privilege}-${idx}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Checkbox checked />
+                                  <span className="text-sm">{privilege}</span>
+                                </div>
+                              ))}
                           </div>
                         </td>
                       </tr>
@@ -156,7 +254,7 @@ export default function ViewRoleModal({
               </div>
             </div>
 
-            {/* Footer (mismo estilo que Crear, sin botón Guardar) */}
+            {/* FOOTER */}
             <div className="border-t flex justify-end gap-2 sm:gap-3 p-4 sticky bottom-0 bg-white z-10 rounded-b-3xl">
               <button
                 type="button"

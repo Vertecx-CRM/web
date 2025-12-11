@@ -5,6 +5,12 @@ export type DataTableProps<T> = {
   columns: Column<T>[];
   pageSize?: number;
   searchableKeys?: (keyof T)[];
+  actionGuard?: (row: T) => {
+    disableEdit?: boolean;
+    disableDelete?: boolean;
+    editTitle?: string;
+    deleteTitle?: string;
+  };
   onView?: (row: T) => void;
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
@@ -19,4 +25,5 @@ export type DataTableProps<T> = {
   tailHeader?: string;
   renderTail?: (row: T) => React.ReactNode;
   mobileCardView?: boolean;
+  freeze?: boolean;
 };

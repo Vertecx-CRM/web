@@ -1,145 +1,289 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import Cookies from "js-cookie";
+import { api, setAccessToken } from "@/lib/api";
+import { AuthUser } from "@/features/auth/types/AuthUser";
+import { RegisterPayload } from "@/features/auth/types/RegisterPayload";
+import {
+  getAllowedModulesFromPermissions,
+  pickPostLoginRedirect,
+} from "@/features/auth/authz";
 
-export type User = { name: string; email: string; phone?: string; avatar?: string };
-type StoredUser = User & { password: string } & Record<string, any>;
-type AuthResult = { ok: boolean; message?: string };
+type AuthResult = { ok: boolean; message?: string; redirectTo?: string };
+type AuthAction = "login" | "logout" | null;
 
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
+  profile: any | null;
   isAuthenticated: boolean;
   ready: boolean;
-  login: (email: string, password: string) => Promise<AuthResult>;
+  login: (
+    email: string,
+    password: string,
+    nextPath?: string | null
+  ) => Promise<AuthResult>;
   logout: () => void;
-  register: (input: { name: string; email: string; password: string; [k: string]: any }) => Promise<AuthResult>;
-  updateProfile: (patch: Partial<Pick<User, "name" | "phone" | "avatar">>) => Promise<AuthResult>;
+  loadUser: () => Promise<AuthUser | null>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<AuthResult>;
+  loadProfile: (userId?: number) => Promise<any | null>;
+  refreshProfile: () => Promise<any | null>;
+  refreshBasicUserData: (userId?: number) => Promise<void>;
+  updateProfile: (data: any) => Promise<AuthResult>;
+  register: (data: RegisterPayload) => Promise<AuthResult>;
+  allowedModules: string[];
+  lastAuthAction: AuthAction;
+  setLastAuthAction: (action: AuthAction) => void;
 };
-
-const SEEDED_USERS: StoredUser[] = [
-  { email: "admin@sistemaspc.com",  password: "123456",    name: "Administrador" },
-  { email: "ventas@sistemaspc.com", password: "ventas2024", name: "Ventas" },
-  { email: "soporte@sistemaspc.com", password: "soporte2024", name: "Soporte" },
-];
-
-const STORAGE_KEY_USER  = "auth.user";
-const STORAGE_KEY_USERS = "auth.users";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function loadRegisteredUsers(): StoredUser[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_USERS);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRegisteredUsers(list: StoredUser[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(list));
-  } catch {}
-}
-
-function getAllUsers(): StoredUser[] {
-  const saved = loadRegisteredUsers();
-  const savedEmails = new Set(saved.map((u) => u.email.toLowerCase()));
-  const seededFiltered = SEEDED_USERS.filter((u) => !savedEmails.has(u.email.toLowerCase()));
-  return [...saved, ...seededFiltered];
+function cookieOptions() {
+  return { path: "/", sameSite: "lax" as const };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [ready, setReady] = useState(false);
+  const [lastAuthAction, setLastAuthAction] = useState<AuthAction>(null);
+
+  const userRef = useRef<AuthUser | null>(null);
 
   useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  const loadUser = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_USER);
-      if (raw) setUser(JSON.parse(raw) as User);
-    } catch {} finally {
-      setReady(true);
+      const { data } = await api.get("/auth/me");
+      setUser(data);
+      return data as AuthUser;
+    } catch {
+      setUser(null);
+      return null;
     }
   }, []);
 
+  const loadProfile = useCallback(async (userId?: number): Promise<any | null> => {
+    const id = userId ?? (userRef.current as any)?.userid;
+    if (!id) {
+      setProfile(null);
+      return null;
+    }
+
+    try {
+      const res = await api.get(`/users/${id}`);
+      const payload = res.data?.data ?? res.data;
+      setProfile(payload);
+      return payload;
+    } catch {
+      setProfile(null);
+      return null;
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const id = (userRef.current as any)?.userid;
+    if (!id) return null;
+    return loadProfile(id);
+  }, [loadProfile]);
+
+  const refreshBasicUserData = useCallback(
+    async (userId?: number) => {
+      const id = userId ?? (userRef.current as any)?.userid;
+      if (!id) return;
+      await loadUser();
+      await loadProfile(id);
+    },
+    [loadProfile, loadUser]
+  );
+
   useEffect(() => {
-    if (!ready) return;
-    try {
-      if (user) localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-      else localStorage.removeItem(STORAGE_KEY_USER);
-    } catch {}
-  }, [user, ready]);
+    (async () => {
+      const token = Cookies.get("token");
+      if (!token) {
+        setReady(true);
+        return;
+      }
 
-  const login: AuthContextType["login"] = async (email, password) => {
-    const all = getAllUsers();
-    const found = all.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (!found || found.password !== password) return { ok: false, message: "Credenciales inválidas" };
-    setUser({ name: found.name, email: found.email, phone: found.phone, avatar: found.avatar });
-    return { ok: true };
-  };
+      setAccessToken(token);
+      const me = await loadUser();
+      if (me) await loadProfile((me as any)?.userid);
 
-  const logout = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY_USER);
-    } catch {}
+      setReady(true);
+    })();
+  }, [loadProfile, loadUser]);
+
+  const login = useCallback(
+    async (
+      email: string,
+      password: string,
+      nextPath?: string | null
+    ): Promise<AuthResult> => {
+      try {
+        const res = await api.post("/auth/login", { email, password });
+        const data = res.data;
+
+        const access = data?.access_token;
+        const refresh = data?.refresh_token;
+
+        if (!access || !refresh)
+          return { ok: false, message: "Credenciales inválidas" };
+
+        setAccessToken(access);
+        Cookies.set("token", access, cookieOptions());
+        Cookies.set("refresh", refresh, cookieOptions());
+
+        const me = await loadUser();
+        if (me) await loadProfile((me as any)?.userid);
+
+        const perms: string[] = (me as any)?.permissions || [];
+        const redirectTo =
+          pickPostLoginRedirect(perms, nextPath) || "/dashboard";
+
+        setLastAuthAction("login");
+        setReady(true);
+        return { ok: true, redirectTo };
+      } catch (err: any) {
+        setReady(true);
+        return {
+          ok: false,
+          message:
+            err?.response?.data?.message || "No se pudo iniciar sesión",
+        };
+      }
+    },
+    [loadProfile, loadUser]
+  );
+
+  const logout = useCallback(() => {
+    Cookies.remove("token", { path: "/" });
+    Cookies.remove("refresh", { path: "/" });
+    setAccessToken(null);
     setUser(null);
-  };
+    setProfile(null);
+    setLastAuthAction("logout");
+    setReady(true);
+  }, []);
 
-  const register: AuthContextType["register"] = async (input) => {
-    const name = (input?.name || "").trim();
-    const email = (input?.email || "").trim().toLowerCase();
-    const password = String(input?.password || "");
-
-    if (!name || name.length < 3) return { ok: false, message: "Ingresa un nombre válido" };
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, message: "Correo inválido" };
-    if (!password || password.length < 6) return { ok: false, message: "La contraseña debe tener al menos 6 caracteres" };
-
-    const all = getAllUsers();
-    const exists = all.some((u) => u.email.toLowerCase() === email);
-    if (exists) return { ok: false, message: "Este correo ya está registrado" };
-
-    const newUser: StoredUser = { ...input, name, email, password };
-    const nextList = [newUser, ...loadRegisteredUsers()];
-    saveRegisteredUsers(nextList);
-
-    setUser({ name, email, phone: newUser.phone, avatar: newUser.avatar });
-    return { ok: true };
-  };
-
-  const updateProfile: AuthContextType["updateProfile"] = async (patch) => {
-    if (!user) return { ok: false, message: "No autenticado" };
-    const emailKey = user.email.toLowerCase();
-    const saved = loadRegisteredUsers();
-    const idx = saved.findIndex((u) => u.email.toLowerCase() === emailKey);
-    let base: StoredUser | null =
-      idx >= 0 ? saved[idx] : SEEDED_USERS.find((u) => u.email.toLowerCase() === emailKey) ?? null;
-    if (!base) {
-      base = { email: user.email, name: user.name, password: "placeholder", phone: user.phone, avatar: user.avatar };
+  const changePassword: AuthContextType["changePassword"] = async (
+    currentPassword,
+    newPassword
+  ) => {
+    try {
+      await api.patch("/auth/change-password", {
+        currentPassword,
+        newPassword,
+        confirmNewPassword: newPassword,
+      });
+      await loadUser();
+      return { ok: true };
+    } catch (err: any) {
+      return {
+        ok: false,
+        message:
+          err?.response?.data?.message ||
+          "No se pudo actualizar la contraseña",
+      };
     }
-    const updated: StoredUser = {
-      ...base,
-      name: patch.name ?? base.name,
-      phone: patch.phone ?? base.phone,
-      avatar: patch.avatar ?? base.avatar,
-    };
-    let nextList: StoredUser[];
-    if (idx >= 0) {
-      nextList = [...saved];
-      nextList[idx] = updated;
-    } else {
-      nextList = [updated, ...saved];
-    }
-    saveRegisteredUsers(nextList);
-    const nextUser: User = { email: updated.email, name: updated.name, phone: updated.phone, avatar: updated.avatar };
-    setUser(nextUser);
-    return { ok: true };
   };
+
+  const updateProfile = useCallback(
+    async (data: any): Promise<AuthResult> => {
+      try {
+        const id = (userRef.current as any)?.userid;
+        if (!id) return { ok: false, message: "Usuario no autenticado" };
+
+        const res = await api.put(`/users/${id}`, data);
+        const result = res.data;
+
+        if (result?.success === false)
+          return { ok: false, message: result.message };
+
+        await loadUser();
+        await loadProfile(id);
+
+        return { ok: true };
+      } catch (err: any) {
+        return {
+          ok: false,
+          message:
+            err?.response?.data?.message || "Error al actualizar",
+        };
+      }
+    },
+    [loadProfile, loadUser]
+  );
+
+  const register = useCallback(
+    async (data: RegisterPayload): Promise<AuthResult> => {
+      try {
+        const res = await api.post("/users", data);
+        if (res.data?.success === false)
+          return { ok: false, message: res.data.message };
+        return { ok: true };
+      } catch (err: any) {
+        return {
+          ok: false,
+          message: err?.response?.data?.message || "No se pudo registrar",
+        };
+      }
+    },
+    []
+  );
+
+  const allowedModules = useMemo(() => {
+    const perms: string[] = (user as any)?.permissions || [];
+    if (!perms.length) return [];
+    return getAllowedModulesFromPermissions(perms);
+  }, [user]);
 
   const value = useMemo<AuthContextType>(
-    () => ({ user, isAuthenticated: !!user, ready, login, logout, register, updateProfile }),
-    [user, ready]
+    () => ({
+      user,
+      profile,
+      isAuthenticated: !!user,
+      ready,
+      login,
+      logout,
+      loadUser,
+      changePassword,
+      loadProfile,
+      refreshProfile,
+      refreshBasicUserData,
+      updateProfile,
+      register,
+      allowedModules,
+      lastAuthAction,
+      setLastAuthAction,
+    }),
+    [
+      user,
+      profile,
+      ready,
+      login,
+      logout,
+      loadUser,
+      loadProfile,
+      refreshProfile,
+      refreshBasicUserData,
+      updateProfile,
+      register,
+      allowedModules,
+      lastAuthAction,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

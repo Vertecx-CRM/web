@@ -12,6 +12,8 @@ export function MobileCardComponent<T>({
   onEdit,
   onDelete,
   onCancel,
+  onCheck,
+  actionGuard,
   renderActions,
   renderExtraActions,
   renderTail,
@@ -23,6 +25,15 @@ export function MobileCardComponent<T>({
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
   onCancel?: (row: T) => void;
+  onCheck?: (row: T) => void;
+  actionGuard?: (
+    row: T,
+  ) => {
+    disableEdit?: boolean;
+    disableDelete?: boolean;
+    editTitle?: string;
+    deleteTitle?: string;
+  };
   renderActions?: (row: T) => React.ReactNode;
   renderExtraActions?: (row: T) => React.ReactNode;
   renderTail?: (row: T) => React.ReactNode;
@@ -122,6 +133,8 @@ export function MobileCardComponent<T>({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onCancel={onCancel}
+                onCheck={onCheck}
+                actionGuard={actionGuard}
                 renderExtraActions={renderExtraActions}
                 compact={true}
               />

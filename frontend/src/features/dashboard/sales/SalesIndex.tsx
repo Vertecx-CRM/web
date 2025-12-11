@@ -1,119 +1,171 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import RequireAuth from "../../auth/requireauth";
+import {
+  Column,
+  DataTable,
+} from "@/features/dashboard/components/datatable/DataTable";
+import { ToastContainer } from "react-toastify";
+import { useSales } from "./hooks/useSales";
+import { ISale } from "./types/Sales.type";
+import Swal from "sweetalert2";
 import Modal from "../components/Modal";
-import { mockSales } from "./mocks/mockSales";
-import CreateSaleModal from "./components/CreateSales/CreateSales";
-import ViewSaleModal from "./components/ViewSalesModal/ViewSales";
-import { Sale } from "./types/typesSales";
-import { Column } from "../components/datatable/types/column.types";
-import { DataTable } from "../components/datatable/DataTable";
+import RegisterSaleForm from "./components/RegisterSale";
+import ViewSale from "./components/ViewSale";
+import { getSaleById } from "./api/sales.api";
+import { useLoader } from "@/shared/components/loader";
+
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-[spin_0.8s_linear_1]" />
+    </div>
+  );
+}
 
 export default function SalesIndex() {
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const salesHook = useSales();
+  const { sales, loading } = salesHook;
+  const { showLoader, hideLoader } = useLoader();
 
-  const columns: Column<Sale>[] = [
-    { key: "codigoVenta", header: "Código Venta" },
-    { key: "cliente", header: "Cliente" },
-    {
-      key: "fecha",
-      header: "Fecha",
-      render: (row) => {
-        const date = new Date(row.fecha as string);
-        return date.toLocaleDateString("es-CO", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
+  const [isRegisterOpen, setRegisterOpen] = useState(false);
+
+  // Nuevo: modal de detalle
+  const [isDetailOpen, setDetailOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<ISale | null>(null);
+
+  const confirmDeleteSale = useCallback((sale: ISale) => {
+    Swal.fire({
+      title: "¿Eliminar?",
+      text: `Venta ${sale.salecode}`,
+      showCancelButton: true,
+      confirmButtonColor: "#b20000",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log("Eliminar:", sale.saleid);
+      }
+    });
+  }, []);
+
+  const columns: Column<ISale>[] = useMemo(
+    () => [
+      { key: "saleid", header: "#", render: (row) => row.saleid.toString() },
+      { key: "salecode", header: "Código Venta" },
+      {
+        key: "customerid",
+        header: "Cliente",
+        render: (row) => `ID ${row.customerid}`,
       },
-    },
-    {
-      key: "total",
-      header: "Total",
-      render: (row) => (
-        <span className="font-medium text-gray-700">
-          ${row.total.toLocaleString("es-CO")}
-        </span>
-      ),
-    },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (row) => (
-        <span
-          className={`font-semibold ${
-            row.estado === "Finalizado" ? "text-green-600" : "text-red-600"
-          }`}
-        >
-          {row.estado}
-        </span>
-      ),
-    },
-  ];
+      {
+        key: "saledate",
+        header: "Fecha",
+        render: (row) => new Date(row.saledate).toLocaleDateString("es-CO"),
+      },
+      {
+        key: "totalamount",
+        header: "Total",
+        render: (row) =>
+          row.totalamount.toLocaleString("es-CO", {
+            style: "currency",
+            currency: "COP",
+          }),
+      },
+      {
+        key: "salestatus",
+        header: "Estado",
+        render: (row) => {
+          const s = row.salestatus?.toLowerCase();
+          const cls =
+            s === "completed"
+              ? "text-green-600"
+              : s === "cancelled"
+              ? "text-red-600"
+              : "text-gray-600";
+          return <span className={`${cls} font-medium`}>{row.salestatus}</span>;
+        },
+      },
+    ],
+    []
+  );
 
   return (
     <RequireAuth>
       <div className="p-6">
-        {/* 🔹 Encabezado */}
-        <h1 className="text-2xl font-bold mb-4 text-gray-800">
-          Listado de Ventas
-        </h1>
+        <ToastContainer position="bottom-right" />
+        <h1 className="text-xl font-semibold mb-4">Listado de Ventas</h1>
 
-        {/* 🔹 Tabla general */}
-        <DataTable<Sale>
-          data={mockSales}
-          columns={columns}
-          searchableKeys={["codigoVenta", "cliente", "estado", "fecha"]}
-          pageSize={5}
-          onView={(row) => {
-            setSelectedSale(row);
-            setIsDetailModalOpen(true);
-          }}
-          onCancel={(row) => console.log("🟠 Anular venta →", row)}
-          onCreate={() => setIsCreateModalOpen(true)}
-          createButtonText="Crear Venta"
-        />
+        {loading ? (
+          <Loader />
+        ) : (
+          <DataTable
+            module="sales"
+            data={sales}
+            columns={columns}
+            searchableKeys={["salecode", "salestatus"]}
+            pageSize={8}
+            onDelete={confirmDeleteSale}
+            onView={async (row) => {
+              try {
+                showLoader(); // ⬅ Mostrar loading
 
-        {/* 🔹 Modal Crear Venta */}
+                const fullSale = await getSaleById(row.saleid);
+
+                setSelectedSale(fullSale);
+                setDetailOpen(true);
+              } catch (error) {
+                Swal.fire(
+                  "Error",
+                  "No se pudo cargar el detalle de la venta",
+                  "error"
+                );
+                console.error(error);
+              } finally {
+                hideLoader(); // ⬅Ocultar loading SIEMPRE al terminar
+              }
+            }}
+            onCreate={() => setRegisterOpen(true)}
+            createButtonText="Registrar venta"
+          />
+        )}
+
+        {/* MODAL PARA REGISTRAR */}
         <Modal
-          title="Registrar Venta"
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          footer={
-            <>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="px-4 py-2 rounded-lg bg-gray-300 text-black"
-              >
-                Cancelar
-              </button>
-              <button className="px-4 py-2 rounded-lg bg-black text-white">
-                Guardar
-              </button>
-            </>
-          }
+          title="Registrar venta"
+          isOpen={isRegisterOpen}
+          onClose={() => setRegisterOpen(false)}
+          footer={null}
+          widthClass="md:max-w-6xl"
         >
-          <CreateSaleModal />
+          <RegisterSaleForm
+            hook={salesHook}
+            onClose={() => setRegisterOpen(false)}
+          />
         </Modal>
 
-        {/* 🔹 Modal Detalle de Venta */}
+        {/* MODAL DETALLE DE VENTA */}
         <Modal
-          title="Detalle de Venta"
-          isOpen={isDetailModalOpen}
-          onClose={() => setIsDetailModalOpen(false)}
+          title="Detalle de venta"
+          isOpen={isDetailOpen}
+          onClose={() => {
+            hideLoader(); // ⬅ APAGAR LOADER AL CERRAR
+            setDetailOpen(false);
+            setSelectedSale(null); // ⬅ OPCIONAL PERO LIMPIA ESTADO
+          }}
           footer={
             <button
-              onClick={() => setIsDetailModalOpen(false)}
-              className="px-4 py-2 rounded-lg bg-gray-300 text-black"
+              onClick={() => {
+                hideLoader(); // ⬅ TAMBIÉN APAGAR AQUÍ
+                setDetailOpen(false);
+                setSelectedSale(null);
+              }}
+              className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-200"
             >
               Cerrar
             </button>
           }
         >
-          {selectedSale && <ViewSaleModal sale={selectedSale} />}
+          {selectedSale && <ViewSale sale={selectedSale} />}
         </Modal>
       </div>
     </RequireAuth>

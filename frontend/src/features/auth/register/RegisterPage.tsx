@@ -1,324 +1,455 @@
 "use client";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import Nav from "@/features/landing/layout/Nav";
 import { useAuth } from "@/features/auth/authcontext";
-import React, { useEffect, useRef, useState } from "react";
-import AuthShell from "@/features/auth/layout/Authshell";
-import Portal from "@/features/auth/Components/Portal";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+import { useDocumentTypes } from "@/features/dashboard/Users/hooks/useDocumentTypes";
+import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
+import { useRouter } from "next/navigation";
 
-type DocType = "CC" | "CE" | "TI" | "PP";
+
 type FormState = {
-  docType: DocType;
-  docNumber: string;
-  fullName: string;
-  email: string;
+  name: string;
+  lastname: string;
+  typeid: string;
+  documentnumber: string;
   phone: string;
-  password: string;
-  confirm: string;
-  terms: boolean;
+  city: string;
+  zipcode: string;
+  email: string;
 };
-type Props = { embedded?: boolean };
 
-export default function RegisterPage({ embedded = false }: Props) {
+type FormErrors = Record<keyof FormState, string>;
+type FormTouched = Record<keyof FormState, boolean>;
+
+const emptyErrors: FormErrors = {
+  name: "",
+  lastname: "",
+  typeid: "",
+  documentnumber: "",
+  phone: "",
+  city: "",
+  zipcode: "",
+  email: "",
+};
+
+const emptyTouched: FormTouched = {
+  name: false,
+  lastname: false,
+  typeid: false,
+  documentnumber: false,
+  phone: false,
+  city: false,
+  zipcode: false,
+  email: false,
+};
+
+const sanitize = (v: unknown) => String(v ?? "").trim();
+const lower = (v: unknown) => sanitize(v).toLowerCase();
+const hasSpecialChars = (value: string) =>
+  /[@,.;:_{}\[\}^\]`+*~¡¿?\\'=)(/&%$#"|<>]/.test(value);
+
+function validateField(field: keyof FormState, value: string, form: FormState): string {
+  const v = sanitize(value);
+  const typeIdNum = Number(form.typeid || 0);
+  const isNit = typeIdNum === 4;
+
+  switch (field) {
+    case "name": {
+      if (!v) return isNit ? "El nombre de la empresa es obligatorio" : "El nombre es obligatorio";
+      if (!isNit && /[0-9]/.test(v)) return "El nombre no puede contener números";
+      if (hasSpecialChars(v)) return "El nombre no puede contener caracteres especiales";
+      return "";
+    }
+
+    case "lastname": {
+      if (isNit) return "";
+      if (!v) return "El apellido es obligatorio";
+      if (/[0-9]/.test(v)) return "El apellido no puede contener números";
+      if (hasSpecialChars(v)) return "El apellido no puede contener caracteres especiales";
+      return "";
+    }
+
+    case "typeid": {
+      if (!v) return "El tipo de documento es obligatorio";
+      return "";
+    }
+
+    case "documentnumber": {
+      if (!v) return "El número de documento es obligatorio";
+
+      if (!typeIdNum) return "Seleccione el tipo de documento antes de digitar el número";
+
+      if (isNit) {
+        if (!/^\d{5,12}-\d{1}$/.test(v)) return "El NIT debe tener formato válido (Ejemplo: 900123456-7)";
+        if (!v.includes("-")) return "El NIT debe incluir un guion (-)";
+        return "";
+      }
+
+      if (typeIdNum === 2) {
+        if (!/^\d{7}$/.test(v)) return "El número de PPT debe tener exactamente 7 dígitos numéricos";
+        return "";
+      }
+
+      if (typeIdNum === 3) {
+        if (!/^[A-Za-z]{2}\d{6}$/.test(v))
+          return "El pasaporte debe tener 2 letras seguidas de 6 números (Ejemplo: AB123456)";
+        return "";
+      }
+
+      if (typeIdNum === 5) {
+        if (!/^\d{9}$/.test(v)) return "La Cédula de Extranjería debe tener exactamente 9 dígitos numéricos";
+        return "";
+      }
+
+      if (typeIdNum === 6) {
+        if (!/^\d{12}$/.test(v)) return "El número de Visa (VI) debe tener exactamente 12 dígitos numéricos";
+        return "";
+      }
+
+      if (!/^\d+$/.test(v)) return "El documento solo puede contener números";
+      if (v.length > 10) return "El número de documento no puede tener más de 10 caracteres";
+      return "";
+    }
+
+    case "phone": {
+      if (!v) return isNit ? "El teléfono de la empresa es obligatorio" : "El teléfono es obligatorio";
+      if (!/^\d+$/.test(v)) return "El teléfono solo puede contener números";
+      if (v.length !== 10) return "El teléfono debe tener exactamente 10 dígitos";
+      return "";
+    }
+
+    case "city": {
+      if (!v) return "La ciudad es obligatoria";
+      if (/[0-9]/.test(v)) return "La ciudad no puede contener números";
+      if (hasSpecialChars(v)) return "La ciudad no puede contener caracteres especiales";
+      return "";
+    }
+
+    case "zipcode": {
+      if (!v) return "El código postal es obligatorio";
+      if (!/^\d+$/.test(v)) return "El código postal debe contener solo números";
+      if (v.length < 4 || v.length > 10) return "El código postal debe tener entre 4 y 10 dígitos";
+      return "";
+    }
+
+    case "email": {
+      if (!v) return isNit ? "El correo de la empresa es obligatorio" : "El correo electrónico es obligatorio";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "El formato del correo no es válido";
+      return "";
+    }
+
+    default:
+      return "";
+  }
+}
+
+function validateAll(form: FormState): FormErrors {
+  return {
+    name: validateField("name", form.name, form),
+    lastname: validateField("lastname", form.lastname, form),
+    typeid: validateField("typeid", form.typeid, form),
+    documentnumber: validateField("documentnumber", form.documentnumber, form),
+    phone: validateField("phone", form.phone, form),
+    city: validateField("city", form.city, form),
+    zipcode: validateField("zipcode", form.zipcode, form),
+    email: validateField("email", form.email, form),
+  };
+}
+
+function hasErrors(errors: FormErrors): boolean {
+  return Object.values(errors).some((e) => e !== "");
+}
+
+export default function RegisterPage() {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") || "/dashboard";
   const { register } = useAuth();
+  const { documentTypes } = useDocumentTypes();
+  const { roles } = useRoles();
 
-  const [showPwd, setShowPwd] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const [showTerms, setShowTerms] = useState(false);
-  const [canAcceptTerms, setCanAcceptTerms] = useState(false);
-  const scrollBoxRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState<FormState>({
-    docType: "CC",
-    docNumber: "",
-    fullName: "",
-    email: "",
+    name: "",
+    lastname: "",
+    typeid: "",
+    documentnumber: "",
     phone: "",
-    password: "",
-    confirm: "",
-    terms: false,
+    city: "",
+    zipcode: "",
+    email: "",
   });
 
-  const passwordsMatch = form.password === form.confirm;
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const phoneOk = /^[0-9]{7,15}$/.test(form.phone.replace(/\D/g, ""));
-  const docOk = /^[A-Za-z0-9.-]{4,20}$/.test(form.docNumber.trim());
-  const passOk = form.password.length >= 6;
+  const [errors, setErrors] = useState<FormErrors>(emptyErrors);
+  const [touched, setTouched] = useState<FormTouched>(emptyTouched);
 
-  const canSubmit =
-    form.fullName.trim().length >= 3 &&
-    emailOk &&
-    phoneOk &&
-    docOk &&
-    passOk &&
-    passwordsMatch &&
-    form.terms &&
-    !loading;
-
-  function update<K extends keyof FormState>(key: K, val: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: val }));
-  }
-
-  function handleTermsCheckbox(e: React.ChangeEvent<HTMLInputElement>) {
-    const checked = e.target.checked;
-    if (checked && !form.terms) {
-      e.preventDefault();
-      setShowTerms(true);
-    } else {
-      update("terms", false);
-    }
-  }
-
-  function onTermsScroll(e: React.UIEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
-    if (atBottom) setCanAcceptTerms(true);
-  }
-
-  useEffect(() => {
-    if (showTerms) {
-      document.body.style.overflow = "hidden";
-      setCanAcceptTerms(false);
-      requestAnimationFrame(() => {
-        if (scrollBoxRef.current) scrollBoxRef.current.scrollTop = 0;
-      });
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [showTerms]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setShowTerms(false);
-    }
-    if (showTerms) window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showTerms]);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    if (!passwordsMatch) return setMsg("Las contraseñas no coinciden");
-    if (!form.terms) return setMsg("Debes aceptar los términos y condiciones");
-    try {
-      setLoading(true);
-      const res = await register({
-        docType: form.docType,
-        docNumber: form.docNumber.trim(),
-        name: form.fullName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        password: form.password,
-      });
-      setLoading(false);
-      if (!res?.ok) return setMsg(res?.message || "No se pudo crear la cuenta");
-      router.replace(next);
-      router.refresh();
-    } catch {
-      setLoading(false);
-      setMsg("Ocurrió un error inesperado. Inténtalo de nuevo.");
-    }
-  }
-
-  const formEl = (
-    <>
-      <h1 className="mb-4 text-center text-xl font-semibold text-gray-800">Crear cuenta</h1>
-      <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit} noValidate>
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-gray-700">Tipo y número de documento</label>
-          <div className="flex gap-2">
-            <select
-              value={form.docType}
-              onChange={(e) => update("docType", e.target.value as DocType)}
-              className="w-28 rounded-md border border-gray-300 bg-gray-100 px-2 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-            >
-              <option value="CC">CC</option>
-              <option value="CE">CE</option>
-              <option value="TI">TI</option>
-              <option value="PP">PP</option>
-            </select>
-            <input
-              name="docNumber"
-              type="text"
-              inputMode="numeric"
-              placeholder="Número Documento"
-              value={form.docNumber}
-              onChange={(e) => update("docNumber", e.target.value)}
-              className="flex-1 rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-            />
-          </div>
-          {!docOk && form.docNumber.length > 0 && <p className="mt-1 text-[11px] text-red-600">Ingresa un documento válido (4–20 caracteres).</p>}
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-gray-700">Nombre completo</label>
-          <input
-            name="fullName"
-            type="text"
-            placeholder="Nombre Completo"
-            value={form.fullName}
-            onChange={(e) => update("fullName", e.target.value)}
-            className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-gray-700">Correo</label>
-          <input
-            name="email"
-            type="email"
-            placeholder="Correo"
-            value={form.email}
-            onChange={(e) => update("email", e.target.value)}
-            className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {!emailOk && form.email.length > 0 && <p className="mt-1 text-[11px] text-red-600">Correo inválido.</p>}
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-gray-700">Teléfono</label>
-          <input
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            placeholder="Teléfono"
-            value={form.phone}
-            onChange={(e) => update("phone", e.target.value.replace(/[^\d+]/g, ""))}
-            className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {!phoneOk && form.phone.length > 0 && <p className="mt-1 text-[11px] text-red-600">Ingresa un teléfono válido (7–15 dígitos).</p>}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs text-gray-700">Contraseña</label>
-          <div className="relative">
-            <input
-              name="password"
-              type={showPwd ? "text" : "password"}
-              placeholder="Contraseña"
-              value={form.password}
-              onChange={(e) => update("password", e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPwd((s) => !s)}
-              className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-            >
-              {showPwd ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
-            </button>
-          </div>
-          {!passOk && form.password.length > 0 && <p className="mt-1 text-[11px] text-red-600">Mínimo 6 caracteres.</p>}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs text-gray-700">Confirmar contraseña</label>
-          <div className="relative">
-            <input
-              name="confirm"
-              type={showConfirm ? "text" : "password"}
-              placeholder="Confirmar contraseña"
-              value={form.confirm}
-              onChange={(e) => update("confirm", e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirm((s) => !s)}
-              className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-            >
-              {showConfirm ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
-            </button>
-          </div>
-          {!passwordsMatch && form.confirm.length > 0 && <p className="mt-1 text-[11px] text-red-600">Las contraseñas no coinciden.</p>}
-        </div>
-
-        <div className="md:col-span-2 flex items-center justify-between">
-          <label className="flex items-center gap-2 text-xs text-gray-700">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-gray-300 text-[#CC0000] focus:ring-[#CC0000]"
-              checked={form.terms}
-              onChange={handleTermsCheckbox}
-            />
-            Acepto términos y condiciones
-          </label>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowTerms(true);
-            }}
-            className="text-xs text-[#CC0000]"
-          >
-            Leer términos
-          </button>
-        </div>
-
-        {msg && <div className="md:col-span-2 rounded-md bg-red-50 p-2 text-xs text-red-700">{msg}</div>}
-
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="md:col-span-2 h-9 rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:bg-[#b30000] disabled:opacity-60"
-        >
-          {loading ? "Creando cuenta..." : "Acceder"}
-        </button>
-
-        <div className="md:col-span-2 mt-1 flex items-center justify-between text-xs">
-          <span className="text-gray-600">¿Ya tienes una cuenta?</span>
-          <Link href="/auth/login" className="text-[#CC0000]">Iniciar sesión</Link>
-        </div>
-      </form>
-
-      {showTerms && (
-        <Portal>
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setShowTerms(false)}
-          >
-            <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between border-b px-4 py-3">
-                <h2 className="text-sm font-semibold text-gray-800">Términos y Condiciones de uso</h2>
-                <button type="button" onClick={() => setShowTerms(false)} className="rounded p-1 text-gray-500 hover:bg-gray-100">✕</button>
-              </div>
-              <div ref={scrollBoxRef} onScroll={onTermsScroll} className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm leading-relaxed text-gray-700">
-                {/* ...contenido... */}
-                <div className="sticky bottom-0 -mx-4 mt-6 border-t bg-white px-4 py-2 text-[11px] text-gray-500">
-                  Desplázate hasta el final para habilitar “Aceptar y continuar”.
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-                <button type="button" onClick={() => { update("terms", false); setShowTerms(false); }} className="h-9 rounded-md border px-3 text-sm text-gray-700">
-                  Rechazar
-                </button>
-                <button
-                  type="button"
-                  disabled={!canAcceptTerms}
-                  onClick={() => { update("terms", true); setShowTerms(false); }}
-                  className={`h-9 rounded-md px-3 text-sm font-semibold text-white ${canAcceptTerms ? "bg-[#CC0000]" : "bg-gray-300 cursor-not-allowed"}`}
-                >
-                  Aceptar y continuar
-                </button>
-              </div>
-            </div>
-          </div>
-        </Portal>
-      )}
-    </>
+  const clientRole = useMemo(
+    () => roles.find((r: any) => String(r?.name ?? "").toLowerCase() === "cliente"),
+    [roles]
   );
 
-  if (embedded) return formEl;
-  return <AuthShell formSide="left">{formEl}</AuthShell>;
+  const setField = (name: keyof FormState, value: string) => {
+    const nextForm = { ...form, [name]: value };
+    setForm(nextForm);
+
+    if (touched[name]) {
+      const nextError = validateField(name, value, nextForm);
+      setErrors((prev) => ({ ...prev, [name]: nextError }));
+    }
+
+    if (name === "typeid" && touched.documentnumber) {
+      const docErr = validateField("documentnumber", nextForm.documentnumber, nextForm);
+      setErrors((prev) => ({ ...prev, documentnumber: docErr }));
+    }
+  };
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const name = e.target.name as keyof FormState;
+    setField(name, e.target.value);
+  };
+
+  const onBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const name = e.target.name as keyof FormState;
+    const nextTouched = { ...touched, [name]: true };
+    setTouched(nextTouched);
+
+    const nextError = validateField(name, form[name], form);
+    setErrors((prev) => ({ ...prev, [name]: nextError }));
+
+    if (name === "typeid") {
+      const docErr = validateField("documentnumber", form.documentnumber, form);
+      setErrors((prev) => ({ ...prev, documentnumber: docErr }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!clientRole) {
+      showError("No se encontró el rol de cliente.");
+      return;
+    }
+
+    const newErrors = validateAll(form);
+    setErrors(newErrors);
+
+    const allTouched = Object.keys(emptyTouched).reduce(
+      (acc, key) => ({ ...acc, [key]: true }),
+      {} as FormTouched
+    );
+    setTouched(allTouched);
+
+    if (hasErrors(newErrors)) {
+      showError("Por favor complete los campos correctamente");
+      return;
+    }
+
+    const payload = {
+      name: sanitize(form.name),
+      lastname: sanitize(form.lastname),
+      typeid: Number(form.typeid),
+      documentnumber: sanitize(form.documentnumber),
+      phone: sanitize(form.phone),
+      email: sanitize(form.email),
+
+      roleid: clientRole.roleid,
+      stateid: 1,
+
+      customercity: sanitize(form.city),
+      customerzipcode: sanitize(form.zipcode),
+    };
+
+    setLoading(true);
+    const res = await register(payload);
+    setLoading(false);
+
+    if (res.ok) {
+      showSuccess("Cuenta creada correctamente, revise su correo");
+      router.replace("/auth/login");
+    } else {
+      showError(res.message || "Error al registrar");
+    }
+  };
+
+  const inputClass = (name: keyof FormState) => {
+    const base = "w-full h-11 mt-1 px-3 rounded-lg border bg-white outline-none";
+    const err = touched[name] && errors[name] ? " border-red-600 focus:border-red-600" : " border-gray-300 focus:border-gray-400";
+    return base + err;
+  };
+
+  const errorText = (name: keyof FormState) =>
+    touched[name] && errors[name] ? <p className="mt-1 text-xs text-red-700">{errors[name]}</p> : null;
+
+  return (
+    <div className="min-h-screen w-full bg-[#f6f3f3] flex flex-col overflow-hidden">
+      <Nav />
+
+      <div className="flex flex-col lg:flex-row flex-1 px-6 lg:px-20 items-center justify-center gap-10 py-10">
+        <div className="w-full lg:w-[55%] max-w-3xl">
+          <h2 className="text-3xl font-black mb-2">Crear cuenta</h2>
+          <p className="text-gray-600 mb-6">Regístrate para continuar.</p>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div>
+              <label className="text-sm font-semibold">Nombre</label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Tu nombre"
+                className={inputClass("name")}
+                aria-invalid={!!(touched.name && errors.name)}
+                autoComplete="given-name"
+              />
+              {errorText("name")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Apellido</label>
+              <input
+                name="lastname"
+                value={form.lastname}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Tu apellido"
+                className={inputClass("lastname")}
+                aria-invalid={!!(touched.lastname && errors.lastname)}
+                autoComplete="family-name"
+              />
+              {errorText("lastname")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Tipo de Documento</label>
+              <select
+                name="typeid"
+                value={form.typeid}
+                onChange={onChange}
+                onBlur={onBlur}
+                className={inputClass("typeid")}
+                aria-invalid={!!(touched.typeid && errors.typeid)}
+              >
+                <option value="">Seleccionar…</option>
+                {documentTypes.map((t: any) => (
+                  <option key={t.typeofdocumentid} value={t.typeofdocumentid}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {errorText("typeid")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Número</label>
+              <input
+                name="documentnumber"
+                value={form.documentnumber}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Número de documento"
+                className={inputClass("documentnumber")}
+                aria-invalid={!!(touched.documentnumber && errors.documentnumber)}
+                inputMode="text"
+                autoComplete="off"
+              />
+              {errorText("documentnumber")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Teléfono</label>
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Teléfono"
+                className={inputClass("phone")}
+                aria-invalid={!!(touched.phone && errors.phone)}
+                inputMode="numeric"
+                autoComplete="tel"
+              />
+              {errorText("phone")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Ciudad</label>
+              <input
+                name="city"
+                value={form.city}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Ciudad"
+                className={inputClass("city")}
+                aria-invalid={!!(touched.city && errors.city)}
+                autoComplete="address-level2"
+              />
+              {errorText("city")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Código Postal</label>
+              <input
+                name="zipcode"
+                value={form.zipcode}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Código postal"
+                className={inputClass("zipcode")}
+                aria-invalid={!!(touched.zipcode && errors.zipcode)}
+                inputMode="numeric"
+                autoComplete="postal-code"
+              />
+              {errorText("zipcode")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="correo@empresa.com"
+                className={inputClass("email")}
+                aria-invalid={!!(touched.email && errors.email)}
+                autoComplete="email"
+              />
+              {errorText("email")}
+            </div>
+
+            <div className="md:col-span-2 mt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 rounded-lg bg-red-700 text-white font-semibold hover:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? "Creando cuenta..." : "Crear cuenta"}
+              </button>
+
+              <p className="text-sm text-center text-gray-600 mt-3">
+                ¿Ya tienes cuenta?{" "}
+                <a href="/auth/login" className="text-red-700 font-medium hover:underline">
+                  Iniciar sesión
+                </a>
+              </p>
+            </div>
+          </form>
+        </div>
+
+        <div className="hidden lg:flex w-[40%] justify-center">
+          <Image
+            src="/assets/imgs/previewSinFondo.png"
+            alt="preview"
+            width={420}
+            height={420}
+            className="rounded-xl object-contain"
+          />
+        </div>
+      </div>
+    </div>
+  );
 }

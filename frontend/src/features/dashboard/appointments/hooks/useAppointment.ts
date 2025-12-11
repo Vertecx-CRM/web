@@ -28,191 +28,418 @@ import {
     validateAppointmentField,
     validateTimeRange,
 } from "../validations/validationAppointment";
+import { useServiceRequests, useCreateServiceRequest, useUpdateServiceRequest } from "../../requests/hooks/useServiceRequests";
+import type { ServiceRequestDTO } from "../../requests/services/servicerequests.service";
+import type { CreateRequestPayload } from "../../requests/components/CreateRequestModal";
+import type { EditRequestPayload } from "../../requests/components/EditRequestModal";
+import { buildScheduledAt } from "../../requests/utils/schedule";
+import { useAuth } from "@/features/auth/authcontext";
+import { useOrderServices, type OrderServiceDTO } from "../../OrdersServices/hooks/useOrderServices";
+
+const normalizeRoleName = (name?: string) => (name || "").toLowerCase().trim();
+
+const toNumberId = (value: any): number => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+};
+
+const mapTechniciansFromRequest = (req: ServiceRequestDTO): Technician[] => {
+    const normalizeTech = (raw: any): Technician | null => {
+        if (!raw) return null;
+        const tech = raw?.technician ?? raw;
+        const id = toNumberId(tech?.technicianid ?? tech?.technicianId ?? tech?.id);
+        if (!id) return null;
+        const first = tech?.users?.name ?? tech?.name ?? "";
+        const last = tech?.users?.lastname ?? tech?.lastname ?? "";
+        const nombre = [first, last].filter(Boolean).join(" ").trim() || `Tecnico ${id}`;
+        const titulo = tech?.title ?? tech?.users?.roles?.name ?? "Tecnico";
+        return { id, nombre, titulo };
+    };
+
+    const sources = [
+        (req as any).technicians,
+        (req as any).serviceRequestTechnicians,
+        (req as any).requestTechnicians,
+        (req as any).assignedTechnicians,
+    ];
+
+    const firstArray = sources.find((s) => Array.isArray(s)) as any[] | undefined;
+    const mapped = (firstArray ?? [])
+        .map(normalizeTech)
+        .filter((t): t is Technician => Boolean(t));
+
+    if (mapped.length > 0) return mapped;
+
+    const fallback = normalizeTech((req as any).technician);
+    if (fallback) return [fallback];
+
+    const singleId = toNumberId((req as any).technicianId ?? (req as any).technicianid);
+    if (singleId) {
+        return [{ id: singleId, nombre: `Tecnico ${singleId}`, titulo: "Tecnico" }];
+    }
+
+    return [];
+};
 
 export const useAppointments = () => {
-    const [events, setEvents] = useState<AppointmentEvent[]>([]);
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [selectedDateTime, setSelectedDateTime] = useState<SlotDateTime>({
-        horaInicio: "",
-        minutoInicio: "",
-        horaFin: "",
-        minutoFin: "",
-        dia: "",
-        mes: "",
-        año: "",
-    });
+    const { user, profile } = useAuth();
+    const { data: requestData = [], isLoading: isLoadingRequests } = useServiceRequests();
+    const { data: orderData = [], updateOrderService, isLoading: isLoadingOrders } = useOrderServices();
+    const createRequest = useCreateServiceRequest();
+    const updateRequest = useUpdateServiceRequest();
+    const roleName = normalizeRoleName(profile?.roles?.name || user?.rolename);
+    const isAdmin = roleName === "admin" || Number(user?.roleid) === 1 || Number((profile as any)?.roleid ?? (profile as any)?.roles?.roleid) === 1;
+    const technicianId = toNumberId((profile as any)?.technicians?.[0]?.technicianid ?? (user as any)?.technicianid ?? (user as any)?.technicianId);
+    const customerId = toNumberId((profile as any)?.customers?.[0]?.customerid ?? (user as any)?.customerid ?? (user as any)?.customerId ?? user?.userid);
 
-    const handleCreateAppointment = (
-        appointmentData: AppointmentFormData,
-        selectedTechs: Technician[]
-    ) => {
-        const startDate = new Date(
-            parseInt(appointmentData.año),
-            parseInt(appointmentData.mes) - 1,
-            parseInt(appointmentData.dia),
-            parseInt(appointmentData.horaInicio),
-            parseInt(appointmentData.minutoInicio)
-        );
-
-        const endDate = new Date(
-            parseInt(appointmentData.año),
-            parseInt(appointmentData.mes) - 1,
-            parseInt(appointmentData.dia),
-            parseInt(appointmentData.horaFin),
-            parseInt(appointmentData.minutoFin)
-        );
-
-        // Crear el título basado en el tipo de cita
-        let title = "";
-        if (appointmentData.tipoCita === "solicitud") {
-            const cliente = appointmentData.nombreCliente || "Nuevo cliente";
-            const servicio =
-                appointmentData.tipoServicioSolicitud === "mantenimiento"
-                    ? `Mantenimiento ${appointmentData.tipoMantenimientoSolicitud}`
-                    : "Instalación";
-            title = `[SOLICITUD] ${cliente} - ${servicio}`;
-        } else {
-            title = `[${appointmentData.tipoCita.toUpperCase()}] ${appointmentData.orden?.cliente || "Cliente"
-                } - ${appointmentData.orden?.tipoServicio || "Servicio"}`;
-        }
-
-        const newAppointment: AppointmentEvent = {
-            id: Math.max(...events.map((a) => a.id), 0) + 1,
-            ...appointmentData,
-            tecnicos: selectedTechs,
-            start: startDate,
-            end: endDate,
-            title,
-            estado: "Pendiente",
-        };
-
-        setEvents((prev) => [...prev, newAppointment]);
-        setIsCreateModalOpen(false);
-        showSuccess("Cita creada exitosamente!");
-    };
-
-    const handleReprogramAppointment = (
-        originalAppointment: AppointmentEvent,
-        newDate: SlotDateTime
-    ) => {
-        const startDate = new Date(
-            parseInt(newDate.año),
-            parseInt(newDate.mes) - 1,
-            parseInt(newDate.dia),
-            parseInt(newDate.horaInicio),
-            parseInt(newDate.minutoInicio)
-        );
-
-        const endDate = new Date(
-            parseInt(newDate.año),
-            parseInt(newDate.mes) - 1,
-            parseInt(newDate.dia),
-            parseInt(newDate.horaFin),
-            parseInt(newDate.minutoFin)
-        );
-
-        const newTitle =
-            /\(Cancelada\)/i.test(originalAppointment.title)
-                ? originalAppointment.title.replace(/\(Cancelada\)/i, "(Reprogramada)")
-                : `${originalAppointment.title} (Reprogramada)`;
-
-        const newAppointment: AppointmentEvent = {
-            ...originalAppointment,
-            id: Math.max(...events.map((a) => a.id), 0) + 1,
-            start: startDate,
-            end: endDate,
-            dia: newDate.dia,
-            mes: newDate.mes,
-            año: newDate.año,
-            horaInicio: newDate.horaInicio,
-            minutoInicio: newDate.minutoInicio,
-            horaFin: newDate.horaFin,
-            minutoFin: newDate.minutoFin,
-            estado: "Pendiente",
-            subestado: "Reprogramada",
-            motivoCancelacion: undefined,
-            title: newTitle,
-        };
-
-        setEvents((prev) => [...prev, newAppointment]);
-        showSuccess("Cita reprogramada exitosamente!");
-    };
-
-    const handleCancelAppointment = (appointment: AppointmentEvent, reason: string) => {
-        const cancelTime = new Date();
-
-        setEvents((prev) =>
-            prev.map((ev) =>
-                ev.id === appointment.id
-                    ? {
-                        ...ev,
-                        estado: "Cancelado",
-                        motivoCancelacion: reason,
-                        horaCancelacion: cancelTime,
-                        title: `${ev.title} (Cancelada)`,
-                    }
-                    : ev
-            )
-        );
-    };
-
-    const closeModals = () => setIsCreateModalOpen(false);
-
-    const openCreateModal = (dateTime: SlotDateTime) => {
-        setSelectedDateTime(dateTime);
-        setIsCreateModalOpen(true);
-    };
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const now = new Date();
-
-            setEvents((prev) =>
-                prev.map((appt) => {
-                    const start = new Date(appt.start);
-                    const end = new Date(appt.end);
-
-                    if (
-                        appt.estado === "Pendiente" &&
-                        now >= start &&
-                        now <= end
-                    ) {
-                        return { ...appt, estado: "En-proceso" };
-                    }
-
-                    if (appt.estado === "En-proceso" && now > end) {
-                        return { ...appt, estado: "Finalizado" };
-                    }
-
-                    return appt;
-                })
-            );
-        }, 60 * 1000);
-
-        return () => clearInterval(interval);
+    const normalizeServiceType = useCallback((value?: string): "mantenimiento" | "instalacion" => {
+        const lower = String(value || "").toLowerCase();
+        return lower.includes("instal") ? "instalacion" : "mantenimiento";
     }, []);
 
-    const handleUpdateAppointment = (updated: AppointmentEvent) => {
-        setEvents(prev =>
-            prev.map(ev => (ev.id === updated.id ? { ...ev, ...updated } : ev))
-        );
+    const mapEstado = useCallback((stateName?: string) => {
+        const lower = String(stateName || "").toLowerCase();
+        if (lower.includes("cancel")) return "Cancelado";
+        if (lower.includes("final")) return "Finalizado";
+        if (lower.includes("proceso")) return "En-proceso";
+        if (lower.includes("cerr")) return "Cerrado";
+        return "Pendiente";
+    }, []);
+
+    const mapTechniciansFromOrder = useCallback((order: OrderServiceDTO): Technician[] => {
+        const technicians = Array.isArray(order.technicians) ? order.technicians : [];
+
+        return technicians
+            .map((tech) => {
+                if (!tech?.technicianid) return null;
+                const first = tech.users?.name ?? "";
+                const last = tech.users?.lastname ?? "";
+                const nombre = [first, last].filter(Boolean).join(" ").trim() || `Tecnico ${tech.technicianid}`;
+                return {
+                    id: tech.technicianid,
+                    nombre,
+                    titulo: "Tecnico",
+                };
+            })
+            .filter((t): t is Technician => Boolean(t));
+    }, []);
+
+    const orderToEvent = useCallback((order: OrderServiceDTO): AppointmentEvent => {
+        const start = buildOrderDateTime(order.fechainicio, order.horainicio);
+        const end = buildOrderDateTime(order.fechafin, order.horafin);
+
+        const clientNameParts = [
+            order.client?.users?.name ?? "",
+            order.client?.users?.lastname ?? "",
+        ].filter(Boolean);
+
+        const clientName = clientNameParts.length
+            ? clientNameParts.join(" ")
+            : order.client
+                ? `Cliente ${order.client.customerid ?? order.client.userid ?? order.ordersservicesid}`
+                : "Cliente";
+
+        const materiales = (order.products ?? []).map((item) => ({
+            id: item.product?.productid ?? item.ordersservicesproductsid,
+            nombre: item.product?.productname ?? "Material",
+            cantidad: item.cantidad,
+        }));
+
+        const assignedTechnicians = mapTechniciansFromOrder(order);
+        const estado = mapEstado(order.state?.name ?? "");
+        const tipoServicio = "mantenimiento";
+        const servicioLabel = order.description?.trim() || "Orden de servicio";
+
+        return {
+            id: order.ordersservicesid,
+            title: `[ORDEN] ${clientName} - ${servicioLabel}`,
+            start,
+            end,
+            tecnicos: assignedTechnicians,
+            horaInicio: start.getHours().toString().padStart(2, "0"),
+            minutoInicio: start.getMinutes().toString().padStart(2, "0"),
+            horaFin: end.getHours().toString().padStart(2, "0"),
+            minutoFin: end.getMinutes().toString().padStart(2, "0"),
+            dia: start.getDate().toString(),
+            mes: (start.getMonth() + 1).toString(),
+            ano: start.getFullYear().toString(),
+            observaciones: order.description ?? "",
+            estado,
+            tipoCita: "orden",
+            nombreCliente: clientName,
+            direccion: order.client?.customercity ?? "",
+            tipoServicioSolicitud: tipoServicio,
+            servicio: servicioLabel,
+            descripcion: order.description ?? "",
+            materiales,
+            clientId: order.client?.customerid,
+            stateId: order.state?.stateid,
+            scheduledAt: start.toISOString(),
+            orden: {
+                id: String(order.ordersservicesid),
+                tipoServicio,
+                tipoMantenimiento: undefined,
+                monto: order.total ?? 0,
+                cliente: clientName,
+                lugar: order.client?.customercity ?? "",
+                materiales,
+            },
+            serviceOrderId: order.ordersservicesid,
+        };
+    }, [mapEstado, mapTechniciansFromOrder]);
+
+    const slotToDate = (slot?: SlotDateTime | null) => {
+        if (!slot) return null;
+        const year = parseInt(((slot as any).ano ?? (slot as any)["ano"] ?? "0") as string);
+        const month = parseInt(slot.mes || "0");
+        const day = parseInt(slot.dia || "0");
+        const hour = parseInt(slot.horaInicio || "0");
+        const minute = parseInt(slot.minutoInicio || "0");
+        if ([year, month, day].some((n) => Number.isNaN(n) || n === 0)) return null;
+        return new Date(year, month - 1, day, hour, minute, 0, 0);
     };
 
-
+    const getDateParts = (date: Date) => {
+    const pad = (v: number) => String(v).padStart(2, "0");
     return {
-        events,
-        isCreateModalOpen,
-        openCreateModal,
-        selectedDateTime,
-        handleCreateAppointment,
-        closeModals,
-        handleReprogramAppointment,
-        handleCancelAppointment,
-        handleUpdateAppointment
+        date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+        time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
     };
 };
 
-// Hook para el formulario de creación actualizado
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const buildOrderDateTime = (dateValue?: string | Date | null, timeValue?: string | null) => {
+    const base = dateValue ? new Date(dateValue) : new Date();
+    const [hours, minutes, seconds] = (timeValue ?? "")
+        .split(":")
+        .map((part) => Number(part));
+
+    if (Number.isFinite(hours)) {
+        const normalizedMinutes = Number.isFinite(minutes) ? minutes : 0;
+        const normalizedSeconds = Number.isFinite(seconds) ? seconds : 0;
+        base.setHours(hours, normalizedMinutes, normalizedSeconds, 0);
+    }
+
+    return base;
+};
+
+const formatOrderDate = (date: Date) => date.toISOString().split("T")[0];
+const formatOrderTime = (date: Date) => `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+
+    const requestToEvent = useCallback((req: ServiceRequestDTO): AppointmentEvent => {
+        const start = req.scheduledAt ? new Date(req.scheduledAt) : req.createdAt ? new Date(req.createdAt) : new Date();
+        const end = new Date(start.getTime() + 60 * 60 * 1000);
+        const serviceName = req.service?.name ?? req.serviceType ?? "Servicio";
+        const clientName =
+            [req.customer?.users?.name ?? req.customer?.name ?? "", req.customer?.users?.lastname ?? req.customer?.lastname ?? ""]
+                .filter(Boolean)
+                .join(" ") || "Cliente";
+        const tipoServicio = normalizeServiceType(req.serviceType);
+        const clientId = toNumberId(req.clientId ?? (req.customer as any)?.customerid ?? (req.customer as any)?.id);
+        const tecnicosAsignados = mapTechniciansFromRequest(req);
+
+        return {
+            id: Number(req.serviceRequestId),
+            requestId: Number(req.serviceRequestId),
+            serviceId: req.serviceId,
+            clientId,
+            stateId: req.stateId,
+            scheduledAt: req.scheduledAt ?? null,
+            start,
+            end,
+            title: `Solicitud #${req.serviceRequestId} - ${clientName}`,
+            tecnicos: tecnicosAsignados,
+            horaInicio: start.getHours().toString().padStart(2, "0"),
+            minutoInicio: start.getMinutes().toString().padStart(2, "0"),
+            horaFin: end.getHours().toString().padStart(2, "0"),
+            minutoFin: end.getMinutes().toString().padStart(2, "0"),
+            dia: start.getDate().toString(),
+            mes: (start.getMonth() + 1).toString(),
+            ano: start.getFullYear().toString(),
+            observaciones: req.description ?? "",
+            estado: mapEstado(req.state?.name ?? ""),
+            tipoCita: "solicitud",
+            nombreCliente: clientName,
+            direccion: req.customer?.customercity ?? "",
+            tipoServicioSolicitud: tipoServicio,
+            servicio: serviceName,
+            descripcion: req.description ?? "",
+            orden: {
+                id: String(req.serviceRequestId),
+                tipoServicio: tipoServicio,
+                tipoMantenimiento: undefined,
+                monto: req.service?.price ?? 0,
+                cliente: clientName,
+                lugar: req.customer?.customercity ?? "",
+            },
+        };
+    }, [mapEstado, normalizeServiceType]);
+
+    const mappedEvents = useMemo(() => {
+        const list = Array.isArray(requestData) ? requestData : [];
+        return list.map(requestToEvent);
+    }, [requestData, requestToEvent]);
+
+    const orderEvents = useMemo(() => {
+        const list = Array.isArray(orderData) ? orderData : [];
+        return list.map(orderToEvent);
+    }, [orderData, orderToEvent]);
+
+    const events = useMemo(() => {
+        const combined = [...mappedEvents, ...orderEvents];
+
+        if (isAdmin) return combined;
+
+        if (roleName === "cliente") {
+            if (!customerId) return [];
+            return combined.filter((ev) => toNumberId(ev.clientId ?? (ev as any)?.clienteId) === customerId);
+        }
+
+        if (roleName === "tecnico") {
+            if (!technicianId) return [];
+            return combined.filter((ev) => {
+                const ids = (ev.tecnicos || []).map((t) => t.id).filter((id) => Number.isFinite(id));
+                if (ids.includes(technicianId)) return true;
+                const fallbackTechId = toNumberId((ev as any)?.technicianId ?? (ev as any)?.technicianid);
+                return fallbackTechId === technicianId;
+            });
+        }
+
+        return combined;
+    }, [mappedEvents, orderEvents, isAdmin, roleName, customerId, technicianId]);
+
+    const handleCreateAppointment = async (
+        payload: CreateRequestPayload,
+        slot?: SlotDateTime | null
+    ) => {
+        const slotDate = slotToDate(slot);
+        const fallbackDate = slotDate ?? new Date();
+        const parts = getDateParts(fallbackDate);
+
+        const scheduledAt = buildScheduledAt(
+            payload.programada ?? parts.date,
+            payload.horaProgramada ?? parts.time,
+            fallbackDate
+        );
+
+        await createRequest.mutateAsync({
+            scheduledAt: scheduledAt ?? undefined,
+            serviceType: payload.tipos?.[0] ? payload.tipos[0].toUpperCase() : "MANTENIMIENTO",
+            description: payload.descripcion?.trim() ?? "",
+            stateId: 1,
+            serviceId: parseInt(payload.servicio),
+            clientId: parseInt(payload.cliente),
+        });
+        showSuccess("Solicitud creada y agendada");
+    };
+
+    const handleUpdateRequest = async (
+        id: number,
+        payload: EditRequestPayload,
+        currentAppointment?: AppointmentEvent | null
+    ) => {
+        const fallbackDate = currentAppointment?.start ? new Date(currentAppointment.start) : new Date();
+        const parts = getDateParts(fallbackDate);
+        const scheduledAt = buildScheduledAt(
+            payload.programada ?? parts.date,
+            payload.horaProgramada ?? parts.time,
+            fallbackDate
+        );
+
+        await updateRequest.mutateAsync({
+            id,
+            payload: {
+                scheduledAt: scheduledAt ?? undefined,
+                serviceType: payload.tipos?.[0] ? payload.tipos[0].toUpperCase() : undefined,
+                description: payload.descripcion?.trim(),
+                stateId: payload.estado ? parseInt(payload.estado) : undefined,
+                serviceId: payload.servicio ? parseInt(payload.servicio) : undefined,
+                clientId: payload.cliente ? parseInt(payload.cliente) : undefined,
+            }
+        });
+        showSuccess("Solicitud actualizada");
+    };
+
+    const handleUpdateAppointment = async (updated: AppointmentEvent) => {
+        const startDate = updated.start instanceof Date ? updated.start : new Date(updated.start);
+        const endDate = updated.end instanceof Date ? updated.end : new Date(updated.end);
+
+        if (updated.serviceOrderId) {
+            await updateOrderService.mutateAsync({
+                id: updated.serviceOrderId,
+                payload: {
+                    fechainicio: formatOrderDate(startDate),
+                    fechafin: formatOrderDate(endDate),
+                    horainicio: formatOrderTime(startDate),
+                    horafin: formatOrderTime(endDate),
+                },
+            });
+            showSuccess("Orden actualizada");
+            return;
+        }
+
+        await updateRequest.mutateAsync({
+            id: Number(updated.requestId ?? updated.id),
+            payload: { scheduledAt: startDate.toISOString() },
+        });
+    };
+
+    const handleReprogramAppointment = async (
+        appointment: AppointmentEvent,
+        newDate: { start: Date; end: Date }
+    ) => {
+        if (appointment.serviceOrderId) {
+            await updateOrderService.mutateAsync({
+                id: appointment.serviceOrderId,
+                payload: {
+                    fechainicio: formatOrderDate(newDate.start),
+                    fechafin: formatOrderDate(newDate.end),
+                    horainicio: formatOrderTime(newDate.start),
+                    horafin: formatOrderTime(newDate.end),
+                },
+            });
+            showSuccess("Orden reprogramada");
+            return;
+        }
+
+        await updateRequest.mutateAsync({
+            id: Number(appointment.requestId ?? appointment.id),
+            payload: { scheduledAt: newDate.start.toISOString() },
+        });
+        showSuccess("Solicitud reprogramada");
+    };
+
+    const handleCancelAppointment = async (appointment: AppointmentEvent, _reason?: string) => {
+        if (appointment.serviceOrderId) {
+            showWarning("La cancelaci�n de �rdenes se realiza desde el m�dulo de �rdenes.");
+            return;
+        }
+
+        await updateRequest.mutateAsync({
+            id: Number(appointment.requestId ?? appointment.id),
+            payload: { stateId: 4 }
+        });
+        showInfo("Solicitud cancelada");
+    };
+
+    const isLoading = isLoadingRequests || isLoadingOrders;
+
+    return {
+        events,
+        isLoading,
+        isCreateModalOpen: false,
+        openCreateModal: () => { },
+        selectedDateTime: { horaInicio: "", minutoInicio: "", horaFin: "", minutoFin: "", dia: "", mes: "", ano: "" },
+        handleCreateAppointment,
+        closeModals: () => { },
+        handleReprogramAppointment,
+        handleCancelAppointment,
+        handleUpdateAppointment,
+        handleUpdateRequest
+    };
+};
+// Hook para el formulario de creacin actualizado
 export const useCreateAppointmentForm = ({
     isOpen,
     onClose,
@@ -226,7 +453,7 @@ export const useCreateAppointmentForm = ({
         minutoFin: selectedDateTime.minutoFin || "",
         dia: selectedDateTime.dia || "",
         mes: selectedDateTime.mes || "",
-        año: selectedDateTime.año || "",
+        ano: selectedDateTime.ano || "",
         tecnicos: [],
         orden: null,
         observaciones: "",
@@ -264,7 +491,7 @@ export const useCreateAppointmentForm = ({
                 minutoFin: selectedDateTime.minutoFin || "",
                 dia: selectedDateTime.dia || "",
                 mes: selectedDateTime.mes || "",
-                año: selectedDateTime.año || "",
+                ano: selectedDateTime.ano || "",
                 tecnicos: [],
                 orden: null,
                 observaciones: "",
@@ -289,7 +516,7 @@ export const useCreateAppointmentForm = ({
         }
     }, [isOpen, selectedDateTime]);
 
-    //EFECT 2 Efecto para calcular hora final automáticamente
+    //EFECT 2 Efecto para calcular hora final automticamente
     useEffect(() => {
         if (
             (!formData.horaFin || !formData.minutoFin) &&
@@ -363,7 +590,7 @@ export const useCreateAppointmentForm = ({
     useEffect(() => {
         if (
             selectedOrdenServicio &&
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia")
+            formData.tipoCita === "orden"
         ) {
             setFormData((prev) => ({
                 ...prev,
@@ -386,7 +613,7 @@ export const useCreateAppointmentForm = ({
         }
     }, [selectedOrdenServicio, formData.tipoCita]);
 
-    // Agrega esta función para manejar el comprobante de pago
+    // Agrega esta funcin para manejar el comprobante de pago
     const handleComprobantePagoChange = (
         e: React.ChangeEvent<HTMLInputElement>
     ) => {
@@ -482,9 +709,9 @@ export const useCreateAppointmentForm = ({
             if (technician && !selectedTechnicians.find((t) => t.id === techId)) {
                 setSelectedTechnicians((prev) => [...prev, technician]);
                 setTechnicianError(null);
-                showInfo(`Técnico ${technician.nombre} agregado`);
+                showInfo(`Tcnico ${technician.nombre} agregado`);
             } else {
-                showWarning("Este técnico ya fue seleccionado");
+                showWarning("Este tcnico ya fue seleccionado");
             }
         }
     };
@@ -495,12 +722,12 @@ export const useCreateAppointmentForm = ({
 
         const error =
             selectedTechnicians.length === 1
-                ? "Debe seleccionar al menos un técnico"
+                ? "Debe seleccionar al menos un tcnico"
                 : null;
         setTechnicianError(error);
 
         if (technician) {
-            showWarning(`Técnico ${technician.nombre} removido`);
+            showWarning(`Tcnico ${technician.nombre} removido`);
         }
     };
 
@@ -536,31 +763,31 @@ export const useCreateAppointmentForm = ({
     const validateForm = (): boolean => {
         const newErrors: AppointmentErrors = {};
 
-        // Validaciones básicas de fecha y hora
+        // Validaciones bsicas de fecha y hora
         if (!formData.horaInicio)
             newErrors.horaInicio = "Hora de inicio es requerida";
         if (!formData.minutoInicio)
             newErrors.minutoInicio = "Minuto de inicio es requerido";
-        if (!formData.dia) newErrors.dia = "Día es requerido";
+        if (!formData.dia) newErrors.dia = "Da es requerido";
         if (!formData.mes) newErrors.mes = "Mes es requerido";
-        if (!formData.año) newErrors.año = "Año es requerido";
+        if (!formData.ano) newErrors.ano = "Ano es requerido";
         if (!formData.tipoCita) newErrors.tipoCita = "Tipo de cita es requerido";
 
-        // Validación de técnicos
+        // Validacin de tcnicos
         const techError =
             selectedTechnicians.length === 0
-                ? "Debe seleccionar al menos un técnico"
+                ? "Debe seleccionar al menos un tcnico"
                 : null;
         setTechnicianError(techError);
 
-        // Validaciones específicas por tipo de cita
+        // Validaciones especficas por tipo de cita
         if (formData.tipoCita === "solicitud") {
             if (!selectedSolicitud && !formData.nombreCliente?.trim()) {
                 newErrors.nombreCliente =
                     "Seleccione una solicitud o ingrese el nombre del cliente";
             }
             if (!selectedSolicitud && !formData.direccion?.trim()) {
-                newErrors.direccion = "La dirección es requerida";
+                newErrors.direccion = "La direccin es requerida";
             }
             if (!selectedSolicitud && !formData.tipoServicioSolicitud) {
                 newErrors.tipoServicioSolicitud = "El tipo de servicio es requerido";
@@ -574,8 +801,7 @@ export const useCreateAppointmentForm = ({
                     "El tipo de mantenimiento es requerido";
             }
         } else if (
-            formData.tipoCita === "ejecucion" ||
-            formData.tipoCita === "garantia"
+            formData.tipoCita === "orden"
         ) {
             if (!selectedOrdenServicio) {
                 newErrors.orden = "Debe seleccionar una orden de servicio";
@@ -590,9 +816,9 @@ export const useCreateAppointmentForm = ({
         e.preventDefault();
 
         // Validar domingo
-        if (formData.dia && formData.mes && formData.año) {
+        if (formData.dia && formData.mes && formData.ano) {
             const fecha = new Date(
-                parseInt(formData.año),
+                parseInt(formData.ano),
                 parseInt(formData.mes) - 1,
                 parseInt(formData.dia)
             );
@@ -612,7 +838,7 @@ export const useCreateAppointmentForm = ({
             return;
         }
 
-        // Crear orden automática si es solicitud sin selección
+        // Crear orden automtica si es solicitud sin seleccin
         let ordenParaGuardar = formData.orden;
 
         if (formData.tipoCita === "solicitud" && !selectedSolicitud) {
@@ -625,7 +851,7 @@ export const useCreateAppointmentForm = ({
                 lugar: formData.direccion!,
             };
         } else if (
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") &&
+            formData.tipoCita === "orden" &&
             selectedOrdenServicio
         ) {
             ordenParaGuardar = {
@@ -639,14 +865,14 @@ export const useCreateAppointmentForm = ({
             };
         }
 
-        // Crear título
+        // Crear ttulo
         let title = "";
         if (formData.tipoCita === "solicitud") {
             const cliente = formData.nombreCliente || "Nuevo cliente";
             const servicio =
                 formData.tipoServicioSolicitud === "mantenimiento"
                     ? `Mantenimiento ${formData.tipoMantenimientoSolicitud}`
-                    : "Instalación";
+                    : "Instalacin";
             title = `[SOLICITUD] ${cliente} - ${servicio}`;
         } else {
             title = `[${formData.tipoCita.toUpperCase()}] ${ordenParaGuardar?.cliente || "Cliente"
@@ -654,7 +880,7 @@ export const useCreateAppointmentForm = ({
         }
 
         const startDate = new Date(
-            parseInt(formData.año),
+            parseInt(formData.ano),
             parseInt(formData.mes) - 1,
             parseInt(formData.dia),
             parseInt(formData.horaInicio),
@@ -662,7 +888,7 @@ export const useCreateAppointmentForm = ({
         );
 
         const endDate = new Date(
-            parseInt(formData.año),
+            parseInt(formData.ano),
             parseInt(formData.mes) - 1,
             parseInt(formData.dia),
             parseInt(formData.horaFin),
@@ -683,8 +909,6 @@ export const useCreateAppointmentForm = ({
             title: title,
             comprobantePago: comprobantePago,
         });
-
-        showSuccess("Cita creada exitosamente");
         onClose();
     };
 
@@ -729,7 +953,7 @@ export const useEditAppointmentForm = ({
         minutoFin: "",
         dia: "",
         mes: "",
-        año: "",
+        ano: "",
         orden: null,
         observaciones: "",
         motivoCancelacion: "",
@@ -765,7 +989,6 @@ export const useEditAppointmentForm = ({
 
     const prevTipoCita = useRef<string | undefined>(undefined);
 
-    // EFECT 7: Efecto para inicializar los datos cuando llega el appointment (CORREGIDO)
     useEffect(() => {
         if (appointment && appointment.id) {
             console.log("=== INICIALIZANDO EDITAR CITA - EFECT 7 ===");
@@ -773,45 +996,35 @@ export const useEditAppointmentForm = ({
             let initialSolicitud: SolicitudOrden | null = null;
             let initialOrdenServicio: OrdenServicio | null = null;
 
-            // 1. BUSCAR LA ORDEN VINCULADA
             if (appointment.orden && appointment.orden.id) {
                 const orderId = appointment.orden.id.toString();
 
                 if (appointment.tipoCita === "solicitud") {
                     initialSolicitud =
                         solicitudesOrden.find((s) => s.id.toString() === orderId) || null;
-                } else if (
-                    appointment.tipoCita === "ejecucion" ||
-                    appointment.tipoCita === "garantia"
-                ) {
+                } else if (appointment.tipoCita === "orden") {
                     initialOrdenServicio =
                         ordenesServicio.find((o) => o.id.toString() === orderId) || null;
                 }
             }
 
-            // 2. INICIALIZAR formData con TODOS los campos del appointment
             setFormData({
-                // Copia todos los campos, incluyendo nombreCliente, direccion, etc.
                 ...appointment,
 
-                // Aseguramos que los campos de fecha/hora sean strings
                 horaInicio: appointment.horaInicio || "",
                 minutoInicio: appointment.minutoInicio || "",
                 horaFin: appointment.horaFin || "",
                 minutoFin: appointment.minutoFin || "",
                 dia: appointment.dia || "",
                 mes: appointment.mes || "",
-                año: appointment.año || "",
+                ano: appointment.ano || "",
 
-                // El campo 'orden' se inicializa con el objeto Order que trae el appointment
                 orden: appointment.orden || null,
             });
 
-            // 3. INICIALIZAR selectedSolicitud/selectedOrdenServicio
             setSelectedSolicitud(initialSolicitud);
             setSelectedOrdenServicio(initialOrdenServicio);
 
-            // 4. INICIALIZAR otros estados
             setSelectedTechnicians(appointment.tecnicos || []);
             setEvidencia(appointment.evidencia || null);
             setComprobantePago(appointment.comprobantePago || null);
@@ -820,14 +1033,12 @@ export const useEditAppointmentForm = ({
             setTechnicianError(null);
             setTouched({});
 
-            // CAMBIO 2: Inicializar la referencia para evitar limpieza inmediata
             if (appointment.tipoCita) {
                 prevTipoCita.current = appointment.tipoCita;
             }
         }
     }, [appointment, solicitudesOrden, ordenesServicio]);
 
-    // EFECT 8: Efecto para calcular hora final automáticamente (SIN CAMBIOS)
     useEffect(() => {
         if (
             (!formData.horaFin || !formData.minutoFin) &&
@@ -847,7 +1058,6 @@ export const useEditAppointmentForm = ({
         }
     }, [formData.horaInicio, formData.minutoInicio]);
 
-    // EFECT 9: Efecto para resetear tipoMantenimientoSolicitud cuando cambia tipoServicioSolicitud (SIN CAMBIOS)
     useEffect(() => {
         if (formData.tipoServicioSolicitud !== "mantenimiento") {
             setFormData((prev) => ({
@@ -857,10 +1067,7 @@ export const useEditAppointmentForm = ({
         }
     }, [formData.tipoServicioSolicitud]);
 
-    // EFECT 10: Limpieza al cambiar el tipo de cita (SIN CAMBIOS en la lógica, solo depende de la inicialización correcta de useRef en el EFECT 7)
     useEffect(() => {
-        // Si la referencia (prevTipoCita) no coincide con el tipoCita actual,
-        // significa que el usuario lo cambió y hay que limpiar.
         if (prevTipoCita.current !== formData.tipoCita) {
             setSelectedSolicitud(null);
             setSelectedOrdenServicio(null);
@@ -875,7 +1082,7 @@ export const useEditAppointmentForm = ({
                 descripcion: "",
             }));
         }
-        // Actualizar la referencia para el próximo cambio
+        // Actualizar la referencia para el prximo cambio
         prevTipoCita.current = formData.tipoCita;
     }, [formData.tipoCita]);
     // EFECT 11: Efecto para cargar datos de solicitud seleccionada (SIN CAMBIOS)
@@ -905,7 +1112,7 @@ export const useEditAppointmentForm = ({
     useEffect(() => {
         if (
             selectedOrdenServicio &&
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia")
+            formData.tipoCita === "orden"
         ) {
             setFormData((prev) => ({
                 ...prev,
@@ -1011,9 +1218,9 @@ export const useEditAppointmentForm = ({
             if (technician && !selectedTechnicians.find((t) => t.id === techId)) {
                 setSelectedTechnicians((prev) => [...prev, technician]);
                 setTechnicianError(null);
-                showInfo(`Técnico ${technician.nombre} agregado`);
+                showInfo(`Tcnico ${technician.nombre} agregado`);
             } else {
-                showWarning("Este técnico ya fue seleccionado");
+                showWarning("Este tcnico ya fue seleccionado");
             }
         }
     };
@@ -1024,12 +1231,12 @@ export const useEditAppointmentForm = ({
 
         const error =
             selectedTechnicians.length === 1
-                ? "Debe seleccionar al menos un técnico"
+                ? "Debe seleccionar al menos un tcnico"
                 : null;
         setTechnicianError(error);
 
         if (technician) {
-            showWarning(`Técnico ${technician.nombre} removido`);
+            showWarning(`Tcnico ${technician.nombre} removido`);
         }
     };
 
@@ -1098,9 +1305,9 @@ export const useEditAppointmentForm = ({
         if (newEstado === "Cancelado" && !formData.motivoCancelacion?.trim()) {
             setErrors((prev) => ({
                 ...prev,
-                motivoCancelacion: "Debe indicar el motivo de la cancelación",
+                motivoCancelacion: "Debe indicar el motivo de la cancelacin",
             }));
-            showError("Debe indicar el motivo de la cancelación");
+            showError("Debe indicar el motivo de la cancelacin");
         } else if (newEstado !== "Cancelado") {
             setErrors((prev) => ({ ...prev, motivoCancelacion: undefined }));
         }
@@ -1109,31 +1316,31 @@ export const useEditAppointmentForm = ({
     const validateForm = (): boolean => {
         const newErrors: AppointmentErrors = {};
 
-        // Validaciones básicas de fecha y hora
+        // Validaciones bsicas de fecha y hora
         if (!formData.horaInicio)
             newErrors.horaInicio = "Hora de inicio es requerida";
         if (!formData.minutoInicio)
             newErrors.minutoInicio = "Minuto de inicio es requerido";
-        if (!formData.dia) newErrors.dia = "Día es requerido";
+        if (!formData.dia) newErrors.dia = "Da es requerido";
         if (!formData.mes) newErrors.mes = "Mes es requerido";
-        if (!formData.año) newErrors.año = "Año es requerido";
+        if (!formData.ano) newErrors.ano = "Ano es requerido";
         if (!formData.tipoCita) newErrors.tipoCita = "Tipo de cita es requerido";
 
-        // Validación de técnicos
+        // Validacin de tcnicos
         const techError =
             selectedTechnicians.length === 0
-                ? "Debe seleccionar al menos un técnico"
+                ? "Debe seleccionar al menos un tcnico"
                 : null;
         setTechnicianError(techError);
 
-        // Validaciones específicas por tipo de cita
+        // Validaciones especficas por tipo de cita
         if (formData.tipoCita === "solicitud") {
             if (!selectedSolicitud && !formData.nombreCliente?.trim()) {
                 newErrors.nombreCliente =
                     "Seleccione una solicitud o ingrese el nombre del cliente";
             }
             if (!selectedSolicitud && !formData.direccion?.trim()) {
-                newErrors.direccion = "La dirección es requerida";
+                newErrors.direccion = "La direccin es requerida";
             }
             if (!selectedSolicitud && !formData.tipoServicioSolicitud) {
                 newErrors.tipoServicioSolicitud = "El tipo de servicio es requerido";
@@ -1147,8 +1354,7 @@ export const useEditAppointmentForm = ({
                     "El tipo de mantenimiento es requerido";
             }
         } else if (
-            formData.tipoCita === "ejecucion" ||
-            formData.tipoCita === "garantia"
+            formData.tipoCita === "orden"
         ) {
             if (!selectedOrdenServicio) {
                 newErrors.orden = "Debe seleccionar una orden de servicio";
@@ -1163,9 +1369,9 @@ export const useEditAppointmentForm = ({
         if (e) e.preventDefault();
 
         // Validar domingo
-        if (formData.dia && formData.mes && formData.año) {
+        if (formData.dia && formData.mes && formData.ano) {
             const fecha = new Date(
-                parseInt(formData.año),
+                parseInt(formData.ano),
                 parseInt(formData.mes) - 1,
                 parseInt(formData.dia)
             );
@@ -1185,7 +1391,7 @@ export const useEditAppointmentForm = ({
             return;
         }
 
-        // Crear orden automática si es solicitud sin selección
+        // Crear orden automtica si es solicitud sin seleccin
         let ordenParaGuardar = formData.orden;
 
         if (formData.tipoCita === "solicitud" && !selectedSolicitud) {
@@ -1198,7 +1404,7 @@ export const useEditAppointmentForm = ({
                 lugar: formData.direccion!,
             };
         } else if (
-            (formData.tipoCita === "ejecucion" || formData.tipoCita === "garantia") &&
+            formData.tipoCita === "orden" &&
             selectedOrdenServicio
         ) {
             ordenParaGuardar = {
@@ -1211,14 +1417,14 @@ export const useEditAppointmentForm = ({
             };
         }
 
-        // Crear título
+        // Crear ttulo
         let title = "";
         if (formData.tipoCita === "solicitud") {
             const cliente = formData.nombreCliente || "Nuevo cliente";
             const servicio =
                 formData.tipoServicioSolicitud === "mantenimiento"
                     ? `Mantenimiento ${formData.tipoMantenimientoSolicitud}`
-                    : "Instalación";
+                    : "Instalacin";
             title = `[SOLICITUD] ${cliente} - ${servicio}`;
         } else {
             title = `[${formData.tipoCita.toUpperCase()}] ${ordenParaGuardar?.cliente || "Cliente"
@@ -1226,7 +1432,7 @@ export const useEditAppointmentForm = ({
         }
 
         const startDate = new Date(
-            parseInt(formData.año),
+            parseInt(formData.ano),
             parseInt(formData.mes) - 1,
             parseInt(formData.dia),
             parseInt(formData.horaInicio),
@@ -1234,7 +1440,7 @@ export const useEditAppointmentForm = ({
         );
 
         const endDate = new Date(
-            parseInt(formData.año),
+            parseInt(formData.ano),
             parseInt(formData.mes) - 1,
             parseInt(formData.dia),
             parseInt(formData.horaFin),
@@ -1312,7 +1518,7 @@ export const useOrderSearch = ({
     const [touched, setTouched] = useState(false);
     const [localError, setLocalError] = useState<string | undefined>();
 
-    // Filtrar órdenes
+    // Filtrar rdenes
     const filteredOrders = orders.filter((order) =>
         `${order.id} - ${order.cliente}`
             .toLowerCase()
@@ -1331,7 +1537,7 @@ export const useOrderSearch = ({
         }
     }, [selectedOrder, touched, validateOrder]);
 
-    // Manejar selección de orden
+    // Manejar seleccin de orden
     const handleSelectOrder = (order: Order | null) => {
         onOrderSelect(order);
 
@@ -1349,7 +1555,7 @@ export const useOrderSearch = ({
         }
     };
 
-    // Manejar cambio en el input de búsqueda
+    // Manejar cambio en el input de bsqueda
     const handleInputChange = (value: string) => {
         setSearchTerm(value);
         setIsOpen(true);
@@ -1447,6 +1653,17 @@ export const useClickOutside = (
         };
     }, [ref, callback, isActive]);
 };
+
+
+
+
+
+
+
+
+
+
+
 
 
 

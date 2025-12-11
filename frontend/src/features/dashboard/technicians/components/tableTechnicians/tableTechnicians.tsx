@@ -1,4 +1,3 @@
-// src/features/dashboard/technicians/components/tableTechnicians/tableTechnicians.tsx
 "use client";
 
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
@@ -62,6 +61,7 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
 
   return (
     <DataTable<Technician>
+      module="technicians"
       data={technicians}
       columns={columns}
       pageSize={6}

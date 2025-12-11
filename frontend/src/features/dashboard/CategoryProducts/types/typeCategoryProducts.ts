@@ -1,41 +1,39 @@
 export interface Category {
   id: number;
-  nombre: string;
-  descripcion: string;
-  estado: "Activo" | "Inactivo";
-  icono?: File | string | null;
+  name: string;
+  description: string;
+  status: boolean;
+  icon?: File | string | null;
 }
 
-// Tipo base para reusar en create y edit
 export interface CategoryBase {
-  nombre: string;
-  descripcion: string;
-  icono?: File | null;
+  name: string;
+  description: string;
+  icon?: File | string | null; 
 }
 
-// Crear: solo usa los campos base
 export interface CreateCategoryData extends CategoryBase {}
 
-// Editar: base + extras
 export interface EditCategoryData extends CategoryBase {
   id: number;
-  estado: "Activo" | "Inactivo";
+  status: boolean;
 }
 
 export interface FormErrors {
-  nombre: string;
-  descripcion: string;
+  name: string;
+  description: string;
 }
 
 export interface FormTouched {
-  nombre: boolean;
-  descripcion: boolean;
+  name: boolean;
+  description: boolean;
 }
 
 export interface CreateCategoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (categoryData: CategoryBase) => void;
+  categories: { id: number; name: string }[];
 }
 
 export interface EditCategoryModalProps {
@@ -43,6 +41,7 @@ export interface EditCategoryModalProps {
   category: EditCategoryData | null; 
   onClose: () => void;
   onSave: (categoryData: EditCategoryData ) => void;
+  categories: { id: number; name: string }[];
 }
 
 export interface ViewCategoryModalProps {

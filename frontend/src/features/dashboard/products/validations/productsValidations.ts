@@ -1,60 +1,102 @@
-// productsValidations.ts
-import { Product } from "@/features/dashboard/products/types/typesProducts";
+import type { Product } from "@/features/dashboard/products/types/typesProducts";
 
-export interface ProductErrors {
-  name?: string;
-  description?: string; // <-- agregado para evitar el error al indexar
-  price?: string;
-  stock?: string;
-  category?: string;
-  image?: string;
-}
+export type ProductFormField =
+  | "name"
+  | "description"
+  | "categoryId"
+  | "supplierCategory"
+  | "supplierPrice"
+  | "salePrice"
+  | "code"
+  | "image";
+
+export type ProductErrors = Partial<Record<ProductFormField, string>>;
+
+export type ProductFormDraft = {
+  name: string;
+  description?: string | null;
+
+  categoryId: number | string;
+
+  supplierCategory: string;
+
+  supplierPrice: number | string;
+  salePrice?: number | string | null;
+
+  code?: string | null;
+
+  image: File | string | null | undefined;
+};
+
+const toNumber = (v: unknown): number => {
+  if (typeof v === "number") return v;
+  const s = String(v ?? "").replace(/\./g, "").trim();
+  const n = Number(s);
+  return Number.isNaN(n) ? NaN : n;
+};
 
 export const validateProductField = (
-  field: keyof Omit<Product, "id" | "state">,
-  value: any,
+  field: ProductFormField,
+  value: unknown,
   products: Product[],
   currentId?: number
 ): string | undefined => {
   switch (field) {
-    case "name":
-      if (!String(value).trim()) return "El nombre es obligatorio";
-      if (
-        products.some(
-          (p) =>
-            p.name.toLowerCase() === String(value).trim().toLowerCase() &&
-            p.id !== currentId
-        )
-      ) {
-        return "Ya existe un producto con este nombre";
-      }
-      return;
+    case "name": {
+      const v = String(value ?? "").trim();
+      if (!v) return "El nombre es obligatorio";
 
-    case "price":
-      if (!value) return "El precio es obligatorio";
-      const numericPrice = Number(String(value).replace(/\./g, ""));
-      if (isNaN(numericPrice) || numericPrice <= 0)
-        return "El precio debe ser mayor que 0";
+      const duplicated = products.some(
+        (p) => p.name.toLowerCase() === v.toLowerCase() && p.id !== currentId
+      );
+      if (duplicated) return "Ya existe un producto con este nombre";
       return;
+    }
 
-    case "stock":
-      // stock puede ser "" (vacío) mientras el campo no sea obligatorio en tiempo real;
-      // la validación final de formulario puede exigirlo. Aquí validamos formato/negativos.
-      if (value === "" || value === undefined) return;
-      if (isNaN(Number(value)) || Number(value) < 0)
-        return "La cantidad debe ser mayor o igual a 0";
+    case "supplierPrice": {
+      if (value === "" || value === undefined || value === null) return "El precio es obligatorio";
+      const n = toNumber(value);
+      if (Number.isNaN(n) || n <= 0) return "El precio debe ser mayor que 0";
       return;
+    }
 
-    case "category":
-      if (!value) return "La categoría es obligatoria";
+    // CAMBIO: ahora es obligatorio
+    case "salePrice": {
+      if (value === "" || value === undefined || value === null)
+        return "El precio de venta es obligatorio";
+      const n = toNumber(value);
+      if (Number.isNaN(n) || n <= 0) return "El precio de venta debe ser mayor que 0";
       return;
+    }
 
-    case "image":
-      if (!value) return "Debe seleccionar una imagen";
+    case "categoryId": {
+      const n = Number(value);
+      if (!n || n < 1) return "La categoría es obligatoria";
       return;
+    }
+
+    case "supplierCategory": {
+      const v = String(value ?? "").trim();
+      if (!v) return "La categoría del proveedor es obligatoria";
+      return;
+    }
+
+    // CAMBIO: ahora es obligatorio
+    case "code": {
+      const v = String(value ?? "").trim();
+      if (!v) return "El código es obligatorio";
+      if (v.length > 20) return "El código no puede superar 20 caracteres";
+      return;
+    }
+
+    case "image": {
+      if (value instanceof File) return;
+      const v = String(value ?? "").trim();
+      if (!v) return "Debe seleccionar una imagen";
+      return;
+    }
 
     case "description":
-      // Según lo conversado: descripción NO lleva validación.
       return;
 
     default:
@@ -63,30 +105,27 @@ export const validateProductField = (
 };
 
 export const validateProductForm = (
-  data: Omit<Product, "id" | "state">,
+  data: ProductFormDraft,
   products: Product[],
   currentId?: number
 ): ProductErrors => {
   const errors: ProductErrors = {};
 
-  const fields: (keyof Omit<Product, "id" | "state">)[] = [
+  const fields: ProductFormField[] = [
     "name",
-    "description", // incluimos para mantener consistencia, aunque no valida
-    "price",
-    "stock",
-    "category",
+    "description",
+    "supplierPrice",
+    "salePrice",
+    "categoryId",
+    "supplierCategory",
+    "code",
     "image",
   ];
 
-  fields.forEach((field) => {
-    const error = validateProductField(
-      field,
-      (data as any)[field],
-      products,
-      currentId
-    );
+  for (const field of fields) {
+    const error = validateProductField(field, data[field], products, currentId);
     if (error) errors[field] = error;
-  });
+  }
 
   return errors;
 };

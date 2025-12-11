@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import Colors from "@/shared/theme/colors";
 import { SearchIcon } from "./icons/SearchIcon";
 import { PlusIcon } from "./icons/PlusIcon";
@@ -11,6 +17,7 @@ import { ActionButtonComponent } from "./ui/ActionButtonComponent";
 import { CreateButtonComponent } from "./ui/CreateButtonComponent";
 import { OptimizedTdComponent } from "./ui/OptimizedTdComponent";
 import { PaginationComponent } from "./ui/PaginationComponent";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
 
 const ROW_HEIGHT = 60;
 const VISIBLE_ROWS = 10;
@@ -35,23 +42,18 @@ function Th({
 }
 
 const OptimizedTd = React.memo(OptimizedTdComponent);
-
 export const ActionButton = React.memo(ActionButtonComponent);
-
 export const ActionButtons = React.memo(ActionButtonsComponent);
-
 const MobileCard = React.memo(
   MobileCardComponent
 ) as typeof MobileCardComponent;
-
 const CreateButton = React.memo(CreateButtonComponent);
-
 const Pagination = React.memo(PaginationComponent);
 
-// Componente principal DataTable
-export function DataTable<T extends { id: number | string }>(
-  props: DataTableProps<T>
-) {
+// Memoizar el DataTable principal
+const DataTableComponent = <T extends { [key: string]: any }>(
+  props: DataTableProps<T> & { module: string }
+) => {
   const {
     data,
     columns,
@@ -71,7 +73,12 @@ export function DataTable<T extends { id: number | string }>(
     tailHeader,
     renderTail,
     mobileCardView = true,
+    module,
+    actionGuard = () => undefined,
+    freeze,
   } = props;
+
+  const { canView, canCreate, canUpdate, canDelete } = usePermissions();
 
   const [q, setQ] = useState("");
   const [pageSizeOption, setPageSizeOption] = useState<string | number>("");
@@ -79,15 +86,23 @@ export function DataTable<T extends { id: number | string }>(
   const [page, setPage] = useState(1);
   const [scrollTop, setScrollTop] = useState(0);
 
+  // Ref para controlar si ya se montó
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   const normalize = useCallback((value: unknown): string[] => {
     if (value == null) return [];
     const str = String(value).toLowerCase().trim();
-
     if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
       const num = Number(str.replace(/[\$,]/g, ""));
       return [num.toString(), num.toFixed(0), num.toFixed(2)];
     }
-
     if (!isNaN(Date.parse(str))) {
       const d = new Date(str);
       return [
@@ -96,40 +111,46 @@ export function DataTable<T extends { id: number | string }>(
         d.getFullYear().toString(),
       ].map((f) => f.toLowerCase());
     }
-
     return [str];
   }, []);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     if (!term) return data;
-
     const isExactStatus = term === "activo" || term === "inactivo";
-
     return data.filter((row) =>
       searchableKeys.some((key) => {
         const value = row[key];
         if (value == null) return false;
+        if (key === "state") {
+          const stateName = (row.state?.name ?? "").toLowerCase();
 
-        if ((key === "estado" || key === "state") && isExactStatus) {
-          const estado = String(value).toLowerCase();
-          return estado === term;
+          const mapped =
+            stateName === "approved"
+              ? "aprobado"
+              : stateName === "revoke"
+              ? "anulado"
+              : stateName;
+
+          return mapped.includes(term);
         }
 
+        if ((key === "estado" || key === "state") && isExactStatus) {
+          return String(value).toLowerCase() === term;
+        }
         const strValue = String(value).toLowerCase();
         if (strValue.includes(term)) return true;
-
         const normalized = normalize(value);
         return normalized.some((n) => n.includes(term));
       })
     );
   }, [q, data, searchableKeys, normalize]);
 
-  const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filtered.length / pageSize));
-  }, [filtered.length, pageSize]);
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filtered.length / pageSize)),
+    [filtered.length, pageSize]
+  );
 
-  // calcular registros visibles
   const current = useMemo(() => {
     return filtered.slice((page - 1) * pageSize, page * pageSize);
   }, [filtered, page, pageSize]);
@@ -139,102 +160,146 @@ export function DataTable<T extends { id: number | string }>(
     [totalPages]
   );
 
-  const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
-  const visibleRows = current.slice(startIndex, startIndex + VISIBLE_ROWS);
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  }, []);
-
-  const visibleColumns = useMemo(() => {
-    return columns.filter(
-      (col) =>
-        col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
-    );
-  }, [columns]);
-
-  const Row = useCallback(
-    ({ row, index }: { row: T; index: number }) => (
-      <tr
-        className="hover:bg-gray-50 text-center table-row"
-        style={{
-          top: `${(startIndex + index) * ROW_HEIGHT}px`,
-          width: "100%",
-          height: `${ROW_HEIGHT}px`,
-        }}
-      >
-        {(window.innerWidth >= 768 ? columns : visibleColumns).map(
-          (c, colIndex) => (
-            <OptimizedTd
-              key={String(c.key)}
-              colIndex={colIndex}
-              header={c.header}
-              width={c.width}
-              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
-            >
-              <div className="truncate" title={String(row[c.key])}>
-                {c.render ? c.render(row) : String(row[c.key])}
-              </div>
-            </OptimizedTd>
-          )
-        )}
-
-        {(onView ||
-          onEdit ||
-          onDelete ||
-          onCancel ||
-          onCheck ||
-          renderActions) && (
-          <OptimizedTd header="Acciones">
-            {renderActions ? (
-              renderActions(row)
-            ) : (
-              <ActionButtons
-                row={row}
-                onView={onView}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onCancel={onCancel}
-                onCheck={onCheck}
-                renderExtraActions={renderExtraActions}
-              />
-            )}
-          </OptimizedTd>
-        )}
-
-        {renderTail && (
-          <OptimizedTd
-            header={tailHeader ?? "Imprimir"}
-            className="text-center"
-          >
-            {renderTail(row)}
-          </OptimizedTd>
-        )}
-      </tr>
-    ),
-    [
-      columns,
-      visibleColumns,
-      onView,
-      onEdit,
-      onDelete,
-      onCancel,
-      onCheck,
-      renderActions,
-      renderExtraActions,
-      renderTail,
-      tailHeader,
-      startIndex,
-    ]
+  // Throttle del scroll
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const currentScrollTop = e.currentTarget.scrollTop;
+      // Solo actualizar si el cambio es significativo (más de 1px)
+      if (Math.abs(currentScrollTop - scrollTop) > 1) {
+        setScrollTop(currentScrollTop);
+      }
+    },
+    [scrollTop]
   );
 
+  const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
+  const visibleRows = useMemo(() => {
+    return current.slice(startIndex, startIndex + VISIBLE_ROWS);
+  }, [current, startIndex]);
+
+  const resolveRowKey = useCallback((row: T, idxFallback: number) => {
+    const anyRow = row as any;
+    return (
+      anyRow.id ??
+      anyRow.purchaseorderid ??
+      anyRow.numberoforder ??
+      anyRow.reference ??
+      idxFallback
+    );
+  }, []);
+
+  const visibleColumns = useMemo(
+    () =>
+      columns.filter(
+        (col) =>
+          col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
+      ),
+    [columns]
+  );
+
+  // Componente Row memoizado
+  const Row = useMemo(() => {
+    const RowComponent = React.memo(
+      ({ row, index }: { row: T; index: number }) => {
+        const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+
+        return (
+          <tr
+            className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
+            style={{
+              top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
+              width: "100%",
+              height: `${ROW_HEIGHT}px`,
+            }}
+          >
+            {(window.innerWidth >= 768 ? columns : visibleColumns).map(
+              (c, colIndex) => (
+                <OptimizedTd
+                  key={String(c.key)}
+                  colIndex={colIndex}
+                  header={c.header}
+                  width={c.width}
+                  className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
+                >
+                  <div className="truncate" title={String(row[c.key])}>
+                    {c.render ? c.render(row) : String(row[c.key])}
+                  </div>
+                </OptimizedTd>
+              )
+            )}
+
+            {(canView(module) ||
+              canUpdate(module) ||
+              canDelete(module) ||
+              onCancel ||
+              onCheck ||
+              renderActions) && (
+              <OptimizedTd header="Acciones">
+                {renderActions ? (
+                  renderActions(row)
+                ) : (
+                  <ActionButtons
+                    row={row}
+                    onView={canView(module) ? onView : undefined}
+                    onEdit={canUpdate(module) ? onEdit : undefined}
+                    onDelete={canDelete(module) ? onDelete : undefined}
+                    onCancel={onCancel}
+                    onCheck={onCheck}
+                    actionGuard={actionGuard}
+                    renderExtraActions={renderExtraActions}
+                  />
+                )}
+              </OptimizedTd>
+            )}
+
+            {renderTail && (
+              <OptimizedTd
+                header={tailHeader ?? "Imprimir"}
+                className="text-center"
+              >
+                {renderTail(row)}
+              </OptimizedTd>
+            )}
+          </tr>
+        );
+      }
+    );
+
+    RowComponent.displayName = "RowComponent";
+    return RowComponent;
+  }, [
+    columns,
+    visibleColumns,
+    onView,
+    onEdit,
+    onDelete,
+    onCancel,
+    onCheck,
+    renderActions,
+    renderExtraActions,
+    renderTail,
+    tailHeader,
+    actionGuard,
+    canView,
+    canUpdate,
+    canDelete,
+    module,
+    scrollTop,
+  ]);
+
+  // Evitar que el DataTable se anime durante el freeze
+  const tableStyle = useMemo(() => {
+    return freeze ? { animation: "none" } : {};
+  }, [freeze]);
+
   return (
-    <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0">
+    <div
+      className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-6"
+      style={tableStyle}
+    >
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* 🔍 Search + PageSize juntos */}
-        {searchableKeys && searchableKeys.length > 0 && (
+        {searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
-            {/* Search */}
             <div className="relative flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
               <input
@@ -248,7 +313,6 @@ export function DataTable<T extends { id: number | string }>(
               />
             </div>
 
-            {/* Page size select */}
             <div className="flex items-center gap-2">
               <select
                 value={pageSizeOption}
@@ -278,11 +342,10 @@ export function DataTable<T extends { id: number | string }>(
           </div>
         )}
 
-        {/* Botones de acciones a la derecha */}
         {(rightActions || onCreate) && (
           <div className="flex items-center gap-2 justify-end">
             {rightActions}
-            {onCreate && (
+            {onCreate && canCreate(module) && (
               <div className="hidden md:block">
                 <CreateButton
                   onCreate={onCreate}
@@ -294,26 +357,24 @@ export function DataTable<T extends { id: number | string }>(
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div
+        className="bg-white rounded-xl shadow-lg overflow-hidden"
+        style={tableStyle}
+      >
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
-              {current.map((row) => (
+              {current.map((row, idx) => (
                 <MobileCard
-                  key={
-                    row.id ??
-                    row.purchaseorderid ??
-                    row.numberoforder ??
-                    row.reference ??
-                    index
-                  }
+                  key={resolveRowKey(row, idx)}
                   row={row}
                   columns={columns}
-                  onView={onView}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
+                  onView={canView(module) ? onView : undefined}
+                  onEdit={canUpdate(module) ? onEdit : undefined}
+                  onDelete={canDelete(module) ? onDelete : undefined}
                   onCancel={onCancel}
                   onCheck={onCheck}
+                  actionGuard={actionGuard}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
                   renderTail={renderTail}
@@ -333,10 +394,12 @@ export function DataTable<T extends { id: number | string }>(
           className={`${
             mobileCardView ? "hidden md:block" : "block"
           } overflow-x-auto`}
+          style={tableStyle}
         >
           <div
             className="max-h-[600px] overflow-y-auto"
             onScroll={handleScroll}
+            style={freeze ? { overflowY: "hidden" } : {}}
           >
             <table className="min-w-full text-sm table-fixed border-collapse">
               <thead
@@ -349,9 +412,9 @@ export function DataTable<T extends { id: number | string }>(
                       {c.header}
                     </Th>
                   ))}
-                  {(onView ||
-                    onEdit ||
-                    onDelete ||
+                  {(canView(module) ||
+                    canUpdate(module) ||
+                    canDelete(module) ||
                     onCancel ||
                     onCheck ||
                     renderActions) && <Th>Acciones</Th>}
@@ -360,6 +423,7 @@ export function DataTable<T extends { id: number | string }>(
                   )}
                 </tr>
               </thead>
+
               <tbody
                 className="divide divide-[#E6E6E6]"
                 style={{
@@ -369,13 +433,7 @@ export function DataTable<T extends { id: number | string }>(
               >
                 {visibleRows.map((row, index) => (
                   <Row
-                    key={
-                      row.id ??
-                      row.purchaseorderid ??
-                      row.numberoforder ??
-                      row.reference ??
-                      index
-                    }
+                    key={resolveRowKey(row, startIndex + index)}
                     row={row}
                     index={index}
                   />
@@ -396,7 +454,7 @@ export function DataTable<T extends { id: number | string }>(
         )}
       </div>
 
-      {onCreate && (
+      {onCreate && canCreate(module) && (
         <button
           className="fixed bottom-6 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
           style={{ background: Colors.buttons.primary }}
@@ -407,4 +465,21 @@ export function DataTable<T extends { id: number | string }>(
       )}
     </div>
   );
-}
+};
+
+// Exportar con React.memo para evitar re-renders innecesarios
+export const DataTable = React.memo(
+  DataTableComponent,
+  (prevProps, nextProps) => {
+    // Comparación personalizada para evitar re-renders
+    return (
+      prevProps.data === nextProps.data &&
+      prevProps.columns === nextProps.columns &&
+      prevProps.freeze === nextProps.freeze &&
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.onCreate === nextProps.onCreate &&
+      prevProps.onView === nextProps.onView &&
+      prevProps.onCancel === nextProps.onCancel
+    );
+  }
+) as typeof DataTableComponent;

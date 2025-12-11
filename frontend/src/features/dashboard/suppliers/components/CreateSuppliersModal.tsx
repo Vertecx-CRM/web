@@ -52,7 +52,116 @@ const initialForm: SupplierForm = {
   imageUrl: null,
 };
 
-// ─── Sanitizers ────────────────────────────────────────────────────────────────
+function sanitizeRating(v: string | number) {
+  const n = typeof v === "number" ? v : parseFloat(v || "0");
+  if (Number.isNaN(n)) return 0;
+  const clamped = Math.max(0, Math.min(5, n));
+  return Number(clamped.toFixed(1));
+}
+function roundToStep(n: number, step = 0.1) {
+  const r = Math.round(n / step) * step;
+  return Number(Math.max(0, Math.min(5, r)).toFixed(1));
+}
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function DecimalStarRating({
+  value,
+  onChange,
+  disabled,
+  step = 0.1,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+  step?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const display = hover ?? value;
+
+  const pickValueFromClientX = (clientX: number) => {
+    const el = ref.current;
+    if (!el) return value;
+    const rect = el.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, rect.width);
+    const raw = (x / rect.width) * 5;
+    return roundToStep(raw, step);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onChange(pickValueFromClientX(e.clientX));
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const v = pickValueFromClientX(e.clientX);
+    setHover(v);
+    if (e.buttons === 1) onChange(v);
+  };
+
+  const handlePointerLeave = () => setHover(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onChange(roundToStep(value + step, step));
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onChange(roundToStep(value - step, step));
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      onChange(0);
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      onChange(5);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        ref={ref}
+        className={`flex items-center gap-1 select-none ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label="Calificación"
+        aria-valuemin={0}
+        aria-valuemax={5}
+        aria-valuenow={Number(value.toFixed(1))}
+        aria-valuetext={`${Number(value.toFixed(1))} de 5`}
+      >
+        {Array.from({ length: 5 }, (_, i) => {
+          const fill = clamp(display - i, 0, 1);
+          const pct = `${fill * 100}%`;
+
+          return (
+            <div key={i} className="relative h-5 w-5">
+              <Star className="h-5 w-5 text-gray-300 pointer-events-none" strokeWidth={1.5} />
+              <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ width: pct }}>
+                <Star className="h-5 w-5 text-yellow-500" strokeWidth={1.5} fill="currentColor" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <span className="text-xs text-gray-600">{Number(value).toFixed(1)} / 5.0</span>
+    </div>
+  );
+}
 
 function sanitizeName(v: string) {
   return v.replace(/[^A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ'’.\- ]/g, "").replace(/\s{2,}/g, " ").slice(0, 80);
@@ -66,28 +175,12 @@ function sanitizePhone(v: string) {
   if (s.startsWith("+")) s = "+" + s.slice(1).replace(/[^\d]/g, "");
   return s.slice(0, 16);
 }
-/** Input permisivo: dígitos y un solo '-' (inclusive al final) */
-function sanitizeNITInput(v: string) {
-  let s = String(v ?? "").replace(/[^\d-]/g, "");
-  s = s.replace(/^-+/, "");
-  s = s.replace(/-{2,}/g, "-");
-  const parts = s.split("-");
-  const base = (parts[0] || "").replace(/\D/g, "").slice(0, 12);
-  if (s.endsWith("-") && parts.length === 2 && parts[1] === "") return `${base}-`;
-  const dv = (parts[1] || "").replace(/\D/g, "").slice(0, 1);
-  return parts.length > 1 ? `${base}-${dv}` : base;
-}
-/** Cálculo DV Colombia (DIAN) */
-function nitDV(num: string) {
-  const weights = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71];
-  const digits = num.split("").reverse().map((n) => parseInt(n, 10));
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) sum += digits[i] * weights[i];
-  const r = sum % 11;
-  return r > 1 ? 11 - r : r;
-}
 
-// ─── Validación ────────────────────────────────────────────────────────────────
+function sanitizeNITBaseOnly(v: string) {
+  return String(v ?? "")
+    .replace(/[^\d]/g, "")
+    .slice(0, 12);
+}
 
 type ErrorMap = Partial<Record<keyof SupplierForm | "image", string | null>>;
 
@@ -99,15 +192,8 @@ const validators: Record<keyof SupplierForm | "image", (value: any, form: Suppli
     return null;
   },
   nit: (v) => {
-    const raw = String(v ?? "").replace(/[^\d-]/g, "");
-    if (!/^\d{5,12}$|^\d{5,12}-$|^\d{5,12}-\d$/.test(raw)) {
-      return "Formato: base (5–12 dígitos) o base-DV (1 dígito).";
-    }
-    if (raw.includes("-") && !raw.endsWith("-")) {
-      const [base, dv] = raw.split("-");
-      const expected = nitDV(base).toString();
-      if (dv !== expected) return `DV inválido, debería ser ${expected}.`;
-    }
+    const raw = String(v ?? "").replace(/[^\d]/g, "");
+    if (!/^\d{5,12}$/.test(raw)) return "Debe tener entre 5 y 12 dígitos (solo números).";
     return null;
   },
   phone: (v) => {
@@ -125,7 +211,7 @@ const validators: Record<keyof SupplierForm | "image", (value: any, form: Suppli
   },
   address: (v) => {
     const s = String(v ?? "").trim();
-    if (!s) return "Dirección requerida.";
+    if (!s) return "Campo obligatorio.";
     return null;
   },
   contactName: (v) => {
@@ -137,7 +223,6 @@ const validators: Record<keyof SupplierForm | "image", (value: any, form: Suppli
   rating: () => null,
   imageFile: () => null,
   imageUrl: () => null,
-  // imagen obligatoria
   image: (file: File | null) => {
     if (!file) return "Imagen requerida.";
     if (!file.type.startsWith("image/")) return "Archivo no es una imagen.";
@@ -165,14 +250,11 @@ function firstError(e: ErrorMap): string | null {
   return null;
 }
 
-// ─── Componente ────────────────────────────────────────────────────────────────
-
 export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = "Crear Proveedor" }: Props) {
   const [form, setForm] = useState<SupplierForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<ErrorMap>({});
   const fileRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -182,9 +264,7 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
     }
   }, [isOpen]);
 
-  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) => {
-    setForm((f) => ({ ...f, [k]: v }));
-  };
+  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const validateField = (k: keyof SupplierForm | "image") => {
     const value = k === "image" ? form.imageFile : form[k as keyof SupplierForm];
@@ -221,22 +301,13 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
     evt.preventDefault();
     if (!validateAll()) return;
 
-    // Validación NIT base-DV (colombiano)
-    const raw = String(form.nit ?? "").replace(/[^\d-]/g, "");
-    if (!/^\d{5,12}-\d$/.test(raw)) {
-      showError("NIT inválido. Usa formato: base (5–12 dígitos) + '-' + DV.");
-      setErrors((er) => ({ ...er, nit: "Usa formato base-DV." }));
-      return;
-    }
-    const [base, dv] = raw.split("-");
-    const expected = nitDV(base).toString();
-    if (dv !== expected) {
-      showError(`DV inválido. El DV correcto para ${base} es ${expected}.`);
-      setErrors((er) => ({ ...er, nit: `DV inválido. Debe ser ${expected}.` }));
+    const nitBase = String(form.nit ?? "").replace(/[^\d]/g, "");
+    if (!/^\d{5,12}$/.test(nitBase)) {
+      showError("NIT inválido. Debe tener entre 5 y 12 dígitos (solo números).");
+      setErrors((er) => ({ ...er, nit: "Debe tener entre 5 y 12 dígitos (solo números)." }));
       return;
     }
 
-    // Subir imagen a Cloudinary y usar secure_url
     const imgErr = validators.image(form.imageFile, form);
     if (imgErr) {
       setErrors((er) => ({ ...er, image: imgErr }));
@@ -248,19 +319,17 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
       setSaving(true);
 
       let finalImageUrl: string | null = form.imageUrl;
-      if (form.imageFile) {
-        finalImageUrl = await uploadImageToCloudinary(form.imageFile);
-      }
+      if (form.imageFile) finalImageUrl = await uploadImageToCloudinary(form.imageFile);
 
       const payload: SupplierSubmitPayload = {
         name: form.name.trim(),
-        nit: `${base}-${dv}`,
+        nit: nitBase,
         phone: sanitizePhone(form.phone),
         email: form.email.trim(),
         address: form.address.trim(),
         contactName: form.contactName.trim(),
         status: "Activo",
-        rating: form.rating,
+        rating: sanitizeRating(form.rating),
         imageFile: null,
         imageUrl: finalImageUrl ?? null,
       };
@@ -270,33 +339,29 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
       setForm(initialForm);
       setErrors({});
       if (fileRef.current) fileRef.current.value = "";
-      setSaving(false);
       onClose();
     } catch (err: any) {
-      setSaving(false);
       showError(err?.message || "No se pudo crear el proveedor.");
+    } finally {
+      setSaving(false);
     }
   }
 
   const footer = (
-    <div className="flex gap-2">
+    <div className="flex justify-end gap-2">
       <button
         type="button"
-        onClick={() => {
-          setForm(initialForm);
-          setErrors({});
-          if (fileRef.current) fileRef.current.value = "";
-          onClose();
-        }}
-        className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+        onClick={onClose}
+        disabled={saving}
+        className="cursor-pointer px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-200 disabled:opacity-60"
       >
         Cancelar
       </button>
       <button
-        type="button"
-        onClick={() => formRef.current?.requestSubmit()}
+        type="submit"
+        form="create-supplier-form"
         disabled={saving}
-        className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+        className="cursor-pointer px-4 py-2 rounded-lg bg-black text-white hover:bg-gray-900 disabled:opacity-60"
       >
         {saving ? "Guardando..." : "Guardar"}
       </button>
@@ -305,121 +370,117 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
 
   return (
     <Modal title={title} isOpen={isOpen} onClose={onClose} footer={footer}>
-      <form ref={formRef} id="supplier-form" onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
+      <form id="create-supplier-form" onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
         <div>
-          <label className="block text-sm text-gray-700">Nombre</label>
+          <label className="block text-sm font-medium mb-1">
+            Nombre <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.name}
             onChange={(e) => update("name", sanitizeName(e.target.value))}
             onBlur={() => validateField("name")}
             placeholder="Ingrese el nombre"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+          {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">NIT</label>
+          <label className="block text-sm font-medium mb-1">
+            Nit(Sin indicativo) <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.nit}
-            onChange={(e) => update("nit", sanitizeNITInput(e.target.value))}
+            onChange={(e) => update("nit", sanitizeNITBaseOnly(e.target.value))}
             onBlur={() => validateField("nit")}
-            placeholder="900123456-7"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            placeholder="900123456"
+            inputMode="numeric"
+            pattern="\d*"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.nit && <p className="mt-1 text-xs text-red-600">{errors.nit}</p>}
+          {errors.nit && <p className="text-xs text-red-600 mt-1">{errors.nit}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Dirección</label>
-          <input
-            value={form.address}
-            onChange={(e) => update("address", e.target.value)}
-            onBlur={() => validateField("address")}
-            placeholder="Calle 123 #45-67"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {errors.address && <p className="mt-1 text-xs text-red-600">{errors.address}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700">Nombre del contacto</label>
-          <input
-            value={form.contactName}
-            onChange={(e) => update("contactName", sanitizeContact(e.target.value))}
-            onBlur={() => validateField("contactName")}
-            placeholder="Nombre del contacto"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-          />
-          {errors.contactName && <p className="mt-1 text-xs text-red-600">{errors.contactName}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700">Teléfono</label>
+          <label className="block text-sm font-medium mb-1">
+            Teléfono <span className="text-red-500">*</span>
+          </label>
           <input
             value={form.phone}
             onChange={(e) => update("phone", sanitizePhone(e.target.value))}
             onBlur={() => validateField("phone")}
             placeholder="+57 3001234567"
             inputMode="tel"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+          {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Correo Electrónico</label>
+          <label className="block text-sm font-medium mb-1">
+            Correo <span className="text-red-500">*</span>
+          </label>
           <input
             type="email"
             value={form.email}
             onChange={(e) => update("email", e.target.value)}
             onBlur={() => validateField("email")}
             placeholder="correo@dominio.com"
-            className="mt-1 w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
+            className="w-full px-2 py-1 border rounded-md"
           />
-          {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+          {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">
+            Dirección <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+            onBlur={() => validateField("address")}
+            placeholder="Calle 123 #45-67"
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.address && <p className="text-xs text-red-600 mt-1">{errors.address}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Calificación</label>
-          <div className="mt-2 flex items-center gap-1">
-            {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => {
-              const active = form.rating >= n;
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => update("rating", n)}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowRight") update("rating", Math.min(5, form.rating + 1));
-                    if (e.key === "ArrowLeft") update("rating", Math.max(0, form.rating - 1));
-                  }}
-                  className="p-1"
-                >
-                  <Star size={18} className={active ? "text-yellow-500" : "text-gray-300"} strokeWidth={1.5} fill={active ? "currentColor" : "none"} />
-                </button>
-              );
-            })}
-          </div>
+          <label className="block text-sm font-medium mb-1">
+            Nombre del contacto <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={form.contactName}
+            onChange={(e) => update("contactName", sanitizeContact(e.target.value))}
+            onBlur={() => validateField("contactName")}
+            placeholder="Nombre del contacto"
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.contactName && <p className="text-xs text-red-600 mt-1">{errors.contactName}</p>}
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700">Imagen</label>
-          <div className="mt-1 flex items-center gap-2">
-            <button
-              type="button"
+          <label className="block text-sm font-medium mb-1">
+            Imagen <span className="text-red-500">*</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <div
               onClick={handlePickFile}
-              className="h-10 w-10 rounded-md border flex items-center justify-center overflow-hidden"
+              className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 cursor-pointer overflow-hidden"
+              role="button"
               aria-label="Seleccionar imagen"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") handlePickFile();
+              }}
             >
               {form.imageUrl ? (
                 <img src={form.imageUrl} alt="preview" className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center border-dashed text-gray-400">
-                  <Upload size={16} />
-                </div>
+                <Upload size={16} />
               )}
-            </button>
+            </div>
+
             <input
               ref={fileRef}
               type="file"
@@ -429,7 +490,12 @@ export default function CreateSuppliersModal({ isOpen, onClose, onSave, title = 
               onBlur={() => validateField("image")}
             />
           </div>
-          {errors.image && <p className="mt-1 text-xs text-red-600">{errors.image}</p>}
+          {errors.image && <p className="text-xs text-red-600 mt-1">{errors.image}</p>}
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">Calificación</label>
+          <DecimalStarRating value={sanitizeRating(form.rating)} onChange={(v) => update("rating", v)} disabled={saving} step={0.1} />
         </div>
       </form>
     </Modal>

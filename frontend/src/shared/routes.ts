@@ -10,9 +10,10 @@ interface IRoutes {
     trajectory: string;
   };
   auth: {
-    access: string; 
     login: string;
     register: string;
+    forgotPassword: string;
+    resetPassword: string;
   };
   dashboard: {
     newClient: any;
@@ -36,6 +37,7 @@ interface IRoutes {
     quotes: string;
     settings: string;
     profile: string;
+    orders: string;
   };
   notFound: string;
 }
@@ -51,13 +53,14 @@ export const routes: IRoutes = {
     trajectory: "/landing/trajectory",
   },
   auth: {
-    access: "/auth/access",
     login: "/auth/login",
     register: "/auth/register",
+    forgotPassword: "/auth/forgot-password",
+    resetPassword: "/auth/reset-password",
   },
   dashboard: {
     main: "/dashboard",
-    users: "/dashboard/access/users",
+    users: "/dashboard/users",
     products: "/dashboard/products",
     productsCategories: "/dashboard/products/categories",
     roles: "/dashboard/roles",
@@ -72,6 +75,7 @@ export const routes: IRoutes = {
     clients: "/dashboard/clients",
     requestsServices: "/dashboard/requests",
     ordersServices: "/dashboard/orders-services",
+    orders: "/dashboard/orders",
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",
     profile: "/dashboard/profile",

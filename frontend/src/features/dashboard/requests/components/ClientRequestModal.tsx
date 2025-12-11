@@ -1,450 +1,467 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-
-type TipoServicio = "Mantenimiento" | "Instalacion";
-type TipoDoc = "CC" | "CE" | "NIT" | "PAS";
+import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
+import { getServiceOptions } from "@/features/dashboard/requests/services/lookups.service";
 
 export type CreateRequestPayload = {
-  tipos: TipoServicio[];
-  servicio: string;
-  descripcion: string;
+  scheduledAt?: string | null;
+  scheduledEndAt?: string | null;
+  serviceType: string;
+  description: string;
   direccion: string;
-  cliente: {
-    status: "found" | "new";
-    id?: string;
-    tipoDoc: TipoDoc;
-    documento: string;
-    nombre?: string;
-    correo?: string;
-    telefono?: string;
-  };
+  stateId?: number;
+  serviceId: number;
+  clientId: number;
 };
 
-export type CreateRequestWithSignupProps = {
+type ServiceOption = Option & {
+  typeofserviceid?: number | null;
+  typeofservicename?: string | null;
+  serviceTypeCode?: string | null;
+};
+
+type ServiceTypeOption = {
+  id: number;
+  label: string;
+  code: string;
+};
+
+type Props = {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: CreateRequestPayload) => void | Promise<void>;
   title?: string;
-  servicios?: string[];
-  onFindClienteByDocumento?: (
-    tipo: TipoDoc,
-    documento: string
-  ) => Promise<{ id: string; nombre: string; correo: string; telefono: string } | null>;
-  onRegisterCliente?: (data: {
-    tipoDoc: TipoDoc;
-    documento: string;
-    nombre: string;
-    correo: string;
-    telefono: string;
-    password: string;
-  }) => Promise<{ id: string }>;
-  onOpenPago?: (payload: CreateRequestPayload) => void;
+  servicios?: ServiceOption[] | null;
+  clientId: number;
+  clientLabel?: string;
+  initialDate?: string | null;
+  initialTime?: string | null;
+  initialEndTime?: string | null;
 };
 
-const DEFAULT_SERVICIOS = ["Cableado", "CCTV", "Servidor", "Red WiFi", "Impresora"];
-const MOCK_DB = [
-  { id: "c1", tipoDoc: "CC" as const, documento: "1234567890", nombre: "SistemasPC", correo: "contacto@sistemaspc.co", telefono: "3001234567" },
-];
+type Errors = Record<string, string | null>;
 
-const MONTO = 100000;
-const formatCOP = (n: number) =>
-  n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+function toIsoFromLocalDateTime(date: string, time: string) {
+  const [y, m, d] = date.split("-").map((n) => Number(n));
+  const [hh, mm] = time.split(":").map((n) => Number(n));
+  const dt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  return dt.toISOString();
+}
 
-export default function CreateRequestWithSignupModal({
+function timeToMinutes(t: string) {
+  const [hh, mm] = t.split(":").map((n) => Number(n));
+  return (hh || 0) * 60 + (mm || 0);
+}
+
+function minutesToTime(total: number) {
+  const m = ((total % 1440) + 1440) % 1440;
+  const hh = String(Math.floor(m / 60)).padStart(2, "0");
+  const mm = String(m % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function addMinutesToTime(t: string, add: number) {
+  return minutesToTime(timeToMinutes(t) + add);
+}
+
+function getBackendMessage(err: unknown) {
+  const anyErr = err as any;
+  const msg = anyErr?.response?.data?.message ?? anyErr?.message ?? "";
+  if (Array.isArray(msg)) return msg.filter(Boolean).join(" | ");
+  return String(msg || "");
+}
+
+export default function ClientCreateRequestModal({
   isOpen,
   onClose,
   onSave,
-  title = "Nueva solicitud de servicio",
-  servicios = DEFAULT_SERVICIOS,
-  onFindClienteByDocumento,
-  onRegisterCliente,
-  onOpenPago,
-}: CreateRequestWithSignupProps) {
-  const router = useRouter();
-
-  const [tipos, setTipos] = useState<TipoServicio[]>([]);
-  const [servicio, setServicio] = useState("");
-  const [descripcion, setDescripcion] = useState("");
+  title = "Solicitar servicio",
+  servicios,
+  clientId,
+  clientLabel,
+  initialDate = null,
+  initialTime = null,
+  initialEndTime = null,
+}: Props) {
+  const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
+  const [serviceId, setServiceId] = useState<number | "">("");
+  const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
-
-  const [tipoDoc, setTipoDoc] = useState<TipoDoc>("CC");
-  const [documento, setDocumento] = useState("");
-  const [clienteStatus, setClienteStatus] = useState<"unknown" | "checking" | "found" | "new">("unknown");
-  const [clienteId, setClienteId] = useState<string | undefined>(undefined);
-
-  const [nombre, setNombre] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [telefono, setTelefono] = useState("");
-  const [pwd, setPwd] = useState("");
-  const [pwd2, setPwd2] = useState("");
-  const [acepta, setAcepta] = useState(false);
-
+  const [programada, setProgramada] = useState<string | null>(initialDate);
+  const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
+  const [horaFinal, setHoraFinal] = useState<string | null>(initialEndTime);
+  const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<Record<string, string | null>>({});
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastCheckedRef = useRef<string>("");
 
-  const finder =
-    onFindClienteByDocumento ??
-    (async (t: TipoDoc, d: string) => {
-      const hit = MOCK_DB.find((c) => c.tipoDoc === t && c.documento === d);
-      return hit ? { id: hit.id, nombre: hit.nombre, correo: hit.correo, telefono: hit.telefono } : null;
+  const [loadingLookups, setLoadingLookups] = useState(false);
+  const [serviciosLocal, setServiciosLocal] = useState<ServiceOption[]>([]);
+
+  const finalServicios = useMemo<ServiceOption[]>(() => {
+    const fromProps = (Array.isArray(servicios) ? servicios : []) as ServiceOption[];
+    return fromProps.length ? fromProps : serviciosLocal;
+  }, [servicios, serviciosLocal]);
+
+  const serviceTypes = useMemo<ServiceTypeOption[]>(() => {
+    const map = new Map<number, ServiceTypeOption>();
+
+    (finalServicios || []).forEach((s) => {
+      const typeId = s.typeofserviceid;
+      const typeName = s.typeofservicename;
+      if (!typeId || !typeName) return;
+      if (map.has(typeId)) return;
+
+      let code = (s.serviceTypeCode || "").trim();
+      if (!code) {
+        const norm = typeName
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        if (norm.startsWith("mantenimiento")) code = "MANTENIMIENTO";
+        else if (norm.startsWith("instal")) code = "INSTALACION";
+        else code = typeName;
+      }
+
+      map.set(typeId, {
+        id: typeId,
+        label: typeName,
+        code,
+      });
     });
 
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [finalServicios]);
+
+  const selectedType = useMemo(
+    () => (serviceTypeId ? serviceTypes.find((t) => t.id === serviceTypeId) || null : null),
+    [serviceTypeId, serviceTypes]
+  );
+
+  const filteredServicios = useMemo<ServiceOption[]>(() => {
+    const list = finalServicios || [];
+    if (!serviceTypeId) return list;
+
+    const hasTypeInfo = list.some((s) => s.typeofserviceid != null);
+    if (!hasTypeInfo) return list;
+
+    return list.filter((s) => s.typeofserviceid === serviceTypeId);
+  }, [finalServicios, serviceTypeId]);
+
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    setClienteStatus("unknown");
-    setClienteId(undefined);
-    setNombre("");
-    setCorreo("");
-    setTelefono("");
-    setPwd("");
-    setPwd2("");
-    setAcepta(false);
+    if (!isOpen) return;
 
-    const key = `${tipoDoc}:${documento.trim()}`;
-    if (documento.trim().length < 4) return;
+    let alive = true;
 
-    debounceRef.current = setTimeout(async () => {
-      if (lastCheckedRef.current === key) return;
-      setClienteStatus("checking");
-      const res = await finder(tipoDoc, documento.trim());
-      if (res) {
-        setClienteStatus("found");
-        setClienteId(res.id);
-        setNombre(res.nombre);
-        setCorreo(res.correo);
-        setTelefono(res.telefono);
-      } else {
-        setClienteStatus("new");
-        setClienteId(undefined);
-        setNombre("");
-        setCorreo("");
-        setTelefono("");
+    (async () => {
+      const hasServicios = Array.isArray(servicios) && servicios.length > 0;
+
+      if (hasServicios) setServiciosLocal(servicios as ServiceOption[]);
+
+      if (hasServicios) return;
+
+      setLoadingLookups(true);
+
+      const [sr] = await Promise.allSettled([hasServicios ? Promise.resolve(servicios as ServiceOption[]) : getServiceOptions()]);
+
+      if (!alive) return;
+
+      if (sr.status === "fulfilled") setServiciosLocal(sr.value as ServiceOption[]);
+      else {
+        setServiciosLocal([]);
+        const status = (sr.reason as any)?.response?.status;
+        showError(
+          status
+            ? `No se pudieron cargar los servicios (${status}).`
+            : "No se pudieron cargar los servicios."
+        );
+        console.error("LOOKUP services ERROR →", sr.reason);
       }
-      lastCheckedRef.current = key;
-    }, 450);
+
+      setLoadingLookups(false);
+    })();
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      alive = false;
     };
-  }, [tipoDoc, documento]);
+  }, [isOpen, servicios]);
 
-  function toggleTipo(t: TipoServicio) {
-    setTipos((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  }
+  useEffect(() => {
+    if (!serviceTypes.length) {
+      setServiceTypeId(null);
+      return;
+    }
+    if (serviceTypeId && serviceTypes.some((t) => t.id === serviceTypeId)) return;
+    setServiceTypeId(serviceTypes[0].id);
+  }, [serviceTypes, serviceTypeId]);
 
   function validate() {
-    const e: Record<string, string | null> = {};
-    e.documento = documento.trim().length >= 4 ? null : "Documento inválido.";
-    if (clienteStatus === "found") {
-      e.tipos = tipos.length ? null : "Selecciona al menos un tipo.";
-      e.servicio = servicio ? null : "Selecciona un servicio.";
-      e.descripcion = descripcion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
-      e.direccion = direccion.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
+    const e: Errors = {};
+
+    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
+    e.serviceId = serviceId !== "" ? null : "Selecciona un servicio.";
+    e.description = description.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
+
+    const dir = (direccion ?? "").trim();
+    if (dir.length < 3) e.direccion = "Mínimo 3 caracteres.";
+    else if (dir.length > 255) e.direccion = "Máximo 255 caracteres.";
+    else e.direccion = null;
+
+    if (programada && !horaProgramada) e.horaProgramada = "Selecciona la hora inicial.";
+    else e.horaProgramada = null;
+
+    if (programada && !horaFinal) e.horaFinal = "Selecciona la hora final.";
+    else e.horaFinal = null;
+
+    if (programada && horaProgramada && horaFinal) {
+      const start = timeToMinutes(horaProgramada);
+      const end = timeToMinutes(horaFinal);
+      if (end <= start) e.horaFinal = "La hora final debe ser mayor que la hora inicial.";
     }
-    if (clienteStatus === "unknown" || clienteStatus === "checking") e.cliente = "Espera a que se valide el documento.";
-    if (clienteStatus === "new") {
-      e.nombre = nombre.trim().length >= 3 ? null : "Nombre requerido.";
-      e.correo = /^\S+@\S+\.\S+$/.test(correo) ? null : "Correo inválido.";
-      e.telefono = /^[0-9\-+()\s]{7,20}$/.test(telefono) ? null : "Teléfono inválido.";
-      e.pwd = pwd.length >= 6 ? null : "Mínimo 6 caracteres.";
-      e.pwd2 = pwd2 === pwd ? null : "Las contraseñas no coinciden.";
-      e.acepta = acepta ? null : "Debes aceptar los términos.";
-    }
-    setErr(e);
+
+    setErrors(e);
     return Object.values(e).every((x) => !x);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  async function submit() {
+    if (saving) return;
 
-    if (clienteStatus === "new") {
-      try {
-        setSaving(true);
-        const registrar =
-          onRegisterCliente ??
-          (async () => {
-            const id = `c${Math.random().toString(36).slice(2, 8)}`;
-            return { id };
-          });
-        const res = await registrar({
-          tipoDoc,
-          documento: documento.trim(),
-          nombre: nombre.trim(),
-          correo: correo.trim(),
-          telefono: telefono.trim(),
-          password: pwd,
-        });
-        setClienteId(res.id);
-        setClienteStatus("found");
-        setErr({});
-        setSaving(false);
-        return;
-      } catch {
-        setSaving(false);
-        return;
-      }
+    if (loadingLookups) {
+      showInfo("Espera a que carguen los servicios.");
+      return;
     }
 
+    if (!validate()) return;
+
+    if (!selectedType) {
+      setErrors((prev) => ({ ...prev, tipo: "Selecciona un tipo." }));
+      showError("Selecciona un tipo de servicio.");
+      return;
+    }
+
+    if (!clientId) {
+      showError("No se pudo identificar al cliente.");
+      return;
+    }
+
+    const scheduledAt =
+      programada && horaProgramada ? toIsoFromLocalDateTime(programada, horaProgramada) : null;
+
+    const scheduledEndAt =
+      programada && horaFinal ? toIsoFromLocalDateTime(programada, horaFinal) : null;
+
+    const dir = String(direccion ?? "").trim().slice(0, 255);
+
     const payload: CreateRequestPayload = {
-      tipos,
-      servicio,
-      descripcion: descripcion.trim(),
-      direccion: direccion.trim(),
-      cliente: { status: "found", id: clienteId, tipoDoc, documento: documento.trim() },
+      serviceType: selectedType.code,
+      serviceId: Number(serviceId),
+      clientId,
+      description: String(description ?? "").trim(),
+      direccion: dir,
+      scheduledAt,
+      scheduledEndAt,
+      stateId: 1,
     };
 
+    setSaving(true);
     try {
-      sessionStorage.setItem("checkout_payload", JSON.stringify(payload));
-      sessionStorage.setItem("checkout_amount", String(MONTO));
-    } catch {}
-    const openPago = onOpenPago ?? (() => router.push(`/payments/register?amount=${MONTO}`));
-    openPago(payload);
+      await onSave(payload);
+      showSuccess("Solicitud creada correctamente.");
+      onClose();
+    } catch (err) {
+      const msg = getBackendMessage(err);
+      showError(msg || "No se pudo crear la solicitud.");
+    } finally {
+      setSaving(false);
+    }
   }
-
-  function resetAll() {
-    setTipos([]);
-    setServicio("");
-    setDescripcion("");
-    setDireccion("");
-    setTipoDoc("CC");
-    setDocumento("");
-    setClienteStatus("unknown");
-    setClienteId(undefined);
-    setNombre("");
-    setCorreo("");
-    setTelefono("");
-    setPwd("");
-    setPwd2("");
-    setAcepta(false);
-    setErr({});
-    lastCheckedRef.current = "";
-  }
-
-  const isSignup = clienteStatus === "new";
-  const primaryLabel = isSignup ? "Registrar y continuar" : `Pagar ${formatCOP(MONTO)}`;
 
   return (
     <Modal
       title={title}
       isOpen={isOpen}
-      onClose={() => {
-        resetAll();
-        onClose();
-      }}
+      onClose={onClose}
       footer={
-        <>
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => {
-              resetAll();
-              onClose();
-            }}
-            className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+            disabled={saving}
           >
             Cancelar
           </button>
           <button
-            type="submit"
-            form="create-request-signup-form"
-            disabled={saving}
-            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+            type="button"
+            onClick={submit}
+            className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
+            disabled={saving || loadingLookups}
+            title={loadingLookups ? "Cargando servicios..." : undefined}
           >
-            {saving ? (isSignup ? "Registrando..." : "Redirigiendo…") : primaryLabel}
+            {saving ? "Enviando..." : "Enviar solicitud"}
           </button>
-        </>
+        </div>
       }
     >
-      <form id="create-request-signup-form" onSubmit={handleSubmit} className="grid gap-6">
-        <div className="space-y-2">
-          <div className="text-sm text-gray-800">Identificación del cliente</div>
-          <div className="grid grid-cols-[110px,1fr] gap-2">
-            <select
-              value={tipoDoc}
-              onChange={(e) => setTipoDoc(e.target.value as TipoDoc)}
-              className="h-10 rounded-md border border-gray-300 bg-gray-100 px-2 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-            >
-              <option value="CC">CC</option>
-              <option value="CE">CE</option>
-              <option value="NIT">NIT</option>
-              <option value="PAS">PAS</option>
-            </select>
-            <div className="flex flex-col gap-1">
-              <input
-                value={documento}
-                onChange={(e) => setDocumento(e.target.value)}
-                placeholder="Número de documento"
-                className="h-10 rounded-md border border-gray-300 bg-gray-100 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-              />
-              {clienteStatus !== "unknown" && <InlineStatus status={clienteStatus} />}
-            </div>
-          </div>
-          {"cliente" in err && err.cliente && <p className="text-xs text-red-600">{err.cliente}</p>}
-          {err.documento && <p className="text-xs text-red-600">{err.documento}</p>}
-        </div>
-
-        {isSignup ? (
-          <div className="grid gap-4">
-            <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Regístrate primero para crear tu solicitud.</div>
-            <fieldset className="grid gap-3 rounded-md border p-3">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Nombre completo</label>
-                <input
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Nombre y apellidos"
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-                {err.nombre && <p className="mt-1 text-xs text-red-600">{err.nombre}</p>}
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Correo</label>
-                <input
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  placeholder="correo@dominio.com"
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-                {err.correo && <p className="mt-1 text-xs text-red-600">{err.correo}</p>}
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Teléfono</label>
-                <input
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  placeholder="300 000 0000"
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-                {err.telefono && <p className="mt-1 text-xs text-red-600">{err.telefono}</p>}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Contraseña</label>
-                  <input
-                    type="password"
-                    value={pwd}
-                    onChange={(e) => setPwd(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                  />
-                  {err.pwd && <p className="mt-1 text-xs text-red-600">{err.pwd}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-700 mb-1">Confirmar contraseña</label>
-                  <input
-                    type="password"
-                    value={pwd2}
-                    onChange={(e) => setPwd2(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                  />
-                  {err.pwd2 && <p className="mt-1 text-xs text-red-600">{err.pwd2}</p>}
-                </div>
-              </div>
-              <label className="inline-flex items-center gap-2 text-xs text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={acepta}
-                  onChange={(e) => setAcepta(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                Acepto términos y condiciones
-              </label>
-              {err.acepta && <p className="mt-1 text-xs text-red-600">{err.acepta}</p>}
-            </fieldset>
-          </div>
-        ) : (
-          <div className="grid gap-6">
-            <div>
-              <div className="text-sm text-gray-800">Tipo de servicio</div>
-              <div className="mt-2 flex items-center gap-6">
-                <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-                  <input
-                    type="checkbox"
-                    checked={tipos.includes("Mantenimiento")}
-                    onChange={() => toggleTipo("Mantenimiento")}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  Mantenimiento
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-gray-800">
-                  <input
-                    type="checkbox"
-                    checked={tipos.includes("Instalacion")}
-                    onChange={() => toggleTipo("Instalacion")}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  Instalacion
-                </label>
-              </div>
-              {err.tipos && <p className="mt-1 text-xs text-red-600">{err.tipos}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Servicio</label>
-              <div className="relative">
-                <select
-                  value={servicio}
-                  onChange={(e) => setServicio(e.target.value)}
-                  className="w-full appearance-none rounded-md border border-gray-300 bg-gray-100 h-10 px-3 pr-8 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-                >
-                  <option value="">Selecciona el servicio</option>
-                  {DEFAULT_SERVICIOS.concat(servicios).filter((v, i, a) => a.indexOf(v) === i).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">▾</span>
-              </div>
-              {err.servicio && <p className="mt-1 text-xs text-red-600">{err.servicio}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Descripción</label>
-              <textarea
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                placeholder="Ingrese sus observaciones"
-                rows={3}
-                className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-              />
-              {err.descripcion && <p className="mt-1 text-xs text-red-600">{err.descripcion}</p>}
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Dirección</label>
-              <input
-                value={direccion}
-                onChange={(e) => setDireccion(e.target.value)}
-                placeholder="Ingrese su dirección"
-                className="w-full rounded-md border border-gray-300 bg-gray-100 h-10 px-3 text-sm shadow-sm focus:bg-white focus:ring-2 focus:ring-[#CC0000]/40"
-              />
-              {err.direccion && <p className="mt-1 text-xs text-red-600">{err.direccion}</p>}
-            </div>
-
-            <div className="rounded-md border p-3 text-sm bg-gray-50">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-700">Monto a pagar</span>
-                <span className="font-semibold">{formatCOP(MONTO)}</span>
-              </div>
-            </div>
+      <div className="grid gap-3">
+        {clientLabel && (
+          <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+            <p className="text-[11px] font-medium text-gray-500">Cliente</p>
+            <p className="text-sm font-semibold text-gray-900">{clientLabel}</p>
           </div>
         )}
-      </form>
-    </Modal>
-  );
-}
 
-function InlineStatus({ status }: { status: "unknown" | "checking" | "found" | "new" }) {
-  if (status === "unknown") return null;
-  if (status === "checking") return <span className="text-[11px] text-gray-600">Validando…</span>;
-  if (status === "found")
-    return <span className="inline-flex w-fit items-center rounded-full bg-green-100 px-2 py-[2px] text-[11px] font-semibold text-green-800">Registrado</span>;
-  return (
-    <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2 py-[2px] text-[11px] font-semibold text-amber-800">
-      Documento no registrado
-    </span>
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
+            <span className="text-[11px] text-gray-500">
+              {loadingLookups
+                ? "Cargando tipos..."
+                : serviceTypes.length
+                ? "Selecciona uno"
+                : "No hay tipos disponibles"}
+            </span>
+          </div>
+
+          {serviceTypes.length ? (
+            <div className="inline-grid grid-cols-2 gap-2">
+              {serviceTypes.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setServiceTypeId(t.id);
+                    setErrors((prev) => ({ ...prev, tipo: null }));
+                  }}
+                  className={[
+                    "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
+                    serviceTypeId === t.id
+                      ? "bg-black text-white border-black"
+                      : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
+                  ].join(" ")}
+                  disabled={saving || loadingLookups}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">
+              No hay tipos de servicio configurados por el administrador.
+            </p>
+          )}
+
+          {errors.tipo && <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
+            <div className="relative">
+              <select
+                value={serviceId === "" ? "" : String(serviceId)}
+                onChange={(e) => setServiceId(e.target.value ? Number(e.target.value) : "")}
+                disabled={saving || loadingLookups}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+              >
+                <option value="">
+                  {loadingLookups
+                    ? "Cargando servicios..."
+                    : filteredServicios.length
+                    ? "Selecciona el servicio"
+                    : serviceTypeId
+                    ? "No hay servicios para este tipo"
+                    : "No hay servicios"}
+                </option>
+                {filteredServicios.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                ▾
+              </span>
+            </div>
+            {errors.serviceId && <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+            <input
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder="Ej. Calle 123 #45-67"
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            {errors.direccion && <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
+            <input
+              type="date"
+              value={programada ?? ""}
+              onChange={(e) => {
+                const v = e.target.value || null;
+                setProgramada(v);
+                if (!v) {
+                  setHoraProgramada(null);
+                  setHoraFinal(null);
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Hora (inicio)</label>
+            <input
+              type="time"
+              disabled={!programada}
+              value={horaProgramada ?? ""}
+              onChange={(e) => {
+                const v = e.target.value || null;
+                setHoraProgramada(v);
+                if (programada && v && !horaFinal) {
+                  setHoraFinal(addMinutesToTime(v, 60));
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+            />
+            {errors.horaProgramada && (
+              <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Hora final</label>
+            <input
+              type="time"
+              disabled={!programada}
+              value={horaFinal ?? ""}
+              onChange={(e) => setHoraFinal(e.target.value || null)}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+            />
+            {errors.horaFinal && <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Describe brevemente la solicitud"
+            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+          />
+          {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
+        </div>
+      </div>
+    </Modal>
   );
 }

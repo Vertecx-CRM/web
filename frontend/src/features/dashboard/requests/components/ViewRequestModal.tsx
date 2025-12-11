@@ -1,35 +1,73 @@
 "use client";
 
+import { useMemo } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 
-type TipoServicio = "Mantenimiento" | "Instalacion";
+type Tipo = "Mantenimiento" | "Instalacion";
 
-export type RequestData = {
-  tipos: TipoServicio[];
+type ViewRequestData = {
+  tipos: Tipo[];
   servicio: string;
   descripcion: string;
-  cliente: string;
   direccion: string;
+  cliente: string;
+  fecha: string;
+  estado: string;
+  codigo: string;
+  programada: string | null;
 };
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  data: RequestData & {
-    codigo?: string;
-    estado?: string;
-    fecha?: string | Date;
-  };
+  data: ViewRequestData;
 };
 
-export default function ViewRequestModal({ isOpen, onClose, title = "Detalles de la solicitud", data }: Props) {
-  const fechaTxt =
-    data.fecha instanceof Date
-      ? data.fecha.toLocaleString()
-      : data.fecha
-      ? new Date(data.fecha).toLocaleString()
-      : undefined;
+function estadoClass(v: string) {
+  const s = (v || "").toLowerCase();
+  if (s.includes("aprob")) return "text-green-600 bg-green-50 border-green-200";
+  if (s.includes("anul") || s.includes("cancel")) return "text-red-600 bg-red-50 border-red-200";
+  if (s.includes("pend")) return "text-yellow-700 bg-yellow-50 border-yellow-200";
+  if (s.includes("activo")) return "text-emerald-700 bg-emerald-50 border-emerald-200";
+  return "text-gray-700 bg-gray-50 border-gray-200";
+}
+
+function splitDateTime(value: string | null) {
+  if (!value) return { date: "", time: "" };
+  const trimmed = value.trim();
+  if (!trimmed) return { date: "", time: "" };
+
+  if (trimmed.includes("T")) {
+    const [d, t] = trimmed.split("T");
+    const time = (t || "").slice(0, 5);
+    return { date: d, time };
+  }
+
+  if (trimmed.includes(" ")) {
+    const [d, t] = trimmed.split(" ");
+    const time = (t || "").slice(0, 5);
+    return { date: d, time };
+  }
+
+  return { date: trimmed, time: "" };
+}
+
+export default function ViewRequestModal({
+  isOpen,
+  onClose,
+  title = "Detalle de la Solicitud",
+  data,
+}: Props) {
+  const { date: programadaDate, time: programadaTime } = useMemo(
+    () => splitDateTime(data.programada),
+    [data.programada]
+  );
+
+  const tipoPrincipal: Tipo | null = useMemo(
+    () => (Array.isArray(data.tipos) && data.tipos.length ? data.tipos[0] : null),
+    [data.tipos]
+  );
 
   return (
     <Modal
@@ -37,75 +75,108 @@ export default function ViewRequestModal({ isOpen, onClose, title = "Detalles de
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-        >
-          Cerrar
-        </button>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] text-gray-500">
+            Código:&nbsp;
+            <span className="font-semibold text-gray-800">{data.codigo}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cerrar
+          </button>
+        </div>
       }
     >
       <div className="grid gap-4">
-        <hr className="border-gray-300" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {data.codigo && (
-            <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500">Código</div>
-              <div className="text-sm text-gray-800">{data.codigo}</div>
-            </div>
-          )}
-          {data.estado && (
-            <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500">Estado</div>
-              <div className="text-sm text-gray-800">{data.estado}</div>
-            </div>
-          )}
-          {fechaTxt && (
-            <div className="rounded-md bg-gray-50 border border-gray-200 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500">Fecha</div>
-              <div className="text-sm text-gray-800">{fechaTxt}</div>
-            </div>
-          )}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Información general</h3>
+            <p className="text-xs text-gray-500">Revisa el detalle de la solicitud seleccionada.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={[
+                "inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-medium",
+                estadoClass(data.estado),
+              ].join(" ")}
+            >
+              Estado: {data.estado || "—"}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-gray-800 px-3 py-1 text-[11px] font-medium text-white">
+              {tipoPrincipal ? `Tipo: ${tipoPrincipal}` : "Sin tipo asignado"}
+            </span>
+          </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
+            <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span className="truncate">{data.cliente || "—"}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
+            <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span className="truncate">{data.servicio || "—"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Fecha de creación</label>
+            <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span>{data.fecha || "—"}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Fecha y hora programada
+            </label>
+            <div className="flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span>{programadaDate || "—"}</span>
+              <span className="text-xs text-gray-500">
+                {programadaTime ? `Hora: ${programadaTime}` : ""}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <div>
-          <div className="text-sm text-gray-700 mb-1">Tipo de servicio</div>
-          <div className="flex flex-wrap gap-2">
-            {data.tipos.length ? (
-              data.tipos.map((t) => (
-                <span key={t} className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs text-gray-800">
+          <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+          <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+            <span className="truncate">{data.direccion || "—"}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Tipos de servicio</label>
+          {data.tipos && data.tipos.length ? (
+            <div className="flex flex-wrap gap-2">
+              {data.tipos.map((t, idx) => (
+                <span
+                  key={`${t}-${idx}`}
+                  className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-800 border border-gray-200"
+                >
                   {t}
                 </span>
-              ))
-            ) : (
-              <span className="text-sm text-gray-500">Sin tipos seleccionados</span>
-            )}
-          </div>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <div className="text-sm text-gray-700 mb-1">Servicio</div>
-            <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-              {data.servicio || "—"}
+              ))}
             </div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-700 mb-1">Cliente</div>
-            <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-              {data.cliente || "—"}
-            </div>
-          </div>
+          ) : (
+            <p className="text-xs text-gray-500">Sin tipos asociados.</p>
+          )}
         </div>
+
         <div>
-          <div className="text-sm text-gray-700 mb-1">Dirección</div>
-          <div className="rounded-md border border-gray-200 bg-gray-50 h-10 px-3 flex items-center text-sm text-gray-800">
-            {data.direccion || "—"}
-          </div>
-        </div>
-        <div>
-          <div className="text-sm text-gray-700 mb-1">Descripción</div>
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 min-h-12">
-            {data.descripcion?.trim() || "—"}
+          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
+          <div className="min-h-[80px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 whitespace-pre-line">
+            {data.descripcion?.trim() ? data.descripcion : "—"}
           </div>
         </div>
       </div>
