@@ -24,6 +24,7 @@ type TechnicianDTO = {
 export type ServiceRequestDTO = {
   serviceRequestId: number;
   scheduledAt: string | null;
+  scheduledEndAt: string | null;
   serviceType: string;
   description: string | null;
   direccion: string | null;
@@ -53,9 +54,12 @@ export type ServiceRequestDTO = {
   technicianid?: number;
 };
 
+export type ServiceTypeApi = "MANTENIMIENTO" | "INSTALACION";
+
 export type CreateServiceRequestInput = {
   scheduledAt?: string | null;
-  serviceType: "MANTENIMIENTO" | "INSTALACION" | string;
+  scheduledEndAt?: string | null;
+  serviceType: ServiceTypeApi;
   description: string;
   direccion: string;
   stateId: number;
@@ -73,93 +77,6 @@ function unwrap<T>(payload: any): T {
 function unwrapList<T>(payload: any): T[] {
   const data = unwrap<any>(payload);
   return Array.isArray(data) ? (data as T[]) : [];
-}
-
-function coerceId(v: any): number {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string") {
-    const n = Number(v.trim());
-    return Number.isFinite(n) ? n : 0;
-  }
-  if (v && typeof v === "object") {
-    if ("id" in v) return coerceId((v as any).id);
-    if ("value" in v) return coerceId((v as any).value);
-  }
-  return 0;
-}
-
-function normalizeServiceType(v: any): "MANTENIMIENTO" | "INSTALACION" | string {
-  const s = String(v ?? "").trim();
-  if (!s) return s;
-
-  const up = s.toUpperCase();
-  if (up === "MANTENIMIENTO" || up === "INSTALACION") return up;
-
-  const low = s.toLowerCase();
-  if (low === "mantenimiento") return "MANTENIMIENTO";
-  if (low === "instalacion" || low === "instalación") return "INSTALACION";
-
-  return s;
-}
-
-function normalizeDateString(v: any): string | null {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m1) return `${m1[3]}-${m1[2]}-${m1[1]}`;
-  return s;
-}
-
-function normalizeTimeString(v: any): string | null {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  const m = s.match(/(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  const hh = String(m[1]).padStart(2, "0");
-  const mm = String(m[2]).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-function buildScheduledAt(date: string, time: string) {
-  const [y, m, d] = date.split("-").map((n) => Number(n));
-  const [hh, mm] = time.split(":").map((n) => Number(n));
-  const dt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
-  return dt.toISOString();
-}
-
-function normalizeCreatePayload(payload: any): CreateServiceRequestInput {
-  const direccion = String(payload?.direccion ?? payload?.address ?? "").trim().slice(0, 255);
-  const description = String(payload?.description ?? payload?.descripcion ?? "").trim();
-
-  const serviceId = coerceId(payload?.serviceId ?? payload?.servicio);
-  const clientId = coerceId(payload?.clientId ?? payload?.cliente);
-
-  const typeFrom =
-    payload?.serviceType ??
-    payload?.tipo ??
-    (Array.isArray(payload?.tipos) ? payload.tipos[0] : undefined);
-
-  const serviceType = normalizeServiceType(typeFrom);
-  const stateId = coerceId(payload?.stateId ?? 1) || 1;
-
-  let scheduledAt: string | null = payload?.scheduledAt ?? null;
-
-  if (!scheduledAt) {
-    const date = normalizeDateString(payload?.programada);
-    const time = normalizeTimeString(payload?.horaProgramada) ?? "09:00";
-    if (date) scheduledAt = buildScheduledAt(date, time);
-  }
-
-  return {
-    serviceType,
-    serviceId,
-    clientId,
-    direccion,
-    description,
-    scheduledAt,
-    stateId,
-  };
 }
 
 function safeJsonParse(input: string) {
@@ -199,13 +116,11 @@ export async function getServiceRequest(id: number): Promise<ServiceRequestDTO> 
   return unwrap<ServiceRequestDTO>(res.data);
 }
 
-export async function createServiceRequest(payload: any): Promise<ServiceRequestDTO> {
-  const clean = normalizeCreatePayload(payload);
-
-  console.log("PAYLOAD ENVIADO →", clean);
+export async function createServiceRequest(payload: CreateServiceRequestInput): Promise<ServiceRequestDTO> {
+  console.log("PAYLOAD ENVIADO →", payload);
 
   try {
-    const res = await api.post<any>("/service-requests", clean);
+    const res = await api.post<any>("/service-requests", payload);
     return unwrap<ServiceRequestDTO>(res.data);
   } catch (err) {
     const e = err as AxiosError<any>;

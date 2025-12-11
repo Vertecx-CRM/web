@@ -17,9 +17,6 @@ export interface PurchaseFormState {
   registerDate: string;
   amount: number;
   status: string;
-  day: string;
-  month: string;
-  year: string;
   description: string;
 }
 
@@ -37,6 +34,18 @@ export const months = [
   "Noviembre",
   "Diciembre",
 ];
+
+type CartItem = {
+  isNew: boolean;
+  productid?: number;
+  productname?: string;
+  description?: string;
+  productpriceofsupplier?: number; // precio del proveedor (compra)
+  saleprice?: number; // precio de venta opcional
+  quantity: number;
+  unitprice: number; // precio unitario de compra
+};
+
 let CACHE: IPurchase[] | null = null;
 
 export function usePurchases() {
@@ -49,6 +58,8 @@ export function usePurchases() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [error, setError] = useState<string>("");
+
   const [form, setForm] = useState<PurchaseFormState>({
     orderNumber: "",
     invoiceNumber: "",
@@ -56,12 +67,63 @@ export function usePurchases() {
     registerDate: "",
     amount: 0,
     status: "Aprobado",
-    day: "",
-    month: "",
-    year: "",
     description: "",
   });
 
+  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  const currentYear = new Date().getFullYear();
+  const years = useMemo(
+    () => Array.from({ length: 6 }, (_, i) => currentYear - i),
+    [currentYear]
+  );
+
+  const total = useMemo(
+    () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
+    [cart]
+  );
+
+  const abortRef = useRef<AbortController | null>(null);
+
+  const generateNextOrderNumber = (data: IPurchase[]) => {
+    const year = new Date().getFullYear();
+    const currentYearOrders = data
+      .map((p) => p.numberoforder || (p as any).orderNumber)
+      .filter((n) => n?.includes(`ORD-${year}-`));
+
+    if (currentYearOrders.length === 0) return `ORD-${year}-001`;
+
+    const maxConsecutive = Math.max(
+      ...currentYearOrders.map((o) => parseInt(o.split("-")[2], 10))
+    );
+    const nextConsecutive = (maxConsecutive + 1).toString().padStart(3, "0");
+    return `ORD-${year}-${nextConsecutive}`;
+  };
+
+  const fetchPurchases = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const data = await getPurchases(controller.signal);
+      CACHE = data;
+      setPurchases(data);
+
+      const nextOrder = generateNextOrderNumber(data);
+      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Error fetching purchases:", error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Cargar productos
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -75,6 +137,7 @@ export function usePurchases() {
     fetchProducts();
   }, []);
 
+  // Cargar proveedores
   useEffect(() => {
     const fetchSuppliers = async () => {
       try {
@@ -89,80 +152,9 @@ export function usePurchases() {
     fetchSuppliers();
   }, []);
 
-  const [error, setError] = useState<string>("");
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [quantity, setQuantity] = useState<number>(1);
-  const [cart, setCart] = useState<
-    {
-      isNew: boolean;
-      productid?: number;
-      productname?: string;
-      description?: string;
-      productpriceofsupplier?: number;
-      quantity: number;
-      unitprice: number;
-    }[]
-  >([]);
-
-  const currentYear = new Date().getFullYear();
-  const years = useMemo(
-    () => Array.from({ length: 6 }, (_, i) => currentYear - i),
-    []
-  );
-
-  const daysInMonth = useMemo(() => {
-    if (!form.month || !form.year) return 31;
-    const monthIndex = months.indexOf(form.month);
-    return new Date(Number(form.year), monthIndex + 1, 0).getDate();
-  }, [form.month, form.year]);
-
-  const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity * item.unitprice, 0),
-    [cart]
-  );
-
-  const generateNextOrderNumber = (data: IPurchase[]) => {
-    const year = new Date().getFullYear();
-    const currentYearOrders = data
-      .map((p) => p.numberoforder || p.orderNumber)
-      .filter((n) => n?.includes(`ORD-${year}-`));
-
-    if (currentYearOrders.length === 0) return `ORD-${year}-001`;
-
-    const maxConsecutive = Math.max(
-      ...currentYearOrders.map((o) => parseInt(o.split("-")[2]))
-    );
-    const nextConsecutive = (maxConsecutive + 1).toString().padStart(3, "0");
-    return `ORD-${year}-${nextConsecutive}`;
-  };
-
-  const abortRef = useRef<AbortController | null>(null);
-
-  const fetchPurchases = useCallback(async () => {
-    if (CACHE) {
-      setPurchases(CACHE);
-      setLoading(false);
-      return;
-    }
-
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const data = await getPurchases(controller.signal);
-      CACHE = data;
-      setPurchases(data);
-
-      const nextOrder = generateNextOrderNumber(data);
-      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
-    } catch (error: any) {
-      if (error?.name !== "AbortError") {
-        console.error("Error fetching purchases:", error);
-      }
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    fetchPurchases();
+    return () => abortRef.current?.abort();
   }, []);
 
   const handleChange = (
@@ -172,28 +164,14 @@ export function usePurchases() {
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "invoiceNumber") validateInvoiceYear(value, form.year);
-    if (name === "year" && form.invoiceNumber)
-      validateInvoiceYear(form.invoiceNumber, value);
   };
 
-  const validateInvoiceYear = (invoice: string, year: string) => {
-    const match = invoice.match(/^FAC-(\d{4})-\d{4}$/);
-    if (match) {
-      const invoiceYear = match[1];
-      if (year && invoiceYear !== year) {
-        setError(
-          `⚠️ El año de la factura (${invoiceYear}) no coincide con la fecha seleccionada (${year}).`
-        );
-      } else {
-        setError("");
-      }
-    } else {
-      setError("");
-    }
-  };
-
+  /**
+   * Añadir producto al carrito
+   * Soporta:
+   * - Producto existente (productid)
+   * - Producto nuevo (productname + productpriceofsupplier)
+   */
   const handleAddProduct = ({
     isNew,
     productName,
@@ -201,12 +179,44 @@ export function usePurchases() {
     selectedProduct,
     quantity,
     description,
-  }: any) => {
+    salePrice,
+  }: {
+    isNew: boolean;
+    productName: string;
+    supplierPrice: number;
+    selectedProduct: string;
+    quantity: number;
+    description: string;
+    salePrice?: number;
+  }) => {
     if (!isNew) {
       const product = products.find(
         (p) => p.productid === Number(selectedProduct)
       );
       if (!product) return;
+
+      // Validación: duplicados por productid
+      const exists = cart.some((c) => c.productid === product.productid);
+      if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
+      }
+
+      if (quantity <= 0 || supplierPrice <= 0) {
+        setError(
+          "La cantidad y el precio del proveedor deben ser mayores a cero."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
+        );
+        return;
+      }
+
+      setError("");
 
       setCart((prev) => [
         ...prev,
@@ -214,73 +224,128 @@ export function usePurchases() {
           isNew: false,
           productid: product.productid,
           quantity,
-          unitprice: product.productpriceofsupplier,
+          unitprice: supplierPrice,
+          productpriceofsupplier: supplierPrice,
+          saleprice: salePrice,
           description,
         },
       ]);
     } else {
+      // Producto nuevo: validar por nombre
+      const exists = cart.some(
+        (c) => c.productname?.toLowerCase() === productName.trim().toLowerCase()
+      );
+      if (exists) {
+        setError("Este producto ya fue agregado. No se permiten duplicados.");
+        return;
+      }
+
+      if (!productName.trim() || supplierPrice <= 0 || quantity <= 0) {
+        setError(
+          "Para crear un producto nuevo debes ingresar nombre, precio proveedor y cantidad válidos."
+        );
+        return;
+      }
+
+      if (salePrice && salePrice < supplierPrice) {
+        setError(
+          "El precio de venta no puede ser menor que el precio del proveedor."
+        );
+        return;
+      }
+
+      setError("");
+
       setCart((prev) => [
         ...prev,
         {
           isNew: true,
-          productname: productName,
+          productname: productName.trim(),
           productpriceofsupplier: supplierPrice,
           quantity,
           unitprice: supplierPrice,
+          saleprice: salePrice,
           description,
         },
       ]);
     }
   };
 
+  const removeFromCart = (index: number) => {
+    setCart((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /**
+   * Construye y envía el payload al endpoint /purchasesmanagement
+   * adaptado a la documentación del backend.
+   */
   const handleAddPurchase = async () => {
     if (cart.length === 0) {
-      setError("⚠️ Agrega al menos un producto.");
+      setError("Agrega al menos un producto.");
       return;
     }
 
     setSaving(true);
 
-    const day = form.day.padStart(2, "0");
-    const month = (months.indexOf(form.month) + 1).toString().padStart(2, "0");
-    const year = form.year;
-    const created = `${year}-${month}-${day}`;
+    const created = form.registerDate;
 
-    const payload = {
-      numberoforder: form.orderNumber,
-      reference: form.invoiceNumber,
-      supplierid: Number(form.supplier),
-      stateid: 3,
-      createdat: created,
-      updatedat: new Date().toISOString(),
-      products: cart.map((item) => ({
-        productid: item.productid ?? 0,
+    // Backend espera Date -> enviamos ISO string coherente
+
+    const productsPayload = cart.map((item) => {
+      const base: any = {
         quantity: item.quantity,
         unitprice: item.unitprice,
-        productname: item.productname,
-        productpriceofsupplier: item.productpriceofsupplier,
         description: item.description || "",
-      })),
+      };
+
+      if (item.productid) {
+        base.productid = item.productid;
+      }
+
+      if (item.productname) {
+        base.productname = item.productname;
+      }
+
+      if (item.productpriceofsupplier) {
+        base.productpriceofsupplier = item.productpriceofsupplier;
+      }
+
+      if (item.saleprice !== undefined) {
+        base.saleprice = item.saleprice;
+      }
+
+      return base;
+    });
+
+    const payload = {
+      numberoforder: form.orderNumber || "TEMP-001",
+      reference: form.invoiceNumber,
+      supplierid: Number(form.supplier),
+      observation: form.description || "",
+      stateid: 3, // Aprobado
+      createdat: created,
+      updatedat: new Date().toISOString(),
+      products: productsPayload,
     };
 
     try {
-      const res = await createPurchase(payload);
-      await fetchPurchases();
-      setCart([]); // limpiar carrito
-      return res;
-    } catch (err) {
-      console.error(err);
-      setError("❌ Error al registrar la compra.");
-      throw err;
+      return await createPurchase(payload);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleCancelPurchase = async (id: number) => {
+  const handleCancelPurchase = async (id: number, observation?: string) => {
     try {
       setCancelLoading(true);
-      await cancelPurchase(id);
+
+      // Limpiar cache para forzar actualización fresca
+      CACHE = null;
+
+      // Enviar con observación opcional
+      await cancelPurchase(id, observation);
+
+      // Volver a cargar compras (solo una vez)
       await fetchPurchases();
     } catch (error) {
       console.error("Error canceling purchase:", error);
@@ -290,10 +355,27 @@ export function usePurchases() {
     }
   };
 
-  useEffect(() => {
-    fetchPurchases();
-    return () => abortRef.current?.abort();
-  }, [fetchPurchases]);
+  const resetForm = () => {
+    setForm({
+      orderNumber: "",
+      invoiceNumber: "",
+      supplier: "",
+      registerDate: "",
+      amount: 0,
+      status: "Aprobado",
+      description: "",
+    });
+
+    setSelectedProduct("");
+    setQuantity(1);
+    setCart([]);
+    setError("");
+
+    if (purchases.length > 0) {
+      const nextOrder = generateNextOrderNumber(purchases);
+      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
+    }
+  };
 
   return {
     purchases,
@@ -304,6 +386,7 @@ export function usePurchases() {
     setForm,
     error,
     setError,
+    resetForm,
 
     selectedProduct,
     setSelectedProduct,
@@ -312,16 +395,17 @@ export function usePurchases() {
     cart,
     setCart,
     total,
+    removeFromCart,
 
     products,
     suppliers,
     years,
-    daysInMonth,
     cancelLoading,
 
     handleChange,
     handleAddProduct,
     handleAddPurchase,
     handleCancelPurchase,
+    fetchPurchases,
   };
 }

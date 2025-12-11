@@ -60,7 +60,7 @@ export const routes: IRoutes = {
   },
   dashboard: {
     main: "/dashboard",
-    users: "/dashboard/access/users",
+    users: "/dashboard/users",
     products: "/dashboard/products",
     productsCategories: "/dashboard/products/categories",
     roles: "/dashboard/roles",

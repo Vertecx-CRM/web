@@ -16,28 +16,13 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
 
   return (
     <div className="space-y-6 pr-2">
-      {/* Información de la compra */}
+      {/* ----------------------- INFO GENERAL ----------------------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="ID Compra" value={String(purchase.purchaseorderid)} />
+
         <Field label="N° Orden" value={purchase.numberoforder} />
-        <Field label="Factura" value={purchase.reference} />
 
-        <Field
-          label="Proveedor"
-          value={purchase.supplier?.name ?? "Sin proveedor"}
-        />
-
-        <Field
-          label="Fecha Registro"
-          value={new Date(purchase.createdat).toLocaleDateString()}
-        />
-
-        <Field
-          label="Monto"
-          value={Number(purchase.amount).toLocaleString("es-CO", {
-            style: "currency",
-            currency: "COP",
-          })}
-        />
+        <Field label="N° Factura" value={purchase.reference} />
 
         <Field
           label="Estado"
@@ -49,10 +34,50 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
               : "Desconocido"
           }
         />
+
+        <Field
+          label="Fecha Registro"
+          value={new Date(purchase.createdat).toLocaleDateString()}
+        />
+
+        <Field
+          label="Fecha Actualización"
+          value={new Date(purchase.updatedat).toLocaleDateString()}
+        />
+
+        <Field
+          label="Monto total"
+          value={Number(purchase.amount).toLocaleString("es-CO", {
+            style: "currency",
+            currency: "COP",
+          })}
+        />
+
+        <Field
+          label="Observación"
+          value={purchase.observation || "Sin observación"}
+        />
       </div>
 
-      {/* Productos */}
-      <div>
+      {/* ----------------------- PROVEEDOR ----------------------- */}
+      <div className="mt-6">
+        <h3 className="text-lg font-semibold mb-2">Proveedor</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Nombre" value={purchase.supplier?.name ?? ""} />
+          <Field label="NIT" value={purchase.supplier?.nit ?? ""} />
+          <Field label="Teléfono" value={purchase.supplier?.phone ?? ""} />
+          <Field label="Email" value={purchase.supplier?.email ?? ""} />
+          <Field label="Dirección" value={purchase.supplier?.address ?? ""} />
+          <Field
+            label="Persona de Contacto"
+            value={purchase.supplier?.contactname ?? ""}
+          />
+        </div>
+      </div>
+
+      {/* ----------------------- PRODUCTOS ----------------------- */}
+      <div className="mt-6">
         <h3 className="text-lg font-semibold mb-4">Productos</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -79,11 +104,9 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                   onClick={() => {
                     setOpenProducts((prev) => {
                       const newSet = new Set(prev);
-                      if (newSet.has(item.purchaseProductId)) {
-                        newSet.delete(item.purchaseProductId);
-                      } else {
-                        newSet.add(item.purchaseProductId);
-                      }
+                      newSet.has(item.purchaseProductId)
+                        ? newSet.delete(item.purchaseProductId)
+                        : newSet.add(item.purchaseProductId);
                       return newSet;
                     });
                   }}
@@ -95,11 +118,19 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                     </p>
 
                     <Image
-                      src="/assets/imgs/laptop.png"
+                      src={
+                        product?.image && product.image.trim() !== ""
+                          ? product.image
+                          : "https://cdn-icons-png.flaticon.com/512/679/679720.png"
+                      }
                       alt={product?.productname ?? "Producto"}
                       width={80}
                       height={80}
-                      className="object-contain mt-2"
+                      className="object-contain mt-2 rounded-lg"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "/assets/imgs/laptop.png";
+                      }}
                     />
                   </div>
 
@@ -112,10 +143,49 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
                       transition={{ duration: 0.25 }}
                       className="w-full overflow-x-auto"
                     >
+                      {/* INFO DETALLADA DEL PRODUCTO */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        <Field
+                          label="ID Producto"
+                          value={String(product?.productid)}
+                        />
+                        <Field
+                          label="Precio proveedor"
+                          value={Number(
+                            product?.productpriceofsupplier
+                          ).toLocaleString("es-CO", {
+                            style: "currency",
+                            currency: "COP",
+                          })}
+                        />
+                        <Field
+                          label="Precio venta"
+                          value={Number(
+                            product?.productpriceofsale
+                          ).toLocaleString("es-CO", {
+                            style: "currency",
+                            currency: "COP",
+                          })}
+                        />
+                        <Field
+                          label="Stock actual"
+                          value={String(product?.productstock)}
+                        />
+                        <Field
+                          label="Descripción"
+                          value={product?.productdescription ?? ""}
+                        />
+                        <Field
+                          label="Código"
+                          value={product?.productcode ?? "Sin código"}
+                        />
+                      </div>
+
+                      {/* TABLA DE PRECIO / CANTIDAD */}
                       <table className="w-full min-w-[350px] border-collapse">
                         <thead>
                           <tr>
-                            <th className="p-2 text-center">Precio</th>
+                            <th className="p-2 text-center">Precio Unit.</th>
                             <th className="p-2 text-center">Cantidad</th>
                             <th className="p-2 text-center">Subtotal</th>
                           </tr>
@@ -150,16 +220,16 @@ export default function ViewPurchase({ purchase }: ViewPurchaseProps) {
   );
 }
 
-/** ✅ Input reutilizable y responsive */
+/**  FIELD COMPONENT MEJORADO */
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <label className="block text-sm font-medium">{label}</label>
+      <label className="block text-sm font-medium text-gray-600">{label}</label>
       <input
         type="text"
         value={value}
         disabled
-        className="w-full border p-2 rounded-lg bg-gray-100"
+        className="w-full border p-2 rounded-lg bg-gray-100 text-gray-900"
       />
     </div>
   );

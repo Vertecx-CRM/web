@@ -84,6 +84,21 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
     });
   }, [products, selectedFilters, searchTerm]);
 
+  const availableCategories = useMemo(() => {
+    const uniqueCategories = new Set<string>();
+
+    products.forEach((product) => {
+      const category = product.category?.trim();
+      if (category) {
+        uniqueCategories.add(category);
+      }
+    });
+
+    return Array.from(uniqueCategories).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" })
+    );
+  }, [products]);
+
   return {
     loading,
     selectedFilters,
@@ -91,5 +106,6 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
     searchTerm,
     setSearchTerm,
     filteredProducts,
+    availableCategories,
   };
 };

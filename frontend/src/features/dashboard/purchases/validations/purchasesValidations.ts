@@ -9,6 +9,7 @@ export interface PurchaseErrors {
   amount?: string;
   status?: string;
   description?: string;
+  products?: string;
 }
 
 /**
@@ -22,32 +23,34 @@ export const validatePurchaseField = (
 ): string | undefined => {
   switch (field) {
     case "orderNumber":
-      if (!String(value).trim()) return "El número de orden es obligatorio";
+      const order = String(value).trim();
+      if (!order) return "El número de orden es obligatorio";
+
       if (
-        (purchases ?? []).some(
-          (p) =>
-            p.orderNumber.toLowerCase() ===
-              String(value).trim().toLowerCase() && p.id !== currentId
-        )
+        (purchases ?? []).some((p) => {
+          const currentOrder = p.orderNumber || p.numberoforder || ""; // ← soportar ambos
+          return (
+            currentOrder.toLowerCase() === order.toLowerCase() &&
+            p.id !== currentId
+          );
+        })
       ) {
         return "Ya existe una compra con este número de orden";
       }
       return;
 
     case "invoiceNumber":
-      if (!String(value).trim()) return "El número de factura es obligatorio";
-
-      // Validar formato tipo FAC-2025-1001 (sin importar mayúsculas/minúsculas)
-      const invoicePattern = /^fac-\d{4}-\d{4}$/i;
-      if (!invoicePattern.test(String(value).trim()))
-        return "El formato debe ser FAC-AAAA-NNNN (ej: FAC-2025-1001)";
+      const invoice = String(value).trim();
+      if (!invoice) return "El número de factura es obligatorio";
 
       if (
-        (purchases ?? []).some(
-          (p) =>
-            p.invoiceNumber?.toLowerCase() ===
-              String(value).trim().toLowerCase() && p.id !== currentId
-        )
+        (purchases ?? []).some((p) => {
+          const currentInvoice = p.invoiceNumber || p.reference || ""; // ← soportar ambos
+          return (
+            currentInvoice.toLowerCase() === invoice.toLowerCase() &&
+            p.id !== currentId
+          );
+        })
       ) {
         return "Ya existe una compra con este número de factura";
       }
@@ -102,9 +105,9 @@ export const validatePurchaseForm = (
   const fields: any[] = [
     "registerDate",
     "status",
-    "numberoforder",
+    "orderNumber",
     "invoiceNumber",
-    "supplierid",
+    "supplier", // ← ✔ CORREGIDO
     "amount",
     "description",
   ];
