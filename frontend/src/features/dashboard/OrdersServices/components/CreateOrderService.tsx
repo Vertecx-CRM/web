@@ -1,102 +1,95 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
+import { createOrderService } from "../api/ordersServices.api";
+import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
+import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
+import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
+import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
+import { api } from "@/lib/api";
 
-type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { id: string; nombre: string; cantidad: number; precio: number };
 
-type Cotizacion = {
-  id: string;
-  titulo: string;
-  cliente: string;
-  contacto?: string;
-  tipo?: RowTipo;
-  descripcion?: string;
-  servicios?: Array<{ nombre: string; cantidad: number; precio?: number }>;
-  materiales?: Array<{ nombre: string; cantidad: number; precio?: number }>;
+type CustomerOption = {
+  customerid: number;
+  label: string;
+  city?: string | null;
+  zipcode?: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
-const TIPOS: RowTipo[] = ["Mantenimiento", "Instalación"];
+type TechnicianOption = {
+  technicianid: number;
+  label: string;
+};
+
+type ProductOption = {
+  productid: number;
+  productname: string;
+  productpriceofsale: number;
+};
+
+type ServiceTypeOption = {
+  typeofserviceid: number;
+  name: string;
+  label: string;
+};
+
+type ServiceOption = {
+  serviceid: number;
+  name: string;
+  typeofserviceid: number;
+  typeofservicename?: string | null;
+  stateid?: number | null;
+  statename?: string | null;
+};
+
 const IVA_PCT = 19;
-
-type CatalogItem = { id: string; nombre: string; precio: number; tipo: RowTipo };
-const SERVICIOS_DATA: CatalogItem[] = [
-  { id: "srv_inst_cctv", nombre: "Instalación de CCTV", precio: 450000, tipo: "Instalación" },
-  { id: "srv_cableado", nombre: "Cableado estructurado", precio: 280000, tipo: "Instalación" },
-  { id: "srv_impresora", nombre: "Instalación impresora de red", precio: 220000, tipo: "Instalación" },
-  { id: "srv_mant_camara", nombre: "Mantenimiento de cámara", precio: 120000, tipo: "Mantenimiento" },
-  { id: "srv_mant_servidor", nombre: "Mantenimiento de servidor", precio: 350000, tipo: "Mantenimiento" },
-  { id: "srv_mant_red", nombre: "Mantenimiento preventivo de red", precio: 190000, tipo: "Mantenimiento" },
-];
-
-const MATERIALES_DATA: { id: string; nombre: string; precio: number }[] = [
-  { id: "mat_cable_utp", nombre: "Cable UTP", precio: 2500 },
-  { id: "mat_cam_dome5", nombre: "Cámara Dome 5MP", precio: 260000 },
-  { id: "mat_rj45", nombre: "Conector RJ45", precio: 600 },
-  { id: "mat_ducto40", nombre: "Ducto 40mm", precio: 12000 },
-  { id: "mat_switch8", nombre: "Switch 8p", precio: 220000 },
-  { id: "mat_patch", nombre: "Patch Panel", precio: 180000 },
-  { id: "mat_rack12", nombre: "Rack 12U", precio: 540000 },
-];
-
-const COTIZACIONES_MOCK: Cotizacion[] = [
-  {
-    id: "CTZ-1001",
-    titulo: "Instalación 4 cámaras sede norte",
-    cliente: "InnovaTech S.A.S.",
-    contacto: "Andrés • 3001234567",
-    tipo: "Instalación",
-    descripcion: "Montaje de 4 cámaras, canalización y puesta en marcha.",
-    servicios: [
-      { nombre: "Instalación de CCTV", cantidad: 1 },
-      { nombre: "Cableado estructurado", cantidad: 1 },
-    ],
-    materiales: [
-      { nombre: "Cámara Dome 5MP", cantidad: 4 },
-      { nombre: "Cable UTP", cantidad: 80 },
-      { nombre: "Conector RJ45", cantidad: 20 },
-      { nombre: "Ducto 40mm", cantidad: 8 },
-      { nombre: "Patch Panel", cantidad: 1 },
-      { nombre: "Rack 12U", cantidad: 1 },
-    ],
-  },
-  {
-    id: "CTZ-1002",
-    titulo: "Mantenimiento preventivo red piso 3",
-    cliente: "Hotel Mirador del Río",
-    contacto: "María • 3017654321",
-    tipo: "Mantenimiento",
-    descripcion: "Mantenimiento y limpieza general de activos de red.",
-    servicios: [{ nombre: "Mantenimiento preventivo de red", cantidad: 1 }],
-    materiales: [{ nombre: "Switch 8p", cantidad: 1 }],
-  },
-  {
-    id: "CTZ-1003",
-    titulo: "Diagnóstico servidor contabilidad",
-    cliente: "Distribuciones Antioquia",
-    contacto: "Paola • 3020001111",
-    tipo: "Mantenimiento",
-    descripcion: "Diagnóstico y plan de actualización.",
-    servicios: [{ nombre: "Mantenimiento de servidor", cantidad: 1 }],
-    materiales: [],
-  },
-];
 
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
+
 function formatCOP(n?: number) {
-  return n == null ? "—" : n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+  return n == null
+    ? "—"
+    : n.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0,
+      });
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toLocalYMD(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toLocalHM(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function titleCase(s: string) {
+  const x = String(s ?? "").trim();
+  if (!x) return "";
+  return x.charAt(0).toUpperCase() + x.slice(1);
 }
 
 type Errors = Partial<{
-  cotizacionId: string;
+  quote: string;
+  clientId: string;
   tipo: string;
+  schedule: string;
+  technicians: string;
+  viaticos: string;
   servicios: string;
   materiales: string;
-  files: string;
 }>;
 
 function useDesktopQuery() {
@@ -142,20 +135,488 @@ function useSidebarWidth(selector = "#app-sidebar") {
   return w;
 }
 
+function initials(name: string) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const a = parts[0]?.[0] ?? "";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return (a + b).toUpperCase() || "T";
+}
+
+function normalizeText(v: string) {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function parseYMD(ymd: string) {
+  const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function timeToMinutes(hm: string) {
+  const [h, m] = (hm || "").split(":").map((x) => Number(x));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  return h * 60 + m;
+}
+
+function minutesToTime(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+const SCHEDULE_MIN = 7 * 60;
+const SCHEDULE_MAX = 17 * 60;
+
+function isAllowedDate(ymd: string) {
+  const d = parseYMD(ymd);
+  if (!d) return false;
+  const day = d.getDay();
+  return day >= 1 && day <= 6;
+}
+
+function isAllowedTime(hm: string) {
+  const mins = timeToMinutes(hm);
+  if (!Number.isFinite(mins)) return false;
+  return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
+}
+
+type QuoteLike = any;
+
+type QuoteNormalized = {
+  quoteid?: number;
+  clientid?: number;
+  typeofserviceid?: number | null;
+  fechainicio?: string;
+  fechafin?: string;
+  horainicio?: string;
+  horafin?: string;
+  viaticos?: number;
+  technicians?: number[];
+  description?: string;
+  services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+  products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
+};
+
+function asNumber(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function pickNumber(...vals: any[]) {
+  for (const v of vals) {
+    const n = asNumber(v);
+    if (n != null) return n;
+  }
+  return undefined;
+}
+
+function pickString(...vals: any[]) {
+  for (const v of vals) {
+    const s = typeof v === "string" ? v : v == null ? "" : String(v);
+    const t = s.trim();
+    if (t) return t;
+  }
+  return "";
+}
+
+function toNumArray(v: any): number[] {
+  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+  if (typeof v === "string") {
+    return v
+      .split(",")
+      .map((x) => Number(x.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }
+  return [];
+}
+
+function decodeBase64Url(input: string) {
+  const base = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base.length % 4 === 0 ? "" : "=".repeat(4 - (base.length % 4));
+  return atob(base + pad);
+}
+
+function parseQuoteParam(raw: string): any | null {
+  const v = String(raw || "").trim();
+  if (!v) return null;
+  try {
+    if (v.startsWith("{") || v.startsWith("[")) return JSON.parse(v);
+  } catch {}
+  try {
+    const json = decodeBase64Url(v);
+    return JSON.parse(json);
+  } catch {}
+  return null;
+}
+
+function extractFreeTextFromDescription(desc: string) {
+  const s = String(desc || "").trim();
+  if (!s) return "";
+  const hasStructured =
+    /\bTipo:\s*/i.test(s) || /\bServicios:\s*/i.test(s) || /\bProductos:\s*/i.test(s) || /\bDescripción:\s*/i.test(s);
+  if (!hasStructured) return s;
+  const m = s.match(/Descripción:\s*([\s\S]*)$/i);
+  if (m && m[1]) return String(m[1]).trim();
+  return "";
+}
+
+function coerceAllowedDateOrNext(ymd: string) {
+  if (isAllowedDate(ymd)) return ymd;
+  const d = parseYMD(ymd);
+  if (!d) return toLocalYMD(new Date());
+  for (let i = 0; i < 10; i++) {
+    d.setDate(d.getDate() + 1);
+    const next = toLocalYMD(d);
+    if (isAllowedDate(next)) return next;
+  }
+  return toLocalYMD(new Date());
+}
+
+function coerceAllowedTime(hm: string, fallback: string) {
+  if (isAllowedTime(hm)) return hm;
+  return fallback;
+}
+
+function normalizeQuote(q: QuoteLike): QuoteNormalized {
+  const root = q?.quote ?? q?.quotation ?? q?.cotizacion ?? q;
+
+  const quoteid = pickNumber(root?.quoteid, root?.quotationid, root?.cotizacionid, root?.id);
+
+  const clientid = pickNumber(
+    root?.clientid,
+    root?.customerid,
+    root?.client?.clientid,
+    root?.customer?.customerid,
+    root?.client?.id,
+    root?.customer?.id
+  );
+
+  const techs = toNumArray(root?.technicians ?? root?.technicianids ?? root?.techs ?? root?.assignedTechnicians);
+
+  const fechainicio = pickString(root?.fechainicio, root?.dateStart, root?.startdate, root?.startDate);
+  const fechafin = pickString(root?.fechafin, root?.dateEnd, root?.enddate, root?.endDate);
+  const horainicio = pickString(root?.horainicio, root?.timeStart, root?.starttime, root?.startTime);
+  const horafin = pickString(root?.horafin, root?.timeEnd, root?.endtime, root?.endTime);
+
+  const viaticos = pickNumber(root?.viaticos, root?.travelExpenses, root?.travel, root?.transport) ?? 0;
+
+  const description = pickString(root?.description, root?.notes, root?.observations);
+
+  const rawServices =
+    root?.services ??
+    root?.quotedservices ??
+    root?.servicesitems ??
+    root?.details?.services ??
+    root?.detail?.services ??
+    root?.quoteDetails?.services ??
+    [];
+  const servicesArr = Array.isArray(rawServices) ? rawServices : [];
+
+  const rawProducts =
+    root?.products ??
+    root?.materials ??
+    root?.items ??
+    root?.quotedproducts ??
+    root?.productsitems ??
+    root?.details?.products ??
+    root?.quoteDetails?.products ??
+    [];
+  const productsArr = Array.isArray(rawProducts) ? rawProducts : [];
+
+  const typeofserviceid =
+    pickNumber(
+      root?.typeofserviceid,
+      root?.typeOfServiceId,
+      root?.servicetypeid,
+      root?.serviceTypeId,
+      servicesArr?.[0]?.typeofserviceid,
+      servicesArr?.[0]?.typeOfServiceId,
+      servicesArr?.[0]?.service?.typeofserviceid,
+      servicesArr?.[0]?.service?.typeOfServiceId
+    ) ?? null;
+
+  const services = servicesArr
+    .map((s: any) => {
+      const serviceid = pickNumber(s?.serviceid, s?.id, s?.service?.serviceid, s?.service?.id);
+      const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
+      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.valor) ?? 0;
+      if (!serviceid) return null;
+      return { serviceid, cantidad: Math.max(1, Math.round(cantidad)), unitprice: Math.max(0, Math.round(unitprice)) };
+    })
+    .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+
+  const products = productsArr
+    .map((p: any) => {
+      const productid = pickNumber(p?.productid, p?.id, p?.product?.productid, p?.product?.id);
+      const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
+      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.valor);
+      if (!productid) return null;
+      return {
+        productid,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        unitprice: unitprice == null ? undefined : Math.max(0, Math.round(unitprice)),
+      };
+    })
+    .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
+
+  return {
+    quoteid,
+    clientid,
+    typeofserviceid,
+    fechainicio,
+    fechafin,
+    horainicio,
+    horafin,
+    viaticos,
+    technicians: techs,
+    description,
+    services,
+    products,
+  };
+}
+
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || "/dashboard/orders";
+  const returnTo = searchParams.get("returnTo") || "/dashboard/orders-services";
 
-  const [cotizacionesData] = useState<Cotizacion[]>(COTIZACIONES_MOCK);
-  const [cotizacionId, setCotizacionId] = useState("");
-  const cotizacionSel = useMemo(() => cotizacionesData.find((c) => c.id === cotizacionId), [cotizacionId, cotizacionesData]);
+  const quoteIdParam =
+    searchParams.get("quoteId") ||
+    searchParams.get("quotationId") ||
+    searchParams.get("cotizacionId") ||
+    searchParams.get("cotizacionid") ||
+    searchParams.get("quoteid");
 
-  const [tipo, setTipo] = useState<RowTipo | "">("");
+  const quoteDataParam =
+    searchParams.get("quoteData") ||
+    searchParams.get("quoteJson") ||
+    searchParams.get("cotizacion") ||
+    searchParams.get("quotation");
+
+  const quoteIdFromUrl = (() => {
+    const n = Number(quoteIdParam);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+
+  const {
+    loading: lookupsLoading,
+    error: lookupsError,
+    customers: customersRaw,
+    technicians: techniciansRaw,
+    products: productsRaw,
+    services: servicesRaw,
+    serviceTypes: serviceTypesRaw,
+    pendingStateId,
+  } = useOrdersServicesLookups();
+
+  const customers = useMemo<CustomerOption[]>(() => {
+    return (customersRaw || [])
+      .map((c: any) => {
+        const u = c?.users || c?.user || c?.Users || {};
+        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const label = name || `Cliente #${c?.customerid ?? c?.clientid ?? c?.id ?? "?"}`;
+        return {
+          customerid: Number(c?.customerid ?? c?.clientid ?? c?.id),
+          label,
+          city: c?.customercity ?? c?.city ?? null,
+          zipcode: c?.customerzipcode ?? c?.zipcode ?? null,
+          phone: u?.phone ?? c?.phone ?? null,
+          email: u?.email ?? c?.email ?? null,
+        } as CustomerOption;
+      })
+      .filter((x) => Number.isFinite(x.customerid) && x.customerid > 0);
+  }, [customersRaw]);
+
+  const technicians = useMemo<TechnicianOption[]>(() => {
+    return (techniciansRaw || [])
+      .map((t: any) => {
+        const u = t?.users || t?.user || t?.Users || {};
+        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
+      })
+      .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
+  }, [techniciansRaw]);
+
+  const productsCatalog = useMemo<ProductOption[]>(() => {
+    return (productsRaw || [])
+      .map((p: any) => {
+        const productid = Number(p?.productid ?? p?.id);
+        const productname = (p?.productname ?? p?.name ?? `Producto #${productid}`).toString();
+        const productpriceofsale = Number(p?.productpriceofsale ?? p?.priceofsale ?? p?.price ?? 0);
+        return { productid, productname, productpriceofsale } as ProductOption;
+      })
+      .filter((x) => Number.isFinite(x.productid) && x.productid > 0);
+  }, [productsRaw]);
+
+  const serviceTypes = useMemo<ServiceTypeOption[]>(() => {
+    return (serviceTypesRaw || [])
+      .map((t: any) => {
+        const id = Number(t?.typeofserviceid ?? t?.id);
+        const name = String(t?.name ?? t?.typeofservicename ?? t?.label ?? "").trim();
+        return { typeofserviceid: id, name, label: titleCase(name) || `Tipo #${id}` } as ServiceTypeOption;
+      })
+      .filter((x) => Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
+  }, [serviceTypesRaw]);
+
+  const servicesCatalog = useMemo<ServiceOption[]>(() => {
+    return (servicesRaw || [])
+      .map((s: any) => {
+        const serviceid = Number(s?.serviceid ?? s?.id);
+        const name = String(s?.name ?? s?.servicename ?? `Servicio #${serviceid}`).trim();
+        const typeofserviceid = Number(s?.typeofserviceid ?? s?.typeOfServiceId ?? s?.typeofservice?.typeofserviceid);
+        const typeofservicename = (s?.typeofservicename ?? s?.typeofservicename ?? s?.typeName ?? null) as any;
+        const stateid = s?.stateid != null ? Number(s.stateid) : null;
+        const statename = s?.statename != null ? String(s.statename) : null;
+        return { serviceid, name, typeofserviceid, typeofservicename, stateid, statename } as ServiceOption;
+      })
+      .filter((x) => Number.isFinite(x.serviceid) && x.serviceid > 0 && Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
+  }, [servicesRaw]);
+
+  const [quotesRaw, setQuotesRaw] = useState<any[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      setQuotesLoading(true);
+      setQuotesError(null);
+      try {
+        const { data } = await api.get("quotes");
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.quotes) ? data.quotes : [];
+        if (!cancelled) setQuotesRaw(list);
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || e?.message || "Error cargando cotizaciones.";
+        if (!cancelled) {
+          setQuotesError(String(msg));
+          setQuotesRaw([]);
+        }
+      } finally {
+        if (!cancelled) setQuotesLoading(false);
+      }
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const quoteMapById = useMemo(() => {
+    const m = new Map<number, any>();
+    for (const q of quotesRaw || []) {
+      const id = pickNumber(q?.quoteid, q?.quotationid, q?.cotizacionid, q?.id);
+      if (id) m.set(id, q);
+    }
+    return m;
+  }, [quotesRaw]);
+
+  const quoteOptions = useMemo(() => {
+    const opts: Array<{ id: number; label: string }> = [];
+    for (const q of quotesRaw || []) {
+      const nq = normalizeQuote(q);
+      const id = nq.quoteid ?? pickNumber(q?.quoteid, q?.quotationid, q?.cotizacionid, q?.id);
+      if (!id) continue;
+
+      const clientLabel =
+        (nq.clientid && customers.find((c) => c.customerid === nq.clientid)?.label) ||
+        (nq.clientid ? `Cliente #${nq.clientid}` : "Sin cliente");
+
+      const typeLabel =
+        (nq.typeofserviceid && serviceTypes.find((t) => t.typeofserviceid === nq.typeofserviceid)?.label) || "";
+
+      const parts = [`#${id}`, clientLabel];
+      if (typeLabel) parts.push(typeLabel);
+
+      const hasServices = Array.isArray(nq.services) && nq.services.length > 0;
+      const hasProducts = Array.isArray(nq.products) && nq.products.length > 0;
+      const extra = [hasServices ? "con servicios" : "", hasProducts ? "con productos" : ""].filter(Boolean).join(" · ");
+      if (extra) parts.push(extra);
+
+      opts.push({ id, label: parts.join(" — ") });
+    }
+    opts.sort((a, b) => b.id - a.id);
+    return opts;
+  }, [quotesRaw, customers, serviceTypes]);
+
+  const [selectedQuoteId, setSelectedQuoteId] = useState<number | "">("");
+
+  const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
+  const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
+  const [quoteApplyError, setQuoteApplyError] = useState<string | null>(null);
+
+  const [clientId, setClientId] = useState<number | "">("");
+  const selectedCustomer = useMemo(() => customers.find((c) => c.customerid === clientId), [customers, clientId]);
+
+  const [tipoId, setTipoId] = useState<number | null>(null);
+  const tipoSeleccionado = useMemo(() => serviceTypes.find((t) => t.typeofserviceid === tipoId) || null, [serviceTypes, tipoId]);
+
   const [descripcion, setDescripcion] = useState("");
 
-  const [servSel, setServSel] = useState("");
-  const [servQty, setServQty] = useState(1);
+  const [viaticosInput, setViaticosInput] = useState<string>("0");
+  const viaticosValue = useMemo(() => {
+    const raw = String(viaticosInput ?? "").trim();
+    if (raw === "") return 0;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return NaN;
+    return Math.max(0, Math.round(n));
+  }, [viaticosInput]);
+
+  const [dateStart, setDateStart] = useState(() => toLocalYMD(new Date()));
+  const [timeStart, setTimeStart] = useState(() => {
+    const now = new Date();
+    const hm = toLocalHM(now);
+    const mins = timeToMinutes(hm);
+    if (!Number.isFinite(mins)) return "07:00";
+    if (mins < SCHEDULE_MIN) return "07:00";
+    if (mins > SCHEDULE_MAX) return "17:00";
+    return hm;
+  });
+  const [dateEnd, setDateEnd] = useState(() => toLocalYMD(new Date()));
+  const [timeEnd, setTimeEnd] = useState(() => {
+    const now = new Date();
+    const hm = toLocalHM(now);
+    const mins = timeToMinutes(hm);
+    if (!Number.isFinite(mins)) return "08:00";
+    const end = Math.min(SCHEDULE_MAX, Math.max(SCHEDULE_MIN, mins) + 60);
+    return minutesToTime(end);
+  });
+
+  useEffect(() => {
+    if (!isAllowedDate(dateStart)) {
+      const d = parseYMD(dateStart);
+      if (d) {
+        for (let i = 0; i < 7; i++) {
+          d.setDate(d.getDate() + 1);
+          const next = toLocalYMD(d);
+          if (isAllowedDate(next)) {
+            setDateStart(next);
+            setDateEnd(next);
+            break;
+          }
+        }
+      }
+    } else {
+      if (!isAllowedDate(dateEnd)) setDateEnd(dateStart);
+    }
+  }, []);
+
+  const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
+  const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+
+  const [techQuery, setTechQuery] = useState("");
+  const [techOpen, setTechOpen] = useState(false);
+  const [techActiveIndex, setTechActiveIndex] = useState(0);
+  const techBoxRef = useRef<HTMLDivElement>(null);
+  const techInputRef = useRef<HTMLInputElement>(null);
+
   const [servicios, setServicios] = useState<LineItem[]>([]);
   const [materiales, setMateriales] = useState<LineItem[]>([]);
 
@@ -166,15 +627,22 @@ export default function OrderCreatePage() {
   const [errors, setErrors] = useState<Errors>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
+  const [saving, setSaving] = useState(false);
+
   const isDesktop = useDesktopQuery();
   const sidebarW = useSidebarWidth("#app-sidebar");
 
-  const inputBase = "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm";
+  const inputBase =
+    "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200";
   const selectBase = `${inputBase} appearance-none pr-8`;
-  const selectWrap = "relative";
-  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2";
+  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400";
   const errorText = "mt-1 text-xs text-red-600";
   const errorRing = "border-red-500 ring-1 ring-red-500";
+
+  const hasErrors = useMemo(
+    () => Object.values(errors).some((v) => typeof v === "string" && v.trim().length > 0),
+    [errors]
+  );
 
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
@@ -184,43 +652,194 @@ export default function OrderCreatePage() {
     };
   }, [files]);
 
-  const serviciosFiltrados = useMemo(() => SERVICIOS_DATA.filter((s) => !tipo || s.tipo === tipo), [tipo]);
+  const shownLookupErr = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lookupsError) return;
+    if (shownLookupErr.current === lookupsError) return;
+    shownLookupErr.current = lookupsError;
+    showError(lookupsError);
+  }, [lookupsError]);
 
-  function precioServicioPorNombre(nombre: string) {
-    return SERVICIOS_DATA.find((x) => x.nombre === nombre)?.precio ?? 0;
-  }
-  function precioMaterialPorNombre(nombre: string) {
-    return MATERIALES_DATA.find((x) => x.nombre === nombre)?.precio ?? 0;
-  }
+  const shownQuotesErr = useRef<string | null>(null);
+  useEffect(() => {
+    if (!quotesError) return;
+    if (shownQuotesErr.current === quotesError) return;
+    shownQuotesErr.current = quotesError;
+    showError(quotesError);
+  }, [quotesError]);
+
+  const skipClearOnTipoChangeRef = useRef(false);
 
   useEffect(() => {
-    if (!cotizacionSel) return;
-    setTipo(cotizacionSel.tipo ?? "");
-    setDescripcion(cotizacionSel.descripcion ?? "");
-    const svc: LineItem[] = (cotizacionSel.servicios ?? []).map((s) => ({
-      id: uid(),
-      nombre: s.nombre,
-      cantidad: s.cantidad,
-      precio: s.precio ?? precioServicioPorNombre(s.nombre),
-    }));
-    const mats: LineItem[] = (cotizacionSel.materiales ?? []).map((m) => ({
-      id: uid(),
-      nombre: m.nombre,
-      cantidad: m.cantidad,
-      precio: m.precio ?? precioMaterialPorNombre(m.nombre),
-    }));
-    setServicios(svc);
-    setMateriales(mats);
-    setServSel("");
-    setServQty(1);
-    setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
-  }, [cotizacionSel]);
+    if (skipClearOnTipoChangeRef.current) {
+      skipClearOnTipoChangeRef.current = false;
+      return;
+    }
+    setServicios([]);
+    setErrors((prev) => ({ ...prev, tipo: undefined, servicios: undefined }));
+  }, [tipoId]);
 
-  const subtotalServicios = useMemo(() => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [servicios]);
-  const subtotalMateriales = useMemo(() => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0), [materiales]);
+  useEffect(() => {
+    if (!techOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!techBoxRef.current) return;
+      if (!techBoxRef.current.contains(t)) setTechOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [techOpen]);
+
+  const servicesForTipo = useMemo(() => {
+    if (!tipoId) return [];
+    const list = servicesCatalog.filter((s) => s.typeofserviceid === tipoId);
+    const active = list.filter(
+      (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
+    );
+    return active.length ? active : list;
+  }, [servicesCatalog, tipoId]);
+
+  const selectedTechniciansFull = useMemo(() => {
+    const map = new Map(technicians.map((t) => [t.technicianid, t]));
+    return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
+  }, [technicians, selectedTechnicians]);
+
+  const techOptions = useMemo(() => {
+    const q = normalizeText(techQuery);
+    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((t) => {
+        const label = normalizeText(t.label);
+        const idStr = String(t.technicianid);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { t, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
+    return scored.slice(0, 10).map((x) => x.t);
+  }, [technicians, techQuery, selectedTechSet]);
+
+  useEffect(() => {
+    setTechActiveIndex(0);
+  }, [techQuery, techOpen]);
+
+  function addTechnician(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setErrors((p) => ({ ...p, technicians: undefined }));
+    setTechQuery("");
+    setTechOpen(false);
+    techInputRef.current?.focus();
+  }
+
+  function removeTechnician(id: number) {
+    setSelectedTechnicians((prev) => prev.filter((x) => x !== id));
+  }
+
+  function clearTechnicians() {
+    setSelectedTechnicians([]);
+    setErrors((p) => ({ ...p, technicians: undefined }));
+  }
+
+  function addServiceRow() {
+    if (!tipoId) return;
+    const first = servicesForTipo[0];
+    if (!first) return;
+    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, cantidad: 1, precio: 0 }]);
+    setErrors((prev) => ({ ...prev, servicios: undefined }));
+  }
+
+  function precioMaterialPorNombre(nombre: string) {
+    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  }
+
+  function addMaterialRow() {
+    const first = productsCatalog[0];
+    if (!first) return;
+    setMateriales((prev) => [
+      ...prev,
+      { id: uid(), nombre: first.productname, cantidad: 1, precio: first.productpriceofsale },
+    ]);
+    setErrors((prev) => ({ ...prev, materiales: undefined }));
+  }
+
+  function patchItem(id: string, patch: Partial<LineItem>, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    setList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }
+
+  function removeItem(id: string, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    setList((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  function dedupeAppend(newFs: File[]) {
+    setFiles((prev) => {
+      const map = new Map(prev.map((f) => [`${f.name}_${f.size}_${f.lastModified}`, f]));
+      newFs.forEach((f) => {
+        const k = `${f.name}_${f.size}_${f.lastModified}`;
+        if (!map.has(k)) map.set(k, f);
+      });
+      return Array.from(map.values());
+    });
+  }
+
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const fs = Array.from(e.target.files || []);
+    if (!fs.length) return;
+
+    const MAX_FILES = 12;
+    const MAX_SIZE = 5 * 1024 * 1024;
+
+    const accepteds: File[] = [];
+    const rejected: string[] = [];
+
+    fs.forEach((f) => {
+      const isImg = f.type.startsWith("image/");
+      const okSize = f.size <= MAX_SIZE;
+      if (isImg && okSize) accepteds.push(f);
+      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
+    });
+
+    const totalCount = accepteds.length + files.length;
+
+    if (totalCount > MAX_FILES) {
+      const allowed = Math.max(0, MAX_FILES - files.length);
+      if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
+      showWarning(`Máximo ${MAX_FILES} imágenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
+    } else {
+      dedupeAppend(accepteds);
+      if (rejected.length) showWarning("Algunas imágenes fueron rechazadas (tipo/tamaño).");
+    }
+
+    e.currentTarget.value = "";
+  }
+
+  function removeFile(file: File) {
+    setFiles((prev) =>
+      prev.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified))
+    );
+  }
+
+  const subtotalServicios = useMemo(
+    () => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [servicios]
+  );
+  const subtotalMateriales = useMemo(
+    () => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [materiales]
+  );
   const subtotal = subtotalServicios + subtotalMateriales;
-  const impuestos = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
-  const totalPagar = Math.max(0, Math.round(subtotal + impuestos));
+
+  const baseGravable = useMemo(() => {
+    const v = Number.isFinite(viaticosValue) ? viaticosValue : 0;
+    return Math.max(0, Math.round(subtotal + v));
+  }, [subtotal, viaticosValue]);
+
+  const impuestos = useMemo(() => Math.max(0, Math.round((baseGravable * IVA_PCT) / 100)), [baseGravable]);
+  const totalPagar = useMemo(() => Math.max(0, Math.round(baseGravable + impuestos)), [baseGravable, impuestos]);
 
   const serviciosMiniLista = useMemo(() => {
     const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
@@ -254,92 +873,75 @@ export default function OrderCreatePage() {
     return Array.from(map.values());
   }, [materiales]);
 
-  function addServicioDesdeFormulario() {
-    if (!tipo || !servSel || servQty <= 0) return;
-    const rec = SERVICIOS_DATA.find((s) => s.nombre === servSel && (!tipo || s.tipo === tipo));
-    if (!rec) return;
-    setServicios((prev) => [...prev, { id: uid(), nombre: rec.nombre, cantidad: servQty, precio: rec.precio }]);
-    setServSel("");
-    setServQty(1);
-    setErrors((prev) => ({ ...prev, servicios: undefined }));
-  }
-  function addMaterialRow() {
-    const first = MATERIALES_DATA[0];
-    setMateriales((prev) => [...prev, { id: uid(), nombre: first.nombre, cantidad: 1, precio: first.precio }]);
-  }
-  function patchItem(id: string, patch: Partial<LineItem>, list: LineItem[], setList: (v: LineItem[]) => void) {
-    setList(list.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  }
-  function removeItem(id: string, list: LineItem[], setList: (v: LineItem[]) => void) {
-    setList(list.filter((x) => x.id !== id));
-  }
-
-  function dedupeAppend(newFs: File[]) {
-    setFiles((prev) => {
-      const map = new Map(prev.map((f) => [`${f.name}_${f.size}_${f.lastModified}`, f]));
-      newFs.forEach((f) => {
-        const k = `${f.name}_${f.size}_${f.lastModified}`;
-        if (!map.has(k)) map.set(k, f);
-      });
-      return Array.from(map.values());
-    });
-  }
-
-  function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const fs = Array.from(e.target.files || []);
-    if (!fs.length) return;
-    const MAX_FILES = 12;
-    const MAX_SIZE = 5 * 1024 * 1024;
-    const accepteds: File[] = [];
-    const rejected: string[] = [];
-    fs.forEach((f) => {
-      const isImg = f.type.startsWith("image/");
-      const okSize = f.size <= MAX_SIZE;
-      if (isImg && okSize) accepteds.push(f);
-      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
-    });
-    const totalCount = accepteds.length + files.length;
-    if (totalCount > MAX_FILES) {
-      const allowed = Math.max(0, MAX_FILES - files.length);
-      if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
-      setErrors((prev) => ({
-        ...prev,
-        files: `Máximo ${MAX_FILES} imágenes. ${rechazadasTxt(rejected)}`.trim(),
-      }));
-    } else {
-      dedupeAppend(accepteds);
-      setErrors((prev) => ({
-        ...prev,
-        files: rechazadasTxt(rejected) || undefined,
-      }));
-    }
-    e.currentTarget.value = "";
-  }
-  function rechazadasTxt(r: string[]) {
-    return r.length ? `Rechazadas: ${r.join(", ")}` : "";
-  }
-
-  function removeFile(file: File) {
-    setFiles((prev) => prev.filter((f) => !(f.name === file.name && f.size === file.size && f.lastModified === file.lastModified)));
-  }
-
   function validateForm(): Errors {
     const errs: Errors = {};
-    if (!cotizacionSel) errs.cotizacionId = "Selecciona una cotización.";
-    if (!tipo) errs.tipo = "Selecciona el tipo de servicio.";
-    if (servicios.length === 0) errs.servicios = "Debes añadir al menos un servicio.";
+
+    if (!clientId) errs.clientId = "Selecciona un cliente.";
+    if (!tipoId) errs.tipo = "Selecciona el tipo de servicio.";
+
+    if (!dateStart || !timeStart || !dateEnd || !timeEnd) {
+      errs.schedule = "Completa fecha y hora de inicio y fin.";
+    } else {
+      if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) {
+        errs.schedule = "Solo se permite agendar de lunes a sábado.";
+      } else if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) {
+        errs.schedule = "Horario permitido: 07:00–17:00.";
+      } else {
+        const sDate = parseYMD(dateStart);
+        const eDate = parseYMD(dateEnd);
+        if (sDate && eDate) {
+          const s = new Date(sDate);
+          const e = new Date(eDate);
+          const sMin = timeToMinutes(timeStart);
+          const eMin = timeToMinutes(timeEnd);
+          s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
+          e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
+          if (!(e.getTime() > s.getTime())) errs.schedule = "La fecha/hora fin debe ser mayor que la de inicio.";
+        } else {
+          errs.schedule = "Fecha inválida.";
+        }
+      }
+    }
+
+    if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
+
+    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
+    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
+
+    if (!tipoId) {
+      errs.servicios = "Selecciona el tipo de servicio.";
+    } else {
+      if (servicesForTipo.length === 0) errs.servicios = "No hay servicios disponibles para este tipo.";
+      if (servicios.length === 0)
+        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Debes añadir al menos un servicio.";
+      const invalidSvc =
+        servicios.length > 0 &&
+        servicios.some((s) => !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === tipoId));
+      if (invalidSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Hay servicios inválidos. Vuelve a seleccionarlos.";
+    }
+
+    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
+    if (materiales.length === 0) errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
+    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
+      errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
+    }
+
     const badQtySvc = servicios.some((s) => !s.cantidad || s.cantidad < 1);
+    const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
     const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
+
     if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
-    if (badQtyMat) errs.materiales = "Corrige cantidades de materiales.";
+    if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
+    if (badQtyMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades de materiales.";
+
     return errs;
   }
 
   function focusFirstError(er: Errors) {
-    const order = ["cotizacion", "tipo", "servicios", "materiales", "files"];
-    const id = order.find((k) => (er as any)[k === "cotizacion" ? "cotizacionId" : (k as keyof Errors)]);
-    if (!id) return;
-    const el = document.getElementById(`field-${id}`);
+    const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "materiales", "servicios"] as const;
+    const key = order.find((k) => (er as any)[k]);
+    if (!key) return;
+    const el = document.getElementById(`field-${key}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       (el as HTMLElement).focus?.();
@@ -348,196 +950,927 @@ export default function OrderCreatePage() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function uploadFilesToCloudinary(fs: File[]) {
+    const urls: string[] = [];
+    for (const f of fs) {
+      const res: any = await uploadImageToCloudinary(f);
+      if (typeof res === "string") urls.push(res);
+      else if (res?.secure_url) urls.push(res.secure_url);
+      else if (res?.url) urls.push(res.url);
+    }
+    return urls;
+  }
+
+  function clampAutoEnd(date: string, startHm: string) {
+    const s = timeToMinutes(startHm);
+    const end = Math.min(SCHEDULE_MAX, (Number.isFinite(s) ? s : SCHEDULE_MIN) + 60);
+    return { date, time: minutesToTime(end) };
+  }
+
+  function resetPrefill() {
+    setQuoteApplyError(null);
+    setSelectedQuoteId("");
+    setClientId("");
+    skipClearOnTipoChangeRef.current = true;
+    setTipoId(null);
+    setDescripcion("");
+    setSelectedTechnicians([]);
+    setServicios([]);
+    setMateriales([]);
+    setFiles([]);
+    setViaticosInput("0");
+    const now = new Date();
+    const ds = coerceAllowedDateOrNext(toLocalYMD(now));
+    const ts = coerceAllowedTime(toLocalHM(now), "07:00");
+    const autoEnd = clampAutoEnd(ds, ts);
+    setDateStart(ds);
+    setTimeStart(ts);
+    setDateEnd(autoEnd.date);
+    setTimeEnd(autoEnd.time);
+    setErrors({});
+    setQuoteAppliedKey(null);
+  }
+
+  function applyNormalizedQuote(nq: QuoteNormalized, key: string) {
+    const nextClient = nq.clientid && customers.some((c) => c.customerid === nq.clientid) ? nq.clientid : "";
+
+    setClientId(nextClient as any);
+
+    const inferredTypeFromServices =
+      nq.services && nq.services.length
+        ? servicesCatalog.find((x) => x.serviceid === nq.services![0].serviceid)?.typeofserviceid ?? null
+        : null;
+
+    const candidateType = nq.typeofserviceid ?? inferredTypeFromServices;
+
+    const typeId =
+      candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType)
+        ? candidateType
+        : null;
+
+    skipClearOnTipoChangeRef.current = true;
+    setTipoId(typeId);
+
+    const techIds = (nq.technicians || []).filter((id) => technicians.some((t) => t.technicianid === id));
+    setSelectedTechnicians(techIds);
+
+    const v = Number.isFinite(Number(nq.viaticos)) ? Math.max(0, Math.round(Number(nq.viaticos))) : 0;
+    setViaticosInput(String(v));
+
+    const ds = coerceAllowedDateOrNext(nq.fechainicio || toLocalYMD(new Date()));
+    const de = coerceAllowedDateOrNext(nq.fechafin || ds);
+
+    const baseTs = coerceAllowedTime(String((nq.horainicio || "07:00")).slice(0, 5), "07:00");
+    let baseTe = coerceAllowedTime(
+      String((nq.horafin || "08:00")).slice(0, 5),
+      minutesToTime(Math.min(SCHEDULE_MAX, timeToMinutes(baseTs) + 60))
+    );
+
+    const sMin = timeToMinutes(baseTs);
+    const eMin = timeToMinutes(baseTe);
+    if (Number.isFinite(sMin) && Number.isFinite(eMin) && eMin <= sMin) {
+      baseTe = minutesToTime(Math.min(SCHEDULE_MAX, sMin + 60));
+    }
+
+    setDateStart(ds);
+    setTimeStart(baseTs);
+    setDateEnd(de);
+    setTimeEnd(baseTe);
+
+    const freeText = extractFreeTextFromDescription(nq.description || "");
+    setDescripcion(freeText);
+
+    const svcItems: LineItem[] = [];
+    if (Array.isArray(nq.services) && nq.services.length) {
+      for (const s of nq.services) {
+        const rec = servicesCatalog.find((x) => x.serviceid === s.serviceid) || null;
+        const nombre = rec?.name || `Servicio #${s.serviceid}`;
+        const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
+        const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
+        svcItems.push({ id: uid(), nombre, cantidad, precio });
+      }
+    }
+    setServicios(svcItems);
+
+    const matItems: LineItem[] = [];
+    if (Array.isArray(nq.products) && nq.products.length) {
+      for (const p of nq.products) {
+        const rec = productsCatalog.find((x) => x.productid === p.productid) || null;
+        const nombre = rec?.productname || `Producto #${p.productid}`;
+        const cantidad = Math.max(1, Math.round(Number(p.cantidad || 1)));
+        const precio =
+          p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec?.productpriceofsale ?? 0;
+        matItems.push({ id: uid(), nombre, cantidad, precio });
+      }
+    }
+    setMateriales(matItems);
+
+    setErrors({});
+    setQuoteAppliedKey(key);
+  }
+
+  useEffect(() => {
+    if (lookupsLoading) return;
+    if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
+
+    const keyFromUrl = quoteIdFromUrl ? `url:id:${quoteIdFromUrl}` : quoteDataParam ? `url:param:${String(quoteDataParam).slice(0, 32)}` : null;
+    if (!keyFromUrl) return;
+    if (quoteAppliedKey === keyFromUrl) return;
+
+    let cancelled = false;
+
+    async function run() {
+      setQuoteApplyError(null);
+      setQuoteLoadingApply(true);
+      try {
+        let raw: any = null;
+
+        if (quoteIdFromUrl) {
+          raw = quoteMapById.get(quoteIdFromUrl) ?? null;
+          if (!raw) throw new Error(`No se encontró la cotización #${quoteIdFromUrl} en http://localhost:3001/quotes`);
+        } else if (quoteDataParam) {
+          raw = parseQuoteParam(String(quoteDataParam || ""));
+          if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
+        }
+
+        const nq = normalizeQuote(raw);
+        if (cancelled) return;
+
+        applyNormalizedQuote(nq, keyFromUrl);
+        if (quoteIdFromUrl) setSelectedQuoteId(quoteIdFromUrl);
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || e?.message || "Error cargando cotización.";
+        setQuoteApplyError(String(msg));
+        showError(String(msg));
+      } finally {
+        if (!cancelled) setQuoteLoadingApply(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    lookupsLoading,
+    customers,
+    technicians,
+    productsCatalog,
+    serviceTypes,
+    servicesCatalog,
+    quoteIdFromUrl,
+    quoteDataParam,
+    quoteAppliedKey,
+    quoteMapById,
+  ]);
+
+  useEffect(() => {
+    if (!selectedQuoteId) return;
+    if (lookupsLoading) return;
+    if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
+
+    const id = Number(selectedQuoteId);
+    if (!Number.isFinite(id) || id <= 0) return;
+
+    const key = `select:id:${id}`;
+    if (quoteAppliedKey === key) return;
+
+    const raw = quoteMapById.get(id);
+    if (!raw) {
+      const msg = `La cotización #${id} no está disponible en el listado de /quotes.`;
+      setQuoteApplyError(msg);
+      showError(msg);
+      return;
+    }
+
+    setQuoteApplyError(null);
+    setQuoteLoadingApply(true);
+    try {
+      const nq = normalizeQuote(raw);
+      applyNormalizedQuote(nq, key);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || "Error aplicando cotización.";
+      setQuoteApplyError(String(msg));
+      showError(String(msg));
+    } finally {
+      setQuoteLoadingApply(false);
+    }
+  }, [
+    selectedQuoteId,
+    lookupsLoading,
+    customers,
+    technicians,
+    productsCatalog,
+    serviceTypes,
+    servicesCatalog,
+    quoteAppliedKey,
+    quoteMapById,
+  ]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const er = validateForm();
     setErrors(er);
     if (Object.keys(er).length > 0) {
+      showWarning("Revisa los campos marcados en rojo.");
       focusFirstError(er);
       return;
     }
-    const payload = {
-      cotizacionId,
-      cliente: cotizacionSel!.cliente,
-      tipo: tipo as RowTipo,
-      monto: totalPagar,
-      descripcion,
-      servicios,
-      materiales,
-    };
-    const url = `${returnTo}?newOrder=${encodeURIComponent(JSON.stringify(payload))}`;
-    router.push(url);
+
+    const productMap = new Map<number, number>();
+    for (const m of materiales) {
+      const rec = productsCatalog.find((p) => p.productname === m.nombre);
+      if (!rec) {
+        const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
+        setErrors(next);
+        showError(next.materiales || "Producto inválido.");
+        focusFirstError(next);
+        return;
+      }
+      const qty = Math.max(1, Number(m.cantidad || 1));
+      productMap.set(rec.productid, (productMap.get(rec.productid) || 0) + qty);
+    }
+
+    const products = Array.from(productMap.entries()).map(([productid, cantidad]) => ({ productid, cantidad }));
+
+    if (!tipoId) {
+      const next = { ...er, tipo: "Selecciona el tipo de servicio." };
+      setErrors(next);
+      showError(next.tipo || "Tipo inválido.");
+      focusFirstError(next);
+      return;
+    }
+
+    const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
+    for (const s of servicios) {
+      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === tipoId) || null;
+      if (!rec) {
+        const next = { ...er, servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo seleccionado.` };
+        setErrors(next);
+        showError(next.servicios || "Servicio inválido.");
+        focusFirstError(next);
+        return;
+      }
+      const cantidad = Math.max(1, Number(s.cantidad || 1));
+      const unitprice = Math.max(0, Math.round(Number(s.precio || 0)));
+      const key = `${rec.serviceid}_${unitprice}`;
+      const prev = serviceMap.get(key);
+      if (prev) prev.cantidad += cantidad;
+      else serviceMap.set(key, { serviceid: rec.serviceid, cantidad, unitprice });
+    }
+
+    const services = Array.from(serviceMap.values());
+
+    const descParts: string[] = [];
+    const tipoTxt = tipoSeleccionado?.label || tipoSeleccionado?.name || "";
+    if (tipoTxt) descParts.push(`Tipo: ${tipoTxt}`);
+    if (descripcion?.trim()) descParts.push(`Descripción: ${descripcion.trim()}`);
+    if (servicios.length) {
+      const svcTxt = servicios.map((s) => `- ${s.nombre} × ${Number(s.cantidad) || 0}`).join("\n");
+      descParts.push(`Servicios:\n${svcTxt}`);
+    }
+    if (materiales.length) {
+      const matTxt = materiales.map((m) => `- ${m.nombre} × ${Number(m.cantidad) || 0}`).join("\n");
+      descParts.push(`Productos:\n${matTxt}`);
+    }
+    const finalDescription = descParts.join("\n\n");
+
+    setSaving(true);
+    try {
+      const uploadedUrls = files.length ? await uploadFilesToCloudinary(files) : [];
+
+      const dto: CreateOrdersServiceDto = {
+        description: finalDescription,
+        clientid: Number(clientId),
+        stateid: pendingStateId ?? 1,
+        fechainicio: dateStart,
+        fechafin: dateEnd,
+        horainicio: timeStart,
+        horafin: timeEnd,
+        technicians: selectedTechnicians,
+        products,
+        services,
+        files: uploadedUrls,
+        viaticos: Number.isFinite(viaticosValue) ? viaticosValue : 0,
+      };
+
+      const created: any = await createOrderService(dto);
+      showSuccess(`Orden #${created?.ordersservicesid ?? ""} creada correctamente.`);
+      router.push(returnTo);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || "Error inesperado.");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  function handleDateStartChange(next: string) {
+    if (!isAllowedDate(next)) {
+      showWarning("Solo se permite agendar de lunes a sábado.");
+      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
+      return;
+    }
+    setDateStart(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+    if (!isAllowedDate(dateEnd)) setDateEnd(next);
+    if (dateEnd === next) return;
+  }
+
+  function handleDateEndChange(next: string) {
+    if (!isAllowedDate(next)) {
+      showWarning("Solo se permite agendar de lunes a sábado.");
+      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
+      return;
+    }
+    setDateEnd(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function handleTimeStartChange(next: string) {
+    if (!isAllowedTime(next)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
+      return;
+    }
+    const sMin = timeToMinutes(next);
+    if (Number.isFinite(sMin) && sMin === SCHEDULE_MAX) {
+      showWarning("La hora de inicio no puede ser 17:00.");
+      setErrors((p) => ({ ...p, schedule: "La hora de inicio no puede ser 17:00." }));
+      return;
+    }
+    setTimeStart(next);
+    const auto = clampAutoEnd(dateStart, next);
+    setDateEnd(auto.date);
+    setTimeEnd(auto.time);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function handleTimeEndChange(next: string) {
+    if (!isAllowedTime(next)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
+      return;
+    }
+    setTimeEnd(next);
+    setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  const StickyFooter = () => (
+    <div className="fixed bottom-0 left-0 right-0 z-40">
+      <div className="bg-white/85 backdrop-blur border-t">
+        <div className="mx-auto max-w-7xl px-4 py-3" style={{ paddingLeft: isDesktop ? sidebarW + 16 : 16 }}>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm">
+              <div className="text-xs text-gray-500">Total estimado</div>
+              <div className="text-lg font-semibold text-gray-900">{formatCOP(totalPagar)}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(returnTo)}
+                className="h-10 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                form="order-form"
+                className="h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+                disabled={saving || lookupsLoading}
+              >
+                {saving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const timeStartMax = "16:59";
+  const timeMin = "07:00";
+  const timeMax = "17:00";
+
+  const showPrefillBanner = !!quoteAppliedKey;
 
   return (
     <RequireAuth>
       <div className="relative" style={{ paddingLeft: isDesktop ? sidebarW : 0 }}>
-        <main
-          className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-gray-100 pb-32 md:pb-48"
-          style={{ scrollbarGutter: "stable both-edges" }}
-        >
+        <main className="min-h-[100dvh] bg-gray-100 pb-36 md:pb-40">
           <div className="px-4 pt-4 max-w-7xl w-full mx-auto">
-            <div className="mb-4">
-              <h1 className="text-xl font-semibold text-gray-900">Crear orden de servicio</h1>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 truncate">Crear orden de servicio</h1>
+                <p className="text-xs text-gray-500 mt-1">Completa el cliente, programación y detalles del servicio.</p>
+              </div>
             </div>
 
-            {Object.keys(errors).length > 0 && (
+            <section className="mb-4 rounded-xl border bg-white shadow-sm" id="field-quote">
+              <header className="border-b px-4 py-3 flex items-center justify-between">
+                <div className="text-sm font-semibold text-gray-800">Cotización (opcional)</div>
+                <div className="text-xs text-gray-500">
+                  {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "—"}
+                </div>
+              </header>
+
+              <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-9">
+                  <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-select">
+                    Seleccionar cotización para precargar el formulario
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="field-quote-select"
+                      value={selectedQuoteId === "" ? "" : String(selectedQuoteId)}
+                      onChange={(e) => {
+                        const v = e.target.value ? Number(e.target.value) : "";
+                        setSelectedQuoteId((Number.isFinite(v) && v > 0 ? v : "") as any);
+                        setErrors((p) => ({ ...p, quote: undefined }));
+                      }}
+                      className={`${selectBase} ${errors.quote ? errorRing : ""}`}
+                      disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0}
+                      aria-invalid={!!errors.quote}
+                    >
+                      <option value="">
+                        {quotesLoading
+                          ? "Cargando cotizaciones..."
+                          : quoteOptions.length
+                          ? "Elige una cotización"
+                          : "No hay cotizaciones"}
+                      </option>
+                      {quoteOptions.map((q) => (
+                        <option key={q.id} value={String(q.id)}>
+                          {q.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className={chevron}>▾</span>
+                  </div>
+                  {quotesError && <p className={errorText}>{quotesError}</p>}
+                  {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
+                  {quoteLoadingApply && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Aplicando cotización al formulario...
+                    </div>
+                  )}
+                  {showPrefillBanner && !quoteLoadingApply && (
+                    <div className="mt-2 text-xs text-emerald-700">
+                      Cotización aplicada al formulario.
+                    </div>
+                  )}
+                </div>
+
+                <div className="md:col-span-3 flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetPrefill}
+                    className="w-full h-10 rounded-md border bg-white text-sm hover:bg-gray-50 disabled:opacity-60"
+                    disabled={saving || lookupsLoading}
+                  >
+                    Limpiar formulario
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {hasErrors && (
               <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
                 <strong className="block mb-1">Hay errores en el formulario:</strong>
                 <ul className="list-disc pl-5 space-y-1">
-                  {errors.cotizacionId && <li>{errors.cotizacionId}</li>}
+                  {errors.quote && <li>{errors.quote}</li>}
+                  {errors.clientId && <li>{errors.clientId}</li>}
                   {errors.tipo && <li>{errors.tipo}</li>}
-                  {errors.servicios && <li>{errors.servicios}</li>}
+                  {errors.schedule && <li>{errors.schedule}</li>}
+                  {errors.technicians && <li>{errors.technicians}</li>}
+                  {errors.viaticos && <li>{errors.viaticos}</li>}
                   {errors.materiales && <li>{errors.materiales}</li>}
-                  {errors.files && <li>{errors.files}</li>}
+                  {errors.servicios && <li>{errors.servicios}</li>}
                 </ul>
               </div>
             )}
 
             <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
               <div className="space-y-6">
-                <section className="rounded-xl border bg-gray-50">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Cotización</header>
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Cliente</div>
+                    <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "—"}</div>
+                  </header>
+
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-12">
-                      <label htmlFor="field-cotizacion" className="block text-xs text-gray-700 mb-1">
-                        Seleccionar cotización
+                    <div className="md:col-span-12" id="field-clientId">
+                      <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
+                        Seleccionar cliente
                       </label>
-                      <div className="flex gap-2">
-                        <div className={`${selectWrap} flex-1`}>
-                          <select
-                            id="field-cotizacion"
-                            value={cotizacionId}
-                            onChange={(e) => {
-                              setCotizacionId(e.target.value);
-                              setErrors((prev) => ({ ...prev, cotizacionId: undefined }));
-                            }}
-                            className={`${selectBase} ${errors.cotizacionId ? errorRing : ""}`}
-                            aria-invalid={!!errors.cotizacionId}
-                          >
-                            <option value="">Elige una cotización</option>
-                            {cotizacionesData.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.id} — {c.titulo} ({c.cliente})
-                              </option>
-                            ))}
-                          </select>
-                          <span className={chevron}>▾</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => router.push("/dashboard/quotes/new")}
-                          className="h-10 rounded-md border border-[#CC0000] text-[#CC0000] px-3 text-sm hover:bg-red-50 whitespace-nowrap"
+                      <div className="relative flex-1">
+                        <select
+                          id="field-clientId-input"
+                          value={clientId === "" ? "" : String(clientId)}
+                          onChange={(e) => {
+                            const v = e.target.value ? Number(e.target.value) : "";
+                            setClientId(v as any);
+                            setErrors((prev) => ({ ...prev, clientId: undefined }));
+                          }}
+                          className={`${selectBase} ${errors.clientId ? errorRing : ""}`}
+                          aria-invalid={!!errors.clientId}
+                          disabled={lookupsLoading}
                         >
-                          Nueva cotización
-                        </button>
+                          <option value="">{lookupsLoading ? "Cargando..." : "Elige un cliente"}</option>
+                          {customers.map((c) => (
+                            <option key={c.customerid} value={String(c.customerid)}>
+                              #{c.customerid} — {c.label}
+                            </option>
+                          ))}
+                        </select>
+                        <span className={chevron}>▾</span>
                       </div>
-                      {errors.cotizacionId && <p className={errorText}>{errors.cotizacionId}</p>}
+                      {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                     </div>
 
-                    {cotizacionSel && (
+                    {selectedCustomer && (
                       <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
-                        <div className="bg-white rounded-md border p-2">
-                          <div className="font-medium">Cliente</div>
-                          <div>{cotizacionSel.cliente}</div>
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Cliente</div>
+                          <div className="mt-1">{selectedCustomer.label}</div>
                         </div>
-                        <div className="bg-white rounded-md border p-2">
-                          <div className="font-medium">Cotización</div>
-                          <div>{cotizacionSel.id}</div>
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Contacto</div>
+                          <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
                         </div>
-                        <div className="bg-white rounded-md border p-2">
-                          <div className="font-medium">Contacto</div>
-                          <div>{cotizacionSel.contacto || "—"}</div>
+                        <div className="bg-gray-50 rounded-lg border p-3">
+                          <div className="font-medium text-gray-900">Ubicación</div>
+                          <div className="mt-1">
+                            {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
                 </section>
 
-                <section className="rounded-xl border bg-gray-50">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Detalles del servicio</header>
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Programación</div>
+                    <div className="text-xs text-gray-500">Lun–Sáb · 07:00–17:00</div>
+                  </header>
+
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateStart">
+                        Fecha inicio
+                      </label>
+                      <input
+                        id="field-dateStart"
+                        type="date"
+                        value={dateStart}
+                        onChange={(e) => handleDateStartChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeStart">
+                        Hora inicio
+                      </label>
+                      <input
+                        id="field-timeStart"
+                        type="time"
+                        min={timeMin}
+                        max={timeStartMax}
+                        value={timeStart}
+                        onChange={(e) => handleTimeStartChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateEnd">
+                        Fecha fin
+                      </label>
+                      <input
+                        id="field-dateEnd"
+                        type="date"
+                        value={dateEnd}
+                        onChange={(e) => handleDateEndChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeEnd">
+                        Hora fin
+                      </label>
+                      <input
+                        id="field-timeEnd"
+                        type="time"
+                        min={timeMin}
+                        max={timeMax}
+                        value={timeEnd}
+                        onChange={(e) => handleTimeEndChange(e.target.value)}
+                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                      />
+                    </div>
+
+                    {errors.schedule && (
+                      <div className="md:col-span-12">
+                        <p className={errorText}>{errors.schedule}</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm" id="field-technicians">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Técnicos</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-gray-500">
+                        Seleccionados: <span className="font-semibold text-gray-900">{selectedTechnicians.length}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearTechnicians}
+                        className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
+                        disabled={lookupsLoading || selectedTechnicians.length === 0}
+                      >
+                        Limpiar
+                      </button>
+                    </div>
+                  </header>
+
+                  <div className="p-4 grid grid-cols-1 gap-3">
+                    <div className={`rounded-lg border bg-gray-50 p-3 ${errors.technicians ? errorRing : ""}`}>
+                      {selectedTechniciansFull.length === 0 ? (
+                        <div className="text-xs text-gray-500">No has seleccionado técnicos.</div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTechniciansFull.map((t) => (
+                            <span
+                              key={t.technicianid}
+                              className="inline-flex items-center gap-2 rounded-full border bg-white px-2 py-1 text-xs"
+                            >
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border bg-gray-50 text-[10px] font-semibold">
+                                {initials(t.label)}
+                              </span>
+                              <span className="max-w-[220px] truncate">
+                                #{t.technicianid} — {t.label}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeTechnician(t.technicianid)}
+                                className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
+                                aria-label="Quitar técnico"
+                                title="Quitar"
+                                disabled={lookupsLoading}
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div ref={techBoxRef} className="relative">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-tech-search">
+                        Buscar y agregar técnico
+                      </label>
+                      <input
+                        id="field-tech-search"
+                        ref={techInputRef}
+                        value={techQuery}
+                        onChange={(e) => {
+                          setTechQuery(e.target.value);
+                          setTechOpen(true);
+                        }}
+                        onFocus={() => setTechOpen(true)}
+                        onKeyDown={(e) => {
+                          if (!techOpen) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techOptions.length - 1)));
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setTechActiveIndex((i) => Math.max(i - 1, 0));
+                          } else if (e.key === "Enter") {
+                            if (techOptions[techActiveIndex]) {
+                              e.preventDefault();
+                              addTechnician(techOptions[techActiveIndex].technicianid);
+                            }
+                          } else if (e.key === "Escape") {
+                            setTechOpen(false);
+                          }
+                        }}
+                        placeholder="Nombre, apellido o ID..."
+                        className={`${inputBase} ${errors.technicians ? errorRing : ""}`}
+                        disabled={lookupsLoading}
+                        aria-expanded={techOpen}
+                        aria-controls="tech-suggest"
+                        aria-autocomplete="list"
+                      />
+
+                      {techOpen && !lookupsLoading && (
+                        <div id="tech-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                          {techOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">
+                              {selectedTechnicians.length === technicians.length ? "Ya seleccionaste todos los técnicos." : "No hay coincidencias."}
+                            </div>
+                          ) : (
+                            <ul className="max-h-60 overflow-auto">
+                              {techOptions.map((t, idx) => (
+                                <li key={t.technicianid}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => addTechnician(t.technicianid)}
+                                    onMouseEnter={() => setTechActiveIndex(idx)}
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                      idx === techActiveIndex ? "bg-gray-100" : "bg-white"
+                                    }`}
+                                  >
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                      {initials(t.label)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">{t.label}</span>
+                                      <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
+                                    </span>
+                                    <span className="text-xs text-gray-400">Agregar</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.technicians && <p className={errorText}>{errors.technicians}</p>}
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm" id="field-tipo">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
+                    <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
+                  </header>
+
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-6" id="field-tipo">
-                      <span className="block text-xs text-gray-700 mb-1">Tipo de servicio</span>
-                      <div className={`flex flex-wrap gap-2 ${errors.tipo ? "rounded-md p-2 border " + errorRing : ""}`}>
-                        {TIPOS.map((t) => (
-                          <label key={t} className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white">
-                            <input
-                              type="radio"
-                              name="tipo-servicio"
-                              value={t}
-                              checked={tipo === t}
-                              onChange={(e) => {
-                                const v = e.target.value as RowTipo;
-                                setTipo(v);
-                                setErrors((prev) => ({ ...prev, tipo: undefined }));
-                                if (servSel) setServSel("");
-                              }}
-                              className="h-4 w-4"
-                            />
-                            <span className="text-sm">{t}</span>
-                          </label>
-                        ))}
+                    <div className="md:col-span-12">
+                      <span className="block text-xs text-gray-700 mb-2">Tipo de servicio</span>
+                      <div
+                        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${
+                          errors.tipo ? "rounded-lg p-3 border " + errorRing : ""
+                        }`}
+                      >
+                        {serviceTypes.length === 0 ? (
+                          <div className="text-xs text-gray-500">No hay tipos cargados desde la API.</div>
+                        ) : (
+                          serviceTypes.map((t) => (
+                            <label
+                              key={t.typeofserviceid}
+                              className={`flex items-center gap-2 rounded-lg border bg-white px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+                                tipoId === t.typeofserviceid ? "ring-2 ring-red-200 border-red-200" : ""
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="tipo-servicio"
+                                value={String(t.typeofserviceid)}
+                                checked={tipoId === t.typeofserviceid}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  setTipoId(Number.isFinite(v) ? v : null);
+                                  setErrors((prev) => ({ ...prev, tipo: undefined }));
+                                }}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-sm font-medium text-gray-900">{t.label}</span>
+                            </label>
+                          ))
+                        )}
                       </div>
                       {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
                     </div>
 
-                    <div className="md:col-span-6"></div>
-
-                    <div className="md:col-span-6">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-servicio">
-                        Servicio
-                      </label>
-                      <div className={selectWrap}>
-                        <select
-                          id="field-servicio"
-                          value={servSel}
-                          onChange={(e) => setServSel(e.target.value)}
-                          className={selectBase}
-                          disabled={!tipo}
+                    <div className="md:col-span-12" id="field-servicios">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div>
+                          <div className="text-xs text-gray-700">Servicios</div>
+                          <div className="text-xs text-gray-500">Agrega los servicios a realizar.</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addServiceRow}
+                          className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
+                          disabled={!tipoId || lookupsLoading || servicesForTipo.length === 0}
                         >
-                          <option value="">{tipo ? "Selecciona el servicio" : "Primero elige un tipo"}</option>
-                          {serviciosFiltrados.map((s) => (
-                            <option key={s.id} value={s.nombre}>
-                              {s.nombre}
-                            </option>
-                          ))}
-                        </select>
-                        <span className={chevron}>▾</span>
+                          Añadir servicio
+                        </button>
                       </div>
-                    </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-serv-cant">
-                        Cantidad
-                      </label>
-                      <input
-                        id="field-serv-cant"
-                        type="number"
-                        min={1}
-                        value={servQty}
-                        onChange={(e) => setServQty(Math.max(1, Number(e.target.value || 1)))}
-                        className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm"
-                        disabled={!servSel}
-                      />
-                    </div>
+                      <div className={`rounded-lg border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+                        <table className="w-full text-xs md:text-sm">
+                          <thead className="bg-gray-50">
+                            <tr className="text-gray-700">
+                              <th className="px-3 py-2 text-left">Servicio</th>
+                              <th className="px-3 py-2 text-right w-20">Cant.</th>
+                              <th className="px-3 py-2 text-right w-32">Precio</th>
+                              <th className="px-3 py-2 text-right w-32">Importe</th>
+                              <th className="px-3 py-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {servicios.map((it) => (
+                              <tr key={it.id} className="border-t">
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={it.nombre}
+                                    onChange={(e) => {
+                                      const n = e.target.value;
+                                      patchItem(it.id, { nombre: n }, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="w-full h-9 rounded-md border px-2"
+                                    disabled={!tipoId || servicesForTipo.length === 0 || lookupsLoading}
+                                  >
+                                    {servicesForTipo.map((opt) => (
+                                      <option key={`${it.id}-${opt.serviceid}`} value={opt.name}>
+                                        {opt.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-700 mb-1">Precio unitario</label>
-                      <div className="h-10 w-full rounded-md border border-gray-300 bg-gray-100 px-3 text-sm flex items-center justify-end">
-                        {servSel ? formatCOP(precioServicioPorNombre(servSel)) : "—"}
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={it.cantidad}
+                                    onChange={(e) => {
+                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-20 rounded-md border px-2 text-right"
+                                    disabled={lookupsLoading}
+                                  />
+                                </td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step={1000}
+                                    value={it.precio}
+                                    onChange={(e) => {
+                                      const n = Number(e.target.value || 0);
+                                      patchItem(it.id, { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 }, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-32 rounded-md border px-2 text-right"
+                                    disabled={lookupsLoading}
+                                  />
+                                </td>
+
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {formatCOP((Number(it.cantidad) || 0) * (Number(it.precio) || 0))}
+                                </td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeItem(it.id, setServicios);
+                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                    }}
+                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                    disabled={lookupsLoading}
+                                    aria-label="Quitar servicio"
+                                    title="Quitar"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+
+                            {servicios.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                                  {tipoId
+                                    ? servicesForTipo.length
+                                      ? "Aún no has añadido servicios."
+                                      : "No hay servicios para este tipo."
+                                    : "Selecciona primero el tipo de servicio."}
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
                       </div>
-                    </div>
 
-                    <div className="md:col-span-2 flex items-end">
-                      <button
-                        type="button"
-                        onClick={addServicioDesdeFormulario}
-                        disabled={!tipo || !servSel}
-                        className="h-10 w-full rounded-md bg-gray-200 text-sm disabled:opacity-50"
-                      >
-                        Añadir
-                      </button>
+                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
 
                     <div className="md:col-span-12">
@@ -549,28 +1882,43 @@ export default function OrderCreatePage() {
                         value={descripcion}
                         onChange={(e) => setDescripcion(e.target.value)}
                         rows={3}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                        placeholder="Describe el servicio, alcance, observaciones, etc."
                       />
                     </div>
 
                     <div className="md:col-span-12" id="field-files">
-                      <label className="block text-xs text-gray-700 mb-1">Imágenes del servicio</label>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => fileRef.current?.click()} className="h-8 px-2 rounded-md border bg-white text-xs hover:bg-gray-50" title="Subir imágenes">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="block text-xs text-gray-700">Imágenes del servicio</label>
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          className="h-8 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                          title="Subir imágenes"
+                          disabled={lookupsLoading}
+                        >
                           Subir imágenes
                         </button>
-                        <span className="text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</span>
                         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                       </div>
-                      {errors.files && <p className={errorText}>{errors.files}</p>}
-                      <div className="mt-2 flex flex-wrap gap-2">
+
+                      <div className="mt-1 text-xs text-gray-500">{files.length ? `${files.length} seleccionadas` : "Ninguna seleccionada"}</div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
                         {files.length === 0 ? (
-                          <p className="text-xs text-gray-500">No hay imágenes aún.</p>
+                          <div className="text-xs text-gray-500">No hay imágenes aún.</div>
                         ) : (
                           files.map((f, idx) => (
-                            <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-md overflow-hidden border bg-white">
+                            <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white">
                               <img src={previews[idx]} alt={f.name} className="w-full h-full object-cover" />
-                              <button type="button" onClick={() => removeFile(f)} className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1" aria-label="Quitar imagen" title="Quitar">
+                              <button
+                                type="button"
+                                onClick={() => removeFile(f)}
+                                className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1"
+                                aria-label="Quitar imagen"
+                                title="Quitar"
+                                disabled={lookupsLoading}
+                              >
                                 ✕
                               </button>
                             </div>
@@ -578,177 +1926,163 @@ export default function OrderCreatePage() {
                         )}
                       </div>
                     </div>
-
-                    <div className="md:col-span-12" id="field-servicios">
-                      <label className="block text-xs text-gray-700 mb-2">Servicios añadidos</label>
-                      <div className={`rounded-md border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
-                        <table className="w-full text-xs md:text-sm">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-2 py-2 text-left">Servicio</th>
-                              <th className="px-2 py-2 text-right w-16">Cant.</th>
-                              <th className="px-2 py-2 text-right w-28">Precio</th>
-                              <th className="px-2 py-2 text-right w-28">Importe</th>
-                              <th className="px-2 py-2 w-8"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {servicios.map((it) => (
-                              <tr key={it.id} className="border-t">
-                                <td className="px-2 py-1">
-                                  <select
-                                    value={it.nombre}
-                                    onChange={(e) => {
-                                      const n = e.target.value;
-                                      const p = precioServicioPorNombre(n);
-                                      patchItem(it.id, { nombre: n, precio: p }, servicios, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="w-full h-8 rounded-md border px-2"
-                                  >
-                                    {(tipo ? serviciosFiltrados : SERVICIOS_DATA).map((opt) => (
-                                      <option key={`${it.id}-${opt.id}`} value={opt.nombre}>
-                                        {opt.nombre}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="px-2 py-1 text-right">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={it.cantidad}
-                                    onChange={(e) => {
-                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, servicios, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-8 w-16 rounded-md border px-2 text-right"
-                                  />
-                                </td>
-                                <td className="px-2 py-1 text-right">{formatCOP(it.precio)}</td>
-                                <td className="px-2 py-1 text-right">{formatCOP(it.cantidad * it.precio)}</td>
-                                <td className="px-2 py-1 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      removeItem(it.id, servicios, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-8 px-2 rounded-md hover:bg-gray-200"
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                            {servicios.length === 0 && (
-                              <tr>
-                                <td colSpan={5} className="px-2 py-3 text-center text-gray-500">
-                                  Aún no has añadido servicios.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
-                    </div>
                   </div>
                 </section>
               </div>
 
               <aside className="space-y-6">
-                <section className="rounded-xl border bg-gray-50" id="field-materiales">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Materiales</header>
+                <section className="rounded-xl border bg-white shadow-sm" id="field-materiales">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
+                      <div className="text-xs text-gray-500">Agrega los materiales consumidos.</div>
+                    </div>
+                    <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
+                  </header>
+
                   <div className="p-4">
-                    <div className={`rounded-md border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
+                    <div className={`rounded-lg border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-2 py-2 text-left">Material</th>
-                            <th className="px-2 py-2 text-right w-16">Cant.</th>
-                            <th className="px-2 py-2 text-right w-28">Precio</th>
-                            <th className="px-2 py-2 w-8"></th>
+                        <thead className="bg-gray-50">
+                          <tr className="text-gray-700">
+                            <th className="px-3 py-2 text-left">Producto</th>
+                            <th className="px-3 py-2 text-right w-20">Cant.</th>
+                            <th className="px-3 py-2 text-right w-32">Precio</th>
+                            <th className="px-3 py-2 w-10"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {materiales.map((m) => (
                             <tr key={m.id} className="border-t">
-                              <td className="px-2 py-1">
+                              <td className="px-3 py-2">
                                 <select
                                   value={m.nombre}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, materiales, setMateriales);
+                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, setMateriales);
                                     setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="w-full h-8 rounded-md border px-2"
+                                  className="w-full h-9 rounded-md border px-2"
+                                  disabled={!productsCatalog.length || lookupsLoading}
                                 >
-                                  {MATERIALES_DATA.map((opt) => (
-                                    <option key={opt.id} value={opt.nombre}>
-                                      {opt.nombre}
+                                  {productsCatalog.map((opt) => (
+                                    <option key={opt.productid} value={opt.productname}>
+                                      {opt.productname}
                                     </option>
                                   ))}
                                 </select>
                               </td>
-                              <td className="px-2 py-1 text-right">
+
+                              <td className="px-3 py-2 text-right">
                                 <input
                                   type="number"
                                   min={1}
                                   value={m.cantidad}
                                   onChange={(e) => {
-                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, materiales, setMateriales);
+                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setMateriales);
                                     setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="h-8 w-16 rounded-md border px-2 text-right"
+                                  className="h-9 w-20 rounded-md border px-2 text-right"
+                                  disabled={lookupsLoading}
                                 />
                               </td>
-                              <td className="px-2 py-1 text-right">{formatCOP(m.precio)}</td>
-                              <td className="px-2 py-1 text-right">
+
+                              <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+
+                              <td className="px-3 py-2 text-right">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    removeItem(m.id, materiales, setMateriales);
+                                    removeItem(m.id, setMateriales);
                                     setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="h-8 px-2 rounded-md hover:bg-gray-200"
+                                  className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                  disabled={lookupsLoading}
+                                  aria-label="Quitar producto"
+                                  title="Quitar"
                                 >
                                   ✕
                                 </button>
                               </td>
                             </tr>
                           ))}
+
                           {materiales.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="px-2 py-3 text-center text-gray-500">
-                                Aún no has añadido materiales.
+                              <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
+                                Aún no has añadido productos.
                               </td>
                             </tr>
                           )}
                         </tbody>
                       </table>
                     </div>
+
                     {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
-                    <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={addMaterialRow} className="w-full rounded-md bg-gray-200 px-3 h-10 text-sm">
-                        Añadir material
+
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={addMaterialRow}
+                        className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
+                        disabled={!productsCatalog.length || lookupsLoading}
+                      >
+                        Añadir producto
                       </button>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-xl border bg-gray-50">
-                  <header className="border-b px-4 py-3 text-sm font-semibold text-gray-700">Totales</header>
+                <section className="rounded-xl border bg-white shadow-sm" id="field-viaticos">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">Viáticos</div>
+                      <div className="text-xs text-gray-500">Afecta base e IVA.</div>
+                    </div>
+                  </header>
+                  <div className="p-4 space-y-2">
+                    <label className="block text-xs text-gray-700" htmlFor="field-viaticos-input">
+                      Valor (COP)
+                    </label>
+                    <input
+                      id="field-viaticos-input"
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={viaticosInput}
+                      onChange={(e) => {
+                        setViaticosInput(e.target.value);
+                        setErrors((prev) => ({ ...prev, viaticos: undefined }));
+                      }}
+                      className={`${inputBase} text-right ${errors.viaticos ? errorRing : ""}`}
+                      disabled={lookupsLoading || saving}
+                      aria-invalid={!!errors.viaticos}
+                      placeholder="0"
+                    />
+                    {errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
+                    <div className="pt-3 border-t text-sm flex justify-between">
+                      <span className="text-gray-600">Total viáticos</span>
+                      <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border bg-white shadow-sm">
+                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Totales</div>
+                    <div className="text-xs text-gray-500">Estimación</div>
+                  </header>
+
                   <div className="p-4 space-y-3 text-sm">
                     <div>
                       <div className="flex justify-between">
-                        <span>Subtotal servicios</span>
-                        <span>{formatCOP(subtotalServicios)}</span>
+                        <span className="text-gray-600">Subtotal servicios</span>
+                        <span className="font-medium">{formatCOP(subtotalServicios)}</span>
                       </div>
                       {serviciosMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {serviciosMiniLista.map((s) => (
-                            <li key={s.nombre} className="flex justify-between">
+                            <li key={s.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
                                 {s.nombre} × {s.cantidad}
                               </span>
@@ -758,15 +2092,16 @@ export default function OrderCreatePage() {
                         </ul>
                       )}
                     </div>
+
                     <div>
                       <div className="flex justify-between">
-                        <span>Subtotal materiales</span>
-                        <span>{formatCOP(subtotalMateriales)}</span>
+                        <span className="text-gray-600">Subtotal productos</span>
+                        <span className="font-medium">{formatCOP(subtotalMateriales)}</span>
                       </div>
                       {materialesMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {materialesMiniLista.map((m) => (
-                            <li key={m.nombre} className="flex justify-between">
+                            <li key={m.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
                                 {m.nombre} × {m.cantidad}
                               </span>
@@ -776,33 +2111,29 @@ export default function OrderCreatePage() {
                         </ul>
                       )}
                     </div>
+
                     <div className="flex justify-between">
-                      <span>IVA ({IVA_PCT}%)</span>
-                      <span>{formatCOP(impuestos)}</span>
+                      <span className="text-gray-600">Viáticos</span>
+                      <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
-                    <div className="flex justify-between text-base font-semibold pt-2 border-t">
-                      <span>Total</span>
+
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">IVA ({IVA_PCT}%)</span>
+                      <span className="font-medium">{formatCOP(impuestos)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-base font-semibold pt-3 border-t">
+                      <span>Total (estimado)</span>
                       <span>{formatCOP(totalPagar)}</span>
                     </div>
                   </div>
                 </section>
               </aside>
-
-              <div className="lg:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
-                <button
-                  type="button"
-                  onClick={() => router.push(returnTo)}
-                  className="rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200"
-                >
-                  Cancelar
-                </button>
-                <button type="submit" form="order-form" className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">
-                  Guardar
-                </button>
-              </div>
             </form>
           </div>
         </main>
+
+        <StickyFooter />
       </div>
     </RequireAuth>
   );

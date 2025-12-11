@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-import { showSuccess } from "@/shared/utils/notifications";
+import { showSuccess, showError } from "@/shared/utils/notifications";
 import {
-  fetchCategories,
+  getCategories,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -13,6 +13,74 @@ import {
   EditCategoryData,
 } from "../types/typeCategoryProducts";
 
+const sortCategories = (list: Category[]): Category[] =>
+  [...list].sort((a, b) => {
+    const nameA = a.name ?? "";
+    const nameB = b.name ?? "";
+    return nameA.localeCompare(nameB, "es", { sensitivity: "base" });
+  });
+
+const waitForNextRender = async () => {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resolve();
+      }),
+    );
+  });
+};
+
+const resolvePayloadData = (value: unknown): any => {
+  if (!value || typeof value !== "object") return value;
+  if ("data" in value) return resolvePayloadData((value as any).data);
+  return value;
+};
+
+const toBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null) return false;
+  if (typeof value === "number") return Boolean(value);
+  if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (lower === "true" || lower === "1") return true;
+    if (lower === "false" || lower === "0") return false;
+  }
+  return Boolean(value);
+};
+
+const parseCategoryPayload = (payload: any): Category | null => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const resolved = resolvePayloadData(payload);
+  if (!resolved || typeof resolved !== "object") return null;
+
+  const idValue = resolved.id ?? resolved.categoryid ?? resolved.category_id;
+  const numericId =
+    typeof idValue === "number" ? idValue : Number(idValue);
+  const id =
+    typeof idValue === "number"
+      ? idValue
+      : Number.isFinite(numericId)
+        ? numericId
+        : null;
+
+  if (id === null) {
+    return null;
+  }
+
+  return {
+    id,
+    name: resolved.name ?? resolved.categoryname ?? "",
+    description: resolved.description ?? resolved.categorydescription ?? "",
+    status: toBoolean(resolved.status ?? resolved.isactive),
+    icon: resolved.icon ?? null,
+  };
+};
+
+const extractPayloadCategory = (response: any): Category | null => {
+  return parseCategoryPayload(response);
+};
+
 export const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -21,47 +89,23 @@ export const useCategories = () => {
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const waitForRender = async () => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-  };
-
-  const applyCategoriesResponse = async (response: any) => {
-    const payload = response?.data ?? response;
-    const sortCategories = (list: Category[]) =>
-      [...list].sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
-
-    if (Array.isArray(payload)) {
-      setCategories(sortCategories(payload));
-    } else if (payload?.data && Array.isArray(payload.data)) {
-      setCategories(sortCategories(payload.data));
-    } else {
-      console.warn("El backend no devolvio un array valido:", response);
-      return;
-    }
-    await waitForRender();
-  };
-
-  const refreshCategories = async () => {
-    const response = await fetchCategories();
-    await applyCategoriesResponse(response);
-    return response?.status ?? (Array.isArray(response) ? 200 : undefined);
-  };
-
-  // Cargar todas las categorias al iniciar
   const hasFetchedRef = useRef(false);
+
+  const refreshCategories = useCallback(async () => {
+    const list = await getCategories();
+    setCategories(sortCategories(list));
+    await waitForNextRender();
+    return list;
+  }, []);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const status = await refreshCategories();
-        if (status !== 200) {
-          throw new Error(`Refresh categorias devolvio status ${status}`);
-        }
+        await refreshCategories();
       } catch (error) {
         console.error("Error al cargar categorias:", error);
+        showError("No se pudieron cargar las categorias.");
       } finally {
         setLoading(false);
       }
@@ -71,131 +115,125 @@ export const useCategories = () => {
       hasFetchedRef.current = true;
       load();
     }
+  }, [refreshCategories]);
+
+  const addCategoryToState = useCallback((category: Category) => {
+    setCategories((prev) => sortCategories([...prev, category]));
   }, []);
 
-  // Crear categoria
-  const handleCreateCategory = async (categoryData: CreateCategoryData) => {
-    setLoading(true);
-    try {
-      setIsCreateModalOpen(false);
-      const newCategory = {
-        name: categoryData.name,
-        description: categoryData.description,
-        icon: categoryData.icon || "",
-        status: true,
-      };
-
-      const createdResp = await createCategory(newCategory);
-      const created = createdResp?.data ?? createdResp;
-      if (created) {
-        setCategories((prev) =>
-          [...prev, created].sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-        );
-      }
-      const status = await refreshCategories();
-      if (status !== 200) {
-        throw new Error(`Refresh categorias devolvio status ${status}`);
-      }
-      showSuccess("Categoria creada exitosamente!");
-      await waitForRender();
-    } catch (error) {
-      console.error("Error al crear categoria:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Editar categoria
-  const handleEditCategory = async (
-    id: number,
-    categoryData: EditCategoryData
-  ) => {
-    setLoading(true);
-    try {
-      const updatedCategory = {
-        name: categoryData.name,
-        description: categoryData.description,
-        icon: categoryData.icon,
-        status: categoryData.status,
-      };
-
-      const updatedResp = await updateCategory(id, updatedCategory);
-      const updated = updatedResp?.data ?? updatedResp;
-      if (updated) {
-        setCategories((prev) =>
-          prev
-            .map((cat) => (cat.id === id ? updated : cat))
-            .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-        );
-      }
-      const status = await refreshCategories();
-      if (status !== 200) {
-        throw new Error(`Refresh categorias devolvio status ${status}`);
-      }
-
-      showSuccess("Categoria actualizada exitosamente!");
-      await waitForRender();
-      setEditingCategory(null);
-    } catch (error) {
-      console.error("Error al actualizar categoria:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Eliminar categoria
-  const handleDeleteCategory = async (
-    category: Category
-  ): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: category.name,
-        itemType: "categoria",
-        successMessage: `La categoria "${category.name}" ha sido eliminada correctamente.`,
-        errorMessage:
-          "No se pudo eliminar la categoria. Por favor, intenta nuevamente.",
-      },
-      async () => {
-        setLoading(true);
-        try {
-          await deleteCategory(category.id);
-          setCategories((prev) =>
-            prev
-              .filter((cat) => cat.id !== category.id)
-              .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
-          );
-          const status = await refreshCategories();
-          if (status !== 200) {
-            throw new Error(`Refresh categorias devolvio status ${status}`);
-          }
-          await waitForRender();
-        } catch (error) {
-          console.error("Error al eliminar categoria:", error);
-        } finally {
-          setLoading(false);
-        }
-      }
+  const updateCategoryInState = useCallback((category: Category) => {
+    setCategories((prev) =>
+      sortCategories(prev.map((item) => (item.id === category.id ? category : item))),
     );
-  };
+  }, []);
 
-  // Acciones de vista y edicion
-  const handleView = (category: Category) => setViewingCategory(category);
-  const handleEdit = (category: Category) => {
-    const editData: EditCategoryData = {
+  const removeCategoryFromState = useCallback((categoryId: number) => {
+    setCategories((prev) =>
+      sortCategories(prev.filter((item) => item.id !== categoryId)),
+    );
+  }, []);
+
+  const handleCreateCategory = useCallback(
+    async (categoryData: CreateCategoryData) => {
+      setLoading(true);
+      try {
+        setIsCreateModalOpen(false);
+
+        const response = await createCategory(categoryData);
+        const createdCategory = extractPayloadCategory(response);
+
+        if (createdCategory) {
+          addCategoryToState(createdCategory);
+        } else {
+          await refreshCategories();
+        }
+
+        showSuccess("Categoria creada exitosamente!");
+        await waitForNextRender();
+      } catch (error) {
+        console.error("Error al crear categoria:", error);
+        showError("No se pudo crear la categoria.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [addCategoryToState, refreshCategories],
+  );
+
+  const handleEditCategory = useCallback(
+    async (id: number, categoryData: EditCategoryData) => {
+      setLoading(true);
+      try {
+        const response = await updateCategory(id, categoryData);
+        const updatedCategory = extractPayloadCategory(response);
+
+        if (updatedCategory) {
+          updateCategoryInState(updatedCategory);
+        } else {
+          await refreshCategories();
+        }
+
+        showSuccess("Categoria actualizada exitosamente!");
+        await waitForNextRender();
+      } catch (error) {
+        console.error("Error al actualizar categoria:", error);
+        showError("No se pudo actualizar la categoria.");
+      } finally {
+        setLoading(false);
+        setEditingCategory(null);
+      }
+    },
+    [refreshCategories, updateCategoryInState],
+  );
+
+  const handleDeleteCategory = useCallback(
+    async (category: Category): Promise<boolean> => {
+      return confirmDelete(
+        {
+          itemName: category.name,
+          itemType: "categoria",
+          successMessage: `La categoria "${category.name}" ha sido eliminada correctamente.`,
+          errorMessage: "No se pudo eliminar la categoria.",
+        },
+        async () => {
+          setLoading(true);
+          try {
+            await deleteCategory(category.id);
+            removeCategoryFromState(category.id);
+            await waitForNextRender();
+          } catch (error) {
+            console.error("Error al eliminar categoria:", error);
+            const parsedError = error instanceof Error ? error.message : undefined;
+            showError(parsedError ?? "Error al eliminar la categoria.");
+            throw error;
+          } finally {
+            setLoading(false);
+          }
+        },
+      );
+    },
+    [removeCategoryFromState],
+  );
+
+  const handleView = useCallback((category: Category) => {
+    setViewingCategory(category);
+  }, []);
+
+  const handleEdit = useCallback((category: Category) => {
+    setEditingCategory({
       id: category.id,
       name: category.name,
       description: category.description,
       status: category.status,
       icon: category.icon,
-    };
-    setEditingCategory(editData);
-  };
+    });
+  }, []);
 
-  const closeModals = () => {
+  const closeModals = useCallback(() => {
     setEditingCategory(null);
     setViewingCategory(null);
     setIsCreateModalOpen(false);
-  };
+  }, []);
 
   return {
     categories,

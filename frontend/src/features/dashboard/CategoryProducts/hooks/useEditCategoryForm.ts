@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import {
   EditCategoryData,
   EditCategoryModalProps,
@@ -9,7 +9,11 @@ import {
   validateField,
   validateFormWithNotification,
 } from "../validations/categoryValidations";
-import { showWarning, showSuccess } from "@/shared/utils/notifications";
+import { uploadImage } from "@/shared/services/uploadImage";
+import { showWarning } from "@/shared/utils/notifications";
+
+const initialErrors: FormErrors = { name: "", description: "" };
+const initialTouched: FormTouched = { name: false, description: false };
 
 export const useEditCategoryForm = ({
   isOpen,
@@ -25,145 +29,146 @@ export const useEditCategoryForm = ({
     status: true,
     icon: null,
   });
-
-  const [errors, setErrors] = useState<FormErrors>({
-    name: "",
-    description: "",
-  });
-
-  const [touched, setTouched] = useState<FormTouched>({
-    name: false,
-    description: false,
-  });
-
+  const [errors, setErrors] = useState<FormErrors>(initialErrors);
+  const [touched, setTouched] = useState<FormTouched>(initialTouched);
   const [previewIcon, setPreviewIcon] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ✅ Cargar datos al abrir el modal
-  useEffect(() => {
-    if (isOpen && category) {
-      setFormData({
-        id: category.id,
-        name: category.name,
-        description: category.description,
-        status: category.status,
-        icon: category.icon || null,
-      });
+  const previewUrlRef = useRef<string | null>(null);
 
-      // Mostrar ícono actual
-      if (category.icon) {
-        if (typeof category.icon === "string") {
-          setPreviewIcon(category.icon);
-        } else if (category.icon instanceof File) {
-          setPreviewIcon(URL.createObjectURL(category.icon));
-        }
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !category) return;
+
+    setFormData({
+      id: category.id,
+      name: category.name,
+      description: category.description,
+      status: category.status,
+      icon: category.icon ?? null,
+    });
+
+    setErrors(initialErrors);
+    setTouched(initialTouched);
+
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+
+    if (category.icon) {
+      if (typeof category.icon === "string") {
+        setPreviewIcon(category.icon);
+      } else {
+        const url = URL.createObjectURL(category.icon);
+        previewUrlRef.current = url;
+        setPreviewIcon(url);
+      }
+    } else {
+      setPreviewIcon(null);
+    }
+  }, [category, isOpen]);
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+
+      if (touched[name as keyof FormTouched]) {
+        const error = validateField(name, value, categories, formData.id);
+        setErrors((prev) => ({ ...prev, [name]: error }));
+      }
+    },
+    [categories, formData.id, touched],
+  );
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const { name, value } = e.target;
+      setTouched((prev) => ({ ...prev, [name]: true }));
+      const error = validateField(name, value, categories, formData.id);
+      setErrors((prev) => ({ ...prev, [name]: error }));
+    },
+    [categories, formData.id],
+  );
+
+  const handleIconChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] || null;
+      setFormData((prev) => ({ ...prev, icon: file }));
+
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+
+      if (file) {
+        const url = URL.createObjectURL(file);
+        previewUrlRef.current = url;
+        setPreviewIcon(url);
       } else {
         setPreviewIcon(null);
       }
+    },
+    [],
+  );
 
-      // Reiniciar validaciones
-      setErrors({ name: "", description: "" });
-      setTouched({ name: false, description: false });
-    }
-  }, [isOpen, category]);
-
-  // ✅ Validación en tiempo real (incluye nombre duplicado)
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (touched[name as keyof FormTouched]) {
-      const error = validateField(name, value, categories, formData.id);
-      setErrors((prev) => ({ ...prev, [name]: error }));
-    }
-  };
-
-  // ✅ Validación al salir del campo
-  const handleBlur = (
-    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setTouched((prev) => ({ ...prev, [name]: true }));
-
-    const error = validateField(name, value, categories, formData.id);
-    setErrors((prev) => ({ ...prev, [name]: error }));
-  };
-
-  // ✅ Cambiar ícono y vista previa
-  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      setFormData((prev) => ({ ...prev, icon: file }));
-      setPreviewIcon(URL.createObjectURL(file));
-    }
-  };
-
-  const removeIcon = () => {
+  const removeIcon = useCallback(() => {
     setFormData((prev) => ({ ...prev, icon: null }));
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
     setPreviewIcon(null);
-  };
+  }, []);
 
-  // ☁️ Subir imagen a Cloudinary
-  const uploadToCloudinary = async (file: File): Promise<string | null> => {
-    const CLOUD_NAME = "ditjhxzre";
-    const UPLOAD_PRESET = "Vertecx";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        { method: "POST", body: data }
+      const valid = validateFormWithNotification(
+        formData,
+        setErrors,
+        setTouched,
+        categories,
+        formData.id,
       );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message);
-      return json.secure_url;
-    } catch (error) {
-      console.error(error);
-      showWarning("Error al subir la imagen a Cloudinary");
-      return null;
-    }
-  };
+      if (!valid) return;
 
-  // 💾 Guardar cambios
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const valid = validateFormWithNotification(
-      formData,
-      setErrors,
-      setTouched,
-      categories,
-      formData.id
-    );
-    if (!valid) return;
-
-    try {
       setIsSubmitting(true);
+      try {
+        let iconUrl: string | null = null;
+        if (formData.icon instanceof File) {
+          iconUrl = await uploadImage(formData.icon);
+          if (!iconUrl) return;
+        } else if (typeof formData.icon === "string") {
+          iconUrl = formData.icon;
+        }
 
-      let iconUrl: string | null = null;
-      if (formData.icon instanceof File) {
-        iconUrl = await uploadToCloudinary(formData.icon);
-      } else if (typeof formData.icon === "string") {
-        iconUrl = formData.icon;
+        await onSave({
+          ...formData,
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          icon: iconUrl,
+        });
+        onClose();
+      } catch (error) {
+        console.error(error);
+        showWarning("Error al actualizar la categoria.");
+      } finally {
+        setIsSubmitting(false);
       }
-
-      await onSave({
-        ...formData,
-        icon: iconUrl,
-      });
-      setTimeout(onClose, 800);
-    } catch (error) {
-      console.error(error);
-      showWarning("Error al actualizar la categoría.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [categories, formData, onClose, onSave],
+  );
 
   return {
     formData,

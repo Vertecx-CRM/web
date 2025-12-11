@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
+import Modal from "@/features/dashboard/components/Modal";
+import Colors from "@/shared/theme/colors";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
-import Modal from "@/features/dashboard/components/Modal";
+
+import {
+  fetchOrdersServices,
+  markOrderServiceWarranty,
+  reportOrderServiceWarranty,
+  cancelOrderService,
+} from "@/features/dashboard/OrdersServices/api/ordersServices.api";
+
+import type { OrderServiceDTO } from "@/features/dashboard/OrdersServices/types/ordersServices.types";
+
+import OrderServiceHistoryCreateModal from "@/features/dashboard/OrdersServices/components/OrderServiceHistoryCreateModal";
+import { FilePlus2 } from "lucide-react";
+
+const MODULE_KEY = "orders-services";
 
 const ICONS = {
-  cancel: "/icons/minus-circle.svg",
   print: "/icons/printer.svg",
   report: "/icons/alert-triangle.svg",
 };
@@ -27,188 +43,59 @@ type WarrantyInfo = {
 
 type Estado = "Aprobada" | "Anulada" | "Pendiente" | "Garantia" | "GarantiaReportada";
 
+type TechnicianOption = { technicianid: number; label: string };
+type OrderFile = { label?: string; url: string };
+
 type Row = {
   id: number;
   cliente: string;
   tecnico: string;
   tipo: RowTipo | string;
+
   fechaProgramada: string;
+  fechainicio?: string;
+  fechafin?: string;
+  horainicio?: string;
+  horafin?: string;
+
   estado: Estado;
   monto?: number;
+  viaticos?: number;
+
   descripcion?: string;
   servicios?: LineItem[];
   materiales?: LineItem[];
+
   garantia?: WarrantyInfo;
+  technicians?: TechnicianOption[];
+
+  files?: OrderFile[];
+  createdat?: string;
+  updatedat?: string;
 };
 
-function formatCOP(n?: number) {
-  if (n == null) return "—";
-  return n.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 }
 
-const MOCK: Row[] = [
-  {
-    id: 1,
-    cliente: "InnovaTech S.A.S.",
-    tecnico: "Carlos Gómez",
-    tipo: "Mantenimiento",
-    fechaProgramada: "11/06/2025",
-    estado: "Aprobada",
-    monto: 650000,
-    descripcion: "Mantenimiento trimestral de red y CCTV.",
-    servicios: [
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-    ],
-    materiales: [
-      { nombre: "Cable UTP", cantidad: 30, precio: 2500 },
-      { nombre: "Conector RJ45", cantidad: 10, precio: 600 },
-    ],
-  },
-  {
-    id: 2,
-    cliente: "Hotel Mirador del Río",
-    tecnico: "Laura Pérez",
-    tipo: "Instalación",
-    fechaProgramada: "12/06/2025",
-    estado: "Pendiente",
-    monto: 2100000,
-    descripcion: "Instalación de puntos de red y configuración de impresora.",
-    servicios: [
-      { nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 },
-      { nombre: "Cableado estructurado", cantidad: 1, precio: 280000 },
-      { nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 },
-    ],
-    materiales: [
-      { nombre: "Cámara Dome 5MP", cantidad: 4, precio: 260000 },
-      { nombre: "Cable UTP", cantidad: 100, precio: 2500 },
-      { nombre: "Ducto 40mm", cantidad: 10, precio: 12000 },
-    ],
-  },
-  {
-    id: 3,
-    cliente: "Distribuciones Antioquia",
-    tecnico: "Andrés Rojas",
-    tipo: "Mantenimiento",
-    fechaProgramada: "13/06/2025",
-    estado: "Anulada",
-    monto: 420000,
-    descripcion: "Revisión de servidor contabilidad.",
-    servicios: [{ nombre: "Mantenimiento de servidor", cantidad: 1, precio: 350000 }],
-    materiales: [{ nombre: "Patch Panel", cantidad: 1, precio: 180000 }],
-  },
-  {
-    id: 4,
-    cliente: "Café La Montaña",
-    tecnico: "Mónica Silva",
-    tipo: "Instalación",
-    fechaProgramada: "14/06/2025",
-    estado: "Aprobada",
-    monto: 780000,
-    descripcion: "Montaje de 2 cámaras y rack.",
-    servicios: [{ nombre: "Instalación de CCTV", cantidad: 1, precio: 450000 }],
-    materiales: [
-      { nombre: "Cámara Dome 5MP", cantidad: 2, precio: 260000 },
-      { nombre: "Rack 12U", cantidad: 1, precio: 540000 },
-    ],
-  },
-  {
-    id: 5,
-    cliente: "Clínica San Rafael",
-    tecnico: "Julián Ortiz",
-    tipo: "Instalación",
-    fechaProgramada: "15/06/2025",
-    estado: "GarantiaReportada",
-    monto: 0,
-    descripcion: "Reinstalación de switch en garantía.",
-    servicios: [{ nombre: "Instalación impresora de red", cantidad: 1, precio: 220000 }],
-    materiales: [{ nombre: "Switch 8p", cantidad: 1, precio: 220000 }],
-    garantia: {
-      label: "Daño dentro de garantía",
-      reportedBy: "Laura",
-      reportedAtISO: new Date("2025-10-08").toISOString(),
-      details: "Switch dejó de encender al día 20.",
-      notifiedClient: true,
-    },
-  },
-  {
-    id: 6,
-    cliente: "Universidad Central",
-    tecnico: "Sofía Herrera",
-    tipo: "Mantenimiento",
-    fechaProgramada: "16/06/2025",
-    estado: "Garantia",
-    monto: 520000,
-    descripcion: "Mantenimiento de cámaras y limpieza general.",
-    servicios: [
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-    ],
-    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
-  },
-  {
-    id: 7,
-    cliente: "Universidad Central",
-    tecnico: "Sofía Herrera",
-    tipo: "Mantenimiento",
-    fechaProgramada: "16/06/2025",
-    estado: "Aprobada",
-    monto: 520000,
-    descripcion: "Mantenimiento de cámaras y limpieza general.",
-    servicios: [
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-    ],
-    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
-  },
-  {
-    id: 8,
-    cliente: "Universidad Central",
-    tecnico: "Sofía Herrera",
-    tipo: "Mantenimiento",
-    fechaProgramada: "16/06/2025",
-    estado: "Aprobada",
-    monto: 520000,
-    descripcion: "Mantenimiento de cámaras y limpieza general.",
-    servicios: [
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-    ],
-    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
-  },
-  {
-    id: 9,
-    cliente: "Universidad Central",
-    tecnico: "Sofía Herrera",
-    tipo: "Mantenimiento",
-    fechaProgramada: "16/06/2025",
-    estado: "Aprobada",
-    monto: 520000,
-    descripcion: "Mantenimiento de cámaras y limpieza general.",
-    servicios: [
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-    ],
-    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
-  },
-  {
-    id: 10,
-    cliente: "Universidad Central",
-    tecnico: "Sofía Herrera",
-    tipo: "Mantenimiento",
-    fechaProgramada: "16/06/2025",
-    estado: "Aprobada",
-    monto: 520000,
-    descripcion: "Mantenimiento de cámaras y limpieza general.",
-    servicios: [
-      { nombre: "Mantenimiento de cámara", cantidad: 2, precio: 120000 },
-      { nombre: "Mantenimiento preventivo de red", cantidad: 1, precio: 190000 },
-    ],
-    materiales: [{ nombre: "Cable UTP", cantidad: 50, precio: 2500 }],
-  },
-];
+function sortRowsByIdAsc(arr: Row[]) {
+  return [...arr].sort((a, b) => a.id - b.id);
+}
 
-function EstadoPill({ v }: { v: Estado }) {
+function formatCOP(n?: number) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return n.toLocaleString("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  });
+}
+
+function EstadoText({ v }: { v: Estado }) {
   const STYLE: Record<Estado, string> = {
     Aprobada: "text-green-700",
     Pendiente: "text-yellow-700",
@@ -216,25 +103,278 @@ function EstadoPill({ v }: { v: Estado }) {
     Garantia: "text-blue-700",
     GarantiaReportada: "text-blue-700",
   };
-  return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STYLE[v]}`}>{v === "GarantiaReportada" ? "Garantía (reportada)" : v}</span>;
-}
 
-function GarantiaChip({ info }: { info?: WarrantyInfo }) {
-  const fecha = info?.reportedAtISO ? new Date(info.reportedAtISO).toLocaleDateString("es-CO") : "";
-  const title = info ? `Motivo: ${info.label} · Reportado por: ${info.reportedBy} · ${fecha}` : "Garantía";
+  const label = v === "GarantiaReportada" ? "Garantía (reportada)" : v;
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-[#5C0F0F] bg-[#5C0F0F]/10" title={title}>
-      <img src={ICONS.report} className="h-3.5 w-3.5" />
-      Garantía
+    <span className={`text-sm font-semibold ${STYLE[v]}`} title={label}>
+      {label}
     </span>
   );
+}
+
+function escapeHtml(s: any) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function nl2br(s: string) {
+  return s.replace(/\n/g, "<br/>");
+}
+
+function formatDateES(input?: string | null) {
+  if (!input) return "";
+  const s = String(input);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    return isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("es-CO");
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("es-CO");
+}
+
+function formatDateTimeES(input?: string | null) {
+  if (!input) return "";
+  const dt = new Date(String(input));
+  return isNaN(dt.getTime()) ? "" : dt.toLocaleString("es-CO");
+}
+
+function formatTimeES(input?: string | null) {
+  if (!input) return "";
+  const s = String(input);
+  if (s.length >= 5) return s.slice(0, 5);
+  return s;
+}
+
+function mapEstadoFromBackend(name?: string | null): Estado {
+  const n = (name || "").toLowerCase();
+  if (n.includes("anul") || n.includes("revoke") || n.includes("cancel")) return "Anulada";
+  if (n.includes("aprob") || n.includes("approved")) return "Aprobada";
+  if (n.includes("pend")) return "Pendiente";
+  if (n.includes("garan") && (n.includes("report") || n.includes("rep"))) return "GarantiaReportada";
+  if (n.includes("garan")) return "Garantia";
+  return "Pendiente";
+}
+
+function inferTipo(desc?: string | null): RowTipo {
+  const d = (desc || "").toLowerCase();
+  if (d.includes("instal")) return "Instalación";
+  if (d.includes("manten")) return "Mantenimiento";
+  return "Mantenimiento";
+}
+
+function resolveWarrantyFromBackend(o: any): WarrantyInfo | undefined {
+  const w =
+    o?.warranty ??
+    o?.warrantyReport ??
+    o?.warrantyreport ??
+    o?.garantia ??
+    o?.garantiaReportada ??
+    o?.warranty_info ??
+    o?.warrantyInfo;
+
+  if (!w) return undefined;
+
+  const label = String(w.label ?? w.reason ?? w.motivo ?? "Garantía");
+  const details = w.details ?? w.description ?? w.detalle ?? w.message ?? undefined;
+
+  const notifiedClient =
+    typeof w.notifiedClient === "boolean"
+      ? w.notifiedClient
+      : typeof w.notifiedclient === "boolean"
+      ? w.notifiedclient
+      : typeof w.notifyClient === "boolean"
+      ? w.notifyClient
+      : undefined;
+
+  const reportedAtISO = String(
+    w.reportedAtISO ?? w.reportedAt ?? w.reportedat ?? w.createdat ?? w.createdAt ?? new Date().toISOString()
+  );
+
+  const rb =
+    w.reportedBy?.users
+      ? [w.reportedBy.users.name, w.reportedBy.users.lastname].filter(Boolean).join(" ")
+      : w.reportedByUser?.name
+      ? [w.reportedByUser.name, w.reportedByUser.lastname].filter(Boolean).join(" ")
+      : w.reportedBy?.name
+      ? String(w.reportedBy.name)
+      : w.reportedby?.name
+      ? String(w.reportedby.name)
+      : w.reportedByName
+      ? String(w.reportedByName)
+      : w.reportedbyname
+      ? String(w.reportedbyname)
+      : "";
+
+  const reportedBy = rb?.trim() ? rb : "—";
+
+  return {
+    label,
+    reportedBy,
+    reportedAtISO,
+    details,
+    notifiedClient,
+  };
+}
+
+function resolveServicesFromBackend(anyO: any): LineItem[] {
+  const arr =
+    anyO?.services ??
+    anyO?.servicios ??
+    anyO?.ordersServicesServices ??
+    anyO?.ordersservicesservices ??
+    anyO?.orders_services_services ??
+    [];
+  const list = Array.isArray(arr) ? arr : [];
+
+  return list
+    .map((s: any) => {
+      const svc = s?.service ?? s?.services ?? s?.servicio ?? s;
+      const nombre =
+        svc?.servicename ||
+        svc?.name ||
+        s?.servicename ||
+        s?.name ||
+        (svc?.serviceid ? `Servicio #${svc.serviceid}` : "Servicio");
+
+      const cantidad = Number(s?.cantidad ?? s?.quantity ?? s?.qty ?? 0) || 0;
+
+      const rawPrecio =
+        svc?.servicepriceofsale ??
+        svc?.serviceprice ??
+        svc?.price ??
+        s?.precio ??
+        s?.price ??
+        (typeof s?.subtotal === "number" && cantidad > 0 ? s.subtotal / cantidad : undefined);
+
+      const precioNum = rawPrecio == null ? undefined : Number(rawPrecio);
+      const precio = Number.isFinite(precioNum) ? precioNum : undefined;
+
+      return { nombre: String(nombre), cantidad, precio };
+    })
+    .filter((x: LineItem) => x.cantidad > 0);
+}
+
+function resolveFilesFromBackend(anyO: any): OrderFile[] {
+  const arr = anyO?.files ?? anyO?.attachments ?? anyO?.adjuntos ?? anyO?.documents ?? [];
+  const list = Array.isArray(arr) ? arr : [];
+  return list
+    .map((f: any) => {
+      if (typeof f === "string") return { url: f };
+      const url = f?.url ?? f?.fileurl ?? f?.fileUrl ?? f?.path ?? f?.secure_url ?? f?.link ?? "";
+      const label = f?.originalname ?? f?.originalName ?? f?.filename ?? f?.name ?? undefined;
+      return { url: String(url || ""), label: label ? String(label) : undefined };
+    })
+    .filter((x: OrderFile) => !!x.url);
+}
+
+function toRow(o: OrderServiceDTO): Row {
+  const anyO: any = o as any;
+
+  const cliente =
+    anyO?.client?.users
+      ? [anyO.client.users.name, anyO.client.users.lastname].filter(Boolean).join(" ") ||
+        `Cliente #${anyO.client.customerid}`
+      : anyO?.client?.customerid
+      ? `Cliente #${anyO.client.customerid}`
+      : "—";
+
+  const technicians: TechnicianOption[] =
+    anyO?.technicians
+      ?.map((t: any) => {
+        const u = t.users;
+        const name = u ? [u.name, u.lastname].filter(Boolean).join(" ") : "";
+        return {
+          technicianid: Number(t.technicianid) || 0,
+          label: name || `Técnico #${t.technicianid}`,
+        };
+      })
+      ?.filter((t: TechnicianOption) => t.technicianid > 0) ?? [];
+
+  const tecnico = technicians.length ? technicians.map((t) => t.label).join(", ") : "—";
+
+  const fechainicio = anyO?.fechainicio ?? anyO?.fechaInicio ?? anyO?.startdate ?? anyO?.startDate ?? null;
+  const fechafin = anyO?.fechafin ?? anyO?.fechaFin ?? anyO?.enddate ?? anyO?.endDate ?? null;
+
+  const horainicio = anyO?.horainicio ?? anyO?.horaInicio ?? anyO?.starttime ?? anyO?.startTime ?? null;
+  const horafin = anyO?.horafin ?? anyO?.horaFin ?? anyO?.endtime ?? anyO?.endTime ?? null;
+
+  const fechaProgramada =
+    formatDateES(fechainicio) ||
+    formatDateES(anyO?.createdat) ||
+    formatDateES(anyO?.createdAt) ||
+    new Date().toLocaleDateString("es-CO");
+
+  const materiales: LineItem[] =
+    anyO?.products?.map((p: any) => {
+      const nombre = p.product?.productname || (p.product?.productid ? `Producto #${p.product.productid}` : "Producto");
+      const cantidad = Number(p.cantidad) || 0;
+
+      const rawPrecio =
+        p.product?.productpriceofsale ??
+        p.product?.productprice ??
+        p.product?.price ??
+        p.precio ??
+        p.price ??
+        (typeof p.subtotal === "number" && cantidad > 0 ? p.subtotal / cantidad : undefined);
+
+      const precioNum = rawPrecio == null ? undefined : Number(rawPrecio);
+      const precio = Number.isFinite(precioNum) ? precioNum : undefined;
+
+      return { nombre: String(nombre), cantidad, precio };
+    }) ?? [];
+
+  const servicios = resolveServicesFromBackend(anyO);
+
+  const total = typeof anyO?.total === "number" ? anyO.total : Number(anyO?.total) || 0;
+  const viaticos = typeof anyO?.viaticos === "number" ? anyO.viaticos : Number(anyO?.viaticos) || 0;
+
+  const garantia = resolveWarrantyFromBackend(anyO);
+
+  let estado = mapEstadoFromBackend(anyO?.state?.name);
+  if (garantia && estado !== "GarantiaReportada" && estado !== "Garantia") {
+    estado = garantia.details ? "GarantiaReportada" : "Garantia";
+  }
+
+  return {
+    id: anyO?.ordersservicesid,
+    cliente,
+    tecnico,
+    tipo: inferTipo(anyO?.description),
+    fechaProgramada,
+    fechainicio: fechainicio ? String(fechainicio) : undefined,
+    fechafin: fechafin ? String(fechafin) : undefined,
+    horainicio: horainicio ? String(horainicio) : undefined,
+    horafin: horafin ? String(horafin) : undefined,
+    estado,
+    monto: total,
+    viaticos,
+    descripcion: anyO?.description || "",
+    servicios,
+    materiales,
+    technicians,
+    garantia,
+    files: resolveFilesFromBackend(anyO),
+    createdat: anyO?.createdat ?? anyO?.createdAt ?? undefined,
+    updatedat: anyO?.updatedat ?? anyO?.updatedAt ?? undefined,
+  };
 }
 
 export default function OrdersServicesIndexPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [rows, setRows] = useState<Row[]>(MOCK);
+
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const [reportOpen, setReportOpen] = useState(false);
   const [reportRowId, setReportRowId] = useState<number | null>(null);
@@ -243,116 +383,308 @@ export default function OrdersServicesIndexPage() {
   const [notifyClient, setNotifyClient] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState("");
 
-  useEffect(() => {
-    const no = searchParams.get("newOrder");
-    if (!no) return;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOrderId, setHistoryOrderId] = useState<number | null>(null);
+  const [historyTechnicians, setHistoryTechnicians] = useState<TechnicianOption[]>([]);
+
+  const bodyOverflowRef = useRef<string | null>(null);
+
+  const reloadOrders = useCallback(async () => {
+    setLoading(true);
     try {
-      const payload = JSON.parse(decodeURIComponent(no)) as Omit<Row, "id" | "estado" | "fechaProgramada"> & { fechaProgramada?: string };
-      setRows((prev) => {
-        const nextId = prev.length ? Math.max(...prev.map((r) => r.id)) + 1 : 1;
-        const d = new Date();
-        const fecha = payload.fechaProgramada || `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-        const newRow: Row = {
-          id: nextId,
-          cliente: payload.cliente,
-          tecnico: payload.tecnico,
-          tipo: payload.tipo,
-          fechaProgramada: fecha,
-          estado: "Pendiente",
-          monto: payload.monto,
-          descripcion: payload.descripcion,
-          servicios: payload.servicios,
-          materiales: payload.materiales,
-        };
-        return [...prev, newRow];
+      const data = await fetchOrdersServices();
+      const mapped = (Array.isArray(data) ? data : []).map(toRow);
+      setRows(sortRowsByIdAsc(mapped));
+    } catch {
+      setRows([]);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudieron cargar las órdenes desde el backend.",
       });
-    } catch {}
-    window.history.replaceState(null, "", pathname);
-  }, [searchParams, pathname]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const eo = searchParams.get("editOrder");
-    if (!eo) return;
-    try {
-      const p = JSON.parse(decodeURIComponent(eo)) as Partial<Row> & { id: number };
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === p.id
-            ? {
-                ...r,
-                cliente: p.cliente ?? r.cliente,
-                tecnico: p.tecnico ?? r.tecnico,
-                tipo: (p.tipo as RowTipo) ?? r.tipo,
-                fechaProgramada: p.fechaProgramada ?? r.fechaProgramada,
-                monto: p.monto ?? r.monto,
-                descripcion: p.descripcion ?? r.descripcion,
-                servicios: p.servicios ?? r.servicios,
-                materiales: p.materiales ?? r.materiales,
-              }
-            : r
-        )
-      );
-    } catch {}
-    window.history.replaceState(null, "", pathname);
-  }, [searchParams, pathname]);
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await fetchOrdersServices();
+        const mapped = (Array.isArray(data) ? data : []).map(toRow);
+        if (!mounted) return;
+        setRows(sortRowsByIdAsc(mapped));
+      } catch {
+        if (!mounted) return;
+        setRows([]);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "No se pudieron cargar las órdenes desde el backend.",
+        });
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  async function cancelRow(row: Row) {
-    if (row.estado === "Anulada") return;
-    const res = await Swal.fire({
-      title: "¿Anular orden?",
-      text: `Se anulará la orden #${row.id}. Esta acción no se puede deshacer.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Sí, anular",
-      cancelButtonText: "Cancelar",
-      confirmButtonColor: "#d33",
-      reverseButtons: true,
-      focusCancel: true,
-    });
-    if (!res.isConfirmed) return;
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Anulada" } : r)));
-    await Swal.fire({ icon: "success", title: "Anulada", text: "La orden fue anulada correctamente.", timer: 1600, showConfirmButton: false });
-  }
+  useEffect(() => {
+    const anyOpen = reportOpen || historyOpen;
 
-  function markWarranty(row: Row) {
-    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, estado: "Garantia", garantia: undefined } : r)));
-  }
+    if (anyOpen) {
+      if (bodyOverflowRef.current === null) bodyOverflowRef.current = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return;
+    }
 
-  function printRow(row: Row) {
+    if (bodyOverflowRef.current !== null) {
+      document.body.style.overflow = bodyOverflowRef.current;
+      bodyOverflowRef.current = null;
+    }
+  }, [reportOpen, historyOpen]);
+
+  const openCreate = useCallback(() => {
+    router.push(`/dashboard/orders-services/new?returnTo=${encodeURIComponent(pathname)}`);
+  }, [router, pathname]);
+
+  const openEdit = useCallback(
+    (r: Row) => {
+      const payload = encodeURIComponent(JSON.stringify(r));
+      router.push(`/dashboard/orders-services/edit?returnTo=${encodeURIComponent(pathname)}&id=${r.id}&order=${payload}`);
+    },
+    [router, pathname]
+  );
+
+  const openDetail = useCallback(
+    (r: Row) => {
+      router.push(`/dashboard/orders/${r.id}`);
+    },
+    [router]
+  );
+
+  const cancelRow = useCallback(
+    async (row: Row) => {
+      if (row.estado === "Anulada") return;
+
+      const res = await Swal.fire({
+        icon: "warning",
+        title: "Cancelar orden",
+        text: `¿Deseas cancelar la orden #${row.id}?`,
+        showCancelButton: true,
+        confirmButtonText: "Sí, cancelar",
+        cancelButtonText: "Volver",
+        confirmButtonColor: "#B20000",
+      });
+      if (!res.isConfirmed) return;
+
+      setBusy(true);
+      try {
+        await cancelOrderService(row.id);
+
+        await Swal.fire({
+          icon: "success",
+          title: "Orden cancelada",
+          text: `La orden #${row.id} fue cancelada correctamente.`,
+          confirmButtonColor: "#B20000",
+        });
+
+        await reloadOrders();
+      } catch (e: any) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo cancelar la orden.",
+          confirmButtonColor: "#B20000",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reloadOrders]
+  );
+
+  const markWarranty = useCallback(
+    async (row: Row) => {
+      setBusy(true);
+      try {
+        await markOrderServiceWarranty(row.id);
+        showSuccess(`La orden #${row.id} quedó marcada en garantía.`);
+        await reloadOrders();
+      } catch (e: any) {
+        const message =
+          e?.response?.data?.message?.[0] ||
+          e?.response?.data?.message ||
+          "No se pudo marcar la garantía.";
+        showError(message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reloadOrders]
+  );
+
+  const openReport = useCallback((row: Row) => {
+    setReportRowId(row.id);
+    setMotivo(row.garantia?.label || "Daño dentro de garantía");
+    setDetalle(row.garantia?.details || "");
+    setNotifyClient(!!row.garantia?.notifiedClient);
+    setErrorDetalle("");
+    setReportOpen(true);
+  }, []);
+
+  const submitReport = useCallback(
+    async () => {
+      if (!detalle.trim()) {
+        setErrorDetalle("Describe qué pasó");
+        return;
+      }
+      if (reportRowId == null) return;
+
+      setBusy(true);
+      try {
+        await reportOrderServiceWarranty(reportRowId, {
+          label: motivo,
+          details: detalle.trim(),
+          notifiedClient: notifyClient,
+        });
+
+        setReportOpen(false);
+
+        await Swal.fire({
+          icon: "success",
+          title: "Reporte guardado",
+          text: `Se registró el reporte de garantía para la orden #${reportRowId}.`,
+          confirmButtonColor: "#B20000",
+        });
+
+        await reloadOrders();
+      } catch (e: any) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text:
+            e?.response?.data?.message?.[0] ||
+            e?.response?.data?.message ||
+            "No se pudo guardar el reporte de garantía.",
+          confirmButtonColor: "#B20000",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [detalle, motivo, notifyClient, reportRowId, reloadOrders]
+  );
+
+  const openHistory = useCallback((row: Row) => {
+    setHistoryOrderId(row.id);
+    setHistoryTechnicians(row.technicians ?? []);
+    setHistoryOpen(true);
+  }, []);
+
+  const closeHistory = useCallback(() => {
+    setHistoryOpen(false);
+    setHistoryOrderId(null);
+    setHistoryTechnicians([]);
+  }, []);
+
+  const printRow = useCallback((row: Row) => {
     const IVA_PCT = 19;
+
     const servicios = row.servicios ?? [];
     const materiales = row.materiales ?? [];
+
     const subServ = servicios.reduce((a, s) => a + (Number(s.cantidad) || 0) * (Number(s.precio) || 0), 0);
     const subMat = materiales.reduce((a, m) => a + (Number(m.cantidad) || 0) * (Number(m.precio) || 0), 0);
-    const subtotal = subServ + subMat;
-    const iva = Math.max(0, Math.round((subtotal * IVA_PCT) / 100));
-    const total = Math.max(0, Math.round(subtotal + iva));
+
+    const viaticos = Math.max(0, Math.round(Number(row.viaticos) || 0));
+
+    const subtotalBaseIVA = Math.max(0, Math.round(subServ + subMat + viaticos));
+    const iva = Math.max(0, Math.round((subtotalBaseIVA * IVA_PCT) / 100));
+
+    const totalCalculado = Math.max(0, Math.round(subtotalBaseIVA + iva));
+    const totalRegistrado = Math.max(0, Math.round(Number(row.monto) || 0));
+    const diff = Math.round(totalRegistrado - totalCalculado);
+
     const serviciosRows =
       servicios.length === 0
         ? `<tr><td colspan="4" class="empty">—</td></tr>`
         : servicios
-            .map(
-              (s) => `<tr>
-  <td>${s.nombre}</td>
-  <td class="num">${s.cantidad}</td>
-  <td class="num">${formatCOP(s.precio)}</td>
-  <td class="num">${formatCOP((Number(s.cantidad) || 0) * (Number(s.precio) || 0))}</td>
-</tr>`
-            )
+            .map((s) => {
+              const cant = Number(s.cantidad) || 0;
+              const precio = Number(s.precio) || 0;
+              const imp = Math.max(0, Math.round(cant * precio));
+              return `<tr>
+<td>${escapeHtml(s.nombre)}</td>
+<td class="num">${cant}</td>
+<td class="num">${escapeHtml(formatCOP(precio))}</td>
+<td class="num">${escapeHtml(formatCOP(imp))}</td>
+</tr>`;
+            })
             .join("");
+
     const materialesRows =
       materiales.length === 0
         ? `<tr><td colspan="4" class="empty">—</td></tr>`
         : materiales
-            .map(
-              (m) => `<tr>
-  <td>${m.nombre}</td>
-  <td class="num">${m.cantidad}</td>
-  <td class="num">${formatCOP(m.precio)}</td>
-  <td class="num">${formatCOP((Number(m.cantidad) || 0) * (Number(m.precio) || 0))}</td>
-</tr>`
-            )
+            .map((m) => {
+              const cant = Number(m.cantidad) || 0;
+              const precio = Number(m.precio) || 0;
+              const imp = Math.max(0, Math.round(cant * precio));
+              return `<tr>
+<td>${escapeHtml(m.nombre)}</td>
+<td class="num">${cant}</td>
+<td class="num">${escapeHtml(formatCOP(precio))}</td>
+<td class="num">${escapeHtml(formatCOP(imp))}</td>
+</tr>`;
+            })
             .join("");
+
+    const garantiaBlock = row.garantia
+      ? `<div class="section">
+<div class="label" style="margin-bottom:6px">Garantía</div>
+<div class="grid">
+  <div class="item"><div class="label">Estado</div><div class="val">${
+    row.estado === "GarantiaReportada" ? "Garantía (reportada)" : "Garantía"
+  }</div></div>
+  <div class="item"><div class="label">Motivo</div><div class="val">${escapeHtml(row.garantia.label)}</div></div>
+  <div class="item"><div class="label">Reportado por</div><div class="val">${escapeHtml(row.garantia.reportedBy)}</div></div>
+  <div class="item"><div class="label">Fecha reporte</div><div class="val">${escapeHtml(
+    formatDateTimeES(row.garantia.reportedAtISO)
+  )}</div></div>
+  <div class="item" style="grid-column:1 / -1"><div class="label">Detalle</div><div class="val">${
+    row.garantia.details ? nl2br(escapeHtml(row.garantia.details)) : "—"
+  }</div></div>
+  <div class="item" style="grid-column:1 / -1"><div class="label">Cliente notificado</div><div class="val">${
+    typeof row.garantia.notifiedClient === "boolean" ? (row.garantia.notifiedClient ? "Sí" : "No") : "—"
+  }</div></div>
+</div>
+</div>`
+      : "";
+
+    const files = row.files ?? [];
+    const filesBlock =
+      files.length === 0
+        ? `<div class="item" style="grid-column:1 / -1"><div class="label">Archivos</div><div class="val">—</div></div>`
+        : `<div class="item" style="grid-column:1 / -1"><div class="label">Archivos</div>
+            <div class="val">
+              <ul class="list">
+                ${files
+                  .map((f) => {
+                    const label = f.label ? escapeHtml(f.label) : "Archivo";
+                    const url = escapeHtml(f.url);
+                    return `<li><span class="muted">${label}:</span> <span class="mono">${url}</span></li>`;
+                  })
+                  .join("")}
+              </ul>
+            </div>
+          </div>`;
+
     const html = `<!doctype html><html lang="es"><head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -360,35 +692,83 @@ export default function OrdersServicesIndexPage() {
 <style>
 :root{color-scheme:light}
 body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";margin:24px;color:#111827}
-.h{font-size:20px;font-weight:700;margin:0 0 12px 0}
+.hwrap{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px 0}
+.h{font-size:20px;font-weight:800;margin:0}
+.sub{font-size:12px;color:#6b7280;margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;background:#fff}
+.dot{width:8px;height:8px;border-radius:999px;background:#B20000}
 .card{border:1px solid #e5e7eb;border-radius:12px;padding:20px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
 .item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}
 .label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:4px}
-.val{font-size:14px}
+.val{font-size:14px;line-height:1.35}
 .section{margin-top:18px}
 .table{width:100%;border-collapse:collapse;font-size:13px}
-.table th,.table td{border-top:1px solid #e5e7eb;padding:8px}
-.table th{background:#f3f4f6;text-align:left;font-weight:600}
-.table td.num{text-align:right}
+.table th,.table td{border-top:1px solid #e5e7eb;padding:8px;vertical-align:top}
+.table th{background:#f3f4f6;text-align:left;font-weight:700}
+.table td.num{text-align:right;white-space:nowrap}
 .empty{color:#6b7280;text-align:center;padding:10px}
 .tot{width:100%;margin-top:12px}
-.tot .row{display:flex;justify-content:space-between;padding:6px 0}
-.tot .row.b{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:10px;font-weight:700}
-.footer{margin-top:16px;font-size:12px;color:#6b7280}
-@media print{@page{size:A4;margin:16mm}body{margin:0}}
+.tot .row{display:flex;justify-content:space-between;padding:6px 0;gap:12px}
+.tot .row.b{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:10px;font-weight:800}
+.footer{display:flex;justify-content:space-between;gap:12px;margin-top:14px;font-size:12px;color:#6b7280}
+.muted{color:#6b7280}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+.list{margin:6px 0 0 18px;padding:0}
+.list li{margin:4px 0}
+.warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px}
+.note{background:#f8fafc;border:1px solid #e2e8f0;color:#334155;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px}
+@media print{@page{size:A4;margin:16mm}body{margin:0}.card{border:0}}
 </style>
 </head><body>
 <div class="card">
-  <div class="h">Orden #${row.id}</div>
-  <div class="grid">
-    <div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div>
-    <div class="item"><div class="label">Fecha</div><div class="val">${row.fechaProgramada}</div></div>
-    <div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div>
-    <div class="item"><div class="label">Técnico</div><div class="val">${row.tecnico}</div></div>
-    <div class="item" style="grid-column:1 / -1"><div class="label">Tipo</div><div class="val">${row.tipo}</div></div>
-    ${row.descripcion ? `<div class="item" style="grid-column:1 / -1"><div class="label">Descripción</div><div class="val">${row.descripcion}</div></div>` : ""}
+  <div class="hwrap">
+    <div>
+      <div class="h">Orden de servicio #${row.id}</div>
+      <div class="sub">Código: <span class="mono">OS-${String(row.id).padStart(6, "0")}</span></div>
+    </div>
+    <div class="badge"><span class="dot"></span><span style="font-weight:700">Vertecx</span></div>
   </div>
+
+  <div class="grid">
+    <div class="item"><div class="label">Estado</div><div class="val">${escapeHtml(
+      row.estado === "GarantiaReportada" ? "Garantía (reportada)" : row.estado
+    )}</div></div>
+
+    <div class="item"><div class="label">Tipo</div><div class="val">${escapeHtml(row.tipo)}</div></div>
+
+    <div class="item"><div class="label">Cliente</div><div class="val">${escapeHtml(row.cliente)}</div></div>
+
+    <div class="item"><div class="label">Técnicos</div><div class="val">${escapeHtml(row.tecnico || "—")}</div></div>
+
+    <div class="item"><div class="label">Fecha inicio</div><div class="val">${escapeHtml(formatDateES(row.fechainicio) || "—")}</div></div>
+
+    <div class="item"><div class="label">Fecha fin</div><div class="val">${escapeHtml(formatDateES(row.fechafin) || "—")}</div></div>
+
+    <div class="item"><div class="label">Hora inicio</div><div class="val">${escapeHtml(formatTimeES(row.horainicio) || "—")}</div></div>
+
+    <div class="item"><div class="label">Hora fin</div><div class="val">${escapeHtml(formatTimeES(row.horafin) || "—")}</div></div>
+
+    <div class="item"><div class="label">Fecha programada</div><div class="val">${escapeHtml(row.fechaProgramada || "—")}</div></div>
+
+    <div class="item"><div class="label">Viáticos</div><div class="val">${escapeHtml(formatCOP(viaticos))}</div></div>
+
+    <div class="item"><div class="label">Total (registrado)</div><div class="val"><b>${escapeHtml(
+      formatCOP(totalRegistrado)
+    )}</b></div></div>
+
+    <div class="item"><div class="label">Creada</div><div class="val">${escapeHtml(formatDateTimeES(row.createdat) || "—")}</div></div>
+
+    <div class="item"><div class="label">Actualizada</div><div class="val">${escapeHtml(formatDateTimeES(row.updatedat) || "—")}</div></div>
+
+    <div class="item" style="grid-column:1 / -1">
+      <div class="label">Descripción</div>
+      <div class="val">${row.descripcion ? nl2br(escapeHtml(row.descripcion)) : "—"}</div>
+    </div>
+
+    ${filesBlock}
+  </div>
+
   <div class="section">
     <div class="label" style="margin-bottom:6px">Servicios</div>
     <table class="table">
@@ -396,6 +776,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       <tbody>${serviciosRows}</tbody>
     </table>
   </div>
+
   <div class="section">
     <div class="label" style="margin-bottom:6px">Materiales</div>
     <table class="table">
@@ -403,157 +784,106 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       <tbody>${materialesRows}</tbody>
     </table>
   </div>
+
   <div class="section">
-    <div class="label" style="margin-bottom:6px">Totales</div>
+    <div class="label" style="margin-bottom:6px">Totales (IVA desde subtotal con viáticos)</div>
     <div class="tot">
-      <div class="row"><span>Subtotal servicios</span><span>${formatCOP(subServ)}</span></div>
-      <div class="row"><span>Subtotal materiales</span><span>${formatCOP(subMat)}</span></div>
-      <div class="row"><span>IVA (19%)</span><span>${formatCOP(iva)}</span></div>
-      <div class="row b"><span>Total</span><span>${formatCOP(total)}</span></div>
+      <div class="row"><span>Subtotal servicios</span><span>${escapeHtml(formatCOP(subServ))}</span></div>
+      <div class="row"><span>Subtotal materiales</span><span>${escapeHtml(formatCOP(subMat))}</span></div>
+      <div class="row"><span>Viáticos</span><span>${escapeHtml(formatCOP(viaticos))}</span></div>
+      <div class="row"><span>Subtotal (base IVA)</span><span>${escapeHtml(formatCOP(subtotalBaseIVA))}</span></div>
+      <div class="row"><span>IVA (${IVA_PCT}%)</span><span>${escapeHtml(formatCOP(iva))}</span></div>
+      <div class="row b"><span>Total calculado</span><span>${escapeHtml(formatCOP(totalCalculado))}</span></div>
     </div>
+    <div class="note">El IVA se calcula sobre el subtotal (servicios + materiales + viáticos).</div>
+    ${
+      totalRegistrado > 0 && diff !== 0
+        ? `<div class="warn">Nota: el <b>Total (registrado)</b> difiere del <b>Total calculado</b> por ${escapeHtml(
+            formatCOP(diff)
+          )}.</div>`
+        : ""
+    }
   </div>
-  <div class="footer">Código: OS-${String(row.id).padStart(6, "0")}</div>
+
+  ${garantiaBlock}
+
+  <div class="footer">
+    <span class="muted">Impreso: ${escapeHtml(new Date().toLocaleString("es-CO"))}</span>
+    <span class="muted">Módulo: ${escapeHtml(MODULE_KEY)}</span>
+  </div>
 </div>
 </body></html>`;
+
     const iframe: HTMLIFrameElement = document.createElement("iframe");
-    Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+    Object.assign(iframe.style, {
+      position: "fixed",
+      right: "0",
+      bottom: "0",
+      width: "0",
+      height: "0",
+      border: "0",
+    });
+
+    const cleanup = () => {
+      try {
+        document.body.removeChild(iframe);
+      } catch {}
+    };
+
     iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win) return cleanup();
+
+      const done = () => cleanup();
+      win.onafterprint = done;
+
       setTimeout(() => {
-        const win = iframe.contentWindow;
-        win?.focus?.();
-        win?.print?.();
-        setTimeout(() => document.body.removeChild(iframe), 100);
+        try {
+          win.focus?.();
+          win.print?.();
+        } finally {
+          setTimeout(done, 1200);
+        }
       }, 50);
     };
+
     iframe.srcdoc = html;
     document.body.appendChild(iframe);
-  }
+  }, []);
 
-  function openCreate() {
-    router.push(`/dashboard/orders-services/new?returnTo=${encodeURIComponent(pathname)}`);
-  }
+  const downloadReport = useCallback(async () => {
+    if (loading) return;
 
-  function openEdit(r: Row) {
-    const payload = encodeURIComponent(JSON.stringify(r));
-    router.push(`/dashboard/orders-services/edit?returnTo=${encodeURIComponent(pathname)}&id=${r.id}&order=${payload}`);
-  }
-
-  function openReport(row: Row) {
-    setReportRowId(row.id);
-    setMotivo(row.garantia?.label || "Daño dentro de garantía");
-    setDetalle(row.garantia?.details || "");
-    setNotifyClient(!!row.garantia?.notifiedClient);
-    setErrorDetalle("");
-    setReportOpen(true);
-  }
-
-  function submitReport() {
-    if (!detalle.trim()) {
-      setErrorDetalle("Describe qué pasó");
-      return;
-    }
-    if (reportRowId == null) return;
-    const now = new Date().toISOString();
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === reportRowId
-          ? {
-              ...r,
-              estado: "GarantiaReportada",
-              descripcion: `[Garantía - ${motivo}${notifyClient ? ", notificar cliente" : ""}] ${detalle}${r.descripcion ? " | " + r.descripcion : ""}`,
-              garantia: {
-                label: motivo,
-                reportedBy: r.tecnico,
-                reportedAtISO: r.garantia?.reportedAtISO || now,
-                details: detalle,
-                notifiedClient: notifyClient,
-              },
-            }
-          : r
-      )
-    );
-    setReportOpen(false);
-  }
-
-  const columns: Column<Row>[] = [
-    { key: "id", header: "ID", render: (r) => <span>#{r.id}</span> },
-    { key: "cliente", header: "Cliente" },
-    { key: "tecnico", header: "Técnico" },
-    { key: "tipo", header: "Tipo" },
-    { key: "fechaProgramada", header: "Fecha" },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (r) => {
-        if (r.estado === "GarantiaReportada") return <GarantiaChip info={r.garantia} />;
-        if (r.estado === "Garantia")
-          return (
-            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-blue-700 bg-blue-50" title="Garantía sin reporte">
-              Garantía
-            </span>
-          );
-        return <EstadoPill v={r.estado} />;
-      },
-    },
-    { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
-  ];
-
-  async function downloadReport() {
     const mod = await import("exceljs");
     const ExcelJS: any = (mod as any).default ?? mod;
+
     const wb = new ExcelJS.Workbook();
     wb.creator = "Vertecx";
     wb.created = new Date();
+
     const ws = wb.addWorksheet("Órdenes de servicio");
     ws.columns = [
       { header: "Id", key: "id", width: 8 },
       { header: "Cliente", key: "cliente", width: 28 },
-      { header: "Técnico", key: "tecnico", width: 22 },
       { header: "Tipo", key: "tipo", width: 16 },
       { header: "Fecha programada", key: "fechaProgramada", width: 18 },
       { header: "Estado", key: "estado", width: 18 },
+      { header: "Viáticos (COP)", key: "viaticos", width: 16, style: { numFmt: '"$" #,##0' } },
       { header: "Monto (COP)", key: "monto", width: 16, style: { numFmt: '"$" #,##0' } },
     ];
-    const header = ws.getRow(1);
-    (header as any).font = { bold: true };
-    (header as any).alignment = { vertical: "middle" };
-    (header as any).height = 18;
-    (header as any).eachCell?.((cell: any) => {
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-      cell.border = {
-        top: { style: "thin", color: { argb: "FFE5E7EB" } },
-        left: { style: "thin", color: { argb: "FFE5E7EB" } },
-        bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
-        right: { style: "thin", color: { argb: "FFE5E7EB" } },
-      };
-    });
-    rows.forEach((r) => {
-      const row = ws.addRow({
+
+    sortRowsByIdAsc(rows).forEach((r) => {
+      ws.addRow({
         id: r.id,
         cliente: r.cliente,
-        tecnico: r.tecnico,
         tipo: r.tipo,
         fechaProgramada: r.fechaProgramada,
         estado: r.estado === "GarantiaReportada" ? "Garantía (reportada)" : r.estado,
+        viaticos: r.viaticos ?? 0,
         monto: r.monto ?? 0,
       });
-      (row as any).eachCell?.((cell: any) => {
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFF1F5F9" } },
-          left: { style: "thin", color: { argb: "FFF1F5F9" } },
-          bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
-          right: { style: "thin", color: { argb: "FFF1F5F9" } },
-        };
-      });
     });
-    ws.autoFilter = { from: "A1", to: "G1" };
-    ws.columns.forEach((col: any) => {
-      let max = col.header ? String(col.header).length : 10;
-      col.eachCell?.({ includeEmpty: false }, (cell: any) => {
-        max = Math.max(max, String(cell.value ?? "").length);
-      });
-      col.width = Math.max(col.width ?? 10, Math.min(max + 2, 60));
-    });
+
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -564,137 +894,228 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     a.click?.();
     a.remove?.();
     URL.revokeObjectURL(url);
-  }
+  }, [rows, loading]);
 
-  const rightActions = (
-    <div className="flex items-center gap-2">
-      <button onClick={downloadReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90">
+  const actionGuard = useCallback((r: Row) => {
+    if (r.estado === "Anulada") {
+      return {
+        disableEdit: true,
+        disableDelete: true,
+        disableCancel: true,
+        editTitle: "No se puede editar una orden anulada",
+        deleteTitle: "La orden ya está anulada",
+        cancelTitle: "La orden ya está anulada",
+      };
+    }
+    return {};
+  }, []);
+
+  const columns: Column<Row>[] = useMemo(
+    () => [
+      { key: "id", header: "ID", render: (r) => <span>#{r.id}</span> },
+      { key: "cliente", header: "Cliente" },
+      { key: "tipo", header: "Tipo" },
+      { key: "fechaProgramada", header: "Fecha" },
+      {
+        key: "estado",
+        header: "Estado",
+        render: (r) => {
+          if (r.estado === "GarantiaReportada") {
+            const fecha = r.garantia?.reportedAtISO ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO") : "";
+            const title = r.garantia
+              ? `Motivo: ${r.garantia.label} · Reportado por: ${r.garantia.reportedBy}${fecha ? " · " + fecha : ""}`
+              : "Garantía (reportada)";
+            return (
+              <span className="inline-flex items-center gap-2" title={title}>
+                <img src={ICONS.report} className="h-4 w-4" alt="" />
+                <EstadoText v={r.estado} />
+              </span>
+            );
+          }
+          if (r.estado === "Garantia") {
+            return (
+              <span className="inline-flex items-center gap-2" title="Garantía sin reporte">
+                <img src={ICONS.report} className="h-4 w-4" alt="" />
+                <EstadoText v={r.estado} />
+              </span>
+            );
+          }
+          return <EstadoText v={r.estado} />;
+        },
+      },
+      { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
+    ],
+    []
+  );
+
+  const extraActions = useCallback(
+    (r: Row) => {
+      const disableWarranty = r.estado === "Anulada";
+      const disableHistory = r.estado === "Anulada";
+
+      const baseBtn =
+        "p-1 rounded-full transition-all duration-300 hover:scale-110 hover:bg-red-300/60 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent";
+
+      const warrantyTitle =
+        r.estado === "Garantia" || r.estado === "GarantiaReportada"
+          ? r.estado === "Garantia"
+            ? "Completar reporte de garantía"
+            : "Editar reporte de garantía"
+          : "Marcar garantía (sin reporte)";
+
+      return (
+        <>
+          <button
+            type="button"
+            className={baseBtn}
+            title={disableHistory ? "No disponible en una orden anulada" : "Agregar historial"}
+            onClick={() => openHistory(r)}
+            disabled={disableHistory}
+          >
+            <FilePlus2 className="h-4 w-4" />
+          </button>
+
+          <button
+            type="button"
+            className={baseBtn}
+            title={disableWarranty ? "No disponible en una orden anulada" : warrantyTitle}
+            onClick={() => {
+              if (disableWarranty) return;
+              if (r.estado === "Garantia" || r.estado === "GarantiaReportada") openReport(r);
+              else markWarranty(r);
+            }}
+            disabled={disableWarranty}
+          >
+            <img src={ICONS.report} className="h-4 w-4" alt="" />
+          </button>
+
+          <button type="button" className={baseBtn} title="Imprimir" onClick={() => printRow(r)}>
+            <img src={ICONS.print} className="h-4 w-4" alt="" />
+          </button>
+        </>
+      );
+    },
+    [markWarranty, openReport, printRow, openHistory]
+  );
+
+  const rightActions = useMemo(() => {
+    return (
+      <button
+        type="button"
+        onClick={downloadReport}
+        disabled={loading}
+        className="cursor-pointer inline-flex h-9 items-center rounded-md px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+        style={{ background: Colors.buttons.primary }}
+      >
         Descargar Reporte
       </button>
-    </div>
-  );
+    );
+  }, [downloadReport, loading]);
 
   return (
     <RequireAuth>
-      <main className="flex-1 flex flex-col bg-gray-100">
-        <div className="px-4 pb-6 pt-4 max-w-7xl w-full mx-auto">
-          <DataTable<Row>
-            module="ordersServices"
-            data={rows}
-            columns={columns}
-            pageSize={8}
-            searchableKeys={["id", "cliente", "tecnico", "tipo", "fechaProgramada", "estado", "monto", "descripcion"]}
-            searchPlaceholder="Buscar (id, técnico, cliente, tipo, estado, fecha, monto, descripción)"
-            onCreate={openCreate}
-            createButtonText="Crear Orden"
-            rightActions={rightActions}
-            onEdit={(r) => openEdit(r)}
-            renderExtraActions={(row) => (
-              <>
-                {row.estado !== "Garantia" && row.estado !== "GarantiaReportada" && (
-                  <button
-                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                    title="Marcar garantía (sin reporte)"
-                    onClick={() => markWarranty(row)}
-                  >
-                    <img src={ICONS.report} className="h-4 w-4" />
-                  </button>
-                )}
-                {row.estado === "Garantia" && (
-                  <button
-                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                    title="Completar reporte de garantía"
-                    onClick={() => openReport(row)}
-                  >
-                    <img src={ICONS.report} className="h-4 w-4" />
-                  </button>
-                )}
-                {row.estado === "GarantiaReportada" && (
-                  <button
-                    className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                    title="Editar reporte de garantía"
-                    onClick={() => openReport(row)}
-                  >
-                    <img src={ICONS.report} className="h-4 w-4" />
-                  </button>
-                )}
-                <button
-                  className={`p-1 rounded-full transition-all duration-300 ${row.estado === "Anulada" ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:scale-110 hover:bg-red-300/60"}`}
-                  title={row.estado === "Anulada" ? "Ya está anulada" : "Anular"}
-                  onClick={() => row.estado !== "Anulada" && cancelRow(row)}
-                  disabled={row.estado === "Anulada"}
-                >
-                  <img src={ICONS.cancel} className="h-4 w-4" />
-                </button>
-              </>
-            )}
-            tailHeader="Imprimir"
-            renderTail={(row) => (
-              <button
-                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                title="Imprimir"
-                onClick={() => printRow(row)}
-              >
-                <img src={ICONS.print} className="h-4 w-4 mx-auto" />
-              </button>
-            )}
-            mobileCardView
-          />
-        </div>
+      {loading || busy ? <Loader /> : null}
 
-        <Modal
-          title={reportRowId ? `Reportar garantía #${reportRowId}` : "Reportar garantía"}
-          isOpen={reportOpen}
-          onClose={() => setReportOpen(false)}
-          widthClass="max-w-lg"
-          footer={
-            <>
-              <button onClick={() => setReportOpen(false)} className="cursor-pointer inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button onClick={submitReport} className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#B20000] px-4 text-sm font-semibold text-white hover:opacity-90">
-                Guardar reporte
-              </button>
-            </>
-          }
-        >
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">Motivo</label>
-              <select value={motivo} onChange={(e) => setMotivo(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B20000]/30">
-                <option>Daño dentro de garantía</option>
-                <option>Producto defectuoso</option>
-                <option>Instalación con falla</option>
-                <option>Otro</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">¿Qué pasó?</label>
-              <textarea
-                value={detalle}
-                onChange={(e) => {
-                  setDetalle(e.target.value);
-                  if (e.target.value.trim()) setErrorDetalle("");
-                }}
-                rows={4}
-                placeholder="Describe brevemente el caso de garantía"
-                className={`w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ${
-                  errorDetalle ? "border-red-500 focus:ring-red-200" : "focus:ring-[#B20000]/30"
-                }`}
+      <div className="min-h-screen flex">
+        <div className="flex-1 flex flex-col">
+          <main className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-6 pt-6 overflow-hidden">
+              <DataTable<Row>
+                module={MODULE_KEY}
+                data={Array.isArray(rows) ? rows : []}
+                columns={columns}
+                pageSize={8}
+                searchableKeys={["id", "cliente", "tecnico", "tipo", "fechaProgramada", "estado", "monto", "descripcion"]}
+                searchPlaceholder="Buscar (id, cliente, tipo, estado, fecha, monto, descripción)…"
+                rightActions={rightActions}
+                onCreate={openCreate}
+                createButtonText="Crear Orden"
+                onView={openDetail}
+                onEdit={openEdit}
+                onCancel={cancelRow}
+                actionGuard={actionGuard}
+                renderExtraActions={extraActions}
+                mobileCardView
               />
-              {errorDetalle ? <p className="text-xs text-red-600 mt-1">{errorDetalle}</p> : null}
             </div>
-            <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={notifyClient} onChange={(e) => setNotifyClient(e.target.checked)} />
-              <span className="text-sm">Notificar al cliente</span>
-            </label>
-            <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-              Al guardar, la orden pasará a <b>Garantía (reportada)</b> y en la tabla verás el chip con tooltip del motivo y responsable.
-            </div>
-          </div>
-        </Modal>
+          </main>
+        </div>
+      </div>
 
-      </main>
+      <OrderServiceHistoryCreateModal
+        isOpen={historyOpen}
+        onClose={closeHistory}
+        orderId={historyOrderId}
+        technicians={historyTechnicians}
+        onCreated={reloadOrders}
+      />
+
+      <Modal
+        title={reportRowId ? `Reportar garantía #${reportRowId}` : "Reportar garantía"}
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        widthClass="max-w-lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setReportOpen(false)}
+              className="cursor-pointer inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={submitReport}
+              className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#B20000] px-4 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Guardar reporte
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">Motivo</label>
+            <select
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#B20000]/30"
+            >
+              <option>Daño dentro de garantía</option>
+              <option>Producto defectuoso</option>
+              <option>Instalación con falla</option>
+              <option>Otro</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wide text-gray-600 mb-1">¿Qué pasó?</label>
+            <textarea
+              value={detalle}
+              onChange={(e) => {
+                setDetalle(e.target.value);
+                if (e.target.value.trim()) setErrorDetalle("");
+              }}
+              rows={4}
+              placeholder="Describe brevemente el caso de garantía"
+              className={`w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2 ${
+                errorDetalle ? "border-red-500 focus:ring-red-200" : "focus:ring-[#B20000]/30"
+              }`}
+            />
+            {errorDetalle ? <p className="text-xs text-red-600 mt-1">{errorDetalle}</p> : null}
+          </div>
+
+          <label className="inline-flex items-center gap-2">
+            <input type="checkbox" checked={notifyClient} onChange={(e) => setNotifyClient(e.target.checked)} />
+            <span className="text-sm">Notificar al cliente</span>
+          </label>
+
+          <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+            Al guardar, la orden pasará a <b>Garantía (reportada)</b>.
+          </div>
+        </div>
+      </Modal>
     </RequireAuth>
   );
 }
