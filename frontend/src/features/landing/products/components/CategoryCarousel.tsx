@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 
 // Íconos por defecto si el backend no trae icono
 import { Monitor, Camera, HardDrive, Cpu, Router } from "lucide-react";
-import { fetchCategories } from "@/features/dashboard/categoryProducts/connection/categoryApi";
+import { getCategories } from "@/features/dashboard/categoryProducts/connection/categoryApi";
 
 const iconMap: Record<string, JSX.Element> = {
   monitor: <Monitor className="w-6 h-6 text-[#B20000]" />,
@@ -39,12 +39,10 @@ const CategoryCarousel: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchCategories();
-        const arr = Array.isArray(data) ? data : data.data;
-
-        if (Array.isArray(arr)) {
+        const data = await getCategories();
+        if (Array.isArray(data)) {
           // SOLO CATEGORÍAS ACTIVAS
-          const active = arr.filter((c) => c.status === true);
+          const active = data.filter((c) => c.status === true);
 
           setCategories(active);
 
