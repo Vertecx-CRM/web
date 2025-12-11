@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { routes } from "@/shared/routes";
@@ -58,9 +59,18 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto h-12 w-12 rounded-2xl bg-red-600 flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-lg">V</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative h-16 w-16 rounded-2xl border border-neutral-200 bg-white shadow-sm">
+              <Image
+                src="/assets/imgs/preview.png"
+                alt="Logo Vertecx"
+                fill
+                className="object-contain p-1 rounded-2xl"
+                priority
+              />
+            </div>
           </div>
+
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
             Restablecer contraseña
           </h1>
