@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
+import { showError, showSuccess } from "@/shared/utils/notifications";
 
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
@@ -513,20 +514,14 @@ export default function OrdersServicesIndexPage() {
       setBusy(true);
       try {
         await markOrderServiceWarranty(row.id);
-        await Swal.fire({
-          icon: "success",
-          title: "Listo",
-          text: `La orden #${row.id} quedó marcada en garantía.`,
-          confirmButtonColor: "#B20000",
-        });
+        showSuccess(`La orden #${row.id} quedó marcada en garantía.`);
         await reloadOrders();
       } catch (e: any) {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo marcar la garantía.",
-          confirmButtonColor: "#B20000",
-        });
+        const message =
+          e?.response?.data?.message?.[0] ||
+          e?.response?.data?.message ||
+          "No se pudo marcar la garantía.";
+        showError(message);
       } finally {
         setBusy(false);
       }
@@ -543,43 +538,48 @@ export default function OrdersServicesIndexPage() {
     setReportOpen(true);
   }, []);
 
-  const submitReport = useCallback(async () => {
-    if (!detalle.trim()) {
-      setErrorDetalle("Describe qué pasó");
-      return;
-    }
-    if (reportRowId == null) return;
+  const submitReport = useCallback(
+    async () => {
+      if (!detalle.trim()) {
+        setErrorDetalle("Describe qué pasó");
+        return;
+      }
+      if (reportRowId == null) return;
 
-    setBusy(true);
-    try {
-      await reportOrderServiceWarranty(reportRowId, {
-        label: motivo,
-        details: detalle.trim(),
-        notifiedClient: notifyClient,
-      });
+      setBusy(true);
+      try {
+        await reportOrderServiceWarranty(reportRowId, {
+          label: motivo,
+          details: detalle.trim(),
+          notifiedClient: notifyClient,
+        });
 
-      setReportOpen(false);
+        setReportOpen(false);
 
-      await Swal.fire({
-        icon: "success",
-        title: "Reporte guardado",
-        text: `Se registró el reporte de garantía para la orden #${reportRowId}.`,
-        confirmButtonColor: "#B20000",
-      });
+        await Swal.fire({
+          icon: "success",
+          title: "Reporte guardado",
+          text: `Se registró el reporte de garantía para la orden #${reportRowId}.`,
+          confirmButtonColor: "#B20000",
+        });
 
-      await reloadOrders();
-    } catch (e: any) {
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text:
-          e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo guardar el reporte de garantía.",
-        confirmButtonColor: "#B20000",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }, [detalle, motivo, notifyClient, reportRowId, reloadOrders]);
+        await reloadOrders();
+      } catch (e: any) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text:
+            e?.response?.data?.message?.[0] ||
+            e?.response?.data?.message ||
+            "No se pudo guardar el reporte de garantía.",
+          confirmButtonColor: "#B20000",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [detalle, motivo, notifyClient, reportRowId, reloadOrders]
+  );
 
   const openHistory = useCallback((row: Row) => {
     setHistoryOrderId(row.id);
