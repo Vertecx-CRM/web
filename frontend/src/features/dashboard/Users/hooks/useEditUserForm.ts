@@ -1,4 +1,11 @@
-import { useState, useEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  ChangeEvent,
+  FormEvent,
+} from "react";
 import {
   EditUserModalProps,
   EditUser,
@@ -12,12 +19,88 @@ import {
 } from "../Validations/UserValidations";
 import { showWarning } from "@/shared/utils/notifications";
 import { useRoles } from "./useRoles";
+import { uploadImage } from "../helpers/uploadImage";
+import { uploadFile } from "../helpers/uploadFile";
+
+// ----------------- UTILS -----------------
 
 const normalizeRoleName = (name: string) =>
   (name ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
+
+const applyNitDefaults = (
+  typeid: number,
+  roles: { roleid: number; name: string }[],
+  setFormData: React.Dispatch<React.SetStateAction<EditUser>>,
+  setIsNit: React.Dispatch<React.SetStateAction<boolean>>,
+) => {
+  const isNit = typeid === 4;
+  setIsNit(isNit);
+
+  if (!isNit) return;
+
+  const clienteRole = roles.find(
+    (r) => normalizeRoleName(r.name) === "cliente",
+  );
+
+  setFormData((prev) => {
+    const nextRoleid = clienteRole?.roleid ?? prev.roleid;
+
+    // Evitar bucles / renders innecesarios
+    if (prev.lastname === "" && prev.roleid === nextRoleid) {
+      return prev;
+    }
+
+    return {
+      ...prev,
+      lastname: "",
+      roleid: nextRoleid,
+    };
+  });
+};
+
+const initialErrors: FormErrors = {
+  userid: "",
+  name: "",
+  lastname: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+  phone: "",
+  documentnumber: "",
+  typeid: "",
+  stateid: "",
+  image: "",
+  roleid: "",
+  CV: "",
+  techniciantypeids: "",
+  customercity: "",
+  customerzipcode: "",
+};
+
+const initialTouched: FormTouched = {
+  userid: false,
+  name: false,
+  lastname: false,
+  email: false,
+  password: false,
+  confirmPassword: false,
+  phone: false,
+  documentnumber: false,
+  typeid: false,
+  stateid: false,
+  image: false,
+  roleid: false,
+  CV: false,
+  techniciantypeids: false,
+  customercity: false,
+  customerzipcode: false,
+};
+
+// ----------------- HOOK -----------------
 
 export const useEditUserForm = ({
   isOpen,
@@ -27,8 +110,10 @@ export const useEditUserForm = ({
   users,
 }: EditUserModalProps) => {
   const { roles } = useRoles();
+
   const [originalCV, setOriginalCV] = useState<string | null>(null);
   const [isNit, setIsNit] = useState<boolean>(false);
+
   const [formData, setFormData] = useState<EditUser>({
     userid: 0,
     name: "",
@@ -46,206 +131,192 @@ export const useEditUserForm = ({
     customerzipcode: "",
   });
 
-  const [errors, setErrors] = useState<FormErrors>({} as FormErrors);
-  const [touched, setTouched] = useState<FormTouched>({} as FormTouched);
+  const [errors, setErrors] = useState<FormErrors>(() => initialErrors);
+  const [touched, setTouched] = useState<FormTouched>(() => initialTouched);
+
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewCV, setPreviewCV] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const checkIfNit = (typeId: number): boolean => typeId === 4;
+  const getRoleName = useCallback(
+    (roleId: number): string => {
+      const found = roles.find((r) => r.roleid === roleId);
+      return normalizeRoleName(found?.name || "");
+    },
+    [roles],
+  );
 
-  const getRoleName = (roleId: number): string => {
-    const found = roles.find((r) => r.roleid === roleId);
-    return normalizeRoleName(found?.name || "");
-  };
+  // Contexto de validación memoizado
+  const validationUser = useMemo(
+    () =>
+    ({
+      ...formData,
+      roles: {
+        roleid: formData.roleid,
+        name: getRoleName(formData.roleid),
+      },
+    } as unknown as User),
+    [formData, getRoleName],
+  );
 
-  const uploadToCloudinary = async (file: File): Promise<string | null> => {
-    const CLOUD_NAME = "ditjhxzre";
-    const UPLOAD_PRESET = "Vertecx";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);
-    data.append("resource_type", "image");
+  const validateFieldOnChange = useCallback(
+    (field: string, value: string) => {
+      // Para NIT ignoramos validación de apellido
+      if (isNit && field === "lastname") return;
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        { method: "POST", body: data }
+      const error = validateField(
+        field,
+        value,
+        validationUser,
+        users,
+        true, // edit mode
       );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message);
-      return json.secure_url;
-    } catch (error) {
-      console.error("Error al subir imagen:", error);
-      showWarning("Error al subir la imagen");
-      return null;
-    }
-  };
 
-  const uploadCVToCloudinary = async (file: File): Promise<string | null> => {
-    const CLOUD_NAME = "ditjhxzre";
-    const UPLOAD_PRESET = "Vertecx";
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", UPLOAD_PRESET);
+      setErrors((prev) => ({ ...prev, [field]: error }));
+    },
+    [isNit, validationUser, users],
+  );
 
-    try {
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-        { method: "POST", body: data }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message);
-      return json.secure_url;
-    } catch (error) {
-      console.error("Error al subir CV:", error);
-      showWarning("Error al subir el CV");
-      return null;
-    }
-  };
-
-  const handleInputChange = (
-    field: keyof EditUser,
-    value: string | number | File | null
-  ) => {
-    setFormData((prev) => {
-      const newData = { ...prev, [field]: value };
-
-      if (field === "typeid" && typeof value === "number") {
-        const nitDoc = checkIfNit(value);
-        setIsNit(nitDoc);
-
-        if (nitDoc) {
-          newData.lastname = "";
-          const clienteRole = roles.find(
-            (r) => r.name?.toLowerCase() === "cliente"
-          );
-          if (clienteRole) {
-            newData.roleid = clienteRole.roleid;
-          }
-        }
-      }
-
-      return newData;
-    });
-
-    if (touched[field]) {
-      const strValue = typeof value === "string" ? value : String(value ?? "");
-      validateFieldOnChange(field as string, strValue);
-    }
-  };
-
-  const handleTechnicianTypeChange = (typeId: number, checked: boolean) => {
-    setFormData((prev) => {
-      const current = prev.techniciantypeids || [];
-      return {
+  const handleInputChange = useCallback(
+    (
+      field: keyof EditUser,
+      value: string | number | File | null,
+    ): void => {
+      setFormData((prev) => ({
         ...prev,
-        techniciantypeids: checked
-          ? [...current, typeId]
-          : current.filter((id) => id !== typeId),
-      };
-    });
-  };
+        [field]: value,
+      }));
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file) {
-      setFormData((prev) => ({ ...prev, image: file }));
-      setPreviewImage(URL.createObjectURL(file));
-    }
-  };
+      if (touched[field]) {
+        const strValue = typeof value === "string" ? value : String(value ?? "");
+        validateFieldOnChange(field as string, strValue);
+      }
+    },
+    [touched, validateFieldOnChange],
+  );
 
-  const handleCVChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTechnicianTypeChange = useCallback(
+    (typeId: number, checked: boolean) => {
+      setFormData((prev) => {
+        const current = prev.techniciantypeids || [];
+        return {
+          ...prev,
+          techniciantypeids: checked
+            ? [...current, typeId]
+            : current.filter((id) => id !== typeId),
+        };
+      });
+    },
+    [],
+  );
+
+  const handleImageChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] || null;
+      if (file) {
+        setFormData((prev) => ({ ...prev, image: file }));
+        setPreviewImage(URL.createObjectURL(file));
+      }
+    },
+    [],
+  );
+
+  const handleCVChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     if (file) {
       setFormData((prev) => ({ ...prev, CV: file }));
       setPreviewCV(file.name);
     }
-  };
+  }, []);
 
-  const removeImage = () => {
+  const removeImage = useCallback(() => {
     setFormData((prev) => ({ ...prev, image: null }));
     setPreviewImage(null);
-  };
+  }, []);
 
-  const removeCV = () => {
+  const removeCV = useCallback(() => {
     setFormData((prev) => ({ ...prev, CV: null }));
     setPreviewCV(null);
-  };
+  }, []);
 
-  const handleBlur = (field: keyof FormTouched) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-    const value = formData[field as keyof EditUser];
-    if (typeof value === "string" || typeof value === "number") {
-      validateFieldOnChange(field as string, String(value));
-    }
-  };
-
-  const validateFieldOnChange = (field: string, value: string) => {
-    if (isNit && field === "lastname") return;
-
-    const error = validateField(
-      field,
-      value,
-      {
-        ...formData,
-        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
-      } as unknown as User,
-      users,
-      true
-    );
-
-    setErrors((prev) => ({ ...prev, [field]: error }));
-  };
-
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    const valid = validateFormWithNotification(
-      {
-        ...formData,
-        roles: { roleid: formData.roleid, name: getRoleName(formData.roleid) },
-      } as unknown as User,
-      users,
-      setErrors,
-      setTouched,
-      true
-    );
-
-    if (!valid) return;
-
-    try {
-      setIsSubmitting(true);
-      onClose();
-
-      let imageUrl: string | null = null;
-      if (formData.image instanceof File) {
-        imageUrl = await uploadToCloudinary(formData.image);
-      } else if (typeof formData.image === "string") {
-        imageUrl = formData.image;
+  const handleBlur = useCallback(
+    (field: keyof FormTouched) => {
+      setTouched((prev) => ({ ...prev, [field]: true }));
+      const value = formData[field as keyof EditUser];
+      if (typeof value === "string" || typeof value === "number") {
+        validateFieldOnChange(field as string, String(value));
       }
+    },
+    [formData, validateFieldOnChange],
+  );
 
-      let cvUrl: string | null = originalCV;
-      if (formData.CV instanceof File) {
-        cvUrl = await uploadCVToCloudinary(formData.CV);
+  const handleSubmit = useCallback(
+    async (e?: FormEvent) => {
+      e?.preventDefault();
+
+      const valid = validateFormWithNotification(
+        validationUser,
+        users,
+        setErrors,
+        setTouched,
+        true, // edit
+      );
+
+      if (!valid) return;
+
+      try {
+        setIsSubmitting(true);
+        onClose();
+
+        // IMAGEN
+        let imageUrl: string | null = null;
+        if (formData.image instanceof File) {
+          imageUrl = await uploadImage(formData.image);
+        } else if (typeof formData.image === "string") {
+          imageUrl = formData.image;
+        }
+
+        // CV
+        let cvUrl: string | null = originalCV;
+        if (formData.CV instanceof File) {
+          cvUrl = await uploadFile(formData.CV);
+        } else if (typeof formData.CV === "string") {
+          cvUrl = formData.CV;
+        }
+
+        const payload: EditUser = {
+          ...formData,
+          lastname: isNit ? null : formData.lastname,
+          image: imageUrl,
+          CV: cvUrl,
+        };
+
+        await onSave(payload);
+      } catch (error) {
+        console.error("Error al actualizar usuario:", error);
+        showWarning("Error al actualizar el usuario.");
+      } finally {
+        setIsSubmitting(false);
       }
+    },
+    [
+      validationUser,
+      users,
+      onClose,
+      formData,
+      originalCV,
+      isNit,
+      onSave,
+    ],
+  );
 
-      const payload = {
-        ...formData,
-        lastname: isNit ? null : formData.lastname,
-        image: imageUrl,
-        CV: cvUrl,
-      };
+  // Efecto para aplicar lógica de NIT (rol cliente + limpiar apellido)
+  useEffect(() => {
+    if (!isOpen) return;
+    applyNitDefaults(formData.typeid, roles, setFormData, setIsNit);
+  }, [formData.typeid, roles, isOpen]);
 
-      await onSave(payload);
-    } catch (error) {
-      console.error("Error al actualizar usuario:", error);
-      showWarning("Error al actualizar el usuario.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+  // Cargar datos del usuario cuando se abre el modal
   useEffect(() => {
     if (isOpen && user) {
       const technician = user.technicians?.[0];
@@ -268,18 +339,27 @@ export const useEditUserForm = ({
         roleid: user.roleid,
         CV: currentCV,
         techniciantypeids:
-          technician?.technicianTypeMaps?.map((tm) => tm.techniciantypeid) || [],
+          technician?.technicianTypeMaps?.map((tm) => Number(tm.techniciantypeid)) || [],
         customercity: customer?.customercity || "",
         customerzipcode: customer?.customerzipcode || "",
       });
 
-      if (user.image && typeof user.image === "string") {
+      // Reset errores/touched
+      setErrors(initialErrors);
+      setTouched(initialTouched);
+
+      // Preview imagen
+      if (typeof user.image === "string") {
         setPreviewImage(user.image);
       } else {
         setPreviewImage(null);
       }
+
+      // Preview CV
+      setPreviewCV(currentCV || null);
     }
   }, [isOpen, user]);
+
 
   return {
     formData,

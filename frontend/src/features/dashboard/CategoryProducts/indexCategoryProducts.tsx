@@ -138,7 +138,7 @@ export default function CategoriesPage() {
             ) : (
               <DataTable<Category>
                 module="categories"
-                data={categories}
+                data={[...categories].sort((a, b) => a.id - b.id)}
                 columns={columns}
                 pageSize={10}
                 searchableKeys={["id", "name", "description", "status"]}
