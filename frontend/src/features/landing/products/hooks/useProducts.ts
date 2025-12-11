@@ -31,7 +31,6 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
       } catch (e) {
         if (!alive) return;
         console.error("Landing products: error cargando del backend:", e);
-        // fallbackProducts se queda
       } finally {
         if (!alive) return;
         setLoading(false);

@@ -243,23 +243,44 @@ export const useTechnicians = () => {
       toast.error("No se pudo actualizar el técnico. Intenta nuevamente.");
     }
   };
-
-  const handleDeleteTechnician = async (tech: Technician): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: `${tech.name} ${tech.lastName}`,
-        itemType: "técnico",
-        successMessage: `El técnico "${tech.name} ${tech.lastName}" ha sido eliminado correctamente.`,
-        errorMessage: "No se pudo eliminar el técnico. Intenta nuevamente.",
-      },
-      async () => {
-        await withLoading(async () => {
+  
+const handleDeleteTechnician = async (tech: Technician): Promise<boolean> => {
+  return confirmDelete(
+    {
+      itemName: `${tech.name} ${tech.lastName}`,
+      itemType: "técnico",
+      successMessage: `El técnico "${tech.name} ${tech.lastName}" ha sido eliminado correctamente.`,
+      errorMessage: "No se pudo eliminar el técnico. Intenta nuevamente.",
+      skipSuccessToast: true,
+    },
+    async () => {
+      await withLoading(async () => {
+        try {
           await deleteTechnicianApi(tech.id);
-          setTechnicians((prev) => prev.filter((t) => t.id !== tech.id));
-        });
-      }
-    );
-  };
+
+          const list = await getTechniciansApi();
+          setTechnicians(list);
+
+          toast.success(
+            `El técnico "${tech.name} ${tech.lastName}" ha sido eliminado correctamente.`
+          );
+        } catch (error: any) {
+          console.warn("Error al eliminar técnico:", error);
+
+          const apiMessage =
+            error?.response?.data?.message ??
+            error?.message ??
+            "";
+
+          toast.warning(
+            apiMessage ||
+              "No se pudo eliminar el técnico. Intenta nuevamente."
+          );
+        }
+      });
+    }
+  );
+};
 
   return {
     technicians,
