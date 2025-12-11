@@ -1,68 +1,106 @@
 import { api } from "@/lib/api";
-import type { AxiosError } from "axios";
+import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
 
-export type Option = { id: number; label: string };
+type ServiceApi = {
+  serviceid?: number;
+  id?: number;
+  name?: string;
+  servicename?: string;
+  typeofserviceid?: number;
+  typeOfServiceId?: number;
+  typeofservice?: {
+    typeofserviceid?: number;
+    name?: string;
+    typeofservicename?: string;
+    code?: string;
+    serviceType?: string;
+  } | null;
+  typeofservicename?: string;
+  serviceType?: string;
+  servicetype?: string;
+};
 
-function extractList<T>(resOrBody: any): T[] {
-  const body = resOrBody?.data ?? resOrBody;
+type CustomerApi = {
+  customerid?: number;
+  id?: number;
+  users?: { name?: string | null; lastname?: string | null } | null;
+};
 
-  if (Array.isArray(body)) return body;
-  if (body && Array.isArray(body.data)) return body.data;
-  if (body?.data && Array.isArray(body.data.data)) return body.data.data;
-
-  return [];
+function unwrap<T>(payload: any): T {
+  if (payload && typeof payload === "object" && "data" in payload) return (payload as any).data as T;
+  return payload as T;
 }
 
-function getUrlFromResponse(res: any) {
-  const responseURL = (res?.request as any)?.responseURL;
-  if (responseURL) return responseURL;
-  const base = res?.config?.baseURL ?? "";
-  const url = res?.config?.url ?? "";
-  return `${base}${url}`;
+function unwrapList<T>(payload: any): T[] {
+  const data = unwrap<any>(payload);
+  return Array.isArray(data) ? (data as T[]) : [];
 }
 
-function summarizeAxiosError(err: unknown) {
-  const e = err as AxiosError<any>;
-  return {
-    status: e.response?.status,
-    data: e.response?.data,
-    message: e.message,
-  };
+export async function getServiceOptions(): Promise<
+  (Option & { typeofserviceid?: number | null; typeofservicename?: string | null; serviceTypeCode?: string | null })[]
+> {
+  const res = await api.get<any>("/services");
+  const list = unwrapList<ServiceApi>(res.data);
+
+  return list
+    .map((s) => {
+      const id = Number(s.serviceid ?? s.id);
+      if (!Number.isFinite(id) || id <= 0) return null;
+
+      const label = String(s.name ?? s.servicename ?? `Servicio #${id}`).trim();
+
+      const rawTypeId =
+        s.typeofserviceid ??
+        s.typeOfServiceId ??
+        s.typeofservice?.typeofserviceid ??
+        null;
+      const typeofserviceid =
+        rawTypeId != null && Number.isFinite(Number(rawTypeId)) ? Number(rawTypeId) : null;
+
+      const rawTypeName =
+        s.typeofservicename ??
+        s.typeofservice?.typeofservicename ??
+        s.typeofservice?.name ??
+        null;
+      const typeofservicename = rawTypeName != null ? String(rawTypeName).trim() : null;
+
+      const serviceTypeCode =
+        s.serviceType ??
+        s.servicetype ??
+        s.typeofservice?.serviceType ??
+        s.typeofservice?.code ??
+        null;
+
+      return {
+        id,
+        label,
+        typeofserviceid,
+        typeofservicename,
+        serviceTypeCode: serviceTypeCode != null ? String(serviceTypeCode).trim() : null,
+      } as Option & {
+        typeofserviceid?: number | null;
+        typeofservicename?: string | null;
+        serviceTypeCode?: string | null;
+      };
+    })
+    .filter(Boolean) as (Option & {
+    typeofserviceid?: number | null;
+    typeofservicename?: string | null;
+    serviceTypeCode?: string | null;
+  })[];
 }
 
 export async function getCustomerOptions(): Promise<Option[]> {
   const res = await api.get<any>("/customers");
-  const list = extractList<any>(res);
+  const list = unwrapList<CustomerApi>(res.data);
 
   return list
     .map((c) => {
-      const id = c.customerid ?? c.id ?? c.customerId;
-      const full = [c.users?.name, c.users?.lastname].filter(Boolean).join(" ").trim();
-      return { id: Number(id), label: full || `Cliente ${id}` };
+      const id = Number(c.customerid ?? c.id);
+      if (!Number.isFinite(id) || id <= 0) return null;
+      const u = c.users ?? {};
+      const label = [u.name, u.lastname].filter(Boolean).join(" ").trim() || `Cliente #${id}`;
+      return { id, label } as Option;
     })
-    .filter((o) => Number.isFinite(o.id));
-}
-
-export async function getServiceOptions(): Promise<Option[]> {
-  try {
-    const res = await api.get<any>("/services");
-
-    console.log("GET /services URL →", getUrlFromResponse(res));
-    console.log("GET /services STATUS →", res.status);
-    console.log("GET /services BODY →", res.data);
-
-    const list = extractList<any>(res);
-    console.log("GET /services LIST →", list);
-
-    return list
-      .map((s) => {
-        const id = s.serviceid ?? s.id ?? s.serviceId;
-        const name = s.name ?? s.typeofservicename ?? s.serviceType ?? s.title ?? `Servicio ${id}`;
-        return { id: Number(id), label: String(name) };
-      })
-      .filter((o) => Number.isFinite(o.id));
-  } catch (err) {
-    console.error("GET /services ERROR →", summarizeAxiosError(err));
-    throw err;
-  }
+    .filter(Boolean) as Option[];
 }

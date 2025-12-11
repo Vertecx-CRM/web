@@ -1,68 +1,59 @@
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
+export type SplitDateTime = {
+  date: string | null;
+  time: string | null;
+};
+
+export function toLocalDateInputValue(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-function parseTime(raw?: string | null) {
-  const match = String(raw ?? "").match(/^(\d{1,2}):(\d{2})$/);
-  const hours = match ? Number(match[1]) : 9;
-  const minutes = match ? Number(match[2]) : 0;
-  return {
-    hours: Number.isFinite(hours) ? hours : 9,
-    minutes: Number.isFinite(minutes) ? minutes : 0,
-  };
+export function toLocalTimeInputValue(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
-function parseDate(raw?: string | null) {
-  const match = String(raw ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (![year, month, day].every(Number.isFinite)) return null;
-  return { year, month, day };
+export function toLocalDateTimeValue(d: Date): string {
+  const date = toLocalDateInputValue(d);
+  const time = toLocalTimeInputValue(d);
+  return `${date}T${time}`;
 }
 
-export function splitDateTime(value?: string | Date | null) {
+export function splitDateTime(value: string | null): SplitDateTime {
   if (!value) return { date: null, time: null };
-
-  // Si es string con formato ISO, evitar el desplazamiento de zona horaria
-  if (typeof value === "string") {
-    const isoMatch = value.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2}))/);
-    if (isoMatch) {
-      const datePart = isoMatch[1];
-      const timePart = `${isoMatch[2]}:${isoMatch[3]}`;
-      return { date: datePart, time: timePart };
-    }
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return { date: null, time: null };
-  // Extraer en UTC para no mover la fecha por la zona horaria local
+  const [date, timeFull] = value.split("T");
+  const time = timeFull ? timeFull.slice(0, 5) : null;
   return {
-    date: `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`,
-    time: `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`,
+    date: date || null,
+    time: time || null,
   };
 }
 
-export function buildScheduledAt(dateStr?: string | null, timeStr?: string | null, fallback?: Date | null) {
-  const parsedDate = parseDate(dateStr);
-  if (parsedDate) {
-    const time = parseTime(timeStr);
-    const result = new Date(
-      parsedDate.year,
-      parsedDate.month - 1,
-      parsedDate.day,
-      time.hours,
-      time.minutes,
-      0,
-      0
-    );
-    return result.toISOString();
+export function buildScheduledAt(
+  date: string | null,
+  time: string | null,
+  fallback: Date | null
+): string | null {
+  if (!date && !time) return null;
+
+  let base: Date;
+
+  if (date) {
+    const [y, m, d] = date.split("-").map((n) => Number(n));
+    const [hh, mm] = (time || "00:00").split(":").map((n) => Number(n));
+    base = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+  } else if (fallback) {
+    base = new Date(fallback);
+    if (time) {
+      const [hh, mm] = time.split(":").map((n) => Number(n));
+      base.setHours(hh || 0, mm || 0, 0, 0);
+    }
+  } else {
+    base = new Date();
   }
 
-  if (fallback) {
-    return fallback.toISOString();
-  }
-
-  return null;
+  return base.toISOString();
 }
