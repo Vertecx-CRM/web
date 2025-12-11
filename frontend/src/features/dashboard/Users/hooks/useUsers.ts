@@ -1,17 +1,41 @@
-﻿import { useState, useEffect, useRef } from "react";
-import { showSuccess, showWarning } from "@/shared/utils/notifications";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { showSuccess, showError } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-import {
-  User,
-  EditUser,
-  CreateUserData,
-} from "../types/typesUser";
-import {
-  fetchUsers,
-  createUser,
-  updateUser,
-  deleteUser,
-} from "../connection/userApi";
+
+import { User, EditUser, CreateUserData } from "../types/typesUser";
+import { getUsers, createUser, updateUser, deleteUser } from "../connection/userApi";
+
+
+//  UTILIDAD: construir payload para creación/edición de usuarios
+export const buildUserPayload = (
+  user: CreateUserData | EditUser
+): Record<string, any> => {
+  return {
+    name: user.name?.trim(),
+    lastname: user.lastname?.trim() ?? null,
+    email: user.email?.trim(),
+    phone: user.phone?.trim(),
+    documentnumber: user.documentnumber?.trim(),
+    typeid: user.typeid,
+    image: user.image || null,
+    stateid: user.stateid,
+    roleid: user.roleid,
+
+    // Condicionales opcionales
+    ...(user.CV !== undefined && { CV: user.CV }),
+    ...(Array.isArray(user.techniciantypeids) &&
+      user.techniciantypeids.length > 0 && {
+        techniciantypeids: [...user.techniciantypeids],
+      }),
+    ...(user.customercity !== undefined && { customercity: user.customercity }),
+    ...(user.customerzipcode !== undefined && {
+      customerzipcode: user.customerzipcode,
+    }),
+  };
+};
+
+
+  //  HOOK PRINCIPAL
 
 export const useUser = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -20,53 +44,27 @@ export const useUser = () => {
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const waitForRender = async () => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    });
-  };
+  const sortUsers = useCallback(
+    (list: User[]) => [...list].sort((a, b) => (a.userid ?? 0) - (b.userid ?? 0)),
+    []
+  );
 
-  const applyUsersResponse = async (response: any) => {
-    const payload = response?.data ?? response;
-    const sortUsers = (list: User[]) =>
-      [...list].sort((a, b) => (a.userid ?? 0) - (b.userid ?? 0));
-
-
-    if (Array.isArray(payload)) {
-      setUsers(sortUsers(payload));
-    } else if (payload?.data && Array.isArray(payload.data)) {
-      setUsers(sortUsers(payload.data));
-    } else {
-      console.warn("Estructura de respuesta inesperada:", response);
-      return;
-    }
-    await waitForRender();
-  };
-
-  const refreshUsers = async () => {
-    const response = await fetchUsers();
-    await applyUsersResponse(response);
-    const payload = response?.data ?? response;
-    if (typeof response?.status === "number") return response.status;
-    if (response?.success) return 200;
-    if (Array.isArray(payload)) return 200;
-    if (payload?.data && Array.isArray(payload.data)) return 200;
-    return undefined;
-  };
+  const refreshUsers = useCallback(async () => {
+    const list = await getUsers();
+    setUsers(sortUsers(list));
+    return list;
+  }, [sortUsers]);
 
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    const loadUsers = async () => {
+    const load = async () => {
       setLoading(true);
       try {
-        const status = await refreshUsers();
-        if (status !== 200) {
-          throw new Error(`Refresh usuarios devolvio status ${status}`);
-        }
+        await refreshUsers();
       } catch (error) {
         console.error("Error al cargar usuarios:", error);
-        showWarning("Error al cargar usuarios desde el servidor");
+        showError("Error al cargar usuarios desde el servidor");
       } finally {
         setLoading(false);
       }
@@ -74,129 +72,96 @@ export const useUser = () => {
 
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      loadUsers();
+      load();
     }
-  }, []);
+  }, [refreshUsers]);
 
-  const handleCreateUser = async (userData: CreateUserData) => {
-    setLoading(true);
-    try {
-      setIsCreateModalOpen(false);
-      const payload = {
-        name: userData.name,
-        lastname: userData.lastname,
-        email: userData.email,
-        phone: userData.phone,
-        documentnumber: userData.documentnumber,
-        typeid: userData.typeid,
-        image: userData.image || null,
-        stateid: userData.stateid,
-        roleid: userData.roleid,
-        // Campos condicionales
-        ...(userData.CV !== undefined && { CV: userData.CV }),
-        ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
-        ...(userData.customercity !== undefined && { customercity: userData.customercity }),
-        ...(userData.customerzipcode !== undefined && { customerzipcode: userData.customerzipcode }),
-      };
 
-      const newUser = await createUser(payload);
-      setUsers((prev) => [...prev, newUser]);
-      const status = await refreshUsers();
-      if (status !== 200) {
-        throw new Error(`Refresh usuarios devolvio status ${status}`);
+  // CREAR USUARIO
+
+  const handleCreateUser = useCallback(
+    async (data: CreateUserData) => {
+      setLoading(true);
+      try {
+        setIsCreateModalOpen(false);
+
+        const payload = buildUserPayload(data);
+        await createUser(payload);
+        await refreshUsers();
+
+        showSuccess("Usuario creado exitosamente");
+      } catch (error: any) {
+        console.error("Create error:", error);
+        showError(error.message || "Error al crear usuario");
+      } finally {
+        setLoading(false);
       }
+    },
+    [refreshUsers]
+  );
 
-      showSuccess("Usuario creado exitosamente");
-      await waitForRender();
-    } catch (error: any) {
-      console.error(error);
-      showWarning(error.message || "Error al crear usuario");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // EDITAR USUARIO
+  const handleEditUser = useCallback(
+    async (data: EditUser) => {
+      if (!data.userid) return;
 
-  const handleEditUser = async (userData: EditUser) => {
-    if (!userData.userid) return;
+      setLoading(true);
+      try {
+        const payload = buildUserPayload(data);
+        await updateUser(data.userid, payload);
+        await refreshUsers();
 
-    setLoading(true);
-    try {
-      const payload = {
-        name: userData.name,
-        lastname: userData.lastname,
-        email: userData.email,
-        phone: userData.phone,
-        documentnumber: userData.documentnumber,
-        typeid: userData.typeid,
-        image: userData.image || null,
-        stateid: userData.stateid,
-        roleid: userData.roleid,
-        ...(userData.CV !== undefined && { CV: userData.CV }),
-        ...(userData.techniciantypeids && userData.techniciantypeids.length > 0 && { techniciantypeids: userData.techniciantypeids }),
-        ...(userData.customercity !== undefined && { customercity: userData.customercity }),
-        ...(userData.customerzipcode !== undefined && { customerzipcode: userData.customerzipcode }),
-      };
-
-      const updatedUser = await updateUser(userData.userid, payload);
-      setUsers((prev) =>
-        prev.map((u) => (u.userid === userData.userid ? updatedUser : u))
-      );
-      const status = await refreshUsers();
-      if (status !== 200) {
-        throw new Error(`Refresh usuarios devolvio status ${status}`);
+        showSuccess("Usuario actualizado exitosamente");
+        setEditingUser(null);
+      } catch (error: any) {
+        console.error("Update error:", error);
+        showError(error.message || "Error al actualizar usuario");
+      } finally {
+        setLoading(false);
       }
+    },
+    [refreshUsers]
+  );
 
-      showSuccess("Usuario actualizado exitosamente");
-      await waitForRender();
-      setEditingUser(null);
-    } catch (error: any) {
-      console.error(error);
-      showWarning(error.message || "Error al actualizar usuario");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleDelete = async (userToDelete: User) => {
-    return confirmDelete(
-      {
-        itemName: userToDelete.name,
-        itemType: "usuario",
-        successMessage: `El usuario "${userToDelete.name}" ha sido eliminado.`,
-        errorMessage: "Error al eliminar usuario",
-      },
-      async () => {
-        setLoading(true);
-        try {
-          if (!userToDelete.userid) return;
+  //  ELIMINAR USUARIO
+  const handleDelete = useCallback(
+    async (userToDelete: User) => {
+      return confirmDelete(
+        {
+          itemName: userToDelete.name,
+          itemType: "usuario",
+          successMessage: `El usuario "${userToDelete.name}" ha sido eliminado.`,
+          errorMessage: "Error al eliminar usuario",
+        },
+        async () => {
+          setLoading(true);
+          try {
+            if (!userToDelete.userid) return;
 
-          setUsers((prev) => prev.filter((u) => u.userid !== userToDelete.userid));
-
-          await deleteUser(userToDelete.userid);
-          const status = await refreshUsers();
-          if (status !== 200) {
-            throw new Error(`Refresh usuarios devolvio status ${status}`);
+            await deleteUser(userToDelete.userid);
+            await refreshUsers();
+          } catch (error) {
+            console.error("Delete error:", error);
+            showError("Error al eliminar usuario");
+          } finally {
+            setLoading(false);
           }
-          await waitForRender();
-        } catch (error) {
-          console.error(error);
-          showWarning("Error al eliminar usuario");
-        } finally {
-          setLoading(false);
         }
-      }
-    );
-  };
+      );
+    },
+    [refreshUsers]
+  );
 
-  const handleView = (u: User) => setViewingUser(u);
+  // HANDLERS DE VIEW / EDIT UI
+  const handleView = useCallback((u: User) => setViewingUser(u), []);
+  const handleEdit = useCallback((u: EditUser) => setEditingUser(u), []);
 
-  const handleEdit = (u: EditUser) => setEditingUser(u);
-
-  const closeModals = () => {
+  const closeModals = useCallback(() => {
     setIsCreateModalOpen(false);
     setEditingUser(null);
     setViewingUser(null);
-  };
+  }, []);
 
   return {
     users,
@@ -205,11 +170,13 @@ export const useUser = () => {
     setIsCreateModalOpen,
     editingUser,
     viewingUser,
+
     handleCreateUser,
     handleEditUser,
     handleDelete,
-    handleEdit,
     handleView,
+    handleEdit,
+
     closeModals,
   };
 };
