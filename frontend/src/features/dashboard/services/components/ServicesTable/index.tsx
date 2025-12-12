@@ -16,6 +16,38 @@ interface ServicesTableProps {
   onCreate: () => void;
 }
 
+// Extendemos Service solo para la tabla, con el campo de búsqueda
+type ServiceRow = Service & {
+  searchText: string;
+};
+
+const normalizeForSearch = (value: string): string => {
+  const lower = value.toLowerCase();
+  const withoutAccents = lower
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  // Guardamos ambas variantes para matchear con o sin tilde
+  return `${lower} ${withoutAccents}`;
+};
+
+const buildSearchText = (s: Service): string => {
+  const parts: string[] = [];
+
+  const add = (val?: string | number | null) => {
+    if (val === undefined || val === null) return;
+    const str = String(val).trim();
+    if (!str) return;
+    parts.push(normalizeForSearch(str));
+  };
+
+  add(s.id);        // ID
+  add(s.name);      // Nombre
+  add(s.category);  // Categoría
+  add(s.state);     // Estado (Activo / Inactivo)
+
+  return parts.join(" ");
+};
+
 export const ServicesTable: React.FC<ServicesTableProps> = ({
   services,
   onView,
@@ -28,12 +60,21 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     [services]
   );
 
-  const columns: Column<Service>[] = [
+  const rows: ServiceRow[] = useMemo(
+    () =>
+      sortedServices.map((s) => ({
+        ...s,
+        searchText: buildSearchText(s),
+      })),
+    [sortedServices]
+  );
+
+  const columns: Column<ServiceRow>[] = [
     { key: "id", header: "ID" },
     {
       key: "name",
       header: "Nombre",
-      render: (s: Service) => (
+      render: (s: ServiceRow) => (
         <div className="max-w-[220px] whitespace-normal break-words [overflow-wrap:anywhere] leading-5">
           {s.name ?? ""}
         </div>
@@ -43,7 +84,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "image",
       header: "Imagen",
-      render: (s: Service) => {
+      render: (s: ServiceRow) => {
         const image =
           typeof s.image === "string"
             ? s.image.trim()
@@ -86,11 +127,12 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
     {
       key: "state",
       header: "Estado",
-      render: (s: Service) => (
+      render: (s: ServiceRow) => (
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            color: s.state === "Activo" ? Colors.states.success : Colors.states.inactive,
+            color:
+              s.state === "Activo" ? Colors.states.success : Colors.states.inactive,
           }}
         >
           {s.state}
@@ -100,15 +142,17 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
   ];
 
   return (
-    <DataTable<Service>
+    <DataTable<ServiceRow>
       module="services"
-      data={sortedServices}
+      data={rows}
       columns={columns}
       pageSize={6}
-      searchableKeys={["id", "name", "category", "state"]}
-      onView={onView}
-      onEdit={onEdit}
-      onDelete={onDelete}
+      // Buscamos solo sobre searchText, que ya contiene id, nombre, categoría y estado
+      // normalizados (mayúsculas, minúsculas y tildes)
+      searchableKeys={["searchText"]}
+      onView={onView as (s: ServiceRow) => void}
+      onEdit={onEdit as (s: ServiceRow) => void}
+      onDelete={onDelete as (s: ServiceRow) => void}
       onCreate={onCreate}
       searchPlaceholder="Buscar servicios..."
       createButtonText="Crear Servicio"
@@ -125,7 +169,9 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
 
           <button
             onClick={() =>
-              document.querySelector<HTMLButtonElement>("#download-excel-btn-services")?.click()
+              document
+                .querySelector<HTMLButtonElement>("#download-excel-btn-services")
+                ?.click()
             }
             className="fixed bottom-20 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
             style={{ background: "#B20000" }}
