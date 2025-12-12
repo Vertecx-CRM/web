@@ -65,7 +65,7 @@ export const CancelPurchaseOrderModal: React.FC<CancelPurchaseOrderModalProps> =
 
   return createPortal(
     <>
-      <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4">
+      <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50 p-4">
         <div className="bg-white rounded-lg shadow-lg w-full max-w-md relative z-50">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b">

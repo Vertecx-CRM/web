@@ -1,9 +1,7 @@
-import {
-  DataTable,
-  Column,
-} from "@/features/dashboard/components/datatable/DataTable";
+import { DataTable  } from "@/features/dashboard/components/datatable/DataTable";
 import { Client } from "../../types/typeClients";
 import Colors from "@/shared/theme/colors";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 interface ClientsTableProps {
   clients: Client[];
@@ -69,8 +67,7 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
       onDelete={onDelete}
       onCreate={onCreate}
       searchPlaceholder="Buscar clientes..."
-      createButtonText="Crear Cliente"
-    />
+      createButtonText="Crear Cliente" module={""}    />
   );
 };
 

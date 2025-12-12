@@ -30,11 +30,11 @@ export interface CreateClientData extends ClientBase {
   confirmarContrasena: string;
 }
 
+
 // Editar
-export interface EditClientData extends ClientBase {
+export interface EditClientData extends Client {
   contrasena: string;
   confirmarContrasena: string;
-  id: number;
 }
 
 export interface FormErrors {
