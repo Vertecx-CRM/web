@@ -51,9 +51,19 @@
     return data;
   };
 
-  export const deleteRole = async (id: number) => {
-    await api.delete(`/roles/${id}`);
-  };
+export const deleteRole = async (id: number) => {
+  const res = await api.delete(`/roles/${id}`, {
+    validateStatus: (status) => status < 500,
+  });
+
+  if (res.status >= 400) {
+    const error: any = new Error(
+      (res.data as any)?.message || "No se pudo eliminar el rol."
+    );
+    error.response = res;
+    throw error;
+  }
+};
 
   export type CreateRolePayload = {
     name: string;
