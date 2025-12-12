@@ -50,7 +50,6 @@ const MobileCard = React.memo(
 const CreateButton = React.memo(CreateButtonComponent);
 const Pagination = React.memo(PaginationComponent);
 
-// Memoizar el DataTable principal
 const DataTableComponent = <T extends { [key: string]: any }>(
   props: DataTableProps<T> & { module: string }
 ) => {
@@ -197,7 +196,6 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     [columns]
   );
 
-  // Componente Row memoizado
   const Row = useMemo(() => {
     const RowComponent = React.memo(
       ({ row, index }: { row: T; index: number }) => {

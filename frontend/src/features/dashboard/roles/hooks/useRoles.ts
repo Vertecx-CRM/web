@@ -259,40 +259,41 @@ export const useRoles = () => {
     await handleDeleteRole(role);
   };
 
-  const handleDeleteRole = async (role: Role): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: role.name,
-        itemType: "rol",
-        successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
-        errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
-      },
-      async () => {
-        startLoading();
-        try {
-          await apiDeleteRole(role.id);
-          await loadRoles();
-        } catch (err) {
-          const ax = err as AxiosError<any>;
+const handleDeleteRole = async (role: Role): Promise<boolean> => {
+  return confirmDelete(
+    {
+      itemName: role.name,
+      itemType: "rol",
+      successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
+      errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
+      skipSuccessToast: true, // <- clave: que confirmDelete NO muestre el success
+    },
+    async () => {
+      startLoading();
+      try {
+        await apiDeleteRole(role.id);
+        await loadRoles();
 
-          if (ax.response?.status === 404) {
-            showWarning("El rol ya no existe.");
-          } else if (ax.response?.status === 400 || ax.response?.status === 409) {
-            showWarning(
-              ax.response?.data?.message ??
-                "No se puede eliminar el rol (está vinculado a usuarios)."
-            );
-          } else {
-            showWarning("Ocurrió un error al eliminar el rol.");
-          }
+        showSuccess(`El rol "${role.name}" ha sido eliminado correctamente.`);
+      } catch (err) {
+        const ax = err as AxiosError<any>;
 
-          throw err;
-        } finally {
-          stopLoading();
+        if (ax.response?.status === 404) {
+          showWarning("El rol ya no existe.");
+        } else if (ax.response?.status === 400 || ax.response?.status === 409) {
+          showWarning(
+            ax.response?.data?.message ??
+              "No se puede eliminar el rol (está vinculado a usuarios)."
+          );
+        } else {
+          showWarning("Ocurrió un error al eliminar el rol.");
         }
+      } finally {
+        stopLoading();
       }
-    );
-  };
+    }
+  );
+};
 
   const closeModals = () => {
     setIsCreateModalOpen(false);
