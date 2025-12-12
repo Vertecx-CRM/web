@@ -133,10 +133,13 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     if (field === "phone") value = String(rawValue).replace(/\D/g, "");
 
     if (field === "documentNumber") {
-      value =
-        tipoDocumento === "PPT" || tipoDocumento === "Pasaporte"
-          ? String(rawValue).replace(/[^a-zA-Z0-9]/g, "")
-          : String(rawValue).replace(/\D/g, "");
+      const raw = String(rawValue);
+
+      if (tipoDocumento === "PA") {
+        value = raw.replace(/[^a-zA-Z0-9]/g, "");
+      } else {
+        value = raw.replace(/\D/g, "");
+      }
     }
 
     switch (field) {
