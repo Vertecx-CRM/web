@@ -36,6 +36,10 @@ export const appointmentStatePalette: Record<string, AppointmentPalette> = {
   anulada: { background: "#dc2626", border: "#b91c1c", text: "#fee2e2" },
   garantia: { background: "#0ea5e9", border: "#0284c7", text: "#e0f2fe" },
   garantiareportada: { background: "#0369a1", border: "#075985", text: "#e0f2fe" },
+  finalizado: { background: "#10b981", border: "#047857", text: "#ecfdf5" },
+  cancelado: { background: "#dc2626", border: "#991b1b", text: "#fee2e2" },
+  "en-progreso": { background: "#f97316", border: "#c2410c", text: "#fff7ed" },
+  agendado: { background: "#0ea5e9", border: "#075985", text: "#e0f2fe" },
 };
 
 export function normalizeStateKey(value?: string | null) {

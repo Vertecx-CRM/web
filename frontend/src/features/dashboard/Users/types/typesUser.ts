@@ -39,6 +39,9 @@ export interface User {
 export interface UserForTable extends User {
   id: number;
   userid: number;
+  stateLabel?: string;
+  stateSearch?: "activo" | "inactivo";
+  fullNameSearch?: string;
 }
 
 export interface CreateUserData {

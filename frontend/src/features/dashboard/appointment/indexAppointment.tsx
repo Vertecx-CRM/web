@@ -10,6 +10,7 @@ import { CalendarDays, Maximize2, Minimize2, ChevronLeft, ChevronRight } from "l
 import AppointmentDetailModal from "./components/AppointmentDetailCard";
 import type { AppointmentEvent } from "./types/typeAppointment";
 import {
+  appointmentStatePalette,
   buildAppointmentEvents,
   getStatePalette,
   normalizeStateKey,
@@ -64,6 +65,29 @@ const calendarMinTime = new Date();
 calendarMinTime.setHours(7, 0, 0, 0);
 const calendarMaxTime = new Date();
 calendarMaxTime.setHours(17, 0, 0, 0);
+
+const LEGEND_ITEMS = [
+  {
+    label: "Orden de servicio",
+    description: "Eventos confirmados o activos",
+    color: "#2B2B2B",
+  },
+  {
+    label: "Solicitud de servicio",
+    description: "Eventos iniciados desde solicitudes",
+    color: "#F5F5F0",
+  },
+];
+
+const STATE_LEGEND_ITEMS = [
+  { label: "Anulada", palette: appointmentStatePalette.anulada },
+  { label: "Garantía", palette: appointmentStatePalette.garantia },
+  { label: "Garantía reportada", palette: appointmentStatePalette.garantiareportada },
+  { label: "Finalizado", palette: appointmentStatePalette.finalizado },
+  { label: "Cancelado", palette: appointmentStatePalette.cancelado },
+  { label: "En progreso", palette: appointmentStatePalette["en-progreso"] },
+  { label: "Agendada", palette: appointmentStatePalette.agendado },
+];
 
 const fetchAppointmentSources = async () => {
   const [orders, requests] = await Promise.all([
@@ -372,6 +396,7 @@ export default function IndexAppointment() {
   );
   const [technicianFilter, setTechnicianFilter] = useState<"all" | string>("all");
   const [clientFilter, setClientFilter] = useState<"all" | string>("all");
+  const [showLegend, setShowLegend] = useState(false);
 
   const clientProfileId = useMemo(() => {
     if (tokenRoleNormalized !== "cliente") return null;
@@ -645,12 +670,15 @@ export default function IndexAppointment() {
   ];
 
   const eventStyleGetter = (event: AppointmentEvent) => {
-    const palette = getStatePalette(event.stateLabel);
+    const sourcePalette =
+      event.source === "order"
+        ? { background: "#2B2B2B", border: "#1F1F1F", text: "#F5F5F0" }
+        : { background: "#F5F5F0", border: "#d1d5db", text: "#111827" };
     return {
       style: {
-        backgroundColor: palette.background,
-        color: palette.text,
-        border: `1px solid ${palette.border}`,
+        backgroundColor: sourcePalette.background,
+        color: sourcePalette.text,
+        border: `1px solid ${sourcePalette.border}`,
         borderRadius: 10,
         padding: "4px 8px",
         fontSize: "12px",
@@ -659,12 +687,41 @@ export default function IndexAppointment() {
     };
   };
 
+  const CalendarEvent = ({ event }: { event: AppointmentEvent }) => {
+    const palette = getStatePalette(event.stateLabel);
+    const isOrder = event.source === "order";
+    const textColor = isOrder ? "#ffffff" : palette.text;
+    return (
+      <div className="flex flex-col gap-1 truncate">
+        <div className="flex items-center gap-2">
+          <span
+            className="h-2 w-2 flex-none rounded-full"
+            style={{ backgroundColor: palette.border }}
+          />
+          <span
+            className="truncate text-[11px] font-semibold"
+            style={{ color: textColor }}
+          >
+            {event.title}
+          </span>
+        </div>
+        <span
+          className="truncate text-[10px] tracking-wide uppercase"
+          style={{ color: textColor }}
+        >
+          {event.stateLabel}
+        </span>
+      </div>
+    );
+  };
+
   const calendarHeight = fullWidthCalendar
     ? "h-[calc(100vh-260px)]"
     : "h-[calc(100vh-420px)]";
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <span className="rounded-2xl bg-red-100 p-2 text-red-600">
@@ -711,6 +768,7 @@ export default function IndexAppointment() {
           <StatCard key={s.label} {...s} />
         ))}
       </div>
+
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -854,6 +912,7 @@ export default function IndexAppointment() {
               className={undefined}
               components={{
                 toolbar: CalendarToolbar,
+                event: CalendarEvent,
               }}
               onView={(v) => setCalendarView(v)}
               onSelectEvent={(e) => {
@@ -915,6 +974,76 @@ export default function IndexAppointment() {
           title="Editar Solicitud"
         />
       )}
-    </div>
+      </div>
+
+      {showLegend && (
+        <div
+          className="fixed bottom-20 right-4 z-50 w-72 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl"
+          role="dialog"
+          aria-label="Leyenda de eventos"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Leyenda</p>
+              <p className="text-xs text-slate-500">
+                Colores según origen del evento
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLegend(false)}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-900"
+            >
+              Cerrar
+            </button>
+          </div>
+          <div className="mt-3 space-y-3">
+            {LEGEND_ITEMS.map((item) => (
+              <div key={item.label} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
+                <span
+                  className="h-3 w-3 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                  <p className="text-xs text-slate-500">{item.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Estados</p>
+            <div className="mt-2 space-y-2">
+              {STATE_LEGEND_ITEMS.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2"
+                >
+                  <span
+                    className="h-3 w-3 flex-shrink-0 rounded-full border"
+                    style={{ backgroundColor: item.palette.background, borderColor: item.palette.border }}
+                  />
+                  <p
+                    className="text-sm font-semibold text-slate-900"
+                  >
+                    {item.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setShowLegend((prev) => !prev)}
+        className="fixed bottom-4 right-4 z-50 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
+        aria-pressed={showLegend}
+        aria-label="Mostrar leyenda de eventos"
+      >
+        Leyenda
+      </button>
+    </>
   );
 }
