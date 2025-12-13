@@ -29,6 +29,7 @@ import {
 } from "@/features/dashboard/requests/utils/schedule";
 import { showError } from "@/shared/utils/notifications";
 import { fetchOrdersServices } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
+import { useAuth } from "@/features/auth/authcontext";
 
 const locales = { es };
 
@@ -81,6 +82,57 @@ const tipoToBackend = (tipo?: string | null) => {
 const parseMaybeNumber = (value: unknown) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : NaN;
+};
+
+const getTokenValue = (name: string) => {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+  if (!match) return null;
+  return decodeURIComponent(match.split("=")[1]);
+};
+
+const base64UrlToUtf8 = (value: string) => {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+};
+
+const parseTokenPayload = (token?: string | null) => {
+  if (!token) return null;
+  try {
+    if (token.trim().startsWith("{")) {
+      return JSON.parse(token);
+    }
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const decoded = base64UrlToUtf8(payload);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeRoleName = (role?: string | null) => {
+  if (!role) return null;
+  return role
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+};
+
+const getRoleFromTokenCookie = () => {
+  const token = getTokenValue("token");
+  const payload = parseTokenPayload(token);
+  return payload?.rolename || payload?.role || null;
 };
 
 type ServiceTypeFilterKey = "preventivo" | "correctivo" | "instalacion";
@@ -163,6 +215,50 @@ const getEventServiceTypeKey = (event: AppointmentEvent): ServiceTypeFilterKey |
     if (key) return key;
   }
   return null;
+};
+
+const toPositiveNumber = (value: unknown) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+};
+
+const getEventTechnicianUserIds = (event: AppointmentEvent): number[] => {
+  const ids: (number | null)[] = [];
+  getEventTechnicians(event).forEach((tech) => {
+    ids.push(
+      toPositiveNumber(tech?.technicianid),
+      toPositiveNumber(tech?.technicianId),
+      toPositiveNumber(tech?.users?.userid),
+      toPositiveNumber(tech?.users?.id)
+    );
+  });
+  return Array.from(new Set(ids.filter((id): id is number => id != null)));
+};
+
+const getEventCustomerIds = (event: AppointmentEvent): number[] => {
+  const ids: (number | null)[] = [];
+
+  if (event.source === "order") {
+    const client = event.order?.client;
+    ids.push(
+      toPositiveNumber(client?.customerid),
+      toPositiveNumber(client?.clientid),
+      toPositiveNumber(client?.userid),
+      toPositiveNumber(client?.users?.userid),
+      toPositiveNumber(client?.users?.id)
+    );
+  } else {
+    const request = event.request;
+    ids.push(
+      toPositiveNumber(request?.customer?.customerid),
+      toPositiveNumber(request?.customer?.clientid),
+      toPositiveNumber(request?.clientId),
+      toPositiveNumber(request?.customer?.users?.userid),
+      toPositiveNumber(request?.customer?.users?.id)
+    );
+  }
+
+  return Array.from(new Set(ids.filter((id): id is number => id != null)));
 };
 
 const CalendarToolbar = ({
@@ -252,6 +348,14 @@ const StatCard = ({
 );
 
 export default function IndexAppointment() {
+  const { profile, user } = useAuth();
+  const [tokenRole, setTokenRole] = useState<string | null>(null);
+  const [tokenRoleNormalized, setTokenRoleNormalized] = useState<string | null>(null);
+  useEffect(() => {
+    const role = getRoleFromTokenCookie();
+    setTokenRole(role);
+    setTokenRoleNormalized(normalizeRoleName(role));
+  }, []);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["appointments", "orders-services-requests"],
     queryFn: fetchAppointmentSources,
@@ -267,6 +371,19 @@ export default function IndexAppointment() {
     "all"
   );
   const [technicianFilter, setTechnicianFilter] = useState<"all" | string>("all");
+  const [clientFilter, setClientFilter] = useState<"all" | string>("all");
+
+  const clientProfileId = useMemo(() => {
+    if (tokenRoleNormalized !== "cliente") return null;
+    const userId = user?.userid;
+    return Number.isFinite(userId ?? NaN) && userId && userId > 0 ? userId : null;
+  }, [tokenRoleNormalized, user]);
+
+  const technicianProfileUserId = useMemo(() => {
+    if (tokenRoleNormalized !== "tecnico") return null;
+    const candidate = profile?.userid ?? profile?.users?.userid ?? user?.userid;
+    return Number.isFinite(candidate ?? NaN) && candidate && candidate > 0 ? candidate : null;
+  }, [tokenRoleNormalized, profile, user]);
 
   const events = useMemo(() => buildAppointmentEvents(data ?? {}), [data]);
 
@@ -364,10 +481,33 @@ export default function IndexAppointment() {
     return Array.from(entries.entries()).map(([value, label]) => ({ value, label }));
   }, [events]);
 
+  const clientOptions = useMemo(() => {
+    const entries = new Map<string, string>();
+    events.forEach((event) => {
+      const label = event.clientLabel?.trim();
+      if (!label) return;
+      if (!entries.has(label)) {
+        entries.set(label, label);
+      }
+    });
+    return Array.from(entries.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }));
+  }, [events]);
+
   const filteredEvents = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const techFilterId = technicianFilter === "all" ? null : Number(technicianFilter);
     return events.filter((event) => {
+      if (clientProfileId != null) {
+        const eventCustomerIds = getEventCustomerIds(event);
+        if (!eventCustomerIds.includes(clientProfileId)) return false;
+      }
+      if (technicianProfileUserId != null) {
+        const techIds = getEventTechnicianUserIds(event);
+        if (!techIds.includes(technicianProfileUserId)) return false;
+      }
       if (sourceFilter !== "all" && event.source !== sourceFilter) return false;
       if (stateFilter !== "all" && normalizeStateKey(event.stateLabel) !== stateFilter) {
         return false;
@@ -375,6 +515,10 @@ export default function IndexAppointment() {
       if (serviceTypeFilter !== "all") {
         const serviceKey = getEventServiceTypeKey(event);
         if (serviceKey !== serviceTypeFilter) return false;
+      }
+      if (clientFilter !== "all") {
+        const label = event.clientLabel?.trim();
+        if (!label || label !== clientFilter) return false;
       }
       if (techFilterId !== null && !Number.isNaN(techFilterId)) {
         const eventTechIds = new Set<number>();
@@ -388,7 +532,18 @@ export default function IndexAppointment() {
       const haystack = `${event.title} ${event.clientLabel} ${event.stateLabel}`.toLowerCase();
       return haystack.includes(term);
     });
-  }, [events, searchTerm, sourceFilter, stateFilter, serviceTypeFilter, technicianFilter]);
+  }, [
+    events,
+    searchTerm,
+    sourceFilter,
+    stateFilter,
+    serviceTypeFilter,
+    technicianFilter,
+    clientFilter,
+    clientProfileId,
+    technicianProfileUserId,
+    tokenRole,
+  ]);
 
   const filteredCount = filteredEvents.length;
   const hasActiveFilters =
@@ -396,6 +551,7 @@ export default function IndexAppointment() {
     stateFilter !== "all" ||
     serviceTypeFilter !== "all" ||
     technicianFilter !== "all" ||
+    clientFilter !== "all" ||
     searchTerm.trim().length > 0;
   const clearFilters = () => {
     setSourceFilter("all");
@@ -403,6 +559,7 @@ export default function IndexAppointment() {
     setSearchTerm("");
     setServiceTypeFilter("all");
     setTechnicianFilter("all");
+    setClientFilter("all");
   };
 
   const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null);
@@ -450,25 +607,41 @@ export default function IndexAppointment() {
     return filteredEvents.filter((e) => e.start.getTime() >= now).slice(0, 4);
   }, [filteredEvents]);
 
-  const uniqueTechnicians = useMemo(() => {
-    const set = new Set<number>();
-    filteredEvents.forEach((event) => {
-      getEventTechnicians(event).forEach((tech) => {
-        const techId = Number(tech?.technicianid ?? tech?.technicianId);
-        if (Number.isFinite(techId) && techId > 0) set.add(techId);
-      });
-    });
-    return set.size;
-  }, [filteredEvents]);
-
+  const statsSource =
+    tokenRole === "Cliente" || tokenRole === "Técnico" ? filteredEvents : events;
   const stats = [
     {
       label: "Citas visibles",
-      value: filteredEvents.length,
-      helper: hasActiveFilters ? "Filtradas según los filtros" : "Eventos sincronizados",
+      value: statsSource.length,
+      helper:
+        tokenRole === "Cliente"
+          ? hasActiveFilters
+            ? "Filtradas según los filtros"
+            : "Eventos del cliente"
+          : tokenRole === "Técnico"
+          ? hasActiveFilters
+            ? "Filtradas según los filtros"
+            : "Eventos del técnico"
+          : hasActiveFilters
+          ? "Filtradas según los filtros"
+          : "Eventos sincronizados",
     },
-    { label: "Citas próximas", value: upcomingEvents.length, helper: "Ordenadas por fecha" },
-    { label: "Técnicos en agenda", value: uniqueTechnicians, helper: "Asignaciones únicas" },
+    {
+      label: "Citas próximas",
+      value: statsSource.filter((e) => e.start.getTime() >= Date.now()).length,
+      helper: "Ordenadas por fecha",
+    },
+    {
+      label: "Técnicos en agenda",
+      value: new Set(
+        statsSource.flatMap((event) =>
+          getEventTechnicians(event)
+            .map((tech) => Number(tech?.technicianid ?? tech?.technicianId))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        )
+      ).size,
+      helper: "Asignaciones únicas",
+    },
   ];
 
   const eventStyleGetter = (event: AppointmentEvent) => {
@@ -632,7 +805,23 @@ export default function IndexAppointment() {
             </select>
           </label>
 
-          <div className="hidden lg:block" />
+          {tokenRole !== "Cliente" && (
+            <label className="space-y-1 text-xs font-semibold text-slate-500">
+              Cliente
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
+              >
+                <option value="all">Todos los clientes</option>
+                {clientOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
 
