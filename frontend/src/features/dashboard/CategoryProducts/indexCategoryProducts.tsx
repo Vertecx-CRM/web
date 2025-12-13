@@ -18,6 +18,7 @@ function Loader() {
   );
 }
 
+
 export default function CategoriesPage() {
   const {
     categories,
@@ -86,6 +87,14 @@ export default function CategoriesPage() {
     },
   ];
 
+  const categoriesForTable = [...categories]
+  .sort((a, b) => a.id - b.id)
+  .map((c) => ({
+    ...c,
+    statusSearch: c.status ? "activo" : "inactivo",
+  }));
+
+
   return (
     <div className="min-h-screen flex">
       <ToastContainer
@@ -138,10 +147,10 @@ export default function CategoriesPage() {
             ) : (
               <DataTable<Category>
                 module="categories"
-                data={[...categories].sort((a, b) => a.id - b.id)}
+                data={categoriesForTable}
                 columns={columns}
                 pageSize={10}
-                searchableKeys={["id", "name", "description", "status"]}
+                searchableKeys={["id", "name", "description", "statusSearch"]}
                 onCreate={() => setIsCreateModalOpen(true)}
                 createButtonText="Crear Categoría"
                 searchPlaceholder="Buscar categorías..."

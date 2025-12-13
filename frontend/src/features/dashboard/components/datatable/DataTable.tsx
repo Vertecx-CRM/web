@@ -121,28 +121,34 @@ const DataTableComponent = <T extends { [key: string]: any }>(
       searchableKeys.some((key) => {
         const value = row[key];
         if (value == null) return false;
+
+        // COMPARACIÓN EXACTA SOLO PARA stateSearch
+        if (key === "stateSearch" || key === "statusSearch") {
+          return String(value).toLowerCase() === term;
+        }
+
+        // Lógica existente para otros estados legacy
         if (key === "state") {
           const stateName = (row.state?.name ?? "").toLowerCase();
-
           const mapped =
             stateName === "approved"
               ? "aprobado"
               : stateName === "revoke"
-              ? "anulado"
-              : stateName;
+                ? "anulado"
+                : stateName;
 
           return mapped.includes(term);
         }
 
-        if ((key === "estado" || key === "state") && isExactStatus) {
-          return String(value).toLowerCase() === term;
-        }
+        // Búsqueda normal
         const strValue = String(value).toLowerCase();
         if (strValue.includes(term)) return true;
+
         const normalized = normalize(value);
         return normalized.some((n) => n.includes(term));
       })
     );
+
   }, [q, data, searchableKeys, normalize]);
 
   const totalPages = useMemo(
@@ -232,23 +238,23 @@ const DataTableComponent = <T extends { [key: string]: any }>(
               onCancel ||
               onCheck ||
               renderActions) && (
-              <OptimizedTd header="Acciones">
-                {renderActions ? (
-                  renderActions(row)
-                ) : (
-                  <ActionButtons
-                    row={row}
-                    onView={canView(module) ? onView : undefined}
-                    onEdit={canUpdate(module) ? onEdit : undefined}
-                    onDelete={canDelete(module) ? onDelete : undefined}
-                    onCancel={onCancel}
-                    onCheck={onCheck}
-                    actionGuard={actionGuard}
-                    renderExtraActions={renderExtraActions}
-                  />
-                )}
-              </OptimizedTd>
-            )}
+                <OptimizedTd header="Acciones">
+                  {renderActions ? (
+                    renderActions(row)
+                  ) : (
+                    <ActionButtons
+                      row={row}
+                      onView={canView(module) ? onView : undefined}
+                      onEdit={canUpdate(module) ? onEdit : undefined}
+                      onDelete={canDelete(module) ? onDelete : undefined}
+                      onCancel={onCancel}
+                      onCheck={onCheck}
+                      actionGuard={actionGuard}
+                      renderExtraActions={renderExtraActions}
+                    />
+                  )}
+                </OptimizedTd>
+              )}
 
             {renderTail && (
               <OptimizedTd
@@ -389,9 +395,8 @@ const DataTableComponent = <T extends { [key: string]: any }>(
         )}
 
         <div
-          className={`${
-            mobileCardView ? "hidden md:block" : "block"
-          } overflow-x-auto`}
+          className={`${mobileCardView ? "hidden md:block" : "block"
+            } overflow-x-auto`}
           style={tableStyle}
         >
           <div

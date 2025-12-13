@@ -4,15 +4,17 @@ export interface Category {
   description: string;
   status: boolean;
   icon?: File | string | null;
+  stateLabel?: string;
+  stateSearch?: "activo" | "inactivo";
 }
 
 export interface CategoryBase {
   name: string;
   description: string;
-  icon?: File | string | null; 
+  icon?: File | string | null;
 }
 
-export interface CreateCategoryData extends CategoryBase {}
+export interface CreateCategoryData extends CategoryBase { }
 
 export interface EditCategoryData extends CategoryBase {
   id: number;
@@ -38,9 +40,9 @@ export interface CreateCategoryModalProps {
 
 export interface EditCategoryModalProps {
   isOpen: boolean;
-  category: EditCategoryData | null; 
+  category: EditCategoryData | null;
   onClose: () => void;
-  onSave: (categoryData: EditCategoryData ) => void;
+  onSave: (categoryData: EditCategoryData) => void;
   categories: { id: number; name: string }[];
 }
 
