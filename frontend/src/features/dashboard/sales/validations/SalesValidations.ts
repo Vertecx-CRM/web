@@ -1,52 +1,54 @@
 import * as Yup from "yup";
 
-// Validaciones para ítems de venta
-export const saleItemValidationSchema = Yup.object().shape({
-  id: Yup.number().required("El identificador del ítem es obligatorio."),
-  producto: Yup.string()
-    .min(2, "El nombre del producto debe tener al menos 2 caracteres.")
-    .max(100, "El nombre del producto no puede superar los 100 caracteres.")
-    .required("El nombre del producto es obligatorio."),
-  cantidad: Yup.number()
-    .positive("La cantidad debe ser mayor que 0.")
-    .integer("La cantidad debe ser un número entero.")
-    .required("La cantidad del producto es obligatoria."),
-  precioUnitario: Yup.number()
-    .positive("El precio unitario debe ser mayor que 0.")
-    .required("El precio unitario es obligatorio."),
-  subtotal: Yup.number()
-    .min(0, "El subtotal no puede ser negativo.")
-    .required("El subtotal del ítem es obligatorio."),
+
+
+  // VALIDACIÓN DE ITEMS (CART)
+
+export const saleItemValidationSchema = Yup.object({
+  productid: Yup.number()
+    .typeError("El producto es inválido")
+    .required("Debe seleccionar un producto válido"),
+
+  quantity: Yup.number()
+    .typeError("La cantidad debe ser numérica")
+    .integer("La cantidad debe ser un número entero")
+    .positive("La cantidad debe ser mayor a 0")
+    .required("La cantidad es obligatoria"),
+
+  unitprice: Yup.number()
+    .typeError("El precio debe ser numérico")
+    .positive("El precio debe ser mayor a 0")
+    .required("El precio es obligatorio"),
 });
 
-// Validaciones para la venta principal
-export const saleValidationSchema = Yup.object().shape({
-  id: Yup.number().required("El identificador de la venta es obligatorio."),
-  codigoVenta: Yup.string()
-    .matches(
-      /^VEN-\d{3}$/,
-      "El código de venta debe tener el formato VEN-001, VEN-002, etc."
-    )
-    .required("El código de venta es obligatorio."),
-  cliente: Yup.string()
-    .min(3, "El nombre del cliente debe tener al menos 3 caracteres.")
-    .max(100, "El nombre del cliente no puede superar los 100 caracteres.")
-    .required("El nombre del cliente es obligatorio."),
-  fecha: Yup.date()
-    .max(new Date(), "La fecha de la venta no puede estar en el futuro.")
-    .required("La fecha de la venta es obligatoria."),
-  total: Yup.number()
-    .min(0, "El total de la venta no puede ser negativo.")
-    .required("El total de la venta es obligatorio."),
-  estado: Yup.string()
-    .oneOf(
-      ["Finalizado", "Anulada", "Pendiente"],
-      "El estado de la venta debe ser Finalizado, Anulada o Pendiente."
-    )
-    .required("El estado de la venta es obligatorio."),
-  items: Yup.array()
+
+
+  // VALIDACIÓN DE LA VENTA
+
+export const saleValidationSchema = Yup.object({
+  salecode: Yup.string()
+    .trim()
+    .required("Debe ingresar el código de la venta"),
+
+  customerid: Yup.number()
+    .typeError("Debe seleccionar un cliente válido")
+    .required("El cliente es obligatorio"),
+
+  saledate: Yup.date()
+    .typeError("Debe seleccionar una fecha válida")
+    .max(new Date(), "La fecha no puede ser futura")
+    .required("La fecha de la venta es obligatoria"),
+
+  salestatus: Yup.mixed<"Pending" | "Completed" | "Cancelled">()
+    .oneOf(["Pending", "Completed", "Cancelled"])
+    .required(),
+
+  paymentmethod: Yup.string().required("Debe seleccionar el método de pago"),
+
+  notes: Yup.string().nullable(),
+
+  cart: Yup.array()
     .of(saleItemValidationSchema)
-    .min(1, "Debe existir al menos un ítem en la venta.")
-    .required("La venta debe contener al menos un ítem."),
+    .min(1, "Debe agregar al menos un producto")
+    .required("Debe agregar productos a la venta"),
 });
-
