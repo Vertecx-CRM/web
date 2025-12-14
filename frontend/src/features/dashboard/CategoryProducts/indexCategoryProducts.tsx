@@ -18,6 +18,7 @@ function Loader() {
   );
 }
 
+
 export default function CategoriesPage() {
   const {
     categories,
@@ -35,7 +36,7 @@ export default function CategoriesPage() {
   } = useCategories();
 
   const columns: Column<Category>[] = [
-    { key: "id", header: "ID" },
+    { key: "rowNumber", header: "ID" },
     { key: "name", header: "Nombre" },
     {
       key: "description",
@@ -85,6 +86,16 @@ export default function CategoriesPage() {
       ),
     },
   ];
+
+  const categoriesForTable = [...categories]
+  .sort((a, b) => a.id - b.id)
+  .map((c, index) => ({
+    ...c,
+    rowNumber: index + 1,
+    statusSearch: c.status ? "activo" : "inactivo",
+  }));
+
+
 
   return (
     <div className="min-h-screen flex">
@@ -138,10 +149,10 @@ export default function CategoriesPage() {
             ) : (
               <DataTable<Category>
                 module="categories"
-                data={[...categories].sort((a, b) => a.id - b.id)}
+                data={categoriesForTable}
                 columns={columns}
                 pageSize={10}
-                searchableKeys={["id", "name", "description", "status"]}
+                searchableKeys={["id", "name", "description", "statusSearch"]}
                 onCreate={() => setIsCreateModalOpen(true)}
                 createButtonText="Crear Categoría"
                 searchPlaceholder="Buscar categorías..."

@@ -6,37 +6,31 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import Image from "next/image";
 import Colors from "@/shared/theme/colors";
 import { dashboardApi } from "../../api/dashboardApi";
+import { formatCOP } from "../../indexDashboard"
+import { getMonthNumberFromLabel } from "./monthUtils";
 
 interface MonthlyGraphProps {
   title: string;
   month: string;
+  monthNumber?: number;
   data: { month: string; total: number }[];
   onBack: () => void;
   isCurrency?: boolean;
   year?: number;
 }
 
-export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, year }: MonthlyGraphProps) => {
+export const MonthlyGraph = ({
+  title,
+  month,
+  monthNumber,
+  data,
+  onBack,
+  isCurrency = true,
+  year,
+}: MonthlyGraphProps) => {
   const [dailyData, setDailyData] = useState<{ day: number; total: number }[]>([]);
   const isClientsChart = title === "Clientes";
-
-  // Convertir "Ene" -> 1, "Feb" -> 2, ...
-  const monthMap: Record<string, number> = {
-    Ene: 1, Jan: 1,
-    Feb: 2,
-    Mar: 3,
-    Abr: 4, Apr: 4,
-    May: 5,
-    Jun: 6,
-    Jul: 7,
-    Ago: 8, Aug: 8,
-    Sep: 9,
-    Oct: 10,
-    Nov: 11,
-    Dic: 12, Dec: 12,
-  };
-
-  const monthIndex = monthMap[month] || 0;
+  const resolvedMonthNumber = getMonthNumberFromLabel(monthNumber ?? month);
 
 
   // Total del mes (para mostrar en el título)
@@ -46,7 +40,16 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, ye
 
   // CARGAR DATOS DIARIOS DESDE BACKEND
   useEffect(() => {
+    const requestedMonth = resolvedMonthNumber;
+
+    const requestedYear = year;
+    let cancelled = false;
+
     const loadDailyData = async () => {
+      if (!requestedMonth) {
+        setDailyData([]);
+        return;
+      }
       try {
         let apiFunction: any = null;
 
@@ -56,41 +59,57 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, ye
 
         if (!apiFunction) return;
 
-        const response = await apiFunction(monthIndex, year);
+        const response = await apiFunction(requestedMonth, requestedYear);
+
+        if (cancelled) return;
+
+        setDailyData([]); // Clear the data before setting new data
+
         const sanitizedResponse = isClientsChart
           ? response.map((item: { day: number; total: number }) => ({
-              ...item,
-              total: Math.max(0, Math.round(item.total)),
-            }))
+            ...item,
+            total: Math.max(0, Math.round(item.total)),
+          }))
           : response;
 
+        sanitizedResponse.sort((a: any, b: any) => (a.day ?? 0) - (b.day ?? 0));
+
+        if (cancelled) return;
         setDailyData(sanitizedResponse);
       } catch (error) {
+        if (cancelled) return;
         console.error("Error cargando datos diarios:", error);
       }
     };
 
     loadDailyData();
-  }, [month, title, monthIndex, isClientsChart, year]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [month, title, resolvedMonthNumber, isClientsChart, year]);
+
 
   // Formato del eje Y
   const formatYAxisTick = (value: number) => {
     if (isClientsChart) return Math.max(0, Math.round(value)).toString();
-    return isCurrency ? `$${value}` : value.toString();
+    return isCurrency ? formatCOP(value) : value.toString();
   };
+
 
   // Formato del tooltip
   const formatTooltipValue = (value: number) => {
     const sanitizedValue = isClientsChart ? Math.max(0, Math.round(value)) : value;
-    return isCurrency ? `$${sanitizedValue}` : sanitizedValue;
+    return isCurrency ? formatCOP(sanitizedValue) : sanitizedValue;
   };
+
 
   return (
     <div className="w-full h-full flex flex-col items-center">
       {/* Header del gráfico */}
       <div className="w-full flex justify-between items-center px-4">
         <h2 className="text-lg font-bold">
-          {title} {month}: {isCurrency ? `$${displayTotal}` : displayTotal}
+          {title} {month}: {isCurrency ? formatCOP(displayTotal) : displayTotal}
         </h2>
 
         <button
@@ -124,6 +143,7 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, ye
             }}
           />
           <YAxis
+            width={90}
             tickFormatter={formatYAxisTick}
             tick={{ fill: Colors.texts.primary }}
             tickMargin={8}
@@ -136,12 +156,14 @@ export const MonthlyGraph = ({ title, month, data, onBack, isCurrency = true, ye
             labelFormatter={(label) => `Día ${label}`}
           />
 
+
           <Line
             type="monotone"
             dataKey="total"
             stroke={Colors.graphic.linePrimary}
             strokeWidth={3}
             dot
+            connectNulls={false}
           />
         </LineChart>
       </ResponsiveContainer>

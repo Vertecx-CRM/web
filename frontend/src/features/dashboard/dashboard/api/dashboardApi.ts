@@ -80,6 +80,8 @@ export const dashboardApi = {
 
   getDailyClientsByMonth: async (month: number, year?: number) => {
     const res = await fetch(buildUrl(`${API_URL}/clients/month/${month}`, year));
+    console.log(res);
+    
     return res.json();
   },
 };
