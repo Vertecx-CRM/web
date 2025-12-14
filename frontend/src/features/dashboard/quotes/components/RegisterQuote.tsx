@@ -26,6 +26,7 @@ type TechnicianFromApi = {
     lastname: string;
     documentnumber: string;
     email: string;
+    stateid?: number;
   };
 };
 
@@ -36,6 +37,8 @@ type ProductFromApi = {
   productstock: number;
   isactive: boolean;
 };
+
+const ACTIVE_TECHNICIAN_STATE_ID = 1;
 
 /* ================================
  * ESTADO DEL FORMULARIO
@@ -92,18 +95,21 @@ export default function RegisterQuoteForm({ onSave }: Props) {
   const [showProductList, setShowProductList] = useState(false);
   const [isManualProduct, setIsManualProduct] = useState(false);
   const productRef = useRef<HTMLDivElement>(null);
+  const [pendingBackorderProduct, setPendingBackorderProduct] =
+    useState<ProductFromApi | null>(null);
 
   /* ================================
    * DETALLE ACTUAL
    * ================================ */
-  const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
-    productid: null,
-    description: "",
-    quantity: 1,
-    unitprice: 0,
-    subtotal: 0,
-    availability: "DISPONIBLE",
-  });
+const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
+  productid: null,
+  description: "",
+  quantity: 1,
+  unitprice: 0,
+  subtotal: 0,
+  availability: "DISPONIBLE",
+  isBackorder: false,
+});
 
   /* ================================
    * EFECTOS PARA CERRAR LISTAS AL HACER CLICK AFUERA
@@ -139,7 +145,15 @@ export default function RegisterQuoteForm({ onSave }: Props) {
    * ================================ */
   useEffect(() => {
     api.get("/customers").then((r) => setCustomers(r.data));
-    api.get("/technicians").then((r) => setTechnicians(r.data));
+    api
+      .get("/technicians")
+      .then((r) =>
+        setTechnicians(
+          (r.data ?? []).filter(
+            (tech) => tech.users?.stateid === ACTIVE_TECHNICIAN_STATE_ID
+          )
+        )
+      );
     api.get("/products?status=all").then((r) => setProducts(r.data));
   }, []);
 
@@ -190,6 +204,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     setIsManualProduct(manual);
     setProductSearch("");
     setShowProductList(false);
+    setPendingBackorderProduct(null);
     setDetailForm({
       productid: null,
       description: "",
@@ -197,25 +212,52 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       unitprice: 0,
       subtotal: 0,
       availability: manual ? "SOLICITAR" : "DISPONIBLE",
+      isBackorder: false,
     });
   };
 
-  const handleSelectProduct = (product: ProductFromApi) => {
+  const applyProductSelection = (
+    product: ProductFromApi,
+    isBackorder: boolean
+  ) => {
     setDetailForm({
       productid: product.productid,
       description: product.productname,
       quantity: 1,
       unitprice: product.productpriceofsale,
       subtotal: product.productpriceofsale,
-      availability: product.productstock > 0 ? "DISPONIBLE" : "NO_DISPONIBLE",
+      availability: isBackorder ? "SOLICITAR" : "DISPONIBLE",
+      isBackorder,
     });
     setProductSearch(product.productname);
     setShowProductList(false);
+    setPendingBackorderProduct(null);
+  };
+
+  const handleBackorderConfirm = () => {
+    if (!pendingBackorderProduct) return;
+    applyProductSelection(pendingBackorderProduct, true);
+  };
+
+  const handleBackorderCancel = () => {
+    setPendingBackorderProduct(null);
+  };
+
+  const handleSelectProduct = (product: ProductFromApi) => {
+    if (product.productstock === 0) {
+      setPendingBackorderProduct(product);
+      setShowProductList(false);
+      return;
+    }
+
+    applyProductSelection(product, false);
   };
 
   /* ================================
    * HANDLERS PARA DETALLES
    * ================================ */
+  const normalizeDescription = (value: string) => value.trim().toLowerCase();
+
   const handleAddDetail = () => {
     if (!detailForm.description.trim()) {
       showError("La descripción es obligatoria");
@@ -238,17 +280,63 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       availability = "NO_DISPONIBLE";
     }
 
-    const newDetail: QuoteDetailPayload = {
+    const detailPayload: QuoteDetailPayload = {
       ...detailForm,
       productid: isManualProduct ? null : detailForm.productid,
       subtotal,
       availability,
+      isBackorder: detailForm.isBackorder ?? false,
     };
 
-    setForm((prev) => ({
-      ...prev,
-      details: [...prev.details, newDetail],
-    }));
+    setForm((prev) => {
+      const updatedDetails = [...prev.details];
+      const normalizedDescription = normalizeDescription(detailPayload.description);
+      if (detailPayload.productid !== null) {
+        const existingIndex = updatedDetails.findIndex(
+          (d) => d.productid === detailPayload.productid
+        );
+        if (existingIndex >= 0) {
+          const existing = updatedDetails[existingIndex];
+          const mergedQuantity = existing.quantity + detailPayload.quantity;
+          updatedDetails[existingIndex] = {
+            ...existing,
+            quantity: mergedQuantity,
+            unitprice: detailPayload.unitprice,
+            subtotal: mergedQuantity * detailPayload.unitprice,
+            availability: existing.availability,
+            isBackorder:
+              (existing.isBackorder ?? false) || detailPayload.isBackorder,
+          };
+        } else {
+          updatedDetails.push(detailPayload);
+        }
+      } else {
+        const existingIndex = updatedDetails.findIndex(
+          (d) =>
+            d.productid === null &&
+            normalizeDescription(d.description) === normalizedDescription
+        );
+        if (existingIndex >= 0) {
+          const existing = updatedDetails[existingIndex];
+          const mergedQuantity = existing.quantity + detailPayload.quantity;
+          updatedDetails[existingIndex] = {
+            ...existing,
+            quantity: mergedQuantity,
+            unitprice: detailPayload.unitprice,
+            subtotal: mergedQuantity * detailPayload.unitprice,
+            availability: existing.availability,
+            isBackorder:
+              (existing.isBackorder ?? false) || detailPayload.isBackorder,
+          };
+        } else {
+          updatedDetails.push(detailPayload);
+        }
+      }
+      return {
+        ...prev,
+        details: updatedDetails,
+      };
+    });
 
     // Resetear formulario de detalle
     setDetailForm({
@@ -258,6 +346,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       unitprice: 0,
       subtotal: 0,
       availability: isManualProduct ? "SOLICITAR" : "DISPONIBLE",
+      isBackorder: false,
     });
 
     setProductSearch("");
@@ -296,7 +385,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       subtotal,
       tax,
       total,
-      details: form.details.map((detail) => ({
+      details: form.details.map(({ isBackorder, ...detail }) => ({
         ...detail,
         // Asegurar que productos manuales tengan productid null
         productid: detail.productid === undefined ? null : detail.productid,
@@ -498,11 +587,29 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                     className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
                   >
                     <div className="font-medium">{p.productname}</div>
-                    <div className="flex justify-between text-sm">
-                      <span>Stock: {p.productstock}</span>
-                      <span className="font-medium">
+                    <div className="flex flex-col gap-1 text-sm">
+                      <div className="flex items-center gap-1">
+                        <span>Stock:</span>
+                        <span
+                          className={
+                            p.productstock === 0
+                              ? "font-semibold text-red-600"
+                              : "font-medium"
+                          }
+                        >
+                          {p.productstock === 0
+                            ? "0 (Bajo pedido)"
+                            : p.productstock}
+                        </span>
+                        {p.productstock === 0 && (
+                          <span className="px-2 py-0.5 text-[11px] font-semibold text-red-600 rounded-full border border-red-200 bg-red-50">
+                            Bajo pedido
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-medium">
                         ${p.productpriceofsale.toLocaleString()}
-                      </span>
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500">
                       ID: {p.productid} | Estado:{" "}
@@ -510,6 +617,33 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {pendingBackorderProduct && (
+              <div className="mt-3 border border-yellow-200 rounded-lg bg-yellow-50 p-3 text-sm text-gray-800">
+                <p className="font-medium">
+                  Este producto no tiene stock disponible. ¿Desea agregarlo a
+                  la cotización como bajo pedido?
+                </p>
+                <p className="text-xs text-gray-600">
+                  {pendingBackorderProduct.productname}
+                </p>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBackorderCancel}
+                    className="px-3 py-1 rounded border border-yellow-400 bg-white text-yellow-600 hover:bg-yellow-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBackorderConfirm}
+                    className="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600"
+                  >
+                    Agregar
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -595,42 +729,76 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
         {/* LISTA DE PRODUCTOS AGREGADOS */}
         {form.details.length > 0 && (
-          <div className="mt-6">
+          <div className="mt-6 space-y-4">
             <h4 className="font-bold mb-2">
               Productos agregados ({form.details.length})
             </h4>
-            <div className="border rounded overflow-hidden">
-              {form.details.map((d, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-gray-50"
-                >
-                  <div className="flex-1">
-                    <div className="font-medium">{d.description}</div>
-                    <div className="text-sm text-gray-600">
-                      Cantidad: {d.quantity} | Precio: $
-                      {d.unitprice.toLocaleString()} | Subtotal: $
-                      {d.subtotal.toLocaleString()} | Tipo:{" "}
-                      {d.productid === null
-                        ? "Manual (para comprar)"
-                        : "Existente"}{" "}
-                      | Disponibilidad: {d.availability}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDetail(i)}
-                    className="ml-4 text-red-500 hover:text-red-700"
+            <div className="space-y-3">
+              {form.details.map((d, i) => {
+                const availabilityLabel =
+                  d.isBackorder && d.availability !== "SOLICITAR"
+                    ? "BAJO PEDIDO"
+                    : d.availability;
+                return (
+                  <div
+                    key={i}
+                    className="border rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition"
                   >
-                    ✕
-                  </button>
-                </div>
-              ))}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="font-medium text-gray-800">
+                        {d.description}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDetail(i)}
+                        className="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div>Cantidad: {d.quantity}</div>
+                      <div>
+                        Precio unitario: $
+                        {d.unitprice.toLocaleString("es-CO")}
+                      </div>
+                      <div>
+                        Subtotal: ${d.subtotal.toLocaleString("es-CO")}
+                      </div>
+                      <div>
+                        Tipo:{' '}
+                        {d.productid === null
+                          ? "Manual (para comprar)"
+                          : "Existente"}
+                      </div>
+                      {d.productid !== null && (
+                        <div>ID del producto: {d.productid}</div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span>Disponibilidad:</span>
+                        <span className="font-semibold text-gray-800">
+                          {availabilityLabel}
+                        </span>
+                      </div>
+                    </div>
+                    {d.isBackorder && (
+                      <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs text-orange-900">
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-full border border-orange-300 bg-orange-100 font-semibold text-orange-800">
+                              Bajo pedido
+                            </span>
+                            Este producto no tiene stock disponible y se cotiza bajo solicitud.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
-      </div>
-
       {/* RESUMEN FINANCIERO */}
       <div className="border p-4 rounded-lg bg-gray-50">
         <h3 className="font-bold mb-3">Resumen financiero</h3>
@@ -658,6 +826,8 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       >
         Guardar Cotización
       </button>
+      </div>
     </form>
+    
   );
 }
