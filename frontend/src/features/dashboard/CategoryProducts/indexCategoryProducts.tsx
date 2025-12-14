@@ -36,7 +36,7 @@ export default function CategoriesPage() {
   } = useCategories();
 
   const columns: Column<Category>[] = [
-    { key: "id", header: "ID" },
+    { key: "rowNumber", header: "ID" },
     { key: "name", header: "Nombre" },
     {
       key: "description",
@@ -89,10 +89,12 @@ export default function CategoriesPage() {
 
   const categoriesForTable = [...categories]
   .sort((a, b) => a.id - b.id)
-  .map((c) => ({
+  .map((c, index) => ({
     ...c,
+    rowNumber: index + 1,
     statusSearch: c.status ? "activo" : "inactivo",
   }));
+
 
 
   return (

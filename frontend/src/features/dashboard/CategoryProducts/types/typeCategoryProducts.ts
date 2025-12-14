@@ -6,6 +6,8 @@ export interface Category {
   icon?: File | string | null;
   stateLabel?: string;
   stateSearch?: "activo" | "inactivo";
+  statusSearch: string;
+  rowNumber: number;
 }
 
 export interface CategoryBase {
