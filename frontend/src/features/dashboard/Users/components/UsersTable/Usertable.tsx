@@ -26,8 +26,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
 }) => {
   const usersForTable: UserForTable[] = users.map((u, index) => ({
     ...u,
-    id: u.userid ?? index + 1,
-    userid: u.userid ?? index + 1,
+    rowNumber: index + 1,
     stateLabel: mapStateIdToLabel(u.stateid),
     stateSearch: u.stateid === 1 ? "activo" : "inactivo",
     fullNameSearch: `${u.name ?? ""} ${u.lastname ?? ""}`.toLowerCase().trim(),
@@ -59,7 +58,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
 
   //Columnas del DataTable
   const columns: Column<UserForTable>[] = [
-    { key: "id", header: "#" },
+    { key: "rowNumber", header: "#" },
     {
       key: "typeofdocuments",
       header: "Tipo Doc.",
