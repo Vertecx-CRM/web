@@ -1,120 +1,157 @@
 "use client";
 
-import { IQuote } from "../types/Quote.type";
-
 interface ViewQuoteProps {
-  quote: IQuote;
+  quote: any;
 }
 
+const formatCOP = (value: number | string) =>
+  new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+  }).format(Number(value));
+
 export default function ViewQuote({ quote }: ViewQuoteProps) {
-  // ✅ Estructura segura y sin duplicaciones
-  const safeQuote = {
-    serviceTypes: quote?.serviceTypes ?? {
-      mantenimiento: false,
-      instalacion: false,
-    },
-    materials: quote?.materials ?? [],
-    total: quote?.total ?? 0,
-    description: quote?.description ?? "",
-    client: quote?.client ?? "",
-    status: quote?.status ?? "",
-    creationDate: quote?.creationDate ?? "",
-    amount: quote?.amount ?? 0,
-  };
+  if (!quote) return null;
 
-  // 🧾 Construir texto de tipos de servicio
-  const serviceText = [
-    safeQuote.serviceTypes.mantenimiento ? "Mantenimiento" : "",
-    safeQuote.serviceTypes.instalacion ? "Instalación" : "",
-  ]
-    .filter(Boolean)
-    .join(" e ");
+  const client = quote.customer?.users
+    ? `${quote.customer.users.name} ${quote.customer.users.lastname}`
+    : "—";
 
-  // 🧱 Materiales o lista vacía
-  const materials =
-    safeQuote.materials.length > 0
-      ? safeQuote.materials
-      : [{ name: "Camara hivision pro", subtotal: 20000 }];
+  const technician = quote.technician?.users
+    ? `${quote.technician.users.name} ${quote.technician.users.lastname}`
+    : "—";
+
+  const createdAt = quote.createdat
+    ? new Date(quote.createdat).toLocaleString("es-CO")
+    : "—";
+
+  const updatedAt = quote.updatedat
+    ? new Date(quote.updatedat).toLocaleString("es-CO")
+    : "—";
 
   return (
-    <div className="flex flex-col gap-4 text-sm text-gray-800 p-2 max-h-[85vh] overflow-y-auto scroll-smooth">
-      {/* Tipo servicio */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Tipo servicio</label>
-        <input
-          type="text"
-          value={serviceText || "—"}
-          disabled
-          className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-700"
-        />
+    <div className="flex flex-col gap-5 text-sm text-gray-800 p-4 max-h-[85vh] overflow-y-auto">
+      {/* ================================
+       * INFORMACIÓN GENERAL
+       * ================================ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="ID Cotización" value={quote.quotesid} />
+        <Field label="Solicitud de servicio" value={quote.serviceRequestId} />
+        <Field label="Cliente" value={client} />
+        <Field label="Técnico" value={technician} />
+        <Field label="Tipo de servicio" value={quote.servicetype ?? "—"} />
+        <Field label="Estado" value={quote.state?.name ?? "—"} />
+        <Field label="Fecha creación" value={createdAt} />
+        <Field label="Última actualización" value={updatedAt} />
       </div>
 
-      {/* Estado */}
+      {/* ================================
+       * OBSERVACIÓN
+       * ================================ */}
       <div>
-        <label className="block text-sm font-medium mb-1">Estado</label>
-        <input
-          type="text"
-          value={safeQuote.status || "—"}
-          disabled
-          className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-700 capitalize"
-        />
-      </div>
-
-      {/* Descripción */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Descripción</label>
+        <label className="block font-medium mb-1">Observación</label>
         <textarea
-          value={safeQuote.description }
           disabled
+          value={quote.observation ?? ""}
           rows={3}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-700 resize-none"
-        ></textarea>
-      </div>
-
-      {/* Cliente */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Cliente</label>
-        <input
-          type="text"
-          value={safeQuote.client || "—"}
-          disabled
-          className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-700"
+          className="w-full border rounded-md px-3 py-2 bg-gray-100 resize-none"
         />
       </div>
 
-      {/* Materiales */}
+      {/* ================================
+       * DETALLES / PRODUCTOS
+       * ================================ */}
       <div>
-        <label className="block text-sm font-medium mb-1">Materiales</label>
-        <div className="w-full border border-gray-300 rounded-md p-3 bg-gray-50 flex flex-col gap-2">
-          {materials.map((m, i) => (
+        <label className="block font-medium mb-2">
+          Detalles de la cotización
+        </label>
+
+        <div className="border rounded-md bg-gray-50 divide-y">
+          {quote.details?.map((d: any, index: number) => (
             <div
-              key={i}
-              className="flex justify-between items-center border-b border-gray-200 last:border-b-0 pb-1"
+              key={d.quotedetailid ?? index}
+              className="p-3 flex flex-col gap-1"
             >
-              <span className="text-gray-800">{m.name}</span>
-              <span className="font-medium text-gray-700">
-                {m.subtotal.toLocaleString("es-CO")}
-              </span>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-gray-900">
+                  {d.description}
+                </span>
+                <span
+                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    d.availability === "DISPONIBLE"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}
+                >
+                  {d.availability}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-700 mt-1">
+                <Info label="Producto ID" value={d.productid ?? "Manual"} />
+                <Info label="Cantidad" value={d.quantity} />
+                <Info label="Precio unitario" value={formatCOP(d.unitprice)} />
+                <Info label="Subtotal" value={formatCOP(d.subtotal)} />
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Total general */}
-      <div className="flex justify-between items-center mt-2 text-sm font-medium">
-        <span>Total general</span>
-        <span>{safeQuote.total.toLocaleString("es-CO")}</span>
+      {/* ================================
+       * TOTALES
+       * ================================ */}
+      <div className="border-t pt-4 space-y-2 text-sm">
+        <Row label="Subtotal" value={formatCOP(quote.subtotal)} />
+        <Row label="IVA (19%)" value={formatCOP(quote.tax)} />
+        <Row label="Total" value={formatCOP(quote.total)} bold />
       </div>
+    </div>
+  );
+}
 
-      {/* Botón cancelar */}
-      <div className="flex justify-end mt-3">
-        <button
-          type="button"
-          className="cursor-pointer bg-gray-300 text-black px-5 py-2 rounded-lg hover:bg-gray-200 transition-all"
-        >
-          Cancelar
-        </button>
-      </div>
+/* ================================
+ * COMPONENTES AUXILIARES
+ * ================================ */
+
+function Field({ label, value }: { label: string; value: any }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">
+        {label}
+      </label>
+      <input
+        disabled
+        value={value ?? "—"}
+        className="w-full border rounded-md px-3 py-2 bg-gray-100 text-gray-800"
+      />
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: any }) {
+  return (
+    <div>
+      <span className="text-gray-500">{label}: </span>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  bold = false,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+}) {
+  return (
+    <div className="flex justify-between">
+      <span className={bold ? "font-semibold" : ""}>{label}</span>
+      <span className={bold ? "font-semibold" : ""}>{value}</span>
     </div>
   );
 }
