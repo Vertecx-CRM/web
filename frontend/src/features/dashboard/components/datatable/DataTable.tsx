@@ -98,8 +98,8 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const normalize = useCallback((value: unknown): string[] => {
     if (value == null) return [];
     const str = String(value).toLowerCase().trim();
-    if (!isNaN(Number(str.replace(/[\$,]/g, "")))) {
-      const num = Number(str.replace(/[\$,]/g, ""));
+    if (!isNaN(Number(str.replace(/[\$,\.\s]/g, "")))) {
+      const num = Number(str.replace(/[\$,\.\s]/g, ""));
       return [num.toString(), num.toFixed(0), num.toFixed(2)];
     }
     if (!isNaN(Date.parse(str))) {
@@ -113,23 +113,61 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     return [str];
   }, []);
 
+  const toDigits = useCallback((v: unknown) => {
+    return String(v ?? "").replace(/[^\d]/g, "");
+  }, []);
+
   const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = q
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+
     if (!term) return data;
+
+    const termDigits = toDigits(term);
+    const hasDigits = termDigits.length > 0;
+
     const isExactStatus = term === "activo" || term === "inactivo";
+
     return data.filter((row) =>
       searchableKeys.some((key) => {
         const value = row[key];
         if (value == null) return false;
 
-        // COMPARACIÓN EXACTA SOLO PARA stateSearch
         if (key === "stateSearch" || key === "statusSearch") {
-          return String(value).toLowerCase() === term;
+          const v = String(value)
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+
+          if (term === "activo" || term === "inactivo") {
+            return v === term;
+          }
+
+          if (term.startsWith("act")) {
+            return v === "activo";
+          }
+
+          if (term.startsWith("ina")) {
+            return v === "inactivo";
+          }
+
+          return v.includes(term);
         }
 
-        // Lógica existente para otros estados legacy
         if (key === "state") {
-          const stateName = (row.state?.name ?? "").toLowerCase();
+          const stateName = (row.state?.name ?? "")
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .trim();
+
           const mapped =
             stateName === "approved"
               ? "aprobado"
@@ -141,15 +179,31 @@ const DataTableComponent = <T extends { [key: string]: any }>(
         }
 
         // Búsqueda normal
-        const strValue = String(value).toLowerCase();
+        const strValue = String(value)
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+
         if (strValue.includes(term)) return true;
+
+        if (hasDigits) {
+          const raw = String(value ?? "");
+          const looksNumeric =
+            typeof value === "number" || /^[\d\$\s\.,]+$/.test(raw);
+
+          if (looksNumeric) {
+            const valueDigits = toDigits(value);
+            if (valueDigits && valueDigits.includes(termDigits)) return true;
+          }
+        }
 
         const normalized = normalize(value);
         return normalized.some((n) => n.includes(term));
       })
     );
-
-  }, [q, data, searchableKeys, normalize]);
+  }, [q, data, searchableKeys, normalize, toDigits]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(filtered.length / pageSize)),
@@ -395,8 +449,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
         )}
 
         <div
-          className={`${mobileCardView ? "hidden md:block" : "block"
-            } overflow-x-auto`}
+          className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`}
           style={tableStyle}
         >
           <div

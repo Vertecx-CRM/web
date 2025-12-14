@@ -15,7 +15,9 @@ interface TechniciansTableProps {
 }
 
 type TechnicianRow = Technician & {
+  rowNumber: number;
   searchText: string;
+  stateSearch: "activo" | "inactivo";
 };
 
 function abbreviateType(type: string): string {
@@ -24,18 +26,13 @@ function abbreviateType(type: string): string {
 
   const lc = clean.toLowerCase();
 
-  if (lc.startsWith("cableado estructurado")) {
-    return "CE";
-  }
+  if (lc.startsWith("cableado estructurado")) return "CE";
 
   if (clean.length <= 15) return clean;
 
   const words = clean.split(/\s+/);
-
   if (words.length >= 2) {
-    const first = words[0].slice(0, 4);
-    const second = words[1].slice(0, 7);
-    return `${first}. ${second}`;
+    return `${words[0].slice(0, 4)}. ${words[1].slice(0, 7)}`;
   }
 
   return `${clean.slice(0, 12)}…`;
@@ -43,10 +40,18 @@ function abbreviateType(type: string): string {
 
 function normalizeForSearch(value: string): string {
   const lower = value.toLowerCase();
-  const withoutAccents = lower
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const withoutAccents = lower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return `${lower} ${withoutAccents}`;
+}
+
+function toStateSearch(state: unknown): "activo" | "inactivo" {
+  const s = String(state ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  return s === "activo" ? "activo" : "inactivo";
 }
 
 function buildSearchText(t: Technician): string {
@@ -67,7 +72,6 @@ function buildSearchText(t: Technician): string {
   add(doc);
   add(t.phone);
   add(t.email);
-  add(t.state);
 
   const types = t.types ?? [];
   types.forEach((tp) => {
@@ -85,18 +89,21 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
   onDelete,
   onCreate,
 }) => {
+  const rows: TechnicianRow[] = useMemo(() => {
+    const sorted = [...technicians].sort(
+      (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
+    );
 
-  const rows: TechnicianRow[] = useMemo(
-    () =>
-      technicians.map((t) => ({
-        ...t,
-        searchText: buildSearchText(t),
-      })),
-    [technicians]
-  );
+    return sorted.map((t, index) => ({
+      ...t,
+      rowNumber: index + 1,
+      searchText: buildSearchText(t),
+      stateSearch: toStateSearch(t.state),
+    }));
+  }, [technicians]);
 
   const columns: Column<TechnicianRow>[] = [
-    { key: "id", header: "ID" },
+    { key: "rowNumber", header: "#" },
     {
       key: "name",
       header: "Nombre",
@@ -112,13 +119,10 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
           );
         }
 
-        const firstLine = words.slice(0, 2).join(" ");
-        const secondLine = words.slice(2).join(" ");
-
         return (
           <div className="max-w-[180px] whitespace-normal leading-5">
-            <div>{firstLine}</div>
-            <div>{secondLine}</div>
+            <div>{words.slice(0, 2).join(" ")}</div>
+            <div>{words.slice(2).join(" ")}</div>
           </div>
         );
       },
@@ -126,10 +130,8 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
     {
       key: "documentNumber",
       header: "Documento",
-      render: (t) => {
-        const doc = `${t.documentType ?? ""} ${t.documentNumber ?? ""}`.trim();
-        return doc || "—";
-      },
+      render: (t) =>
+        `${t.documentType ?? ""} ${t.documentNumber ?? ""}`.trim() || "—",
     },
     { key: "phone", header: "Teléfono" },
     {
@@ -141,7 +143,6 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
       header: "Tipos técnico",
       render: (t) => {
         const types = t.types ?? [];
-
         if (!types.length) {
           return (
             <div className="max-w-[220px] whitespace-normal leading-5 text-center">
@@ -150,13 +151,8 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
           );
         }
 
-        const full = types.join(", ");
-
         return (
-          <div
-            className="max-w-[220px] whitespace-normal leading-5"
-            title={full}
-          >
+          <div className="max-w-[220px] whitespace-normal leading-5">
             <div className="flex flex-row flex-wrap justify-center gap-x-2 gap-y-1">
               {types.map((tp) => (
                 <span
@@ -196,8 +192,7 @@ const TechniciansTable: React.FC<TechniciansTableProps> = ({
       data={rows}
       columns={columns}
       pageSize={6}
-
-      searchableKeys={["searchText"]}
+      searchableKeys={["searchText", "stateSearch"]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}

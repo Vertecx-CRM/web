@@ -42,7 +42,8 @@ const toNumber = (v: unknown): number => {
 const getCategoryName = (cat: ProductCategoryFromApi | null | undefined): string => {
   if (!cat) return "";
   if (typeof cat.name === "string" && cat.name.trim()) return cat.name.trim();
-  if (typeof cat.categoryname === "string" && cat.categoryname.trim()) return cat.categoryname.trim();
+  if (typeof cat.categoryname === "string" && cat.categoryname.trim())
+    return cat.categoryname.trim();
   return "";
 };
 
@@ -77,13 +78,14 @@ export type CreateProductPayload = {
   image: string;
 
   productcode?: string | null;
-  productpriceofsale?: number | null;
-  productpriceofsupplier: number;
 
+  // precios NO se envían desde productos; los gestiona Compras
   isactive?: boolean;
 };
 
-export type UpdateProductPayload = Partial<CreateProductPayload>;
+export type UpdateProductPayload = Partial<CreateProductPayload> & {
+  isactive?: boolean;
+};
 
 export const getProducts = async (status: StatusQuery = "active"): Promise<Product[]> => {
   const { data } = await api.get<ProductFromApi[]>("/products", { params: { status } });
@@ -113,6 +115,7 @@ export const deleteProduct = async (id: number): Promise<unknown> => {
 export type ProductDeletionInfo = {
   canDelete: boolean;
   reason?: string;
+  canDeactivate?: boolean;
 };
 
 export const getProductDeletionInfo = async (id: number): Promise<ProductDeletionInfo> => {
@@ -120,5 +123,9 @@ export const getProductDeletionInfo = async (id: number): Promise<ProductDeletio
   return {
     canDelete: !!data?.canDelete,
     reason: typeof data?.reason === "string" ? data.reason : undefined,
+    canDeactivate:
+      typeof (data as any)?.canDeactivate === "boolean"
+        ? (data as any).canDeactivate
+        : undefined,
   };
 };

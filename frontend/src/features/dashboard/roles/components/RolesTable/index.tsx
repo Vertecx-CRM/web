@@ -1,7 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  DataTable,
-} from "@/features/dashboard/components/datatable/DataTable";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import { Role } from "../../types/typeRoles";
 import Colors from "@/shared/theme/colors";
@@ -14,18 +12,26 @@ interface RolesTableProps {
   onCreate: () => void;
 }
 
-// Extendemos Role solo para la tabla, agregando el campo de búsqueda
 type RoleRow = Role & {
+  rowNumber: number;
   searchText: string;
+  stateSearch: "activo" | "inactivo";
 };
 
 const normalizeForSearch = (value: string): string => {
   const lower = value.toLowerCase();
-  const withoutAccents = lower
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  // Guardamos ambas variantes para que matchee con o sin tilde
+  const withoutAccents = lower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return `${lower} ${withoutAccents}`;
+};
+
+const toStateSearch = (state: unknown): "activo" | "inactivo" => {
+  const s = String(state ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  return s === "activo" ? "activo" : "inactivo";
 };
 
 const buildSearchText = (role: Role): string => {
@@ -38,9 +44,8 @@ const buildSearchText = (role: Role): string => {
     parts.push(normalizeForSearch(str));
   };
 
-  add(role.id);       // ID
-  add(role.name);     // Nombre
-  add(role.state);    // Estado (Activo / Inactivo)
+  add(role.id);
+  add(role.name);
 
   return parts.join(" ");
 };
@@ -64,18 +69,21 @@ export const RolesTable: React.FC<RolesTableProps> = ({
     };
   };
 
-  // Enriquecemos los roles con el campo searchText normalizado
-  const rows: RoleRow[] = useMemo(
-    () =>
-      roles.map((r) => ({
-        ...r,
-        searchText: buildSearchText(r),
-      })),
-    [roles]
-  );
+  const rows: RoleRow[] = useMemo(() => {
+    const sortedRoles = [...roles].sort(
+      (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
+    );
+
+    return sortedRoles.map((r, index) => ({
+      ...r,
+      rowNumber: index + 1,
+      searchText: buildSearchText(r),
+      stateSearch: toStateSearch(r.state),
+    }));
+  }, [roles]);
 
   const columns: Column<RoleRow>[] = [
-    { key: "id", header: "ID" },
+    { key: "rowNumber", header: "#" },
     { key: "name", header: "Nombre" },
     {
       key: "state",
@@ -102,9 +110,7 @@ export const RolesTable: React.FC<RolesTableProps> = ({
       data={rows}
       columns={columns}
       pageSize={6}
-      // Buscamos solo sobre searchText, que ya contiene id, nombre y estado
-      // normalizados (mayúsculas, minúsculas y tildes)
-      searchableKeys={["searchText"]}
+      searchableKeys={["searchText", "stateSearch"]}
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
