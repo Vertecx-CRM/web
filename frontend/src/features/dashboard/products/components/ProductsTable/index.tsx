@@ -30,6 +30,7 @@ interface ProductsTableProps {
 }
 
 type ProductForTable = Product & {
+  rowNumber: number;
   stateSearch: "activo" | "inactivo";
   fullSearch: string;
 };
@@ -93,14 +94,18 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
   onCreate,
 }) => {
   const productsForTable: ProductForTable[] = useMemo(() => {
+    const sortedProducts = [...products].sort(
+      (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
+    );
+
     const base =
       status === "active"
-        ? products.filter((p) => isActiveState(p.state))
+        ? sortedProducts.filter((p) => isActiveState(p.state))
         : status === "inactive"
-        ? products.filter((p) => isInactiveState(p.state))
-        : products;
+        ? sortedProducts.filter((p) => isInactiveState(p.state))
+        : sortedProducts;
 
-    return base.map((p) => {
+    return base.map((p, index) => {
       const stateSearch: "activo" | "inactivo" = isActiveState(p.state)
         ? "activo"
         : "inactivo";
@@ -128,6 +133,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       return {
         ...p,
+        rowNumber: index + 1,
         stateSearch,
         fullSearch: `${fullSearchText} ${fullSearchNums}`.trim(),
       };
@@ -136,9 +142,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   const columns: Column<ProductForTable>[] = [
     {
-      key: "id",
-      header: "ID",
-      render: (p) => <span className="tabular-nums whitespace-nowrap">{p.id}</span>,
+      key: "rowNumber",
+      header: "#",
+      render: (p) => <span className="tabular-nums whitespace-nowrap">{p.rowNumber}</span>,
     },
     {
       key: "name",
@@ -232,7 +238,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         columns={columns}
         pageSize={10}
         searchableKeys={[
-          "id",
           "name",
           "categoryName",
           "supplierCategory",
@@ -244,8 +249,16 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         ]}
         onView={(p) => onView(p)}
         onEdit={(p) => onEdit(p)}
-        onDelete={(p) => onDelete(p)}
+        onDelete={status === "inactive" ? undefined : (p) => onDelete(p)}
         onCreate={onCreate}
+        actionGuard={(row) =>
+          status === "all" && isInactiveState(row.state)
+            ? {
+                disableDelete: true,
+                deleteTitle: "No se puede eliminar un producto inactivo",
+              }
+            : {}
+        }
         searchPlaceholder="Buscar productos..."
         createButtonText="Crear Producto"
         rightActions={

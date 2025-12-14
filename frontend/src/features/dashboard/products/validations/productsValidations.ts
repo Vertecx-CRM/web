@@ -57,6 +57,13 @@ export const validateProductField = (
       const v = String(value ?? "").trim();
       if (!v) return "El código es obligatorio";
       if (v.length > 20) return "El código no puede superar 20 caracteres";
+
+      const duplicated = products.some((p) => {
+        const code = String(p.code ?? "").trim();
+        return code.toLowerCase() === v.toLowerCase() && p.id !== currentId;
+      });
+
+      if (duplicated) return "Ya existe un producto con este código";
       return;
     }
 
