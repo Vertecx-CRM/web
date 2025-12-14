@@ -1,17 +1,13 @@
-export interface IQuote {
+export type QuoteTableRow = {
   id: number;
-  serviceTypes: {
-    mantenimiento: boolean;
-    instalacion: boolean;
-  };
   client: string;
-  status: "Pendiente" | "Aprobada" | "Rechazada" | "Anulada";
-  description: string;
-  materials: { name: string; subtotal: number }[];
-  total: number;
+  technician: string;
+  status: string;
   creationDate: string;
   amount: number;
-}
+  raw: any; // quote completo para ver detalle
+};
+
 
 export type QuoteDetailPayload = {
   productid: number | null;

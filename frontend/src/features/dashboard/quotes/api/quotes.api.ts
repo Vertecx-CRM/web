@@ -13,8 +13,14 @@ export const createQuote = async (payload: any) => {
 };
 
 export const getQuotes = async () => {
-  const { data } = await api.get("/quotes");
-  return data;
+  try {
+    const { data } = await api.get("/quotes");
+    return data;
+  } catch (error) {
+    console.error("Error al obtener las cotizaciones:", error);
+    showError("Error al obtener las cotizaciones");
+    throw error;
+  }
 };
 
 export const getCustomersForQuote = async (): Promise<any> => {
@@ -38,7 +44,6 @@ export const getTechniciansForQuote = async (): Promise<any> => {
     throw error;
   }
 };
-
 
 export const getProductsForQuote = async (): Promise<any> => {
   try {
