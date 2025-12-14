@@ -8,7 +8,6 @@ import {
 import Colors from "@/shared/theme/colors";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
-// Función auxiliar para mostrar estado
 const mapStateIdToLabel = (stateid: number): string => {
   const states: Record<number, string> = {
     1: "Activo",
