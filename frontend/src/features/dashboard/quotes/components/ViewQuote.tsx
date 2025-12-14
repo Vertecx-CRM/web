@@ -88,8 +88,11 @@ export default function ViewQuote({ quote }: ViewQuoteProps) {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-700 mt-1">
-                <Info label="Producto ID" value={d.productid ?? "Manual"} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-700 mt-1">
+                  <Info
+                    label="Producto ID"
+                    value={d.productid ?? d.quotedetailid ?? "Manual"}
+                  />
                 <Info label="Cantidad" value={d.quantity} />
                 <Info label="Precio unitario" value={formatCOP(d.unitprice)} />
                 <Info label="Subtotal" value={formatCOP(d.subtotal)} />
