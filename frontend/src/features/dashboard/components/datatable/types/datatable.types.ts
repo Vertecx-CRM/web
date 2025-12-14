@@ -8,8 +8,10 @@ export type DataTableProps<T> = {
   actionGuard?: (row: T) => {
     disableEdit?: boolean;
     disableDelete?: boolean;
+    disableCancel?: boolean;
     editTitle?: string;
     deleteTitle?: string;
+    cancelTitle?: string;
   };
   onView?: (row: T) => void;
   onEdit?: (row: T) => void;

@@ -1,130 +1,92 @@
-export type OrdersServiceHistoryEntryType = "SYSTEM" | "TECH";
+export type OrdersServiceHistoryType = "SYSTEM" | "TECH";
 
-export type OS_ProductCategory = {
-  id: number;
-  name: string;
-  description?: string | null;
-  status?: boolean | null;
-  icon?: string | null;
-};
-
-export type OS_Product = {
-  productid: number;
-  createddate?: string | null;
-  updatedat?: string | null;
-  categoryid?: number | null;
-  isactive?: boolean | null;
-  productpriceofsale?: number | null;
-  productpriceofsupplier?: number | null;
-  productstock?: number | null;
-  productname: string;
-  productdescription?: string | null;
-  productcode?: string | null;
-  purchaseorderid?: number | null;
-  suppliercategory?: string | null;
-  image?: string | null;
-  category?: OS_ProductCategory | null;
-};
-
-export type OS_OrderProduct = {
-  ordersservicesproductsid: number;
-  cantidad: number;
-  subtotal: number;
-  product: OS_Product;
-};
-
-export type OS_User = {
+export type UserLite = {
   userid: number;
   name?: string | null;
   lastname?: string | null;
-  documentnumber?: string | null;
-  phone?: string | null;
   email?: string | null;
-  image?: string | null;
-  roleid?: number | null;
-  stateid?: number | null;
-  typeid?: number | null;
 };
 
-export type OS_Technician = {
-  technicianid: number;
-  userid: number;
-  CV?: string | null;
-  users?: OS_User | null;
-};
-
-export type OS_Customer = {
+export type CustomerDTO = {
   customerid: number;
-  userid: number;
-  customercity?: string | null;
-  customerzipcode?: string | null;
-  users?: OS_User | null;
+  users?: UserLite | null;
 };
 
-export type OS_State = {
-  stateid: number;
+export type TechnicianDTO = {
+  technicianid: number;
+  users?: UserLite | null;
+};
+
+export type ProductDTO = {
+  productid: number;
+  productname: string;
+  productpriceofsale?: number | null;
+};
+
+export type ServiceDTO = {
+  serviceid: number;
   name: string;
-  description?: string | null;
+  servicepriceofsale?: number | null;
+  typeofservice?: {
+    typeofserviceid?: number | null;
+    typeofservicename?: string | null;
+  } | null;
+};
+
+export type OrderProductLineDTO = {
+  ordersservicesproductsid: number;
+  cantidad: number;
+  subtotal: number;
+  product: ProductDTO;
+};
+
+export type OrderServiceLineDTO = {
+  ordersservicesservicesid: number;
+  cantidad: number;
+  unitprice: number;
+  subtotal: number;
+  service: ServiceDTO;
 };
 
 export type OrdersServiceHistoryItem = {
   ordersserviceshistoryid: number;
-  entrytype: OrdersServiceHistoryEntryType;
-  title: string;
-  note?: string | null;
-  technician?: OS_Technician | null;
-  actoruserid?: number | null;
+  type: OrdersServiceHistoryType;
+  message: string;
   createdat: string;
+  actoruserid?: number | null;
+  technician?: TechnicianDTO | null;
+  progresspercent?: number | null;
+  attachments?: string[] | null;
 };
+
+export type OrdersServiceWarrantyDTO =
+  | {
+      label: string;
+      details: string;
+      notifiedClient: boolean;
+      reportedBy: string | null;
+      reportedByUserId: number | null;
+      reportedAtISO: string | null;
+    }
+  | null;
 
 export type OrderServiceDTO = {
   ordersservicesid: number;
-  description?: string | null;
-  total?: number | null;
-  viaticos?: number | null;
-  files?: string[];
+  description: string;
+  client?: CustomerDTO | null;
+  state?: { stateid: number; name: string } | null;
   fechainicio?: string | null;
   fechafin?: string | null;
   horainicio?: string | null;
   horafin?: string | null;
-  createdat?: string | null;
-  updatedat?: string | null;
-  products?: OS_OrderProduct[];
-  technicians?: OS_Technician[];
-  client?: OS_Customer | null;
-  state?: OS_State | null;
+  technicians?: TechnicianDTO[];
+  products?: OrderProductLineDTO[];
+  services?: OrderServiceLineDTO[];
+  files?: string[];
+  viaticos?: number;
+  total?: number;
   history?: OrdersServiceHistoryItem[];
-};
-
-export type AddProductToOrderDto = {
-  productid: number;
-  cantidad: number;
-};
-
-export type AssignTechniciansDto = {
-  technicians: number[];
-};
-
-export type AddOrderFileDto = {
-  url: string;
-};
-
-export type RemoveFileDto = {
-  url: string;
-};
-
-export type ReprogramOrderDto = {
-  fechainicio: string;
-  fechafin: string;
-  horainicio: string;
-  horafin: string;
-  reason?: string;
-};
-
-export type FinishOrderDto = {
-  fechafin: string;
-  horafin: string;
-  stateid?: number;
+  warranty?: OrdersServiceWarrantyDTO;
 };
 
 export type CreateOrderProductDto = {
@@ -154,8 +116,76 @@ export type CreateOrdersServiceDto = {
   viaticos: number;
 };
 
+export type UpdateOrdersServiceDto = {
+  description?: string;
+  clientid?: number;
+  stateid?: number;
+  fechainicio?: string;
+  fechafin?: string;
+  horainicio?: string;
+  horafin?: string;
+  technicians?: number[];
+  files?: string[];
+  viaticos?: number;
+};
+
+export type AddProductToOrderDto = {
+  productid: number;
+  cantidad: number;
+};
+
+export type UpdateProductLineDto = {
+  cantidad: number;
+};
+
+export type AddServiceToOrderDto = {
+  serviceid: number;
+  cantidad: number;
+  unitprice?: number;
+};
+
+export type UpdateServiceLineDto = {
+  cantidad: number;
+  unitprice?: number;
+};
+
+export type AssignTechniciansDto = {
+  technicians: number[];
+};
+
+export type ReprogramOrderDto = {
+  fechainicio: string;
+  fechafin: string;
+  horainicio: string;
+  horafin: string;
+  reason?: string;
+};
+
+export type FinishOrderDto = {
+  fechafin: string;
+  horafin: string;
+  stateid?: number;
+};
+
+export type AddOrderFileDto = {
+  url: string;
+};
+
+export type RemoveFileDto = {
+  url: string;
+};
+
 export type AddWorklogDto = {
   technicianid: number;
   note: string;
   title?: string;
+  progresspercent?: number;
+  attachments?: string[];
+};
+
+export type ReportWarrantyDto = {
+  label?: string;
+  details: string;
+  notifiedClient?: boolean;
+  reportedByUserId?: number;
 };

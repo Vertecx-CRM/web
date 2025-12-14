@@ -1,16 +1,17 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
 import { createOrderService } from "../api/ordersServices.api";
 import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
-import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
+import { showError, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
 
-type LineItem = { id: string; nombre: string; cantidad: number; precio: number };
+type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
+type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
 
 type CustomerOption = {
   customerid: number;
@@ -91,6 +92,8 @@ type Errors = Partial<{
   servicios: string;
   materiales: string;
 }>;
+
+type Touched = Partial<Record<keyof Errors, boolean>>;
 
 function useDesktopQuery() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -190,7 +193,7 @@ function isAllowedTime(hm: string) {
 type QuoteLike = any;
 
 type QuoteNormalized = {
-  quoteid?: number;
+  quotesid?: number;
   clientid?: number;
   typeofserviceid?: number | null;
   fechainicio?: string;
@@ -260,7 +263,10 @@ function extractFreeTextFromDescription(desc: string) {
   const s = String(desc || "").trim();
   if (!s) return "";
   const hasStructured =
-    /\bTipo:\s*/i.test(s) || /\bServicios:\s*/i.test(s) || /\bProductos:\s*/i.test(s) || /\bDescripción:\s*/i.test(s);
+    /\bTipo:\s*/i.test(s) ||
+    /\bServicios:\s*/i.test(s) ||
+    /\bProductos:\s*/i.test(s) ||
+    /\bDescripción:\s*/i.test(s);
   if (!hasStructured) return s;
   const m = s.match(/Descripción:\s*([\s\S]*)$/i);
   if (m && m[1]) return String(m[1]).trim();
@@ -287,7 +293,7 @@ function coerceAllowedTime(hm: string, fallback: string) {
 function normalizeQuote(q: QuoteLike): QuoteNormalized {
   const root = q?.quote ?? q?.quotation ?? q?.cotizacion ?? q;
 
-  const quoteid = pickNumber(root?.quoteid, root?.quotationid, root?.cotizacionid, root?.id);
+  const quotesid = pickNumber(root?.quotesid, root?.quotationid, root?.cotizacionid, root?.id);
 
   const clientid = pickNumber(
     root?.clientid,
@@ -348,7 +354,11 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
       const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
       const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.valor) ?? 0;
       if (!serviceid) return null;
-      return { serviceid, cantidad: Math.max(1, Math.round(cantidad)), unitprice: Math.max(0, Math.round(unitprice)) };
+      return {
+        serviceid,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        unitprice: Math.max(0, Math.round(unitprice)),
+      };
     })
     .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
 
@@ -367,7 +377,7 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
     .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
 
   return {
-    quoteid,
+    quotesid,
     clientid,
     typeofserviceid,
     fechainicio,
@@ -385,14 +395,16 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const returnTo = searchParams.get("returnTo") || "/dashboard/orders-services";
 
-  const quoteIdParam =
-    searchParams.get("quoteId") ||
+  const quotesIdParam =
+    searchParams.get("quotesId") ||
     searchParams.get("quotationId") ||
     searchParams.get("cotizacionId") ||
     searchParams.get("cotizacionid") ||
-    searchParams.get("quoteid");
+    searchParams.get("quotesid");
 
   const quoteDataParam =
     searchParams.get("quoteData") ||
@@ -400,8 +412,8 @@ export default function OrderCreatePage() {
     searchParams.get("cotizacion") ||
     searchParams.get("quotation");
 
-  const quoteIdFromUrl = (() => {
-    const n = Number(quoteIdParam);
+  const quotesIdFromUrl = (() => {
+    const n = Number(quotesIdParam);
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
 
@@ -477,8 +489,23 @@ export default function OrderCreatePage() {
         const statename = s?.statename != null ? String(s.statename) : null;
         return { serviceid, name, typeofserviceid, typeofservicename, stateid, statename } as ServiceOption;
       })
-      .filter((x) => Number.isFinite(x.serviceid) && x.serviceid > 0 && Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
+      .filter(
+        (x) =>
+          Number.isFinite(x.serviceid) &&
+          x.serviceid > 0 &&
+          Number.isFinite(x.typeofserviceid) &&
+          x.typeofserviceid > 0
+      );
   }, [servicesRaw]);
+
+  function getServicesForTipo(tid: number | null) {
+    if (!tid) return [];
+    const list = servicesCatalog.filter((s) => s.typeofserviceid === tid);
+    const active = list.filter(
+      (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
+    );
+    return active.length ? active : list;
+  }
 
   const [quotesRaw, setQuotesRaw] = useState<any[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
@@ -491,7 +518,13 @@ export default function OrderCreatePage() {
       setQuotesError(null);
       try {
         const { data } = await api.get("quotes");
-        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.quotes) ? data.quotes : [];
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.quotes)
+          ? data.quotes
+          : [];
         if (!cancelled) setQuotesRaw(list);
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.message || "Error cargando cotizaciones.";
@@ -512,7 +545,7 @@ export default function OrderCreatePage() {
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
     for (const q of quotesRaw || []) {
-      const id = pickNumber(q?.quoteid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
@@ -522,7 +555,7 @@ export default function OrderCreatePage() {
     const opts: Array<{ id: number; label: string }> = [];
     for (const q of quotesRaw || []) {
       const nq = normalizeQuote(q);
-      const id = nq.quoteid ?? pickNumber(q?.quoteid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id = nq.quotesid ?? pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
 
       const clientLabel =
@@ -546,7 +579,7 @@ export default function OrderCreatePage() {
     return opts;
   }, [quotesRaw, customers, serviceTypes]);
 
-  const [selectedQuoteId, setSelectedQuoteId] = useState<number | "">("");
+  const [selectedQuotesId, setSelectedQuotesId] = useState<number | "">("");
 
   const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
   const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
@@ -556,7 +589,10 @@ export default function OrderCreatePage() {
   const selectedCustomer = useMemo(() => customers.find((c) => c.customerid === clientId), [customers, clientId]);
 
   const [tipoId, setTipoId] = useState<number | null>(null);
-  const tipoSeleccionado = useMemo(() => serviceTypes.find((t) => t.typeofserviceid === tipoId) || null, [serviceTypes, tipoId]);
+  const tipoSeleccionado = useMemo(
+    () => serviceTypes.find((t) => t.typeofserviceid === tipoId) || null,
+    [serviceTypes, tipoId]
+  );
 
   const [descripcion, setDescripcion] = useState("");
 
@@ -589,25 +625,6 @@ export default function OrderCreatePage() {
     return minutesToTime(end);
   });
 
-  useEffect(() => {
-    if (!isAllowedDate(dateStart)) {
-      const d = parseYMD(dateStart);
-      if (d) {
-        for (let i = 0; i < 7; i++) {
-          d.setDate(d.getDate() + 1);
-          const next = toLocalYMD(d);
-          if (isAllowedDate(next)) {
-            setDateStart(next);
-            setDateEnd(next);
-            break;
-          }
-        }
-      }
-    } else {
-      if (!isAllowedDate(dateEnd)) setDateEnd(dateStart);
-    }
-  }, []);
-
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
   const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
 
@@ -617,17 +634,22 @@ export default function OrderCreatePage() {
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
 
-  const [servicios, setServicios] = useState<LineItem[]>([]);
-  const [materiales, setMateriales] = useState<LineItem[]>([]);
+  const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
+  const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
 
   const [errors, setErrors] = useState<Errors>({});
+  const [touched, setTouched] = useState<Touched>({});
   const summaryRef = useRef<HTMLDivElement>(null);
 
   const [saving, setSaving] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const submitLockRef = useRef(false);
 
   const isDesktop = useDesktopQuery();
   const sidebarW = useSidebarWidth("#app-sidebar");
@@ -643,6 +665,10 @@ export default function OrderCreatePage() {
     () => Object.values(errors).some((v) => typeof v === "string" && v.trim().length > 0),
     [errors]
   );
+
+  function showFieldError(key: keyof Errors) {
+    return !!errors[key] && (submitAttempted || !!touched[key]);
+  }
 
   useEffect(() => {
     const urls = files.map((f) => URL.createObjectURL(f));
@@ -675,8 +701,7 @@ export default function OrderCreatePage() {
       skipClearOnTipoChangeRef.current = false;
       return;
     }
-    setServicios([]);
-    setErrors((prev) => ({ ...prev, tipo: undefined, servicios: undefined }));
+    setErrors((prev) => ({ ...prev, tipo: undefined }));
   }, [tipoId]);
 
   useEffect(() => {
@@ -689,15 +714,6 @@ export default function OrderCreatePage() {
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [techOpen]);
-
-  const servicesForTipo = useMemo(() => {
-    if (!tipoId) return [];
-    const list = servicesCatalog.filter((s) => s.typeofserviceid === tipoId);
-    const active = list.filter(
-      (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
-    );
-    return active.length ? active : list;
-  }, [servicesCatalog, tipoId]);
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
@@ -745,34 +761,41 @@ export default function OrderCreatePage() {
     setErrors((p) => ({ ...p, technicians: undefined }));
   }
 
+  function patchItem<T extends { id: string }>(
+    id: string,
+    patch: Partial<T>,
+    setList: React.Dispatch<React.SetStateAction<T[]>>
+  ) {
+    setList((prev) => prev.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x)));
+  }
+
+  function removeItem<T extends { id: string }>(id: string, setList: React.Dispatch<React.SetStateAction<T[]>>) {
+    setList((prev) => prev.filter((x) => x.id !== id));
+  }
+
+  function serviceOptionsForRow(tipo: number, currentName: string) {
+    const base = getServicesForTipo(tipo);
+    if (!base.length) return [];
+    const used = new Set(
+      servicios
+        .filter((s) => s.tipoId === tipo)
+        .map((s) => String(s.nombre || "").trim())
+        .filter(Boolean)
+    );
+    if (currentName) used.delete(currentName);
+    return base.filter((opt) => !used.has(opt.name));
+  }
+
   function addServiceRow() {
     if (!tipoId) return;
-    const first = servicesForTipo[0];
-    if (!first) return;
-    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, cantidad: 1, precio: 0 }]);
+    const opts = serviceOptionsForRow(tipoId, "");
+    const first = opts[0];
+    if (!first) {
+      showWarning("Ya agregaste todos los servicios disponibles para este tipo.");
+      return;
+    }
+    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, precio: 0, tipoId }]);
     setErrors((prev) => ({ ...prev, servicios: undefined }));
-  }
-
-  function precioMaterialPorNombre(nombre: string) {
-    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
-  }
-
-  function addMaterialRow() {
-    const first = productsCatalog[0];
-    if (!first) return;
-    setMateriales((prev) => [
-      ...prev,
-      { id: uid(), nombre: first.productname, cantidad: 1, precio: first.productpriceofsale },
-    ]);
-    setErrors((prev) => ({ ...prev, materiales: undefined }));
-  }
-
-  function patchItem(id: string, patch: Partial<LineItem>, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
-    setList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  }
-
-  function removeItem(id: string, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
-    setList((prev) => prev.filter((x) => x.id !== id));
   }
 
   function dedupeAppend(newFs: File[]) {
@@ -823,14 +846,13 @@ export default function OrderCreatePage() {
     );
   }
 
-  const subtotalServicios = useMemo(
-    () => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
-    [servicios]
-  );
+  const subtotalServicios = useMemo(() => servicios.reduce((a, i) => a + 1 * (Number(i.precio) || 0), 0), [servicios]);
+
   const subtotalMateriales = useMemo(
     () => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
     [materiales]
   );
+
   const subtotal = subtotalServicios + subtotalMateriales;
 
   const baseGravable = useMemo(() => {
@@ -845,97 +867,246 @@ export default function OrderCreatePage() {
     const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
     servicios.forEach((s) => {
       if (!s.nombre) return;
-      const t = (Number(s.cantidad) || 0) * (Number(s.precio) || 0);
-      const prev = map.get(s.nombre);
+      const t = 1 * (Number(s.precio) || 0);
+      const labelTipo = serviceTypes.find((t) => t.typeofserviceid === s.tipoId)?.label || `Tipo #${s.tipoId}`;
+      const key = `[${labelTipo}] ${s.nombre}`;
+      const prev = map.get(key);
       if (prev) {
-        prev.cantidad += Number(s.cantidad) || 0;
+        prev.cantidad += 1;
         prev.total += t;
       } else {
-        map.set(s.nombre, { nombre: s.nombre, cantidad: Number(s.cantidad) || 0, total: t });
+        map.set(key, { nombre: key, cantidad: 1, total: t });
       }
     });
     return Array.from(map.values());
-  }, [servicios]);
+  }, [servicios, serviceTypes]);
 
   const materialesMiniLista = useMemo(() => {
     const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
     materiales.forEach((m) => {
       if (!m.nombre) return;
-      const t = (Number(m.cantidad) || 0) * (Number(m.precio) || 0);
+      const qty = Math.max(0, Math.round(Number(m.cantidad) || 0));
+      if (!qty) return;
+      const t = qty * (Number(m.precio) || 0);
       const prev = map.get(m.nombre);
       if (prev) {
-        prev.cantidad += Number(m.cantidad) || 0;
+        prev.cantidad += qty;
         prev.total += t;
       } else {
-        map.set(m.nombre, { nombre: m.nombre, cantidad: Number(m.cantidad) || 0, total: t });
+        map.set(m.nombre, { nombre: m.nombre, cantidad: qty, total: t });
       }
     });
     return Array.from(map.values());
   }, [materiales]);
 
+  const materialesSelectedNames = useMemo(
+    () => new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean)),
+    [materiales]
+  );
+
+  const availableProducts = useMemo(() => {
+    return productsCatalog.filter((p) => !materialesSelectedNames.has(p.productname));
+  }, [productsCatalog, materialesSelectedNames]);
+
+  function precioMaterialPorNombre(nombre: string) {
+    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  }
+
+  function materialOptionsForRow(currentName: string) {
+    const used = new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean));
+    if (currentName) used.delete(currentName);
+    return productsCatalog.filter((p) => !used.has(p.productname));
+  }
+
+  function addMaterialRow() {
+    const first = availableProducts[0];
+    if (!first) {
+      showWarning("Ya agregaste todos los productos disponibles.");
+      return;
+    }
+    setMateriales((prev) => [
+      ...prev,
+      { id: uid(), nombre: first.productname, precio: first.productpriceofsale, cantidad: 1 },
+    ]);
+    setErrors((prev) => ({ ...prev, materiales: undefined }));
+  }
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.servicios)) return;
+    const msg = validateField("servicios");
+    setErrors((p) => ({ ...p, servicios: msg }));
+  }, [servicios, servicesCatalog, submitAttempted, touched.servicios]);
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.materiales)) return;
+    const msg = validateField("materiales");
+    setErrors((p) => ({ ...p, materiales: msg }));
+  }, [materiales, productsCatalog, submitAttempted, touched.materiales]);
+
+  function validateScheduleOnly(): string | undefined {
+    if (!dateStart || !timeStart || !dateEnd || !timeEnd) return "Completa fecha y hora de inicio y fin.";
+    if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) return "Solo se permite agendar de lunes a sábado.";
+    if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) return "Horario permitido: 07:00–17:00.";
+
+    const sDate = parseYMD(dateStart);
+    const eDate = parseYMD(dateEnd);
+    if (!sDate || !eDate) return "Fecha inválida.";
+
+    const s = new Date(sDate);
+    const e = new Date(eDate);
+    const sMin = timeToMinutes(timeStart);
+    const eMin = timeToMinutes(timeEnd);
+    if (!Number.isFinite(sMin) || !Number.isFinite(eMin)) return "Hora inválida.";
+    s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
+    e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
+
+    if (!(e.getTime() > s.getTime())) return "La fecha/hora fin debe ser mayor que la de inicio.";
+    if (timeStart === "17:00") return "La hora de inicio no puede ser 17:00.";
+    return undefined;
+  }
+
   function validateForm(): Errors {
     const errs: Errors = {};
 
     if (!clientId) errs.clientId = "Selecciona un cliente.";
-    if (!tipoId) errs.tipo = "Selecciona el tipo de servicio.";
 
-    if (!dateStart || !timeStart || !dateEnd || !timeEnd) {
-      errs.schedule = "Completa fecha y hora de inicio y fin.";
-    } else {
-      if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) {
-        errs.schedule = "Solo se permite agendar de lunes a sábado.";
-      } else if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) {
-        errs.schedule = "Horario permitido: 07:00–17:00.";
-      } else {
-        const sDate = parseYMD(dateStart);
-        const eDate = parseYMD(dateEnd);
-        if (sDate && eDate) {
-          const s = new Date(sDate);
-          const e = new Date(eDate);
-          const sMin = timeToMinutes(timeStart);
-          const eMin = timeToMinutes(timeEnd);
-          s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
-          e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
-          if (!(e.getTime() > s.getTime())) errs.schedule = "La fecha/hora fin debe ser mayor que la de inicio.";
-        } else {
-          errs.schedule = "Fecha inválida.";
-        }
-      }
-    }
+    if (!servicios.length && !tipoId) errs.tipo = "Selecciona el tipo de servicio.";
+
+    const sch = validateScheduleOnly();
+    if (sch) errs.schedule = sch;
 
     if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
 
     if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
     if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
 
-    if (!tipoId) {
-      errs.servicios = "Selecciona el tipo de servicio.";
+    if (servicios.length === 0) {
+      errs.servicios = "Debes añadir al menos un servicio.";
     } else {
-      if (servicesForTipo.length === 0) errs.servicios = "No hay servicios disponibles para este tipo.";
-      if (servicios.length === 0)
-        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Debes añadir al menos un servicio.";
-      const invalidSvc =
-        servicios.length > 0 &&
-        servicios.some((s) => !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === tipoId));
-      if (invalidSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Hay servicios inválidos. Vuelve a seleccionarlos.";
+      const invalidSvc = servicios.some((s) => {
+        if (!s.tipoId) return true;
+        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
+      });
+      if (invalidSvc) errs.servicios = "Hay servicios inválidos. Vuelve a seleccionarlos.";
+
+      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
+      if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
+
+      const dupByType = (() => {
+        const map = new Map<number, Set<string>>();
+        for (const s of servicios) {
+          const name = String(s.nombre || "").trim();
+          if (!name) continue;
+          const set = map.get(s.tipoId) ?? new Set<string>();
+          if (set.has(name)) return true;
+          set.add(name);
+          map.set(s.tipoId, set);
+        }
+        return false;
+      })();
+      if (dupByType)
+        errs.servicios =
+          (errs.servicios ? errs.servicios + " " : "") + "No puedes repetir el mismo servicio dentro del mismo tipo.";
     }
 
     if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
-    if (materiales.length === 0) errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
+    if (materiales.length === 0)
+      errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
+
+    const dupMat =
+      materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
+    if (dupMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "No puedes repetir el mismo producto.";
+
     if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-      errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
+      errs.materiales =
+        (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
     }
 
-    const badQtySvc = servicios.some((s) => !s.cantidad || s.cantidad < 1);
-    const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-    const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
-
-    if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
-    if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
-    if (badQtyMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades de materiales.";
+    const badQty = materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1);
+    if (badQty) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades (mínimo 1).";
 
     return errs;
   }
+
+  function validateField(key: keyof Errors): string | undefined {
+    if (key === "clientId") {
+      if (!clientId) return "Selecciona un cliente.";
+      return undefined;
+    }
+    if (key === "tipo") {
+      if (servicios.length > 0) return undefined;
+      if (!tipoId) return "Selecciona el tipo de servicio.";
+      return undefined;
+    }
+    if (key === "schedule") return validateScheduleOnly();
+    if (key === "technicians") {
+      if (!selectedTechnicians.length) return "Selecciona al menos un técnico.";
+      return undefined;
+    }
+    if (key === "viaticos") {
+      if (!Number.isFinite(viaticosValue)) return "Viáticos debe ser un número válido.";
+      if (Number.isFinite(viaticosValue) && viaticosValue < 0) return "Viáticos no puede ser negativo.";
+      return undefined;
+    }
+    if (key === "servicios") {
+      if (servicios.length === 0) return "Debes añadir al menos un servicio.";
+      const invalidSvc = servicios.some((s) => {
+        if (!s.tipoId) return true;
+        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
+      });
+      if (invalidSvc) return "Hay servicios inválidos. Vuelve a seleccionarlos.";
+      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
+      if (badPriceSvc) return "Corrige precios de servicios.";
+      const dupByType = (() => {
+        const map = new Map<number, Set<string>>();
+        for (const s of servicios) {
+          const name = String(s.nombre || "").trim();
+          if (!name) continue;
+          const set = map.get(s.tipoId) ?? new Set<string>();
+          if (set.has(name)) return true;
+          set.add(name);
+          map.set(s.tipoId, set);
+        }
+        return false;
+      })();
+      if (dupByType) return "No puedes repetir el mismo servicio dentro del mismo tipo.";
+      return undefined;
+    }
+    if (key === "materiales") {
+      if (!productsCatalog.length) return "No hay productos cargados desde la BD.";
+      if (materiales.length === 0) return "Debes añadir al menos un producto (material).";
+      const dupMat =
+        materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
+      if (dupMat) return "No puedes repetir el mismo producto.";
+      if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre)))
+        return "Hay productos inválidos. Vuelve a seleccionarlos.";
+      if (materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1))
+        return "Corrige cantidades (mínimo 1).";
+      return undefined;
+    }
+    return undefined;
+  }
+
+  function runBlurValidation(key: keyof Errors) {
+    setTouched((t) => ({ ...t, [key]: true }));
+    const msg = validateField(key);
+    setErrors((p) => ({ ...p, [key]: msg }));
+  }
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.tipo)) return;
+    setErrors((p) => ({ ...p, tipo: validateField("tipo") }));
+  }, [submitAttempted, touched.tipo, tipoId, servicios.length]);
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.servicios)) return;
+    setErrors((p) => ({ ...p, servicios: validateField("servicios") }));
+  }, [submitAttempted, touched.servicios, servicios, servicesCatalog]);
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.materiales)) return;
+    setErrors((p) => ({ ...p, materiales: validateField("materiales") }));
+  }, [submitAttempted, touched.materiales, materiales, productsCatalog]);
 
   function focusFirstError(er: Errors) {
     const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "materiales", "servicios"] as const;
@@ -967,9 +1138,64 @@ export default function OrderCreatePage() {
     return { date, time: minutesToTime(end) };
   }
 
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [customerActiveIndex, setCustomerActiveIndex] = useState(0);
+  const customerBoxRef = useRef<HTMLDivElement>(null);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!customerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!customerBoxRef.current) return;
+      if (!customerBoxRef.current.contains(t)) setCustomerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [customerOpen]);
+
+  const customerOptions = useMemo(() => {
+    const q = normalizeText(customerQuery);
+    if (!q) return customers.slice(0, 10);
+    const scored = customers
+      .map((c) => {
+        const label = normalizeText(c.label);
+        const idStr = String(c.customerid);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { c, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.c.label.localeCompare(b.c.label));
+    return scored.slice(0, 10).map((x) => x.c);
+  }, [customers, customerQuery]);
+
+  useEffect(() => {
+    setCustomerActiveIndex(0);
+  }, [customerQuery, customerOpen]);
+
+  function pickCustomer(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setClientId(id as any);
+    setErrors((p) => ({ ...p, clientId: undefined }));
+    setCustomerQuery("");
+    setCustomerOpen(false);
+  }
+
+  function clearCustomer() {
+    setClientId("");
+    setCustomerQuery("");
+    setCustomerOpen(false);
+    customerInputRef.current?.focus();
+  }
+
   function resetPrefill() {
+    setSubmitAttempted(false);
     setQuoteApplyError(null);
-    setSelectedQuoteId("");
+    setSelectedQuotesId("");
     setClientId("");
     skipClearOnTipoChangeRef.current = true;
     setTipoId(null);
@@ -988,12 +1214,14 @@ export default function OrderCreatePage() {
     setDateEnd(autoEnd.date);
     setTimeEnd(autoEnd.time);
     setErrors({});
+    setTouched({});
     setQuoteAppliedKey(null);
+    setCustomerQuery("");
+    setCustomerOpen(false);
   }
 
   function applyNormalizedQuote(nq: QuoteNormalized, key: string) {
     const nextClient = nq.clientid && customers.some((c) => c.customerid === nq.clientid) ? nq.clientid : "";
-
     setClientId(nextClient as any);
 
     const inferredTypeFromServices =
@@ -1004,9 +1232,7 @@ export default function OrderCreatePage() {
     const candidateType = nq.typeofserviceid ?? inferredTypeFromServices;
 
     const typeId =
-      candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType)
-        ? candidateType
-        : null;
+      candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType) ? candidateType : null;
 
     skipClearOnTipoChangeRef.current = true;
     setTipoId(typeId);
@@ -1040,40 +1266,53 @@ export default function OrderCreatePage() {
     const freeText = extractFreeTextFromDescription(nq.description || "");
     setDescripcion(freeText);
 
-    const svcItems: LineItem[] = [];
+    const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(nq.services) && nq.services.length) {
       for (const s of nq.services) {
         const rec = servicesCatalog.find((x) => x.serviceid === s.serviceid) || null;
         const nombre = rec?.name || `Servicio #${s.serviceid}`;
-        const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
         const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
-        svcItems.push({ id: uid(), nombre, cantidad, precio });
+        const tid = rec?.typeofserviceid ?? typeId ?? 0;
+        if (!tid) continue;
+        svcItems.push({ id: uid(), nombre, precio, tipoId: tid });
       }
     }
     setServicios(svcItems);
 
-    const matItems: LineItem[] = [];
+    const matItems: MaterialLineItem[] = [];
     if (Array.isArray(nq.products) && nq.products.length) {
+      const used = new Set<number>();
       for (const p of nq.products) {
-        const rec = productsCatalog.find((x) => x.productid === p.productid) || null;
-        const nombre = rec?.productname || `Producto #${p.productid}`;
-        const cantidad = Math.max(1, Math.round(Number(p.cantidad || 1)));
-        const precio =
-          p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec?.productpriceofsale ?? 0;
-        matItems.push({ id: uid(), nombre, cantidad, precio });
+        const pid = Number(p.productid);
+        if (!Number.isFinite(pid) || pid <= 0) continue;
+        if (used.has(pid)) continue;
+        used.add(pid);
+        const rec = productsCatalog.find((x) => x.productid === pid) || null;
+        if (!rec) continue;
+        const precio = p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec.productpriceofsale ?? 0;
+        const cantidad = Math.max(1, Math.round(Number(p.cantidad ?? 1)));
+        matItems.push({ id: uid(), nombre: rec.productname, precio, cantidad });
       }
     }
     setMateriales(matItems);
 
+    setSubmitAttempted(false);
     setErrors({});
+    setTouched({});
     setQuoteAppliedKey(key);
+    setCustomerQuery("");
+    setCustomerOpen(false);
   }
 
   useEffect(() => {
     if (lookupsLoading) return;
     if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
 
-    const keyFromUrl = quoteIdFromUrl ? `url:id:${quoteIdFromUrl}` : quoteDataParam ? `url:param:${String(quoteDataParam).slice(0, 32)}` : null;
+    const keyFromUrl = quotesIdFromUrl
+      ? `url:id:${quotesIdFromUrl}`
+      : quoteDataParam
+      ? `url:param:${String(quoteDataParam).slice(0, 32)}`
+      : null;
     if (!keyFromUrl) return;
     if (quoteAppliedKey === keyFromUrl) return;
 
@@ -1085,9 +1324,9 @@ export default function OrderCreatePage() {
       try {
         let raw: any = null;
 
-        if (quoteIdFromUrl) {
-          raw = quoteMapById.get(quoteIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontró la cotización #${quoteIdFromUrl} en http://localhost:3001/quotes`);
+        if (quotesIdFromUrl) {
+          raw = quoteMapById.get(quotesIdFromUrl) ?? null;
+          if (!raw) throw new Error(`No se encontró la cotización #${quotesIdFromUrl} en /quotes`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
           if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
@@ -1097,7 +1336,7 @@ export default function OrderCreatePage() {
         if (cancelled) return;
 
         applyNormalizedQuote(nq, keyFromUrl);
-        if (quoteIdFromUrl) setSelectedQuoteId(quoteIdFromUrl);
+        if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.message || "Error cargando cotización.";
         setQuoteApplyError(String(msg));
@@ -1119,18 +1358,18 @@ export default function OrderCreatePage() {
     productsCatalog,
     serviceTypes,
     servicesCatalog,
-    quoteIdFromUrl,
+    quotesIdFromUrl,
     quoteDataParam,
     quoteAppliedKey,
     quoteMapById,
   ]);
 
   useEffect(() => {
-    if (!selectedQuoteId) return;
+    if (!selectedQuotesId) return;
     if (lookupsLoading) return;
     if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
 
-    const id = Number(selectedQuoteId);
+    const id = Number(selectedQuotesId);
     if (!Number.isFinite(id) || id <= 0) return;
 
     const key = `select:id:${id}`;
@@ -1157,7 +1396,7 @@ export default function OrderCreatePage() {
       setQuoteLoadingApply(false);
     }
   }, [
-    selectedQuoteId,
+    selectedQuotesId,
     lookupsLoading,
     customers,
     technicians,
@@ -1170,15 +1409,33 @@ export default function OrderCreatePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (submitLockRef.current) return;
+    if (saving || navigating) return;
+    submitLockRef.current = true;
+
+    setSubmitAttempted(true);
+    setTouched({
+      quote: true,
+      clientId: true,
+      tipo: true,
+      schedule: true,
+      technicians: true,
+      viaticos: true,
+      materiales: true,
+      servicios: true,
+    });
+
     const er = validateForm();
     setErrors(er);
     if (Object.keys(er).length > 0) {
       showWarning("Revisa los campos marcados en rojo.");
       focusFirstError(er);
+      submitLockRef.current = false;
       return;
     }
 
-    const productMap = new Map<number, number>();
+    const productQtyById = new Map<number, number>();
     for (const m of materiales) {
       const rec = productsCatalog.find((p) => p.productname === m.nombre);
       if (!rec) {
@@ -1188,53 +1445,37 @@ export default function OrderCreatePage() {
         focusFirstError(next);
         return;
       }
-      const qty = Math.max(1, Number(m.cantidad || 1));
-      productMap.set(rec.productid, (productMap.get(rec.productid) || 0) + qty);
+      const qty = Math.max(1, Math.round(Number(m.cantidad || 1)));
+      productQtyById.set(rec.productid, (productQtyById.get(rec.productid) || 0) + qty);
     }
 
-    const products = Array.from(productMap.entries()).map(([productid, cantidad]) => ({ productid, cantidad }));
-
-    if (!tipoId) {
-      const next = { ...er, tipo: "Selecciona el tipo de servicio." };
-      setErrors(next);
-      showError(next.tipo || "Tipo inválido.");
-      focusFirstError(next);
-      return;
-    }
+    const products = Array.from(productQtyById.entries()).map(([productid, cantidad]) => ({
+      productid,
+      cantidad,
+    }));
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
-      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === tipoId) || null;
+      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId) || null;
       if (!rec) {
-        const next = { ...er, servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo seleccionado.` };
+        const next = {
+          ...er,
+          servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo con el que fue agregado.`,
+        };
         setErrors(next);
         showError(next.servicios || "Servicio inválido.");
         focusFirstError(next);
         return;
       }
-      const cantidad = Math.max(1, Number(s.cantidad || 1));
       const unitprice = Math.max(0, Math.round(Number(s.precio || 0)));
       const key = `${rec.serviceid}_${unitprice}`;
       const prev = serviceMap.get(key);
-      if (prev) prev.cantidad += cantidad;
-      else serviceMap.set(key, { serviceid: rec.serviceid, cantidad, unitprice });
+      if (prev) prev.cantidad += 1;
+      else serviceMap.set(key, { serviceid: rec.serviceid, cantidad: 1, unitprice });
     }
 
     const services = Array.from(serviceMap.values());
-
-    const descParts: string[] = [];
-    const tipoTxt = tipoSeleccionado?.label || tipoSeleccionado?.name || "";
-    if (tipoTxt) descParts.push(`Tipo: ${tipoTxt}`);
-    if (descripcion?.trim()) descParts.push(`Descripción: ${descripcion.trim()}`);
-    if (servicios.length) {
-      const svcTxt = servicios.map((s) => `- ${s.nombre} × ${Number(s.cantidad) || 0}`).join("\n");
-      descParts.push(`Servicios:\n${svcTxt}`);
-    }
-    if (materiales.length) {
-      const matTxt = materiales.map((m) => `- ${m.nombre} × ${Number(m.cantidad) || 0}`).join("\n");
-      descParts.push(`Productos:\n${matTxt}`);
-    }
-    const finalDescription = descParts.join("\n\n");
+    const finalDescription = String(descripcion || "").trim();
 
     setSaving(true);
     try {
@@ -1256,64 +1497,56 @@ export default function OrderCreatePage() {
       };
 
       const created: any = await createOrderService(dto);
-      showSuccess(`Orden #${created?.ordersservicesid ?? ""} creada correctamente.`);
+
+      try {
+        if (typeof window !== "undefined") {
+          const createdId = Number(
+            created?.ordersservicesid ??
+              created?.id ??
+              created?.data?.ordersservicesid ??
+              created?.data?.id
+          );
+          const message = Number.isFinite(createdId) && createdId > 0 ? `Orden #${createdId} creada correctamente.` : "Orden creada correctamente.";
+          sessionStorage.setItem("flash_toast", JSON.stringify({ type: "success", message }));
+        }
+      } catch {}
+setNavigating(true);
+
+      if (returnTo === pathname) {
+        setNavigating(false);
+        setSaving(false);
+        router.refresh();
+        return;
+      }
+
       router.push(returnTo);
+      return;
     } catch (e: any) {
       showError(e?.response?.data?.message || e?.message || "Error inesperado.");
-    } finally {
+      setNavigating(false);
       setSaving(false);
+      submitLockRef.current = false;
     }
   }
 
   function handleDateStartChange(next: string) {
-    if (!isAllowedDate(next)) {
-      showWarning("Solo se permite agendar de lunes a sábado.");
-      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
-      return;
-    }
     setDateStart(next);
-    setErrors((p) => ({ ...p, schedule: undefined }));
-    if (!isAllowedDate(dateEnd)) setDateEnd(next);
-    if (dateEnd === next) return;
+    if (errors.schedule) setErrors((p) => ({ ...p, schedule: undefined }));
   }
 
   function handleDateEndChange(next: string) {
-    if (!isAllowedDate(next)) {
-      showWarning("Solo se permite agendar de lunes a sábado.");
-      setErrors((p) => ({ ...p, schedule: "Solo se permite agendar de lunes a sábado." }));
-      return;
-    }
     setDateEnd(next);
-    setErrors((p) => ({ ...p, schedule: undefined }));
+    if (errors.schedule) setErrors((p) => ({ ...p, schedule: undefined }));
   }
 
   function handleTimeStartChange(next: string) {
-    if (!isAllowedTime(next)) {
-      showWarning("Horario permitido: 07:00–17:00.");
-      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
-      return;
-    }
-    const sMin = timeToMinutes(next);
-    if (Number.isFinite(sMin) && sMin === SCHEDULE_MAX) {
-      showWarning("La hora de inicio no puede ser 17:00.");
-      setErrors((p) => ({ ...p, schedule: "La hora de inicio no puede ser 17:00." }));
-      return;
-    }
     setTimeStart(next);
-    const auto = clampAutoEnd(dateStart, next);
-    setDateEnd(auto.date);
-    setTimeEnd(auto.time);
-    setErrors((p) => ({ ...p, schedule: undefined }));
+    if (errors.schedule) setErrors((p) => ({ ...p, schedule: undefined }));
   }
 
   function handleTimeEndChange(next: string) {
-    if (!isAllowedTime(next)) {
-      showWarning("Horario permitido: 07:00–17:00.");
-      setErrors((p) => ({ ...p, schedule: "Horario permitido: 07:00–17:00." }));
-      return;
-    }
     setTimeEnd(next);
-    setErrors((p) => ({ ...p, schedule: undefined }));
+    if (errors.schedule) setErrors((p) => ({ ...p, schedule: undefined }));
   }
 
   const StickyFooter = () => (
@@ -1330,7 +1563,7 @@ export default function OrderCreatePage() {
                 type="button"
                 onClick={() => router.push(returnTo)}
                 className="h-10 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                disabled={saving}
+                disabled={saving || navigating}
               >
                 Cancelar
               </button>
@@ -1338,9 +1571,9 @@ export default function OrderCreatePage() {
                 type="submit"
                 form="order-form"
                 className="h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
-                disabled={saving || lookupsLoading}
+                disabled={saving || navigating || lookupsLoading}
               >
-                {saving ? "Guardando..." : "Guardar"}
+                {saving ? (navigating ? "Redirigiendo..." : "Guardando...") : "Guardar"}
               </button>
             </div>
           </div>
@@ -1352,7 +1585,6 @@ export default function OrderCreatePage() {
   const timeStartMax = "16:59";
   const timeMin = "07:00";
   const timeMax = "17:00";
-
   const showPrefillBanner = !!quoteAppliedKey;
 
   return (
@@ -1383,15 +1615,16 @@ export default function OrderCreatePage() {
                   <div className="relative">
                     <select
                       id="field-quote-select"
-                      value={selectedQuoteId === "" ? "" : String(selectedQuoteId)}
+                      value={selectedQuotesId === "" ? "" : String(selectedQuotesId)}
                       onChange={(e) => {
                         const v = e.target.value ? Number(e.target.value) : "";
-                        setSelectedQuoteId((Number.isFinite(v) && v > 0 ? v : "") as any);
+                        setSelectedQuotesId((Number.isFinite(v) && v > 0 ? v : "") as any);
                         setErrors((p) => ({ ...p, quote: undefined }));
+                        setTouched((t) => ({ ...t, quote: true }));
                       }}
-                      className={`${selectBase} ${errors.quote ? errorRing : ""}`}
-                      disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0}
-                      aria-invalid={!!errors.quote}
+                      className={`${selectBase} ${showFieldError("quote") ? errorRing : ""}`}
+                      disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0 || saving || navigating}
+                      aria-invalid={showFieldError("quote")}
                     >
                       <option value="">
                         {quotesLoading
@@ -1410,16 +1643,8 @@ export default function OrderCreatePage() {
                   </div>
                   {quotesError && <p className={errorText}>{quotesError}</p>}
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
-                  {quoteLoadingApply && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Aplicando cotización al formulario...
-                    </div>
-                  )}
-                  {showPrefillBanner && !quoteLoadingApply && (
-                    <div className="mt-2 text-xs text-emerald-700">
-                      Cotización aplicada al formulario.
-                    </div>
-                  )}
+                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando cotización al formulario...</div>}
+                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Cotización aplicada al formulario.</div>}
                 </div>
 
                 <div className="md:col-span-3 flex items-end gap-2">
@@ -1427,7 +1652,7 @@ export default function OrderCreatePage() {
                     type="button"
                     onClick={resetPrefill}
                     className="w-full h-10 rounded-md border bg-white text-sm hover:bg-gray-50 disabled:opacity-60"
-                    disabled={saving || lookupsLoading}
+                    disabled={saving || navigating || lookupsLoading}
                   >
                     Limpiar formulario
                   </button>
@@ -1435,7 +1660,7 @@ export default function OrderCreatePage() {
               </div>
             </section>
 
-            {hasErrors && (
+            {submitAttempted && hasErrors && (
               <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
                 <strong className="block mb-1">Hay errores en el formulario:</strong>
                 <ul className="list-disc pl-5 space-y-1">
@@ -1459,54 +1684,117 @@ export default function OrderCreatePage() {
                     <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "—"}</div>
                   </header>
 
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-12" id="field-clientId">
-                      <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
-                        Seleccionar cliente
-                      </label>
-                      <div className="relative flex-1">
-                        <select
-                          id="field-clientId-input"
-                          value={clientId === "" ? "" : String(clientId)}
-                          onChange={(e) => {
-                            const v = e.target.value ? Number(e.target.value) : "";
-                            setClientId(v as any);
-                            setErrors((prev) => ({ ...prev, clientId: undefined }));
-                          }}
-                          className={`${selectBase} ${errors.clientId ? errorRing : ""}`}
-                          aria-invalid={!!errors.clientId}
-                          disabled={lookupsLoading}
-                        >
-                          <option value="">{lookupsLoading ? "Cargando..." : "Elige un cliente"}</option>
-                          {customers.map((c) => (
-                            <option key={c.customerid} value={String(c.customerid)}>
-                              #{c.customerid} — {c.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className={chevron}>▾</span>
-                      </div>
-                      {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
+                  <div className="p-4 grid grid-cols-1 gap-3" id="field-clientId">
+                    <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("clientId") ? errorRing : ""}`}>
+                      {!selectedCustomer ? (
+                        <div className="text-xs text-gray-500">No has seleccionado cliente.</div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-xs font-semibold">
+                              {initials(selectedCustomer.label)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">{selectedCustomer.label}</div>
+                              <div className="text-xs text-gray-600 truncate">
+                                {`Cliente #${selectedCustomer.customerid}`}
+                                {selectedCustomer.phone || selectedCustomer.email ? ` · ${selectedCustomer.phone || selectedCustomer.email}` : ""}
+                                {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).length
+                                  ? ` · ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ")}`
+                                  : ""}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={clearCustomer}
+                            className="h-9 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                            aria-label="Quitar cliente"
+                            title="Quitar"
+                            disabled={lookupsLoading || saving || navigating}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    {selectedCustomer && (
-                      <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Cliente</div>
-                          <div className="mt-1">{selectedCustomer.label}</div>
+                    <div ref={customerBoxRef} className="relative">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-customer-search">
+                        Buscar y seleccionar cliente
+                      </label>
+                      <input
+                        id="field-customer-search"
+                        ref={customerInputRef}
+                        value={customerQuery}
+                        onChange={(e) => {
+                          setCustomerQuery(e.target.value);
+                          setCustomerOpen(true);
+                          if (errors.clientId) setErrors((p) => ({ ...p, clientId: undefined }));
+                        }}
+                        onFocus={() => setCustomerOpen(true)}
+                        onBlur={() => runBlurValidation("clientId")}
+                        onKeyDown={(e) => {
+                          if (!customerOpen) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setCustomerActiveIndex((i) => Math.min(i + 1, Math.max(0, customerOptions.length - 1)));
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setCustomerActiveIndex((i) => Math.max(i - 1, 0));
+                          } else if (e.key === "Enter") {
+                            if (customerOptions[customerActiveIndex]) {
+                              e.preventDefault();
+                              pickCustomer(customerOptions[customerActiveIndex].customerid);
+                            }
+                          } else if (e.key === "Escape") {
+                            setCustomerOpen(false);
+                          }
+                        }}
+                        placeholder="Nombre, apellido o ID..."
+                        className={`${inputBase} ${showFieldError("clientId") ? errorRing : ""}`}
+                        disabled={lookupsLoading || saving || navigating}
+                        aria-expanded={customerOpen}
+                        aria-controls="customer-suggest"
+                        aria-autocomplete="list"
+                      />
+
+                      {customerOpen && !lookupsLoading && !(saving || navigating) && (
+                        <div id="customer-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                          {customerOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                          ) : (
+                            <ul className="max-h-60 overflow-auto">
+                              {customerOptions.map((c, idx) => (
+                                <li key={c.customerid}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => pickCustomer(c.customerid)}
+                                    onMouseEnter={() => setCustomerActiveIndex(idx)}
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                      idx === customerActiveIndex ? "bg-gray-100" : "bg-white"
+                                    }`}
+                                  >
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                      {initials(c.label)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">{c.label}</span>
+                                      <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
+                                    </span>
+                                    <span className="text-xs text-gray-400">Seleccionar</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Contacto</div>
-                          <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Ubicación</div>
-                          <div className="mt-1">
-                            {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+
+                    {showFieldError("clientId") && errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                   </div>
                 </section>
 
@@ -1526,7 +1814,9 @@ export default function OrderCreatePage() {
                         type="date"
                         value={dateStart}
                         onChange={(e) => handleDateStartChange(e.target.value)}
-                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                        onBlur={() => runBlurValidation("schedule")}
+                        className={`${inputBase} ${showFieldError("schedule") ? errorRing : ""}`}
+                        disabled={saving || navigating}
                       />
                     </div>
 
@@ -1541,7 +1831,9 @@ export default function OrderCreatePage() {
                         max={timeStartMax}
                         value={timeStart}
                         onChange={(e) => handleTimeStartChange(e.target.value)}
-                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                        onBlur={() => runBlurValidation("schedule")}
+                        className={`${inputBase} ${showFieldError("schedule") ? errorRing : ""}`}
+                        disabled={saving || navigating}
                       />
                     </div>
 
@@ -1554,7 +1846,9 @@ export default function OrderCreatePage() {
                         type="date"
                         value={dateEnd}
                         onChange={(e) => handleDateEndChange(e.target.value)}
-                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                        onBlur={() => runBlurValidation("schedule")}
+                        className={`${inputBase} ${showFieldError("schedule") ? errorRing : ""}`}
+                        disabled={saving || navigating}
                       />
                     </div>
 
@@ -1569,11 +1863,13 @@ export default function OrderCreatePage() {
                         max={timeMax}
                         value={timeEnd}
                         onChange={(e) => handleTimeEndChange(e.target.value)}
-                        className={`${inputBase} ${errors.schedule ? errorRing : ""}`}
+                        onBlur={() => runBlurValidation("schedule")}
+                        className={`${inputBase} ${showFieldError("schedule") ? errorRing : ""}`}
+                        disabled={saving || navigating}
                       />
                     </div>
 
-                    {errors.schedule && (
+                    {showFieldError("schedule") && errors.schedule && (
                       <div className="md:col-span-12">
                         <p className={errorText}>{errors.schedule}</p>
                       </div>
@@ -1592,7 +1888,7 @@ export default function OrderCreatePage() {
                         type="button"
                         onClick={clearTechnicians}
                         className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
-                        disabled={lookupsLoading || selectedTechnicians.length === 0}
+                        disabled={lookupsLoading || selectedTechnicians.length === 0 || saving || navigating}
                       >
                         Limpiar
                       </button>
@@ -1600,7 +1896,7 @@ export default function OrderCreatePage() {
                   </header>
 
                   <div className="p-4 grid grid-cols-1 gap-3">
-                    <div className={`rounded-lg border bg-gray-50 p-3 ${errors.technicians ? errorRing : ""}`}>
+                    <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("technicians") ? errorRing : ""}`}>
                       {selectedTechniciansFull.length === 0 ? (
                         <div className="text-xs text-gray-500">No has seleccionado técnicos.</div>
                       ) : (
@@ -1622,7 +1918,7 @@ export default function OrderCreatePage() {
                                 className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                                 aria-label="Quitar técnico"
                                 title="Quitar"
-                                disabled={lookupsLoading}
+                                disabled={lookupsLoading || saving || navigating}
                               >
                                 ✕
                               </button>
@@ -1643,8 +1939,10 @@ export default function OrderCreatePage() {
                         onChange={(e) => {
                           setTechQuery(e.target.value);
                           setTechOpen(true);
+                          if (errors.technicians) setErrors((p) => ({ ...p, technicians: undefined }));
                         }}
                         onFocus={() => setTechOpen(true)}
+                        onBlur={() => runBlurValidation("technicians")}
                         onKeyDown={(e) => {
                           if (!techOpen) return;
                           if (e.key === "ArrowDown") {
@@ -1663,14 +1961,14 @@ export default function OrderCreatePage() {
                           }
                         }}
                         placeholder="Nombre, apellido o ID..."
-                        className={`${inputBase} ${errors.technicians ? errorRing : ""}`}
-                        disabled={lookupsLoading}
+                        className={`${inputBase} ${showFieldError("technicians") ? errorRing : ""}`}
+                        disabled={lookupsLoading || saving || navigating}
                         aria-expanded={techOpen}
                         aria-controls="tech-suggest"
                         aria-autocomplete="list"
                       />
 
-                      {techOpen && !lookupsLoading && (
+                      {techOpen && !lookupsLoading && !(saving || navigating) && (
                         <div id="tech-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                           {techOptions.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
@@ -1706,11 +2004,20 @@ export default function OrderCreatePage() {
                       )}
                     </div>
 
-                    {errors.technicians && <p className={errorText}>{errors.technicians}</p>}
+                    {showFieldError("technicians") && errors.technicians && <p className={errorText}>{errors.technicians}</p>}
                   </div>
                 </section>
 
-                <section className="rounded-xl border bg-white shadow-sm" id="field-tipo">
+                <section
+                  className="rounded-xl border bg-white shadow-sm"
+                  id="field-tipo"
+                  onBlurCapture={(e) => {
+                    const next = e.relatedTarget as Node | null;
+                    if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+                    runBlurValidation("tipo");
+                    runBlurValidation("servicios");
+                  }}
+                >
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
                     <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
@@ -1721,7 +2028,7 @@ export default function OrderCreatePage() {
                       <span className="block text-xs text-gray-700 mb-2">Tipo de servicio</span>
                       <div
                         className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${
-                          errors.tipo ? "rounded-lg p-3 border " + errorRing : ""
+                          showFieldError("tipo") ? "rounded-lg p-3 border " + errorRing : ""
                         }`}
                       >
                         {serviceTypes.length === 0 ? (
@@ -1744,125 +2051,115 @@ export default function OrderCreatePage() {
                                   setTipoId(Number.isFinite(v) ? v : null);
                                   setErrors((prev) => ({ ...prev, tipo: undefined }));
                                 }}
+                                onBlur={() => runBlurValidation("tipo")}
                                 className="h-4 w-4"
+                                disabled={saving || navigating || lookupsLoading}
                               />
                               <span className="text-sm font-medium text-gray-900">{t.label}</span>
                             </label>
                           ))
                         )}
                       </div>
-                      {errors.tipo && <p className={errorText}>{errors.tipo}</p>}
+                      {showFieldError("tipo") && errors.tipo && <p className={errorText}>{errors.tipo}</p>}
                     </div>
 
                     <div className="md:col-span-12" id="field-servicios">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div>
                           <div className="text-xs text-gray-700">Servicios</div>
-                          <div className="text-xs text-gray-500">Agrega los servicios a realizar.</div>
+                          <div className="text-xs text-gray-500">Agrega los servicios a realizar. La cantidad es 1 fija.</div>
                         </div>
                         <button
                           type="button"
                           onClick={addServiceRow}
                           className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
-                          disabled={!tipoId || lookupsLoading || servicesForTipo.length === 0}
+                          disabled={!tipoId || lookupsLoading || saving || navigating || serviceOptionsForRow(tipoId, "").length === 0}
                         >
                           Añadir servicio
                         </button>
                       </div>
 
-                      <div className={`rounded-lg border overflow-hidden bg-white ${errors.servicios ? errorRing : ""}`}>
+                      <div className={`rounded-lg border overflow-hidden bg-white ${showFieldError("servicios") ? errorRing : ""}`}>
                         <table className="w-full text-xs md:text-sm">
                           <thead className="bg-gray-50">
                             <tr className="text-gray-700">
                               <th className="px-3 py-2 text-left">Servicio</th>
-                              <th className="px-3 py-2 text-right w-20">Cant.</th>
                               <th className="px-3 py-2 text-right w-32">Precio</th>
-                              <th className="px-3 py-2 text-right w-32">Importe</th>
                               <th className="px-3 py-2 w-10"></th>
                             </tr>
                           </thead>
                           <tbody>
-                            {servicios.map((it) => (
-                              <tr key={it.id} className="border-t">
-                                <td className="px-3 py-2">
-                                  <select
-                                    value={it.nombre}
-                                    onChange={(e) => {
-                                      const n = e.target.value;
-                                      patchItem(it.id, { nombre: n }, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="w-full h-9 rounded-md border px-2"
-                                    disabled={!tipoId || servicesForTipo.length === 0 || lookupsLoading}
-                                  >
-                                    {servicesForTipo.map((opt) => (
-                                      <option key={`${it.id}-${opt.serviceid}`} value={opt.name}>
-                                        {opt.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
+                            {servicios.map((it) => {
+                              const opts = serviceOptionsForRow(it.tipoId, it.nombre);
+                              const hasCurrent = it.nombre && getServicesForTipo(it.tipoId).some((o) => o.name === it.nombre);
+                              const safeOpts = hasCurrent ? [{ serviceid: -1, name: it.nombre, typeofserviceid: it.tipoId } as any, ...opts] : opts;
 
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={it.cantidad}
-                                    onChange={(e) => {
-                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-20 rounded-md border px-2 text-right"
-                                    disabled={lookupsLoading}
-                                  />
-                                </td>
+                              return (
+                                <tr key={it.id} className="border-t">
+                                  <td className="px-3 py-2">
+                                    <select
+                                      value={it.nombre}
+                                      onChange={(e) => {
+                                        const n = e.target.value;
+                                        patchItem<ServiceLineItem>(it.id, { nombre: n }, setServicios);
+                                        if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      onBlur={() => runBlurValidation("servicios")}
+                                      className="w-full h-9 rounded-md border px-2"
+                                      disabled={lookupsLoading || saving || navigating || safeOpts.length === 0}
+                                    >
+                                      {safeOpts.map((opt: any, idx: number) => (
+                                        <option key={`${it.id}-${opt.serviceid}-${idx}`} value={opt.name}>
+                                          {opt.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
 
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={1000}
-                                    value={it.precio}
-                                    onChange={(e) => {
-                                      const n = Number(e.target.value || 0);
-                                      patchItem(it.id, { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 }, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-32 rounded-md border px-2 text-right"
-                                    disabled={lookupsLoading}
-                                  />
-                                </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1000}
+                                      value={it.precio}
+                                      onChange={(e) => {
+                                        const n = Number(e.target.value || 0);
+                                        patchItem<ServiceLineItem>(
+                                          it.id,
+                                          { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
+                                          setServicios
+                                        );
+                                        if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      onBlur={() => runBlurValidation("servicios")}
+                                      className="h-9 w-32 rounded-md border px-2 text-right"
+                                      disabled={lookupsLoading || saving || navigating}
+                                    />
+                                  </td>
 
-                                <td className="px-3 py-2 text-right font-medium">
-                                  {formatCOP((Number(it.cantidad) || 0) * (Number(it.precio) || 0))}
-                                </td>
-
-                                <td className="px-3 py-2 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      removeItem(it.id, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                    disabled={lookupsLoading}
-                                    aria-label="Quitar servicio"
-                                    title="Quitar"
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                                  <td className="px-3 py-2 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        removeItem<ServiceLineItem>(it.id, setServicios);
+                                        setErrors((p) => ({ ...p, servicios: undefined }));
+                                      }}
+                                      className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                      disabled={lookupsLoading || saving || navigating}
+                                      aria-label="Quitar servicio"
+                                      title="Quitar"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
 
                             {servicios.length === 0 && (
                               <tr>
-                                <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
-                                  {tipoId
-                                    ? servicesForTipo.length
-                                      ? "Aún no has añadido servicios."
-                                      : "No hay servicios para este tipo."
-                                    : "Selecciona primero el tipo de servicio."}
+                                <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
+                                  {tipoId ? "Aún no has añadido servicios." : "Selecciona primero el tipo de servicio."}
                                 </td>
                               </tr>
                             )}
@@ -1870,7 +2167,7 @@ export default function OrderCreatePage() {
                         </table>
                       </div>
 
-                      {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
+                      {showFieldError("servicios") && errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
 
                     <div className="md:col-span-12">
@@ -1884,6 +2181,7 @@ export default function OrderCreatePage() {
                         rows={3}
                         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
                         placeholder="Describe el servicio, alcance, observaciones, etc."
+                        disabled={saving || navigating}
                       />
                     </div>
 
@@ -1895,7 +2193,7 @@ export default function OrderCreatePage() {
                           onClick={() => fileRef.current?.click()}
                           className="h-8 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
                           title="Subir imágenes"
-                          disabled={lookupsLoading}
+                          disabled={lookupsLoading || saving || navigating}
                         >
                           Subir imágenes
                         </button>
@@ -1917,7 +2215,7 @@ export default function OrderCreatePage() {
                                 className="absolute top-1 right-1 bg-white/90 hover:bg-white text-xs rounded-full px-1"
                                 aria-label="Quitar imagen"
                                 title="Quitar"
-                                disabled={lookupsLoading}
+                                disabled={lookupsLoading || saving || navigating}
                               >
                                 ✕
                               </button>
@@ -1931,22 +2229,30 @@ export default function OrderCreatePage() {
               </div>
 
               <aside className="space-y-6">
-                <section className="rounded-xl border bg-white shadow-sm" id="field-materiales">
+                <section
+                  className="rounded-xl border bg-white shadow-sm"
+                  id="field-materiales"
+                  onBlurCapture={(e) => {
+                    const next = e.relatedTarget as Node | null;
+                    if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+                    runBlurValidation("materiales");
+                  }}
+                >
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
-                      <div className="text-xs text-gray-500">Agrega los materiales consumidos.</div>
+                      <div className="text-xs text-gray-500">Agrega los materiales consumidos. Puedes ajustar la cantidad.</div>
                     </div>
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
 
                   <div className="p-4">
-                    <div className={`rounded-lg border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
+                    <div className={`rounded-lg border overflow-hidden bg-white ${showFieldError("materiales") ? errorRing : ""}`}>
                       <table className="w-full text-xs md:text-sm">
                         <thead className="bg-gray-50">
                           <tr className="text-gray-700">
                             <th className="px-3 py-2 text-left">Producto</th>
-                            <th className="px-3 py-2 text-right w-20">Cant.</th>
+                            <th className="px-3 py-2 text-center w-24">Cantidad</th>
                             <th className="px-3 py-2 text-right w-32">Precio</th>
                             <th className="px-3 py-2 w-10"></th>
                           </tr>
@@ -1959,13 +2265,18 @@ export default function OrderCreatePage() {
                                   value={m.nombre}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    patchItem<MaterialLineItem>(
+                                      m.id,
+                                      { nombre: n, precio: precioMaterialPorNombre(n) },
+                                      setMateriales
+                                    );
+                                    if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
+                                  onBlur={() => runBlurValidation("materiales")}
                                   className="w-full h-9 rounded-md border px-2"
-                                  disabled={!productsCatalog.length || lookupsLoading}
+                                  disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
                                 >
-                                  {productsCatalog.map((opt) => (
+                                  {materialOptionsForRow(m.nombre).map((opt) => (
                                     <option key={opt.productid} value={opt.productname}>
                                       {opt.productname}
                                     </option>
@@ -1973,17 +2284,24 @@ export default function OrderCreatePage() {
                                 </select>
                               </td>
 
-                              <td className="px-3 py-2 text-right">
+                              <td className="px-3 py-2 text-center">
                                 <input
                                   type="number"
                                   min={1}
+                                  step={1}
                                   value={m.cantidad}
                                   onChange={(e) => {
-                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    const n = Number(e.target.value || 1);
+                                    patchItem<MaterialLineItem>(
+                                      m.id,
+                                      { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
+                                      setMateriales
+                                    );
+                                    if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  className="h-9 w-20 rounded-md border px-2 text-right"
-                                  disabled={lookupsLoading}
+                                  onBlur={() => runBlurValidation("materiales")}
+                                  className="h-9 w-20 rounded-md border px-2 text-center"
+                                  disabled={lookupsLoading || saving || navigating}
                                 />
                               </td>
 
@@ -1993,11 +2311,11 @@ export default function OrderCreatePage() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    removeItem(m.id, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    removeItem<MaterialLineItem>(m.id, setMateriales);
+                                    setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
                                   className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                  disabled={lookupsLoading}
+                                  disabled={lookupsLoading || saving || navigating}
                                   aria-label="Quitar producto"
                                   title="Quitar"
                                 >
@@ -2018,14 +2336,15 @@ export default function OrderCreatePage() {
                       </table>
                     </div>
 
-                    {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
+                    {showFieldError("materiales") && errors.materiales && <p className={errorText}>{errors.materiales}</p>}
 
                     <div className="mt-3">
                       <button
                         type="button"
                         onClick={addMaterialRow}
                         className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
-                        disabled={!productsCatalog.length || lookupsLoading}
+                        disabled={!availableProducts.length || lookupsLoading || saving || navigating}
+                        title={!availableProducts.length ? "Ya agregaste todos los productos disponibles." : undefined}
                       >
                         Añadir producto
                       </button>
@@ -2052,14 +2371,15 @@ export default function OrderCreatePage() {
                       value={viaticosInput}
                       onChange={(e) => {
                         setViaticosInput(e.target.value);
-                        setErrors((prev) => ({ ...prev, viaticos: undefined }));
+                        if (errors.viaticos) setErrors((p) => ({ ...p, viaticos: undefined }));
                       }}
-                      className={`${inputBase} text-right ${errors.viaticos ? errorRing : ""}`}
-                      disabled={lookupsLoading || saving}
-                      aria-invalid={!!errors.viaticos}
+                      onBlur={() => runBlurValidation("viaticos")}
+                      className={`${inputBase} text-right ${showFieldError("viaticos") ? errorRing : ""}`}
+                      disabled={lookupsLoading || saving || navigating}
+                      aria-invalid={showFieldError("viaticos")}
                       placeholder="0"
                     />
-                    {errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
+                    {showFieldError("viaticos") && errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
                     <div className="pt-3 border-t text-sm flex justify-between">
                       <span className="text-gray-600">Total viáticos</span>
                       <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>

@@ -9,7 +9,6 @@ import { useDocumentTypes } from "@/features/dashboard/Users/hooks/useDocumentTy
 import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
 import { useRouter } from "next/navigation";
 
-
 type FormState = {
   name: string;
   lastname: string;
@@ -47,7 +46,7 @@ const emptyTouched: FormTouched = {
 };
 
 const sanitize = (v: unknown) => String(v ?? "").trim();
-const lower = (v: unknown) => sanitize(v).toLowerCase();
+
 const hasSpecialChars = (value: string) =>
   /[@,.;:_{}\[\}^\]`+*~¡¿?\\'=)(/&%$#"|<>]/.test(value);
 
@@ -79,7 +78,6 @@ function validateField(field: keyof FormState, value: string, form: FormState): 
 
     case "documentnumber": {
       if (!v) return "El número de documento es obligatorio";
-
       if (!typeIdNum) return "Seleccione el tipo de documento antes de digitar el número";
 
       if (isNit) {
@@ -191,18 +189,36 @@ export default function RegisterPage() {
   );
 
   const setField = (name: keyof FormState, value: string) => {
-    const nextForm = { ...form, [name]: value };
+    let nextForm: FormState = { ...form, [name]: value };
+
+    if (name === "typeid") {
+      const typeIdNum = Number(value || 0);
+      const isNit = typeIdNum === 4;
+      if (isNit) {
+        nextForm = { ...nextForm, lastname: "" };
+      }
+    }
+
     setForm(nextForm);
 
-    if (touched[name]) {
-      const nextError = validateField(name, value, nextForm);
-      setErrors((prev) => ({ ...prev, [name]: nextError }));
+    const nextTouched: FormTouched = { ...touched, [name]: true };
+    if (name === "typeid") nextTouched.documentnumber = true;
+    setTouched(nextTouched);
+
+    const nextErrors: FormErrors = {
+      ...errors,
+      [name]: validateField(name, nextForm[name], nextForm),
+    };
+
+    if (name === "typeid") {
+      nextErrors.documentnumber = validateField("documentnumber", nextForm.documentnumber, nextForm);
+      nextErrors.lastname = validateField("lastname", nextForm.lastname, nextForm);
+      nextErrors.name = validateField("name", nextForm.name, nextForm);
+      nextErrors.phone = validateField("phone", nextForm.phone, nextForm);
+      nextErrors.email = validateField("email", nextForm.email, nextForm);
     }
 
-    if (name === "typeid" && touched.documentnumber) {
-      const docErr = validateField("documentnumber", nextForm.documentnumber, nextForm);
-      setErrors((prev) => ({ ...prev, documentnumber: docErr }));
-    }
+    setErrors(nextErrors);
   };
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -253,10 +269,8 @@ export default function RegisterPage() {
       documentnumber: sanitize(form.documentnumber),
       phone: sanitize(form.phone),
       email: sanitize(form.email),
-
       roleid: clientRole.roleid,
       stateid: 1,
-
       customercity: sanitize(form.city),
       customerzipcode: sanitize(form.zipcode),
     };
@@ -267,7 +281,7 @@ export default function RegisterPage() {
 
     if (res.ok) {
       showSuccess("Cuenta creada correctamente, revise su correo");
-      router.replace("/auth/login");
+      router.push("/auth/login");
     } else {
       showError(res.message || "Error al registrar");
     }
@@ -275,12 +289,17 @@ export default function RegisterPage() {
 
   const inputClass = (name: keyof FormState) => {
     const base = "w-full h-11 mt-1 px-3 rounded-lg border bg-white outline-none";
-    const err = touched[name] && errors[name] ? " border-red-600 focus:border-red-600" : " border-gray-300 focus:border-gray-400";
+    const err =
+      touched[name] && errors[name]
+        ? " border-red-600 focus:border-red-600"
+        : " border-gray-300 focus:border-gray-400";
     return base + err;
   };
 
   const errorText = (name: keyof FormState) =>
     touched[name] && errors[name] ? <p className="mt-1 text-xs text-red-700">{errors[name]}</p> : null;
+
+  const isNit = Number(form.typeid || 0) === 4;
 
   return (
     <div className="min-h-screen w-full bg-[#f6f3f3] flex flex-col overflow-hidden">
@@ -291,15 +310,19 @@ export default function RegisterPage() {
           <h2 className="text-3xl font-black mb-2">Crear cuenta</h2>
           <p className="text-gray-600 mb-6">Regístrate para continuar.</p>
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+          <form
+            noValidate
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5"
+          >
             <div>
-              <label className="text-sm font-semibold">Nombre</label>
+              <label className="text-sm font-semibold">{isNit ? "Nombre de empresa" : "Nombre"}</label>
               <input
                 name="name"
                 value={form.name}
                 onChange={onChange}
                 onBlur={onBlur}
-                placeholder="Tu nombre"
+                placeholder={isNit ? "Nombre de la empresa" : "Tu nombre"}
                 className={inputClass("name")}
                 aria-invalid={!!(touched.name && errors.name)}
                 autoComplete="given-name"
@@ -318,6 +341,7 @@ export default function RegisterPage() {
                 className={inputClass("lastname")}
                 aria-invalid={!!(touched.lastname && errors.lastname)}
                 autoComplete="family-name"
+                disabled={isNit}
               />
               {errorText("lastname")}
             </div>
@@ -408,7 +432,8 @@ export default function RegisterPage() {
             <div>
               <label className="text-sm font-semibold">Email</label>
               <input
-                type="email"
+                type="text"
+                inputMode="email"
                 name="email"
                 value={form.email}
                 onChange={onChange}

@@ -7,9 +7,22 @@ import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
 import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
-import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
+import type { UpdateOrdersServiceDto } from "../types/ordersServices.types";
 
-type LineItem = { id: string; nombre: string; cantidad: number; precio: number };
+type ServiceLineItem = {
+  id: string;
+  tipoId: number;
+  nombre: string;
+  cantidad: number;
+  precio: number;
+};
+
+type MaterialLineItem = {
+  id: string;
+  nombre: string;
+  cantidad: number;
+  precio: number;
+};
 
 type CustomerOption = {
   customerid: number;
@@ -185,12 +198,12 @@ function isAllowedTime(hm: string) {
   return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
 }
 
-function asNumber(v: any) {
+function asNumber(v: unknown) {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 }
 
-function pickNumber(...vals: any[]) {
+function pickNumber(...vals: unknown[]) {
   for (const v of vals) {
     const n = asNumber(v);
     if (n != null) return n;
@@ -198,34 +211,12 @@ function pickNumber(...vals: any[]) {
   return undefined;
 }
 
-function pickString(...vals: any[]) {
+function pickString(...vals: unknown[]) {
   for (const v of vals) {
     const s = typeof v === "string" ? v : v == null ? "" : String(v);
     const t = s.trim();
     if (t) return t;
   }
-  return "";
-}
-
-function toNumArray(v: any): number[] {
-  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
-  if (typeof v === "string") {
-    return v
-      .split(",")
-      .map((x) => Number(x.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0);
-  }
-  return [];
-}
-
-function extractFreeTextFromDescription(desc: string) {
-  const s = String(desc || "").trim();
-  if (!s) return "";
-  const hasStructured =
-    /\bTipo:\s*/i.test(s) || /\bServicios:\s*/i.test(s) || /\bProductos:\s*/i.test(s) || /\bDescripción:\s*/i.test(s);
-  if (!hasStructured) return s;
-  const m = s.match(/Descripción:\s*([\s\S]*)$/i);
-  if (m && m[1]) return String(m[1]).trim();
   return "";
 }
 
@@ -258,24 +249,26 @@ type OrderNormalized = {
   technicians?: number[];
   description?: string;
   services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-  products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
+  products?: Array<{ productid: number; cantidad: number }>;
   files?: string[];
   stateid?: number;
 };
 
 function normalizeOrder(order: any): OrderNormalized {
   const root = order || {};
+
   const clientid = pickNumber(
     root?.client?.customerid,
     root?.client?.customer_id,
     root?.clientid,
     root?.customerid
   );
+
   const fechainicio = pickString(root?.fechainicio);
   const fechafin = pickString(root?.fechafin);
   const horainicio = pickString(root?.horainicio);
   const horafin = pickString(root?.horafin);
-  const viaticos = pickNumber(root?.viaticos, root?.viaticos) ?? 0;
+  const viaticos = pickNumber(root?.viaticos) ?? 0;
   const description = pickString(root?.description);
   const files = Array.isArray(root?.files) ? root.files.map((x: any) => String(x || "")).filter(Boolean) : [];
   const stateid = pickNumber(root?.state?.stateid, root?.stateid);
@@ -288,7 +281,7 @@ function normalizeOrder(order: any): OrderNormalized {
     .map((s: any) => {
       const serviceid = pickNumber(s?.service?.serviceid, s?.serviceid, s?.id);
       const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
-      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.subtotal) ?? 0;
+      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice) ?? 0;
       if (!serviceid) return null;
       return {
         serviceid,
@@ -302,19 +295,14 @@ function normalizeOrder(order: any): OrderNormalized {
     .map((p: any) => {
       const productid = pickNumber(p?.product?.productid, p?.productid, p?.id);
       const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
-      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.subtotal);
       if (!productid) return null;
-      return {
-        productid,
-        cantidad: Math.max(1, Math.round(cantidad)),
-        unitprice: unitprice == null ? undefined : Math.max(0, Math.round(unitprice)),
-      };
+      return { productid, cantidad: Math.max(1, Math.round(cantidad)) };
     })
-    .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
+    .filter(Boolean) as Array<{ productid: number; cantidad: number }>;
 
   const technicians = techniciansArr
     .map((t: any) => pickNumber(t?.technicianid, t?.id))
-    .filter((id) => Number.isFinite(id) && id > 0) as number[];
+    .filter((id): id is number => typeof id === "number" && Number.isFinite(id) && id > 0);
 
   const typeofserviceid =
     pickNumber(
@@ -350,6 +338,7 @@ export default function OrderEditPage() {
     searchParams.get("ordersservicesid") ||
     searchParams.get("orderId") ||
     searchParams.get("orderid");
+
   const orderId = useMemo(() => {
     const n = Number(idParam);
     return Number.isFinite(n) && n > 0 ? n : null;
@@ -470,17 +459,69 @@ export default function OrderEditPage() {
     };
   }, [orderId]);
 
+  // -------- Cliente (tipo técnico: buscador + dropdown, 1 solo) --------
   const [clientId, setClientId] = useState<number | "">("");
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.customerid === clientId),
     [customers, clientId]
   );
 
+  const [clientQuery, setClientQuery] = useState("");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientActiveIndex, setClientActiveIndex] = useState(0);
+  const clientBoxRef = useRef<HTMLDivElement>(null);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!clientOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!clientBoxRef.current) return;
+      if (!clientBoxRef.current.contains(t)) setClientOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [clientOpen]);
+
+  const clientOptions = useMemo(() => {
+    const q = normalizeText(clientQuery);
+    const list = customers;
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((c) => {
+        const label = normalizeText(c.label);
+        const idStr = String(c.customerid);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { c, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.c.label.localeCompare(b.c.label));
+    return scored.slice(0, 10).map((x) => x.c);
+  }, [customers, clientQuery]);
+
+  useEffect(() => {
+    setClientActiveIndex(0);
+  }, [clientQuery, clientOpen]);
+
+  function pickClient(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setClientId(id as any);
+    setErrors((p) => ({ ...p, clientId: undefined }));
+    setClientQuery("");
+    setClientOpen(false);
+  }
+
+  function clearClient() {
+    setClientId("");
+    setClientQuery("");
+    setErrors((p) => ({ ...p, clientId: "Selecciona un cliente." }));
+    clientInputRef.current?.focus();
+  }
+
   const [tipoId, setTipoId] = useState<number | null>(null);
-  const tipoSeleccionado = useMemo(
-    () => serviceTypes.find((t) => t.typeofserviceid === tipoId) || null,
-    [serviceTypes, tipoId]
-  );
 
   const [descripcion, setDescripcion] = useState("");
 
@@ -522,8 +563,8 @@ export default function OrderEditPage() {
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
 
-  const [servicios, setServicios] = useState<LineItem[]>([]);
-  const [materiales, setMateriales] = useState<LineItem[]>([]);
+  const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
+  const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -566,17 +607,6 @@ export default function OrderEditPage() {
     showError(lookupsError);
   }, [lookupsError]);
 
-  const skipClearOnTipoChangeRef = useRef(false);
-
-  useEffect(() => {
-    if (skipClearOnTipoChangeRef.current) {
-      skipClearOnTipoChangeRef.current = false;
-      return;
-    }
-    setServicios([]);
-    setErrors((prev) => ({ ...prev, tipo: undefined, servicios: undefined }));
-  }, [tipoId]);
-
   useEffect(() => {
     if (!techOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -588,14 +618,38 @@ export default function OrderEditPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [techOpen]);
 
-  const servicesForTipo = useMemo(() => {
-    if (!tipoId) return [];
-    const list = servicesCatalog.filter((s) => s.typeofserviceid === tipoId);
-    const active = list.filter(
-      (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
-    );
-    return active.length ? active : list;
-  }, [servicesCatalog, tipoId]);
+  // -------- Servicios disponibles por tipo (excluye los ya agregados para ese tipo) --------
+  const getServicesForTipo = useMemo(() => {
+    return (tid: number, keepName?: string) => {
+      if (!tid) return [];
+      const list = servicesCatalog.filter((s) => s.typeofserviceid === tid);
+      const active = list.filter(
+        (s) => (s.stateid == null ? true : s.stateid === 1) || String(s.statename || "").toLowerCase() === "activo"
+      );
+      const base = active.length ? active : list;
+
+      const used = new Set(
+        servicios
+          .filter((x) => x.tipoId === tid)
+          .map((x) => x.nombre)
+          .filter(Boolean)
+      );
+
+      if (keepName) used.delete(keepName);
+
+      return base.filter((s) => !used.has(s.name));
+    };
+  }, [servicesCatalog, servicios]);
+
+  const servicesForSelectedTipo = useMemo(() => {
+    return tipoId ? getServicesForTipo(tipoId) : [];
+  }, [tipoId, getServicesForTipo]);
+
+  const tipoLabelById = useMemo(() => {
+    const m = new Map<number, string>();
+    serviceTypes.forEach((t) => m.set(t.typeofserviceid, t.label || t.name || `Tipo #${t.typeofserviceid}`));
+    return m;
+  }, [serviceTypes]);
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
@@ -644,11 +698,29 @@ export default function OrderEditPage() {
   }
 
   function addServiceRow() {
-    if (!tipoId) return;
-    const first = servicesForTipo[0];
-    if (!first) return;
-    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, cantidad: 1, precio: 0 }]);
+    if (!tipoId) {
+      setErrors((p) => ({ ...p, tipo: "Selecciona el tipo de servicio para añadir un servicio." }));
+      showWarning("Selecciona un tipo de servicio para añadir un servicio.");
+      return;
+    }
+    const options = getServicesForTipo(tipoId);
+    const first = options[0];
+    if (!first) {
+      setErrors((p) => ({ ...p, servicios: "No hay servicios disponibles para este tipo (ya fueron agregados o no existen)." }));
+      showWarning("No hay servicios disponibles para este tipo.");
+      return;
+    }
+    setServicios((prev) => [...prev, { id: uid(), tipoId, nombre: first.name, cantidad: 1, precio: 0 }]);
     setErrors((prev) => ({ ...prev, servicios: undefined }));
+  }
+
+  // -------- Productos disponibles (excluye los ya agregados) --------
+  const usedProductNames = useMemo(() => new Set(materiales.map((m) => m.nombre).filter(Boolean)), [materiales]);
+
+  function availableProducts(keepName?: string) {
+    const used = new Set(Array.from(usedProductNames));
+    if (keepName) used.delete(keepName);
+    return productsCatalog.filter((p) => !used.has(p.productname));
   }
 
   function precioMaterialPorNombre(nombre: string) {
@@ -656,8 +728,13 @@ export default function OrderEditPage() {
   }
 
   function addMaterialRow() {
-    const first = productsCatalog[0];
-    if (!first) return;
+    const opts = availableProducts();
+    const first = opts[0];
+    if (!first) {
+      setErrors((p) => ({ ...p, materiales: "No hay productos disponibles (ya fueron agregados o no existen)." }));
+      showWarning("No hay productos disponibles para agregar.");
+      return;
+    }
     setMateriales((prev) => [
       ...prev,
       { id: uid(), nombre: first.productname, cantidad: 1, precio: first.productpriceofsale },
@@ -665,11 +742,15 @@ export default function OrderEditPage() {
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
 
-  function patchItem(id: string, patch: Partial<LineItem>, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
-    setList((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  function patchItem<T extends { id: string }>(
+    id: string,
+    patch: Partial<T>,
+    setList: React.Dispatch<React.SetStateAction<T[]>>
+  ) {
+    setList((prev) => prev.map((x) => (x.id === id ? ({ ...x, ...patch } as T) : x)));
   }
 
-  function removeItem(id: string, setList: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+  function removeItem<T extends { id: string }>(id: string, setList: React.Dispatch<React.SetStateAction<T[]>>) {
     setList((prev) => prev.filter((x) => x.id !== id));
   }
 
@@ -725,10 +806,12 @@ export default function OrderEditPage() {
     () => servicios.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
     [servicios]
   );
+
   const subtotalMateriales = useMemo(
     () => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
     [materiales]
   );
+
   const subtotal = subtotalServicios + subtotalMateriales;
 
   const baseGravable = useMemo(() => {
@@ -740,16 +823,17 @@ export default function OrderEditPage() {
   const totalPagar = useMemo(() => Math.max(0, Math.round(baseGravable + impuestos)), [baseGravable, impuestos]);
 
   const serviciosMiniLista = useMemo(() => {
-    const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
+    const map = new Map<string, { nombre: string; cantidad: number; total: number; tipoId: number }>();
     servicios.forEach((s) => {
       if (!s.nombre) return;
       const t = (Number(s.cantidad) || 0) * (Number(s.precio) || 0);
-      const prev = map.get(s.nombre);
+      const key = `${s.tipoId}::${s.nombre}`;
+      const prev = map.get(key);
       if (prev) {
         prev.cantidad += Number(s.cantidad) || 0;
         prev.total += t;
       } else {
-        map.set(s.nombre, { nombre: s.nombre, cantidad: Number(s.cantidad) || 0, total: t });
+        map.set(key, { nombre: s.nombre, cantidad: Number(s.cantidad) || 0, total: t, tipoId: s.tipoId });
       }
     });
     return Array.from(map.values());
@@ -775,7 +859,6 @@ export default function OrderEditPage() {
     const errs: Errors = {};
 
     if (!clientId) errs.clientId = "Selecciona un cliente.";
-    if (!tipoId) errs.tipo = "Selecciona el tipo de servicio.";
 
     if (!dateStart || !timeStart || !dateEnd || !timeEnd) {
       errs.schedule = "Completa fecha y hora de inicio y fin.";
@@ -806,32 +889,32 @@ export default function OrderEditPage() {
     if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
     if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
 
-    if (!tipoId) {
-      errs.servicios = "Selecciona el tipo de servicio.";
-    } else {
-      if (servicesForTipo.length === 0) errs.servicios = "No hay servicios disponibles para este tipo.";
-      if (servicios.length === 0)
-        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Debes añadir al menos un servicio.";
-      const invalidSvc =
-        servicios.length > 0 &&
-        servicios.some((s) => !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === tipoId));
-      if (invalidSvc)
-        errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Hay servicios inválidos. Vuelve a seleccionarlos.";
+    if (servicios.length === 0) {
+      errs.servicios = "Debes añadir al menos un servicio.";
+      if (!tipoId) errs.tipo = "Selecciona el tipo de servicio para añadir servicios.";
     }
 
-    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
-    if (materiales.length === 0)
-      errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
-    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-      errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
-    }
+    const invalidSvc =
+      servicios.length > 0 &&
+      servicios.some((s) => {
+        if (!s.tipoId || !Number.isFinite(s.tipoId)) return true;
+        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
+      });
+
+    if (invalidSvc)
+      errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Hay servicios inválidos. Vuelve a seleccionarlos.";
 
     const badQtySvc = servicios.some((s) => !s.cantidad || s.cantidad < 1);
     const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-    const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
-
     if (badQtySvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige cantidades de servicios.";
     if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
+
+    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
+    if (materiales.length === 0) errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
+    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
+      errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
+    }
+    const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
     if (badQtyMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades de materiales.";
 
     return errs;
@@ -877,9 +960,7 @@ export default function OrderEditPage() {
     const n = orderNormalized;
 
     let nextClient: number | "" = "";
-    if (n.clientid && customers.some((c) => c.customerid === n.clientid)) {
-      nextClient = n.clientid;
-    }
+    if (n.clientid && customers.some((c) => c.customerid === n.clientid)) nextClient = n.clientid;
     setClientId(nextClient as any);
 
     const inferredTypeFromServices =
@@ -888,13 +969,7 @@ export default function OrderEditPage() {
         : null;
 
     const candidateType = n.typeofserviceid ?? inferredTypeFromServices;
-
-    const typeId =
-      candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType)
-        ? candidateType
-        : null;
-
-    skipClearOnTipoChangeRef.current = true;
+    const typeId = candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType) ? candidateType : null;
     setTipoId(typeId);
 
     const techIds = (n.technicians || []).filter((id) => technicians.some((t) => t.technicianid === id));
@@ -923,52 +998,57 @@ export default function OrderEditPage() {
     setDateEnd(de);
     setTimeEnd(baseTe);
 
-    const freeText = extractFreeTextFromDescription(n.description || "");
-    setDescripcion(freeText);
+    // Importante: NO extraer ni reconstruir. Se deja tal cual viene (texto libre del usuario).
+    setDescripcion(n.description || "");
 
-    const svcItems: LineItem[] = [];
+    const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(n.services) && n.services.length) {
       for (const s of n.services) {
         const rec = servicesCatalog.find((x) => x.serviceid === s.serviceid) || null;
         const nombre = rec?.name || `Servicio #${s.serviceid}`;
         const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
         const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
-        svcItems.push({ id: uid(), nombre, cantidad, precio });
+        const rowTipoId = rec?.typeofserviceid ?? (typeId || 0);
+        svcItems.push({ id: uid(), tipoId: rowTipoId, nombre, cantidad, precio });
       }
     }
     setServicios(svcItems);
 
-    const matItems: LineItem[] = [];
+    const matItems: MaterialLineItem[] = [];
     if (Array.isArray(n.products) && n.products.length) {
       for (const p of n.products) {
         const rec = productsCatalog.find((x) => x.productid === p.productid) || null;
         const nombre = rec?.productname || `Producto #${p.productid}`;
         const cantidad = Math.max(1, Math.round(Number(p.cantidad || 1)));
-        const precio =
-          p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec?.productpriceofsale ?? 0;
+        const precio = rec?.productpriceofsale ?? 0;
         matItems.push({ id: uid(), nombre, cantidad, precio });
       }
     }
     setMateriales(matItems);
 
-    const urls = Array.isArray(n.files)
-      ? n.files
-          .map((u) => String(u || "").trim())
-          .filter((u) => !!u)
-      : [];
+    const urls = Array.isArray(n.files) ? n.files.map((u) => String(u || "").trim()).filter((u) => !!u) : [];
     setExistingFiles(urls);
 
     setErrors({});
     appliedOrderRef.current = true;
-  }, [
-    lookupsLoading,
-    orderNormalized,
-    customers,
-    technicians,
-    productsCatalog,
-    serviceTypes,
-    servicesCatalog,
-  ]);
+  }, [lookupsLoading, orderNormalized, customers, technicians, productsCatalog, serviceTypes, servicesCatalog]);
+
+  // -------- Validación en tiempo real (sin auto-ajustes “silenciosos”) --------
+  useEffect(() => {
+    if (clientId) setErrors((p) => ({ ...p, clientId: undefined }));
+  }, [clientId]);
+
+  useEffect(() => {
+    if (selectedTechnicians.length) setErrors((p) => ({ ...p, technicians: undefined }));
+  }, [selectedTechnicians]);
+
+  useEffect(() => {
+    if (materiales.length) setErrors((p) => ({ ...p, materiales: undefined }));
+  }, [materiales]);
+
+  useEffect(() => {
+    if (servicios.length) setErrors((p) => ({ ...p, servicios: undefined }));
+  }, [servicios]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -976,6 +1056,7 @@ export default function OrderEditPage() {
       showError("ID de orden inválido.");
       return;
     }
+
     const er = validateForm();
     setErrors(er);
     if (Object.keys(er).length > 0) {
@@ -984,7 +1065,7 @@ export default function OrderEditPage() {
       return;
     }
 
-    const productMap = new Map<number, number>();
+    const productMap = new Map<number, { productid: number; cantidad: number }>();
     for (const m of materiales) {
       const rec = productsCatalog.find((p) => p.productname === m.nombre);
       if (!rec) {
@@ -995,27 +1076,17 @@ export default function OrderEditPage() {
         return;
       }
       const qty = Math.max(1, Number(m.cantidad || 1));
-      productMap.set(rec.productid, (productMap.get(rec.productid) || 0) + qty);
+      const prev = productMap.get(rec.productid);
+      if (prev) prev.cantidad += qty;
+      else productMap.set(rec.productid, { productid: rec.productid, cantidad: qty });
     }
-
-    const products = Array.from(productMap.entries()).map(([productid, cantidad]) => ({ productid, cantidad }));
-
-    if (!tipoId) {
-      const next = { ...er, tipo: "Selecciona el tipo de servicio." };
-      setErrors(next);
-      showError(next.tipo || "Tipo inválido.");
-      focusFirstError(next);
-      return;
-    }
+    const products = Array.from(productMap.values());
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
-      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === tipoId) || null;
+      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId) || null;
       if (!rec) {
-        const next = {
-          ...er,
-          servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo seleccionado.`,
-        };
+        const next = { ...er, servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo asignado.` };
         setErrors(next);
         showError(next.servicios || "Servicio inválido.");
         focusFirstError(next);
@@ -1028,30 +1099,19 @@ export default function OrderEditPage() {
       if (prev) prev.cantidad += cantidad;
       else serviceMap.set(key, { serviceid: rec.serviceid, cantidad, unitprice });
     }
-
     const services = Array.from(serviceMap.values());
 
-    const descParts: string[] = [];
-    const tipoTxt = tipoSeleccionado?.label || tipoSeleccionado?.name || "";
-    if (tipoTxt) descParts.push(`Tipo: ${tipoTxt}`);
-    if (descripcion?.trim()) descParts.push(`Descripción: ${descripcion.trim()}`);
-    if (servicios.length) {
-      const svcTxt = servicios.map((s) => `- ${s.nombre} × ${Number(s.cantidad) || 0}`).join("\n");
-      descParts.push(`Servicios:\n${svcTxt}`);
-    }
-    if (materiales.length) {
-      const matTxt = materiales.map((m) => `- ${m.nombre} × ${Number(m.cantidad) || 0}`).join("\n");
-      descParts.push(`Productos:\n${matTxt}`);
-    }
-    const finalDescription = descParts.join("\n\n");
+    // Importante: NO se arma descripción estructurada. Se envía SOLO lo que escribió el usuario.
+    const finalDescription = String(descripcion || "").trim();
 
     setSaving(true);
     try {
       const uploadedUrls = files.length ? await uploadFilesToCloudinary(files) : [];
-      const mergedFiles =
-        uploadedUrls.length > 0 ? [...existingFiles, ...uploadedUrls] : existingFiles;
+      const mergedFiles = uploadedUrls.length > 0 ? [...existingFiles, ...uploadedUrls] : existingFiles;
 
-      const dto: CreateOrdersServiceDto = {
+      const viaticosPayload = Number.isFinite(viaticosValue) ? viaticosValue : 0;
+
+      const updateDto: UpdateOrdersServiceDto = {
         description: finalDescription,
         clientid: Number(clientId),
         stateid: orderNormalized?.stateid ?? pendingStateId ?? 1,
@@ -1060,14 +1120,72 @@ export default function OrderEditPage() {
         horainicio: timeStart,
         horafin: timeEnd,
         technicians: selectedTechnicians,
-        products,
-        services,
         files: mergedFiles,
-        viaticos: Number.isFinite(viaticosValue) ? viaticosValue : 0,
+        viaticos: viaticosPayload,
       };
 
-      const { data } = await api.patch(`orders-services/${orderId}`, dto);
-      showSuccess(`Orden #${data?.ordersservicesid ?? orderId} actualizada correctamente.`);
+      await api.patch(`orders-services/${orderId}`, updateDto);
+
+      const existingProducts = orderNormalized?.products ?? [];
+      const existingServices = orderNormalized?.services ?? [];
+
+      const desiredProductMap = new Map<number, number>();
+      for (const p of products) desiredProductMap.set(Number(p.productid), Number(p.cantidad));
+
+      for (const ex of existingProducts) {
+        if (!desiredProductMap.has(Number(ex.productid))) {
+          await api.delete(`orders-services/${orderId}/products/${Number(ex.productid)}`);
+        }
+      }
+
+      for (const [productid, cantidad] of desiredProductMap.entries()) {
+        const ex = existingProducts.find((x) => Number(x.productid) === Number(productid));
+        if (!ex) {
+          await api.post(`orders-services/${orderId}/products`, { productid, cantidad });
+        } else if (Number(ex.cantidad) !== Number(cantidad)) {
+          await api.patch(`orders-services/${orderId}/products/${productid}`, { cantidad });
+        }
+      }
+
+      const desiredServiceMap = new Map<number, { cantidad: number; unitprice: number }>();
+      for (const sLine of services) {
+        const sid = Number((sLine as any).serviceid);
+        const cantidad = Number((sLine as any).cantidad);
+        const unitprice = Number((sLine as any).unitprice ?? 0);
+        desiredServiceMap.set(sid, { cantidad, unitprice });
+      }
+
+      for (const ex of existingServices) {
+        if (!desiredServiceMap.has(Number(ex.serviceid))) {
+          await api.delete(`orders-services/${orderId}/services/${Number(ex.serviceid)}`);
+        }
+      }
+
+      for (const [serviceid, payload] of desiredServiceMap.entries()) {
+        const ex = existingServices.find((x) => Number(x.serviceid) === Number(serviceid));
+        if (!ex) {
+          await api.post(`orders-services/${orderId}/services`, {
+            serviceid,
+            cantidad: payload.cantidad,
+            unitprice: payload.unitprice,
+          });
+        } else {
+          const changed =
+            Number(ex.cantidad) !== Number(payload.cantidad) || Number(ex.unitprice) !== Number(payload.unitprice);
+          if (changed) {
+            await api.patch(`orders-services/${orderId}/services/${serviceid}`, {
+              cantidad: payload.cantidad,
+              unitprice: payload.unitprice,
+            });
+          }
+        }
+      }
+
+      const { data: updated } = await api.get(`orders-services/${orderId}`);
+      setOrderNormalized(normalizeOrder(updated));
+      setExistingFiles(Array.isArray(updated?.files) ? updated.files : []);
+
+      showSuccess("Orden actualizada");
       router.push(returnTo);
     } catch (e: any) {
       showError(e?.response?.data?.message || e?.message || "Error inesperado.");
@@ -1085,7 +1203,6 @@ export default function OrderEditPage() {
     setDateStart(next);
     setErrors((p) => ({ ...p, schedule: undefined }));
     if (!isAllowedDate(dateEnd)) setDateEnd(next);
-    if (dateEnd === next) return;
   }
 
   function handleDateEndChange(next: string) {
@@ -1174,9 +1291,7 @@ export default function OrderEditPage() {
                 <h1 className="text-xl font-semibold text-gray-900 truncate">
                   {orderId ? `Editar orden de servicio #${orderId}` : "Editar orden de servicio"}
                 </h1>
-                <p className="text-xs text-gray-500 mt-1">
-                  Actualiza el cliente, programación y detalles del servicio.
-                </p>
+                <p className="text-xs text-gray-500 mt-1">Actualiza el cliente, programación y detalles del servicio.</p>
               </div>
             </div>
 
@@ -1187,10 +1302,7 @@ export default function OrderEditPage() {
             )}
 
             {hasErrors && (
-              <div
-                ref={summaryRef}
-                className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm"
-              >
+              <div ref={summaryRef} className="mb-4 rounded-md border border-red-300 bg-red-50 text-red-800 p-3 text-sm">
                 <strong className="block mb-1">Hay errores en el formulario:</strong>
                 <ul className="list-disc pl-5 space-y-1">
                   {errors.clientId && <li>{errors.clientId}</li>}
@@ -1217,51 +1329,123 @@ export default function OrderEditPage() {
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-12" id="field-clientId">
                       <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
-                        Seleccionar cliente
+                        Buscar y seleccionar cliente
                       </label>
-                      <div className="relative flex-1">
-                        <select
-                          id="field-clientId-input"
-                          value={clientId === "" ? "" : String(clientId)}
-                          onChange={(e) => {
-                            const v = e.target.value ? Number(e.target.value) : "";
-                            setClientId(v as any);
-                            setErrors((prev) => ({ ...prev, clientId: undefined }));
-                          }}
-                          className={`${selectBase} ${errors.clientId ? errorRing : ""}`}
-                          aria-invalid={!!errors.clientId}
-                          disabled={lookupsLoading}
-                        >
-                          <option value="">{lookupsLoading ? "Cargando..." : "Elige un cliente"}</option>
-                          {customers.map((c) => (
-                            <option key={c.customerid} value={String(c.customerid)}>
-                              #{c.customerid} — {c.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className={chevron}>▾</span>
-                      </div>
-                      {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
-                    </div>
 
-                    {selectedCustomer && (
-                      <div className="md:col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-700">
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Cliente</div>
-                          <div className="mt-1">{selectedCustomer.label}</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Contacto</div>
-                          <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
-                        </div>
-                        <div className="bg-gray-50 rounded-lg border p-3">
-                          <div className="font-medium text-gray-900">Ubicación</div>
-                          <div className="mt-1">
-                            {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
+                      {selectedCustomer ? (
+                        <div className={`rounded-lg border bg-gray-50 p-3 ${errors.clientId ? errorRing : ""}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-xs text-gray-500">Cliente seleccionado</div>
+                              <div className="mt-1 font-medium text-gray-900 truncate">
+                                #{selectedCustomer.customerid} — {selectedCustomer.label}
+                              </div>
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-700">
+                                <div className="bg-white rounded-lg border p-2">
+                                  <div className="font-medium text-gray-900">Contacto</div>
+                                  <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
+                                </div>
+                                <div className="bg-white rounded-lg border p-2">
+                                  <div className="font-medium text-gray-900">Ubicación</div>
+                                  <div className="mt-1">
+                                    {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
+                                  </div>
+                                </div>
+                                <div className="bg-white rounded-lg border p-2">
+                                  <div className="font-medium text-gray-900">Acción</div>
+                                  <div className="mt-1">
+                                    <button
+                                      type="button"
+                                      onClick={clearClient}
+                                      className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50"
+                                      disabled={lookupsLoading}
+                                    >
+                                      Cambiar cliente
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
+                          {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div ref={clientBoxRef} className="relative">
+                          <input
+                            id="field-clientId-input"
+                            ref={clientInputRef}
+                            value={clientQuery}
+                            onChange={(e) => {
+                              setClientQuery(e.target.value);
+                              setClientOpen(true);
+                              setErrors((p) => ({ ...p, clientId: undefined }));
+                            }}
+                            onFocus={() => setClientOpen(true)}
+                            onKeyDown={(e) => {
+                              if (!clientOpen) return;
+                              if (e.key === "ArrowDown") {
+                                e.preventDefault();
+                                setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
+                              } else if (e.key === "ArrowUp") {
+                                e.preventDefault();
+                                setClientActiveIndex((i) => Math.max(i - 1, 0));
+                              } else if (e.key === "Enter") {
+                                if (clientOptions[clientActiveIndex]) {
+                                  e.preventDefault();
+                                  pickClient(clientOptions[clientActiveIndex].customerid);
+                                }
+                              } else if (e.key === "Escape") {
+                                setClientOpen(false);
+                              }
+                            }}
+                            placeholder={lookupsLoading ? "Cargando..." : "Nombre, apellido o ID..."}
+                            className={`${inputBase} ${errors.clientId ? errorRing : ""}`}
+                            disabled={lookupsLoading}
+                            aria-expanded={clientOpen}
+                            aria-controls="client-suggest"
+                            aria-autocomplete="list"
+                          />
+
+                          {clientOpen && !lookupsLoading && (
+                            <div
+                              id="client-suggest"
+                              className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm"
+                            >
+                              {clientOptions.length === 0 ? (
+                                <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                              ) : (
+                                <ul className="max-h-60 overflow-auto">
+                                  {clientOptions.map((c, idx) => (
+                                    <li key={c.customerid}>
+                                      <button
+                                        type="button"
+                                        onMouseDown={(ev) => ev.preventDefault()}
+                                        onClick={() => pickClient(c.customerid)}
+                                        onMouseEnter={() => setClientActiveIndex(idx)}
+                                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                          idx === clientActiveIndex ? "bg-gray-100" : "bg-white"
+                                        }`}
+                                      >
+                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                          {initials(c.label)}
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block truncate font-medium">{c.label}</span>
+                                          <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
+                                        </span>
+                                        <span className="text-xs text-gray-400">Seleccionar</span>
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+
+                          {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </section>
 
@@ -1454,9 +1638,7 @@ export default function OrderEditPage() {
                                     </span>
                                     <span className="min-w-0 flex-1">
                                       <span className="block truncate font-medium">{t.label}</span>
-                                      <span className="block text-xs text-gray-500">
-                                        Técnico #{t.technicianid}
-                                      </span>
+                                      <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
                                     </span>
                                     <span className="text-xs text-gray-400">Agregar</span>
                                   </button>
@@ -1475,12 +1657,12 @@ export default function OrderEditPage() {
                 <section className="rounded-xl border bg-white shadow-sm" id="field-tipo">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
-                    <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
+                    <div className="text-xs text-gray-500">El tipo de arriba solo aplica para “Añadir servicio”</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                     <div className="md:col-span-12">
-                      <span className="block text-xs text-gray-700 mb-2">Tipo de servicio</span>
+                      <span className="block text-xs text-gray-700 mb-2">Tipo para añadir un nuevo servicio</span>
                       <div
                         className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 ${
                           errors.tipo ? "rounded-lg p-3 border " + errorRing : ""
@@ -1520,13 +1702,15 @@ export default function OrderEditPage() {
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div>
                           <div className="text-xs text-gray-700">Servicios</div>
-                          <div className="text-xs text-gray-500">Agrega los servicios a realizar.</div>
+                          <div className="text-xs text-gray-500">
+                            Cada fila conserva su tipo. Además, un servicio ya agregado no vuelve a aparecer en la lista.
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={addServiceRow}
                           className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
-                          disabled={!tipoId || lookupsLoading || servicesForTipo.length === 0}
+                          disabled={!tipoId || lookupsLoading || servicesForSelectedTipo.length === 0}
                         >
                           Añadir servicio
                         </button>
@@ -1544,91 +1728,101 @@ export default function OrderEditPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {servicios.map((it) => (
-                              <tr key={it.id} className="border-t">
-                                <td className="px-3 py-2">
-                                  <select
-                                    value={it.nombre}
-                                    onChange={(e) => {
-                                      const n = e.target.value;
-                                      patchItem(it.id, { nombre: n }, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="w-full h-9 rounded-md border px-2"
-                                    disabled={!tipoId || servicesForTipo.length === 0 || lookupsLoading}
-                                  >
-                                    {servicesForTipo.map((opt) => (
-                                      <option key={`${it.id}-${opt.serviceid}`} value={opt.name}>
-                                        {opt.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
+                            {servicios.map((it) => {
+                              const options = getServicesForTipo(it.tipoId, it.nombre);
+                              const tipoLabel = tipoLabelById.get(it.tipoId) || `Tipo #${it.tipoId}`;
+                              const fallbackCurrent =
+                                !options.some((o) => o.name === it.nombre) && it.nombre
+                                  ? [{ serviceid: -1, name: it.nombre, typeofserviceid: it.tipoId } as any, ...options]
+                                  : options;
 
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={it.cantidad}
-                                    onChange={(e) => {
-                                      patchItem(it.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-20 rounded-md border px-2 text-right"
-                                    disabled={lookupsLoading}
-                                  />
-                                </td>
+                              return (
+                                <tr key={it.id} className="border-t">
+                                  <td className="px-3 py-2">
+                                    <div className="text-[11px] text-gray-500 mb-1">{tipoLabel}</div>
+                                    <select
+                                      value={it.nombre}
+                                      onChange={(e) => {
+                                        const n = e.target.value;
+                                        patchItem<ServiceLineItem>(it.id, { nombre: n }, setServicios);
+                                        setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      className="w-full h-9 rounded-md border px-2"
+                                      disabled={fallbackCurrent.length === 0 || lookupsLoading}
+                                    >
+                                      {fallbackCurrent.map((opt) => (
+                                        <option key={`${it.id}-${opt.serviceid}-${opt.name}`} value={opt.name}>
+                                          {opt.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
 
-                                <td className="px-3 py-2 text-right">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step={1000}
-                                    value={it.precio}
-                                    onChange={(e) => {
-                                      const n = Number(e.target.value || 0);
-                                      patchItem(
-                                        it.id,
-                                        { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
-                                        setServicios
-                                      );
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-32 rounded-md border px-2 text-right"
-                                    disabled={lookupsLoading}
-                                  />
-                                </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={it.cantidad}
+                                      onChange={(e) => {
+                                        patchItem<ServiceLineItem>(
+                                          it.id,
+                                          { cantidad: Math.max(1, Number(e.target.value || 1)) },
+                                          setServicios
+                                        );
+                                        setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      className="h-9 w-20 rounded-md border px-2 text-right"
+                                      disabled={lookupsLoading}
+                                    />
+                                  </td>
 
-                                <td className="px-3 py-2 text-right font-medium">
-                                  {formatCOP((Number(it.cantidad) || 0) * (Number(it.precio) || 0))}
-                                </td>
+                                  <td className="px-3 py-2 text-right">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1000}
+                                      value={it.precio}
+                                      onChange={(e) => {
+                                        const n = Number(e.target.value || 0);
+                                        patchItem<ServiceLineItem>(
+                                          it.id,
+                                          { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
+                                          setServicios
+                                        );
+                                        setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      className="h-9 w-32 rounded-md border px-2 text-right"
+                                      disabled={lookupsLoading}
+                                    />
+                                  </td>
 
-                                <td className="px-3 py-2 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      removeItem(it.id, setServicios);
-                                      setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                    }}
-                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                    disabled={lookupsLoading}
-                                    aria-label="Quitar servicio"
-                                    title="Quitar"
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                                  <td className="px-3 py-2 text-right font-medium">
+                                    {formatCOP((Number(it.cantidad) || 0) * (Number(it.precio) || 0))}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        removeItem<ServiceLineItem>(it.id, setServicios);
+                                        setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                      }}
+                                      className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                      disabled={lookupsLoading}
+                                      aria-label="Quitar servicio"
+                                      title="Quitar"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
 
                             {servicios.length === 0 && (
                               <tr>
                                 <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
-                                  {tipoId
-                                    ? servicesForTipo.length
-                                      ? "Aún no has añadido servicios."
-                                      : "No hay servicios para este tipo."
-                                    : "Selecciona primero el tipo de servicio."}
+                                  Aún no has añadido servicios.
                                 </td>
                               </tr>
                             )}
@@ -1651,6 +1845,9 @@ export default function OrderEditPage() {
                         className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
                         placeholder="Describe el servicio, alcance, observaciones, etc."
                       />
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        Se guardará exactamente el texto que escribas aquí (no se construye una descripción automática).
+                      </div>
                     </div>
 
                     <div className="md:col-span-12" id="field-files">
@@ -1684,15 +1881,25 @@ export default function OrderEditPage() {
                           <div className="text-xs text-gray-600 mb-1">Imágenes existentes</div>
                           <div className="flex flex-wrap gap-2">
                             {existingFiles.map((url, idx) => (
-                              <a
-                                key={`${url}_${idx}`}
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center justify-center w-20 h-20 rounded-lg border bg-gray-50 text-[10px] text-gray-600 text-center px-1"
-                              >
-                                Ver imagen
-                              </a>
+                              <div key={`${url}_${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white">
+                                <a href={url} target="_blank" rel="noreferrer" className="block w-full h-full" title="Abrir imagen">
+                                  <img
+                                    src={url}
+                                    alt={`Imagen existente ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setExistingFiles((prev) => prev.filter((u) => u !== url))}
+                                  className="absolute right-1 top-1 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 shadow-sm ring-1 ring-red-200 hover:bg-white"
+                                  title="Eliminar imagen"
+                                >
+                                  X
+                                </button>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -1749,60 +1956,76 @@ export default function OrderEditPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {materiales.map((m) => (
-                            <tr key={m.id} className="border-t">
-                              <td className="px-3 py-2">
-                                <select
-                                  value={m.nombre}
-                                  onChange={(e) => {
-                                    const n = e.target.value;
-                                    patchItem(m.id, { nombre: n, precio: precioMaterialPorNombre(n) }, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  className="w-full h-9 rounded-md border px-2"
-                                  disabled={!productsCatalog.length || lookupsLoading}
-                                >
-                                  {productsCatalog.map((opt) => (
-                                    <option key={opt.productid} value={opt.productname}>
-                                      {opt.productname}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
+                          {materiales.map((m) => {
+                            const opts = availableProducts(m.nombre);
+                            const fallbackCurrent =
+                              !opts.some((o) => o.productname === m.nombre) && m.nombre
+                                ? [{ productid: -1, productname: m.nombre, productpriceofsale: m.precio } as any, ...opts]
+                                : opts;
 
-                              <td className="px-3 py-2 text-right">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={m.cantidad}
-                                  onChange={(e) => {
-                                    patchItem(m.id, { cantidad: Math.max(1, Number(e.target.value || 1)) }, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  className="h-9 w-20 rounded-md border px-2 text-right"
-                                  disabled={lookupsLoading}
-                                />
-                              </td>
+                            return (
+                              <tr key={m.id} className="border-t">
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={m.nombre}
+                                    onChange={(e) => {
+                                      const n = e.target.value;
+                                      patchItem<MaterialLineItem>(
+                                        m.id,
+                                        { nombre: n, precio: precioMaterialPorNombre(n) },
+                                        setMateriales
+                                      );
+                                      setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    }}
+                                    className="w-full h-9 rounded-md border px-2"
+                                    disabled={!productsCatalog.length || lookupsLoading}
+                                  >
+                                    {fallbackCurrent.map((opt) => (
+                                      <option key={`${m.id}-${opt.productid}-${opt.productname}`} value={opt.productname}>
+                                        {opt.productname}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
 
-                              <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={m.cantidad}
+                                    onChange={(e) => {
+                                      patchItem<MaterialLineItem>(
+                                        m.id,
+                                        { cantidad: Math.max(1, Number(e.target.value || 1)) },
+                                        setMateriales
+                                      );
+                                      setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    }}
+                                    className="h-9 w-20 rounded-md border px-2 text-right"
+                                    disabled={lookupsLoading}
+                                  />
+                                </td>
 
-                              <td className="px-3 py-2 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    removeItem(m.id, setMateriales);
-                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                  disabled={lookupsLoading}
-                                  aria-label="Quitar producto"
-                                  title="Quitar"
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      removeItem<MaterialLineItem>(m.id, setMateriales);
+                                      setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    }}
+                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                    disabled={lookupsLoading}
+                                    aria-label="Quitar producto"
+                                    title="Quitar"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
 
                           {materiales.length === 0 && (
                             <tr>
@@ -1822,10 +2045,13 @@ export default function OrderEditPage() {
                         type="button"
                         onClick={addMaterialRow}
                         className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
-                        disabled={!productsCatalog.length || lookupsLoading}
+                        disabled={!productsCatalog.length || lookupsLoading || availableProducts().length === 0}
                       >
                         Añadir producto
                       </button>
+                      <div className="mt-1 text-[11px] text-gray-500">
+                        Los productos que ya agregaste se ocultan de la lista para evitar duplicados.
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -1859,9 +2085,7 @@ export default function OrderEditPage() {
                     {errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
                     <div className="pt-3 border-t text-sm flex justify-between">
                       <span className="text-gray-600">Total viáticos</span>
-                      <span className="font-medium">
-                        {formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}
-                      </span>
+                      <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
                   </div>
                 </section>
@@ -1881,9 +2105,9 @@ export default function OrderEditPage() {
                       {serviciosMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {serviciosMiniLista.map((s) => (
-                            <li key={s.nombre} className="flex justify-between gap-2">
+                            <li key={`${s.tipoId}-${s.nombre}`} className="flex justify-between gap-2">
                               <span className="truncate">
-                                {s.nombre} × {s.cantidad}
+                                [{tipoLabelById.get(s.tipoId) || `Tipo #${s.tipoId}`}] {s.nombre} × {s.cantidad}
                               </span>
                               <span>{formatCOP(s.total)}</span>
                             </li>
@@ -1913,9 +2137,7 @@ export default function OrderEditPage() {
 
                     <div className="flex justify-between">
                       <span className="text-gray-600">Viáticos</span>
-                      <span className="font-medium">
-                        {formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}
-                      </span>
+                      <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
 
                     <div className="flex justify-between">

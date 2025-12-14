@@ -30,8 +30,6 @@ const titles: Record<string, string> = {
   [routes.dashboard.sales]: "Ventas",
 };
 
-
-
 type TopNavProps = {
   logoutRedirectTo?: string;
   fallbackUserName?: string;
@@ -162,9 +160,20 @@ export default function TopNav({
             onClick={() => setMenuProfileOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={menuProfileOpen}
-            className="flex items-center gap-3 rounded-full px-3 py-1 border-0 outline-none hover:bg-gray-100/70 transition"
+            className={[
+              "flex items-center gap-3 rounded-full px-3 py-1 outline-none transition",
+              "focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2",
+              menuProfileOpen
+                ? "bg-red-700 border border-red-700 shadow-sm"
+                : "bg-gray-100 border border-gray-200 hover:bg-gray-200 shadow-sm",
+            ].join(" ")}
           >
-            <span className="hidden md:block text-gray-700 max-w-[180px] truncate">
+            <span
+              className={[
+                "hidden md:block max-w-[180px] truncate transition-colors",
+                menuProfileOpen ? "text-white" : "text-gray-800",
+              ].join(" ")}
+            >
               {display.name}
             </span>
 
@@ -172,10 +181,20 @@ export default function TopNav({
               <img
                 src={display.image}
                 alt="avatar"
-                className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover ring-1 ring-gray-200"
+                className={[
+                  "w-9 h-9 md:w-10 md:h-10 rounded-full object-cover transition",
+                  menuProfileOpen
+                    ? "ring-2 ring-white/70"
+                    : "ring-2 ring-gray-300",
+                ].join(" ")}
               />
             ) : (
-              <UserCircle className="w-9 h-9 md:w-10 md:h-10 text-gray-600" />
+              <UserCircle
+                className={[
+                  "w-9 h-9 md:w-10 md:h-10 transition-colors",
+                  menuProfileOpen ? "text-white" : "text-gray-700",
+                ].join(" ")}
+              />
             )}
           </button>
 
@@ -216,10 +235,7 @@ export default function TopNav({
           )}
         </div>
 
-        <ProfileModal
-          isOpen={profileOpen}
-          onClose={() => setProfileOpen(false)}
-        />
+        <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
       </header>
     </>
   );

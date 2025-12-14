@@ -1,12 +1,6 @@
 "use client";
 
-import React, {
-  useMemo,
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-} from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import Colors from "@/shared/theme/colors";
 import { SearchIcon } from "./icons/SearchIcon";
 import { PlusIcon } from "./icons/PlusIcon";
@@ -44,9 +38,7 @@ function Th({
 const OptimizedTd = React.memo(OptimizedTdComponent);
 export const ActionButton = React.memo(ActionButtonComponent);
 export const ActionButtons = React.memo(ActionButtonsComponent);
-const MobileCard = React.memo(
-  MobileCardComponent
-) as typeof MobileCardComponent;
+const MobileCard = React.memo(MobileCardComponent) as typeof MobileCardComponent;
 const CreateButton = React.memo(CreateButtonComponent);
 const Pagination = React.memo(PaginationComponent);
 
@@ -85,7 +77,6 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const [page, setPage] = useState(1);
   const [scrollTop, setScrollTop] = useState(0);
 
-  // Ref para controlar si ya se montó
   const isMounted = useRef(false);
 
   useEffect(() => {
@@ -95,115 +86,186 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     };
   }, []);
 
-  const normalize = useCallback((value: unknown): string[] => {
-    if (value == null) return [];
-    const str = String(value).toLowerCase().trim();
-    if (!isNaN(Number(str.replace(/[\$,\.\s]/g, "")))) {
-      const num = Number(str.replace(/[\$,\.\s]/g, ""));
-      return [num.toString(), num.toFixed(0), num.toFixed(2)];
-    }
-    if (!isNaN(Date.parse(str))) {
-      const d = new Date(str);
-      return [
-        d.toISOString().slice(0, 10),
-        d.toLocaleDateString("es-ES"),
-        d.getFullYear().toString(),
-      ].map((f) => f.toLowerCase());
-    }
-    return [str];
+  useEffect(() => {
+    // Si quieres respetar defaultPageSize, descomenta:
+    // setPageSize(defaultPageSize);
+    // setPageSizeOption(defaultPageSize);
+    // setPage(1);
+  }, [defaultPageSize]);
+
+  const normalizeText = useCallback((value: unknown): string => {
+    return String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
   }, []);
 
   const toDigits = useCallback((v: unknown) => {
     return String(v ?? "").replace(/[^\d]/g, "");
   }, []);
 
-  const filtered = useMemo(() => {
-    const term = q
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+  const moneyTokens = useCallback(
+    (value: unknown): string[] => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return [];
+      const rounded = Math.round(n);
 
+      const plain = String(rounded); // 200000
+      const esCO = rounded.toLocaleString("es-CO"); // 200.000
+      const enUS = rounded.toLocaleString("en-US"); // 200,000
+      const cop = rounded.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+        maximumFractionDigits: 0,
+      }); // $ 200.000
+
+      return [plain, esCO, enUS, cop].map(normalizeText);
+    },
+    [normalizeText]
+  );
+
+  const estadoTokens = useCallback(
+    (estado: unknown): string[] => {
+      const raw = normalizeText(estado);
+      if (!raw) return [];
+
+      if (raw.includes("garantiareportada") || raw.includes("garantia_reportada")) {
+        return [
+          "garantia reportada",
+          "garantia (reportada)",
+          "garantia",
+          "garantiareportada",
+          "reportada",
+        ].map(normalizeText);
+      }
+
+      if (raw.includes("garantia")) {
+        return ["garantia", "en garantia", "garantia sin reporte"].map(normalizeText);
+      }
+
+      if (raw.includes("anul") || raw.includes("cancel") || raw.includes("revoke")) {
+        return ["anulada", "anulado", "cancelada", "cancelado", "revocada", "revoke"].map(
+          normalizeText
+        );
+      }
+
+      if (raw.includes("aprob") || raw.includes("approved")) {
+        return ["aprobada", "aprobado", "approved"].map(normalizeText);
+      }
+
+      if (raw.includes("pend")) {
+        return ["pendiente", "pendient"].map(normalizeText);
+      }
+
+      return [raw];
+    },
+    [normalizeText]
+  );
+
+  const normalize = useCallback(
+    (value: unknown, key?: string): string[] => {
+      if (value == null) return [];
+
+      // Estados (estado / state)
+      if (key === "estado") return estadoTokens(value);
+
+      if (key === "state") {
+        const stateName =
+          typeof value === "string"
+            ? normalizeText(value)
+            : normalizeText((value as any)?.name ?? "");
+
+        const mapped =
+          stateName === "approved"
+            ? "aprobado"
+            : stateName === "revoke"
+            ? "anulado"
+            : stateName;
+
+        return estadoTokens(mapped).concat([mapped]).map(normalizeText);
+      }
+
+      // Montos (monto / viaticos / total)
+      if (key === "monto" || key === "viaticos" || key === "total") {
+        return moneyTokens(value);
+      }
+
+      const str = normalizeText(value);
+
+      const numericCandidate = str.replace(/\s/g, "");
+      const cleaned = numericCandidate.replace(/[^0-9.-]/g, "");
+      if (cleaned && !isNaN(Number(cleaned))) {
+        return Array.from(
+          new Set([str, cleaned, ...moneyTokens(Number(cleaned))].map(normalizeText))
+        );
+      }
+
+      if (!isNaN(Date.parse(String(value)))) {
+        const d = new Date(String(value));
+        return [
+          d.toISOString().slice(0, 10),
+          d.toLocaleDateString("es-CO"),
+          d.toLocaleDateString("es-ES"),
+          d.getFullYear().toString(),
+        ].map(normalizeText);
+      }
+
+      return [str];
+    },
+    [estadoTokens, moneyTokens, normalizeText]
+  );
+
+  const filtered = useMemo(() => {
+    const term = normalizeText(q);
     if (!term) return data;
 
-    const termDigits = toDigits(term);
-    const hasDigits = termDigits.length > 0;
+    const tokens = term.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return data;
 
     const isExactStatus = term === "activo" || term === "inactivo";
 
-    return data.filter((row) =>
-      searchableKeys.some((key) => {
-        const value = row[key];
-        if (value == null) return false;
+    const hasKey = (k: string) => searchableKeys.includes(k as any);
 
-        if (key === "stateSearch" || key === "statusSearch") {
-          const v = String(value)
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase()
-            .replace(/\s+/g, " ")
-            .trim();
+    const pickStatusText = (row: any): string => {
+      if (hasKey("status") && row?.status != null) return normalizeText(row.status);
+      if (hasKey("estado") && row?.estado != null) return normalizeText(row.estado);
+      if (hasKey("state")) {
+        if (typeof row?.state === "string") return normalizeText(row.state);
+        if (row?.state?.name != null) return normalizeText(row.state.name);
+      }
+      if (hasKey("stateSearch") && row?.stateSearch != null) return normalizeText(row.stateSearch);
+      if (hasKey("statusSearch") && row?.statusSearch != null)
+        return normalizeText(row.statusSearch);
+      return "";
+    };
 
-          if (term === "activo" || term === "inactivo") {
-            return v === term;
+    return (Array.isArray(data) ? data : []).filter((row) => {
+      if (isExactStatus) {
+        const st = pickStatusText(row);
+        if (!st) return false;
+        return st === term;
+      }
+
+      return tokens.every((t) => {
+        return searchableKeys.some((key) => {
+          const value = (row as any)[key];
+          if (value == null) return false;
+
+          // Compatibilidad: si el key es stateSearch/statusSearch, normaliza directo como texto
+          if (String(key) === "stateSearch" || String(key) === "statusSearch") {
+            const v = normalizeText(value);
+            if (t.startsWith("act")) return v === "activo";
+            if (t.startsWith("ina")) return v === "inactivo";
+            return v.includes(t);
           }
 
-          if (term.startsWith("act")) {
-            return v === "activo";
-          }
-
-          if (term.startsWith("ina")) {
-            return v === "inactivo";
-          }
-
-          return v.includes(term);
-        }
-
-        if (key === "state") {
-          const stateName = (row.state?.name ?? "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .toLowerCase()
-            .replace(/\s+/g, " ")
-            .trim();
-
-          const mapped =
-            stateName === "approved"
-              ? "aprobado"
-              : stateName === "revoke"
-                ? "anulado"
-                : stateName;
-
-          return mapped.includes(term);
-        }
-
-        // Búsqueda normal
-        const strValue = String(value)
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase()
-          .replace(/\s+/g, " ")
-          .trim();
-
-        if (strValue.includes(term)) return true;
-
-        if (hasDigits) {
-          const raw = String(value ?? "");
-          const looksNumeric =
-            typeof value === "number" || /^[\d\$\s\.,]+$/.test(raw);
-
-          if (looksNumeric) {
-            const valueDigits = toDigits(value);
-            if (valueDigits && valueDigits.includes(termDigits)) return true;
-          }
-        }
-
-        const normalized = normalize(value);
-        return normalized.some((n) => n.includes(term));
-      })
-    );
-  }, [q, data, searchableKeys, normalize, toDigits]);
+          const normValues = normalize(value, String(key));
+          return normValues.some((nv) => nv.includes(t));
+        });
+      });
+    });
+  }, [q, data, searchableKeys, normalize, normalizeText]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(filtered.length / pageSize)),
@@ -219,11 +281,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     [totalPages]
   );
 
-  // Throttle del scroll
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const currentScrollTop = e.currentTarget.scrollTop;
-      // Solo actualizar si el cambio es significativo (más de 1px)
       if (Math.abs(currentScrollTop - scrollTop) > 1) {
         setScrollTop(currentScrollTop);
       }
@@ -232,6 +292,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   );
 
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
+
   const visibleRows = useMemo(() => {
     return current.slice(startIndex, startIndex + VISIBLE_ROWS);
   }, [current, startIndex]);
@@ -250,78 +311,74 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const visibleColumns = useMemo(
     () =>
       columns.filter(
-        (col) =>
-          col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
+        (col) => col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
       ),
     [columns]
   );
 
+  const tableStyle = useMemo(() => {
+    return freeze ? { animation: "none" } : {};
+  }, [freeze]);
+
+  const showActionsColumn =
+    canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions;
+
   const Row = useMemo(() => {
-    const RowComponent = React.memo(
-      ({ row, index }: { row: T; index: number }) => {
-        const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+    const RowComponent = React.memo(({ row, index }: { row: T; index: number }) => {
+      const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+      const isDesktop = typeof window !== "undefined" ? window.innerWidth >= 768 : true;
+      const colsToRender = isDesktop ? columns : visibleColumns;
 
-        return (
-          <tr
-            className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
-            style={{
-              top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
-              width: "100%",
-              height: `${ROW_HEIGHT}px`,
-            }}
-          >
-            {(window.innerWidth >= 768 ? columns : visibleColumns).map(
-              (c, colIndex) => (
-                <OptimizedTd
-                  key={String(c.key)}
-                  colIndex={colIndex}
-                  header={c.header}
-                  width={c.width}
-                  className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
-                >
-                  <div className="truncate" title={String(row[c.key])}>
-                    {c.render ? c.render(row) : String(row[c.key])}
-                  </div>
-                </OptimizedTd>
-              )
-            )}
+      return (
+        <tr
+          className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
+          style={{
+            top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
+            width: "100%",
+            height: `${ROW_HEIGHT}px`,
+          }}
+        >
+          {colsToRender.map((c, colIndex) => (
+            <OptimizedTd
+              key={String(c.key)}
+              colIndex={colIndex}
+              header={c.header}
+              width={c.width}
+              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
+            >
+              <div className="truncate" title={String((row as any)[c.key])}>
+                {c.render ? c.render(row) : String((row as any)[c.key])}
+              </div>
+            </OptimizedTd>
+          ))}
 
-            {(canView(module) ||
-              canUpdate(module) ||
-              canDelete(module) ||
-              onCancel ||
-              onCheck ||
-              renderActions) && (
-                <OptimizedTd header="Acciones">
-                  {renderActions ? (
-                    renderActions(row)
-                  ) : (
-                    <ActionButtons
-                      row={row}
-                      onView={canView(module) ? onView : undefined}
-                      onEdit={canUpdate(module) ? onEdit : undefined}
-                      onDelete={canDelete(module) ? onDelete : undefined}
-                      onCancel={onCancel}
-                      onCheck={onCheck}
-                      actionGuard={actionGuard}
-                      renderExtraActions={renderExtraActions}
-                    />
-                  )}
-                </OptimizedTd>
+          {showActionsColumn && (
+            <OptimizedTd header="Acciones">
+              {renderActions ? (
+                renderActions(row)
+              ) : (
+                <ActionButtons
+                  row={row}
+                  onView={canView(module) ? onView : undefined}
+                  onEdit={canUpdate(module) ? onEdit : undefined}
+                  onDelete={canDelete(module) ? onDelete : undefined}
+                  onCancel={onCancel}
+                  onCheck={onCheck}
+                  actionGuard={actionGuard}
+                  renderExtraActions={renderExtraActions}
+                />
               )}
+            </OptimizedTd>
+          )}
 
-            {renderTail && (
-              <OptimizedTd
-                header={tailHeader ?? "Imprimir"}
-                className="text-center"
-              >
-                {renderTail(row)}
-              </OptimizedTd>
-            )}
-          </tr>
-        );
-      }
-    );
+          {renderTail && (
+            <OptimizedTd header={tailHeader ?? "Imprimir"} className="text-center">
+              {renderTail(row)}
+            </OptimizedTd>
+          )}
+        </tr>
+      );
+    });
 
     RowComponent.displayName = "RowComponent";
     return RowComponent;
@@ -343,18 +400,11 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     canDelete,
     module,
     scrollTop,
+    showActionsColumn,
   ]);
 
-  // Evitar que el DataTable se anime durante el freeze
-  const tableStyle = useMemo(() => {
-    return freeze ? { animation: "none" } : {};
-  }, [freeze]);
-
   return (
-    <div
-      className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-6"
-      style={tableStyle}
-    >
+    <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-6" style={tableStyle}>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
@@ -405,20 +455,14 @@ const DataTableComponent = <T extends { [key: string]: any }>(
             {rightActions}
             {onCreate && canCreate(module) && (
               <div className="hidden md:block">
-                <CreateButton
-                  onCreate={onCreate}
-                  createButtonText={createButtonText}
-                />
+                <CreateButton onCreate={onCreate} createButtonText={createButtonText} />
               </div>
             )}
           </div>
         )}
       </div>
 
-      <div
-        className="bg-white rounded-xl shadow-lg overflow-hidden"
-        style={tableStyle}
-      >
+      <div className="bg-white rounded-xl shadow-lg overflow-hidden" style={tableStyle}>
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
@@ -440,18 +484,13 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                 />
               ))}
               {current.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No se encontraron resultados
-                </div>
+                <div className="text-center py-8 text-gray-500">No se encontraron resultados</div>
               )}
             </div>
           </div>
         )}
 
-        <div
-          className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`}
-          style={tableStyle}
-        >
+        <div className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`} style={tableStyle}>
           <div
             className="max-h-[600px] overflow-y-auto"
             onScroll={handleScroll}
@@ -468,15 +507,8 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                       {c.header}
                     </Th>
                   ))}
-                  {(canView(module) ||
-                    canUpdate(module) ||
-                    canDelete(module) ||
-                    onCancel ||
-                    onCheck ||
-                    renderActions) && <Th>Acciones</Th>}
-                  {renderTail && (
-                    <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
-                  )}
+                  {showActionsColumn && <Th>Acciones</Th>}
+                  {renderTail && <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>}
                 </tr>
               </thead>
 
@@ -488,26 +520,18 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                 }}
               >
                 {visibleRows.map((row, index) => (
-                  <Row
-                    key={resolveRowKey(row, startIndex + index)}
-                    row={row}
-                    index={index}
-                  />
+                  <Row key={resolveRowKey(row, startIndex + index)} row={row} index={index} />
                 ))}
               </tbody>
             </table>
 
             {current.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                No se encontraron resultados
-              </div>
+              <div className="text-center py-12 text-gray-500">No se encontraron resultados</div>
             )}
           </div>
         </div>
 
-        {totalPages > 1 && (
-          <Pagination page={page} totalPages={totalPages} goTo={goTo} />
-        )}
+        {totalPages > 1 && <Pagination page={page} totalPages={totalPages} goTo={goTo} />}
       </div>
 
       {onCreate && canCreate(module) && (
@@ -523,11 +547,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   );
 };
 
-// Exportar con React.memo para evitar re-renders innecesarios
 export const DataTable = React.memo(
   DataTableComponent,
   (prevProps, nextProps) => {
-    // Comparación personalizada para evitar re-renders
     return (
       prevProps.data === nextProps.data &&
       prevProps.columns === nextProps.columns &&

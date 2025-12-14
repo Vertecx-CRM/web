@@ -1,7 +1,16 @@
 "use client";
 
 import React from "react";
-import { Star, Mail, Phone, BadgeCheck, BadgeX, Pencil, X, MapPin } from "lucide-react";
+import {
+  Star,
+  Mail,
+  Phone,
+  BadgeCheck,
+  BadgeX,
+  Pencil,
+  X,
+  MapPin,
+} from "lucide-react";
 import Modal from "@/features/dashboard/components/Modal";
 
 type Supplier = {
@@ -39,7 +48,9 @@ function StatusBadge({ status }: { status: Supplier["status"] }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border ${
-        active ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+        active
+          ? "bg-green-50 text-green-700 border-green-200"
+          : "bg-red-50 text-red-700 border-red-200"
       }`}
     >
       {active ? <BadgeCheck size={12} /> : <BadgeX size={12} />}
@@ -53,14 +64,17 @@ function Stars({ value = 0 }: { value?: number }) {
   return (
     <span className="inline-flex items-center gap-0.5">
       {Array.from({ length: 5 }, (_, i) => {
-        const fill = clamp(v - i, 0, 1); // 0..1
+        const fill = clamp(v - i, 0, 1);
         const pct = `${fill * 100}%`;
-
         return (
           <span key={i} className="relative inline-block h-[14px] w-[14px]">
             <Star className="h-[14px] w-[14px] text-gray-300" strokeWidth={1.5} />
             <span className="absolute inset-0 overflow-hidden" style={{ width: pct }}>
-              <Star className="h-[14px] w-[14px] text-yellow-500" strokeWidth={1.5} fill="currentColor" />
+              <Star
+                className="h-[14px] w-[14px] text-yellow-500"
+                strokeWidth={1.5}
+                fill="currentColor"
+              />
             </span>
           </span>
         );
@@ -70,14 +84,28 @@ function Stars({ value = 0 }: { value?: number }) {
   );
 }
 
-function Item({ icon, label, value }: { icon?: React.ReactNode; label: string; value: React.ReactNode }) {
+function Item({
+  icon,
+  label,
+  value,
+  className = "",
+  valueClassName = "",
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="rounded-lg border bg-white px-3 py-2">
+    <div className={`rounded-lg border bg-white px-3 py-2 ${className}`}>
       <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
         {icon}
         {label}
       </div>
-      <div className="mt-0.5 text-[13px] font-medium text-gray-800 truncate">{value}</div>
+      <div className={`mt-0.5 text-[13px] font-medium text-gray-800 ${valueClassName}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -124,9 +152,15 @@ export default function SupplierDetailsModal({
         <aside className="space-y-3">
           <div className="overflow-hidden rounded-xl border bg-white flex items-center justify-center p-2">
             {supplier.imageUrl ? (
-              <img src={supplier.imageUrl} alt={supplier.name} className="max-h-[150px] w-auto object-contain" />
+              <img
+                src={supplier.imageUrl}
+                alt={supplier.name}
+                className="max-h-[150px] w-auto object-contain"
+              />
             ) : (
-              <div className="h-[150px] w-full flex items-center justify-center text-gray-400 text-xs">Sin imagen</div>
+              <div className="h-[150px] w-full flex items-center justify-center text-gray-400 text-xs">
+                Sin imagen
+              </div>
             )}
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -137,41 +171,68 @@ export default function SupplierDetailsModal({
 
         <section className="space-y-4">
           <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-            <h3 className="text-base font-semibold text-gray-900 truncate">{supplier.name}</h3>
+            <h3 className="text-base font-semibold text-gray-900 truncate">
+              {supplier.name}
+            </h3>
             <div className="text-[13px] text-gray-500">
-              Contacto: <span className="font-medium text-gray-800">{supplier.contactName || "—"}</span>
+              Contacto:{" "}
+              <span className="font-medium text-gray-800">
+                {supplier.contactName || "—"}
+              </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <Item label="NIT" value={<span className="font-mono">{supplier.nit || "—"}</span>} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Item
+              label="NIT"
+              value={<span className="font-mono">{supplier.nit || "—"}</span>}
+              valueClassName="truncate"
+            />
+
             <Item
               icon={<Phone size={14} />}
               label="Teléfono"
               value={
                 supplier.phone ? (
-                  <a href={`tel:${supplier.phone.replace(/\s+/g, "")}`} className="hover:underline">
+                  <a
+                    href={`tel:${supplier.phone.replace(/\s+/g, "")}`}
+                    className="hover:underline"
+                  >
                     {supplier.phone}
                   </a>
                 ) : (
                   "—"
                 )
               }
+              valueClassName="truncate"
             />
+
             <Item
               icon={<Mail size={14} />}
               label="Correo"
+              className="sm:col-span-2"
               value={
                 supplier.email ? (
-                  <a href={`mailto:${supplier.email}`} className="hover:underline">
+                  <a
+                    href={`mailto:${supplier.email}`}
+                    className="hover:underline break-all whitespace-normal"
+                  >
                     {supplier.email}
                   </a>
                 ) : (
                   "—"
                 )
               }
+              valueClassName="break-all whitespace-normal"
             />
-            <Item icon={<MapPin size={14} />} label="Dirección" value={supplier.address || "—"} />
+
+            <Item
+              icon={<MapPin size={14} />}
+              label="Dirección"
+              className="sm:col-span-2"
+              value={supplier.address || "—"}
+              valueClassName="break-words whitespace-normal"
+            />
           </div>
         </section>
       </div>

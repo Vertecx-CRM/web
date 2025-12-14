@@ -6,26 +6,26 @@ import TopNav from "@/features/dashboard/layout/TopNav";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import { useRouter, usePathname } from "next/navigation";
-import { showSuccess } from "@/shared/utils/notifications";
 import { MODULE_TO_PATH, pickDefaultDashboardRoute } from "@/features/auth/authz";
 import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
-import { toast } from "react-toastify";
 import { routes } from "@/shared/routes";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { APP_TOAST_ID, showSuccess } from "@/shared/utils/notifications";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const {
-    user,
-    allowedModules,
-    ready,
-    lastAuthAction,
-    setLastAuthAction,
-    isAuthenticated,
-    changePassword,
-  } = useAuth();
+  const { user, allowedModules, ready, isAuthenticated, changePassword } =
+    useAuth();
+
   const router = useRouter();
   const pathname = usePathname();
+
   const noScrollRoutes = [
     routes.dashboard.users,
     routes.dashboard.clients,
@@ -47,26 +47,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isNoScrollRoute = noScrollRoutes.includes(pathname);
 
-
   const hideAside = allowedModules.length <= 1;
 
-  const permissions = useMemo<string[]>(() => (user as any)?.permissions || [], [user]);
-
-  useEffect(() => {
-    if (lastAuthAction !== "login") return;
-
-    const key = "__toast_login_success__";
-    if (typeof window !== "undefined") {
-      if (sessionStorage.getItem(key) === "1") {
-        setLastAuthAction(null);
-        return;
-      }
-      sessionStorage.setItem(key, "1");
-    }
-
-    showSuccess("Inicio de sesión exitoso.");
-    setLastAuthAction(null);
-  }, [lastAuthAction, setLastAuthAction]);
+  const permissions = useMemo<string[]>(
+    () => (user as any)?.permissions || [],
+    [user]
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -87,6 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     if (!pathname.startsWith(base)) router.replace(base);
   }, [allowedModules, ready, user, pathname, router]);
+
   const [forcePasswordModal, setForcePasswordModal] = useState(false);
 
   const mustChangePassword = !!user?.mustchangepassword;
@@ -108,11 +95,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }) => {
     const current = currentPassword || "";
     const res = await changePassword(current, newPassword);
+
     if (!res.ok) {
       throw new Error(res.message || "No se pudo actualizar la contrasena");
     }
+
     setForcePasswordModal(false);
-    toast.success("Contrasena actualizada exitosamente", { position: "bottom-right" });
+    showSuccess("Contrasena actualizada exitosamente");
   };
 
   const handleForcePasswordClose = () => {
@@ -125,25 +114,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <RequireAuth>
-
+      <ToastContainer
+        containerId={APP_TOAST_ID}
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+        newestOnTop
+        limit={3}
+        style={{ zIndex: 999999 }}
+      />
 
       <div className="flex h-screen">
-        {!hideAside && <AsideNav isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />}
+        {!hideAside && (
+          <AsideNav
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+          />
+        )}
 
         <div
           className="flex flex-col transition-all duration-300"
           style={{
-            width: hideAside ? "100%" : isCollapsed ? "100%" : "calc(100% - 16rem)",
+            width: hideAside
+              ? "100%"
+              : isCollapsed
+              ? "100%"
+              : "calc(100% - 16rem)",
             marginLeft: hideAside ? 0 : isCollapsed ? 0 : "16rem",
           }}
         >
           <TopNav />
 
           <main
-            className={`flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin ${isNoScrollRoute ? "overflow-y-hidden" : ""
-              }`}
+            className={`flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin ${
+              isNoScrollRoute ? "overflow-y-hidden" : ""
+            }`}
           >
-
             {children}
           </main>
         </div>
