@@ -26,16 +26,21 @@ export function ActionButtonsComponent({
   ) => {
     disableEdit?: boolean;
     disableDelete?: boolean;
+    disableCancel?: boolean;
     editTitle?: string;
     deleteTitle?: string;
+    cancelTitle?: string;
   };
 }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const guard = actionGuard?.(row) ?? {};
   const editDisabled = guard.disableEdit ?? false;
   const deleteDisabled = guard.disableDelete ?? false;
+  const cancelDisabled = guard.disableCancel ?? false;
+
   const editTitle = guard.editTitle ?? "Editar";
   const deleteTitle = guard.deleteTitle ?? "Eliminar";
+  const cancelTitle = guard.cancelTitle ?? "Anular";
 
   if (compact) {
     return (
@@ -97,6 +102,25 @@ export function ActionButtonsComponent({
                 Eliminar
               </button>
             )}
+
+            {onCancel && (
+              <button
+                disabled={cancelDisabled}
+                title={cancelDisabled ? cancelTitle : "Anular"}
+                onClick={() => {
+                  if (cancelDisabled) return;
+                  onCancel(row);
+                  setShowDropdown(false);
+                }}
+                className={`w-full text-left px-3 py-2 text-xs ${
+                  cancelDisabled
+                    ? "opacity-40 cursor-not-allowed text-gray-400"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                {cancelTitle}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -134,7 +158,12 @@ export function ActionButtonsComponent({
       )}
 
       {onCancel && (
-        <ActionButton icon="/icons/X.svg" title="Anular" onClick={() => onCancel(row)} />
+        <ActionButton
+          icon="/icons/X.svg"
+          title={cancelDisabled ? cancelTitle : "Anular"}
+          onClick={() => onCancel(row)}
+          disabled={cancelDisabled}
+        />
       )}
 
       {onCheck && (

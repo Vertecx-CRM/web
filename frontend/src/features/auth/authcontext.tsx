@@ -76,23 +76,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const loadProfile = useCallback(async (userId?: number): Promise<any | null> => {
-    const id = userId ?? (userRef.current as any)?.userid;
-    if (!id) {
-      setProfile(null);
-      return null;
-    }
+  const loadProfile = useCallback(
+    async (userId?: number): Promise<any | null> => {
+      const id = userId ?? (userRef.current as any)?.userid;
+      if (!id) {
+        setProfile(null);
+        return null;
+      }
 
-    try {
-      const res = await api.get(`/users/${id}`);
-      const payload = res.data?.data ?? res.data;
-      setProfile(payload);
-      return payload;
-    } catch {
-      setProfile(null);
-      return null;
-    }
-  }, []);
+      try {
+        const res = await api.get(`/users/${id}`);
+        const payload = res.data?.data ?? res.data;
+        setProfile(payload);
+        return payload;
+      } catch {
+        setProfile(null);
+        return null;
+      }
+    },
+    []
+  );
 
   const refreshProfile = useCallback(async () => {
     const id = (userRef.current as any)?.userid;
@@ -153,6 +156,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const redirectTo =
           pickPostLoginRedirect(perms, nextPath) || "/dashboard";
 
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(
+            "__pending_toast__",
+            JSON.stringify({
+              type: "success",
+              message: "Inicio de sesión exitoso.",
+            })
+          );
+        }
+
         setLastAuthAction("login");
         setReady(true);
         return { ok: true, redirectTo };
@@ -160,8 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setReady(true);
         return {
           ok: false,
-          message:
-            err?.response?.data?.message || "No se pudo iniciar sesión",
+          message: err?.response?.data?.message || "Correo o contraseña incorrectos",
         };
       }
     },
@@ -194,8 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         ok: false,
         message:
-          err?.response?.data?.message ||
-          "No se pudo actualizar la contraseña",
+          err?.response?.data?.message || "No se pudo actualizar la contraseña",
       };
     }
   };
@@ -219,8 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err: any) {
         return {
           ok: false,
-          message:
-            err?.response?.data?.message || "Error al actualizar",
+          message: err?.response?.data?.message || "Error al actualizar",
         };
       }
     },

@@ -14,8 +14,13 @@ import type {
 
 const BASE = "orders-services";
 
-export async function createOrderService(dto: CreateOrdersServiceDto): Promise<OrderServiceDTO> {
-  const payload: CreateOrdersServiceDto = { ...dto, stateid: 5 };
+export async function createOrderService(
+  dto: CreateOrdersServiceDto
+): Promise<OrderServiceDTO> {
+  const payload: CreateOrdersServiceDto = {
+    ...dto,
+    stateid: dto.stateid ?? 5,
+  };
   const { data } = await api.post<OrderServiceDTO>(BASE, payload);
   return data;
 }
@@ -32,22 +37,32 @@ export async function fetchOrderServiceById(id: number): Promise<OrderServiceDTO
 
 export async function fetchOrderServiceHistory(
   id: number,
-  type?: "SYSTEM" | "TECH" | "NOTE" | "STATUS"
+  type?: "SYSTEM" | "TECH"
 ): Promise<OrdersServiceHistoryItem[]> {
-  const { data } = await api.get<OrdersServiceHistoryItem[]>(`${BASE}/${id}/history`, {
-    params: type ? { type } : undefined,
-  });
+  const { data } = await api.get<OrdersServiceHistoryItem[]>(
+    `${BASE}/${id}/history`,
+    { params: type ? { type } : undefined }
+  );
   return data;
 }
 
-export async function addOrderServiceWorklog(id: number, dto: AddWorklogDto): Promise<OrdersServiceHistoryItem> {
-  const { data } = await api.post<OrdersServiceHistoryItem>(`${BASE}/${id}/history`, dto);
+export async function addOrderServiceWorklog(
+  id: number,
+  dto: AddWorklogDto
+): Promise<OrdersServiceHistoryItem> {
+  const { data } = await api.post<OrdersServiceHistoryItem>(
+    `${BASE}/${id}/history`,
+    dto
+  );
   return data;
 }
 
 export type OrderServicePatch = Partial<OrderServiceDTO> & { stateid?: number };
 
-export async function updateOrderService(id: number, patch: OrderServicePatch): Promise<OrderServiceDTO> {
+export async function updateOrderService(
+  id: number,
+  patch: OrderServicePatch
+): Promise<OrderServiceDTO> {
   const { data } = await api.patch<OrderServiceDTO>(`${BASE}/${id}`, patch);
   return data;
 }
@@ -60,28 +75,88 @@ export async function deleteOrderService(id: number): Promise<void> {
   await api.delete(`${BASE}/${id}`);
 }
 
-export async function reprogramOrderService(id: number, dto: ReprogramOrderDto): Promise<OrderServiceDTO> {
+export async function reprogramOrderService(
+  id: number,
+  dto: ReprogramOrderDto
+): Promise<OrderServiceDTO> {
   const { data } = await api.patch<OrderServiceDTO>(`${BASE}/${id}/reprogram`, dto);
   return data;
 }
 
-export async function finishOrderService(id: number, dto: FinishOrderDto): Promise<OrderServiceDTO> {
+export async function finishOrderService(
+  id: number,
+  dto: FinishOrderDto
+): Promise<OrderServiceDTO> {
   const { data } = await api.patch<OrderServiceDTO>(`${BASE}/${id}/finish`, dto);
   return data;
 }
 
-export async function assignTechniciansToOrderService(id: number, dto: AssignTechniciansDto): Promise<OrderServiceDTO> {
+export async function assignTechniciansToOrderService(
+  id: number,
+  dto: AssignTechniciansDto
+): Promise<OrderServiceDTO> {
   const { data } = await api.patch<OrderServiceDTO>(`${BASE}/${id}/technicians`, dto);
   return data;
 }
 
-export async function addProductToOrderService(id: number, dto: AddProductToOrderDto): Promise<OrderServiceDTO> {
+export async function addProductToOrderService(
+  id: number,
+  dto: AddProductToOrderDto
+): Promise<OrderServiceDTO> {
   const { data } = await api.post<OrderServiceDTO>(`${BASE}/${id}/products`, dto);
   return data;
 }
 
-export async function removeProductFromOrderService(id: number, productid: number): Promise<OrderServiceDTO> {
-  const { data } = await api.delete<OrderServiceDTO>(`${BASE}/${id}/products/${productid}`);
+export type UpdateProductLineDto = { cantidad: number };
+
+export async function updateProductLine(
+  id: number,
+  productId: number,
+  dto: UpdateProductLineDto
+): Promise<OrderServiceDTO> {
+  const { data } = await api.patch<OrderServiceDTO>(
+    `${BASE}/${id}/products/${productId}`,
+    dto
+  );
+  return data;
+}
+
+export async function removeProductFromOrderService(
+  id: number,
+  productId: number
+): Promise<OrderServiceDTO> {
+  const { data } = await api.delete<OrderServiceDTO>(`${BASE}/${id}/products/${productId}`);
+  return data;
+}
+
+export type AddServiceToOrderDto = { serviceid: number; cantidad: number; unitprice?: number; precio?: number };
+export type UpdateServiceLineDto = { cantidad: number; unitprice?: number | null };
+
+export async function addServiceToOrderService(
+  id: number,
+  dto: AddServiceToOrderDto
+): Promise<OrderServiceDTO> {
+  const { data } = await api.post<OrderServiceDTO>(`${BASE}/${id}/services`, dto);
+  return data;
+}
+
+export async function updateServiceLine(
+  id: number,
+  serviceId: number,
+  dto: UpdateServiceLineDto
+): Promise<OrderServiceDTO> {
+  const { data } = await api.patch<OrderServiceDTO>(
+    `${BASE}/${id}/services/${serviceId}`,
+    dto
+  );
+  return data;
+}
+
+export async function removeServiceFromOrderService(
+  id: number,
+  serviceId: number
+): Promise<OrderServiceDTO> {
+  const { data } = await api.delete<OrderServiceDTO>(`${BASE}/${id}/services/${serviceId}`);
   return data;
 }
 
@@ -120,11 +195,10 @@ export type ReportWarrantyPayload = {
   reportedByUserId?: number;
 };
 
-export async function reportOrderServiceWarranty(id: number, dto: ReportWarrantyPayload): Promise<OrderServiceDTO> {
+export async function reportOrderServiceWarranty(
+  id: number,
+  dto: ReportWarrantyPayload
+): Promise<OrderServiceDTO> {
   const { data } = await api.patch<OrderServiceDTO>(`${BASE}/${id}/warranty/report`, dto);
   return data;
 }
-
-export type CreateOrderServiceDto = CreateOrdersServiceDto;
-export type UpdateOrderServiceDto = Partial<OrderServiceDTO>;
-export type RemoveOrderFileDto = RemoveFileDto;

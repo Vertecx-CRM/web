@@ -15,6 +15,7 @@ type ViewRequestData = {
   estado: string;
   codigo: string;
   programada: string | null;
+  programadaEnd: string | null;
 };
 
 type Props = {
@@ -27,9 +28,12 @@ type Props = {
 function estadoClass(v: string) {
   const s = (v || "").toLowerCase();
   if (s.includes("aprob")) return "text-green-600 bg-green-50 border-green-200";
-  if (s.includes("anul") || s.includes("cancel")) return "text-red-600 bg-red-50 border-red-200";
-  if (s.includes("pend")) return "text-yellow-700 bg-yellow-50 border-yellow-200";
-  if (s.includes("activo")) return "text-emerald-700 bg-emerald-50 border-emerald-200";
+  if (s.includes("anul") || s.includes("cancel"))
+    return "text-red-600 bg-red-50 border-red-200";
+  if (s.includes("pend"))
+    return "text-yellow-700 bg-yellow-50 border-yellow-200";
+  if (s.includes("activo"))
+    return "text-emerald-700 bg-emerald-50 border-emerald-200";
   return "text-gray-700 bg-gray-50 border-gray-200";
 }
 
@@ -64,10 +68,17 @@ export default function ViewRequestModal({
     [data.programada]
   );
 
+  const { date: programadaEndDate, time: programadaEndTime } = useMemo(
+    () => splitDateTime(data.programadaEnd),
+    [data.programadaEnd]
+  );
+
   const tipoPrincipal: Tipo | null = useMemo(
     () => (Array.isArray(data.tipos) && data.tipos.length ? data.tipos[0] : null),
     [data.tipos]
   );
+
+  const codigoMostrar = (data.codigo || "").trim() || "—";
 
   return (
     <Modal
@@ -75,11 +86,7 @@ export default function ViewRequestModal({
       isOpen={isOpen}
       onClose={onClose}
       footer={
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] text-gray-500">
-            Código:&nbsp;
-            <span className="font-semibold text-gray-800">{data.codigo}</span>
-          </div>
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -93,9 +100,11 @@ export default function ViewRequestModal({
       <div className="grid gap-4">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Información general</h3>
-            <p className="text-xs text-gray-500">Revisa el detalle de la solicitud seleccionada.</p>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Código: <span className="font-bold">{codigoMostrar}</span>
+            </h3>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={[
@@ -105,31 +114,38 @@ export default function ViewRequestModal({
             >
               Estado: {data.estado || "—"}
             </span>
+
             <span className="inline-flex items-center rounded-full bg-gray-800 px-3 py-1 text-[11px] font-medium text-white">
               {tipoPrincipal ? `Tipo: ${tipoPrincipal}` : "Sin tipo asignado"}
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Cliente
+            </label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span className="truncate">{data.cliente || "—"}</span>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Servicio
+            </label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span className="truncate">{data.servicio || "—"}</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Fecha de creación</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Fecha de creación
+            </label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span>{data.fecha || "—"}</span>
             </div>
@@ -148,34 +164,34 @@ export default function ViewRequestModal({
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
-          <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
-            <span className="truncate">{data.direccion || "—"}</span>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Fecha y hora final
+            </label>
+            <div className="flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span>{programadaEndDate || "—"}</span>
+              <span className="text-xs text-gray-500">
+                {programadaEndTime ? `Hora: ${programadaEndTime}` : ""}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Dirección
+            </label>
+            <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span className="truncate">{data.direccion || "—"}</span>
+            </div>
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Tipos de servicio</label>
-          {data.tipos && data.tipos.length ? (
-            <div className="flex flex-wrap gap-2">
-              {data.tipos.map((t, idx) => (
-                <span
-                  key={`${t}-${idx}`}
-                  className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-800 border border-gray-200"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-gray-500">Sin tipos asociados.</p>
-          )}
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
-          <div className="min-h-[80px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 whitespace-pre-line">
+          <label className="mb-1 block text-xs font-medium text-gray-900">
+            Descripción
+          </label>
+          <div className="min-h-[80px] whitespace-pre-line rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
             {data.descripcion?.trim() ? data.descripcion : "—"}
           </div>
         </div>

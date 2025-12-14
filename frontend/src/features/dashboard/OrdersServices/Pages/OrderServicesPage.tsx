@@ -30,6 +30,31 @@ const ICONS = {
   report: "/icons/alert-triangle.svg",
 };
 
+type FlashToast = { type: "success" | "error" | "warning"; message: string };
+
+function consumeFlashToast(): FlashToast | null {
+  try {
+    const raw = sessionStorage.getItem("flash_toast");
+    if (!raw) return null;
+
+    sessionStorage.removeItem("flash_toast");
+
+    const data = JSON.parse(raw);
+    const type = data?.type;
+    const message = String(data?.message || "").trim();
+
+    if (!message) return null;
+    if (type !== "success" && type !== "error" && type !== "warning") return null;
+
+    return { type, message };
+  } catch {
+    try {
+      sessionStorage.removeItem("flash_toast");
+    } catch {}
+    return null;
+  }
+}
+
 type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { nombre: string; cantidad: number; precio?: number };
 
@@ -389,6 +414,32 @@ export default function OrdersServicesIndexPage() {
 
   const bodyOverflowRef = useRef<string | null>(null);
 
+  // ✅ Disparar notificación al aterrizar desde /new (flash toast)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const toast = consumeFlashToast();
+    if (!toast) return;
+
+    if (toast.type === "success") {
+      showSuccess(toast.message);
+      return;
+    }
+
+    if (toast.type === "error") {
+      showError(toast.message);
+      return;
+    }
+
+    // warning
+    Swal.fire({
+      icon: "warning",
+      title: "Atención",
+      text: toast.message,
+      confirmButtonColor: "#B20000",
+    });
+  }, []);
+
   const reloadOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -517,10 +568,7 @@ export default function OrdersServicesIndexPage() {
         showSuccess(`La orden #${row.id} quedó marcada en garantía.`);
         await reloadOrders();
       } catch (e: any) {
-        const message =
-          e?.response?.data?.message?.[0] ||
-          e?.response?.data?.message ||
-          "No se pudo marcar la garantía.";
+        const message = e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo marcar la garantía.";
         showError(message);
       } finally {
         setBusy(false);
@@ -921,7 +969,9 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
         header: "Estado",
         render: (r) => {
           if (r.estado === "GarantiaReportada") {
-            const fecha = r.garantia?.reportedAtISO ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO") : "";
+            const fecha = r.garantia?.reportedAtISO
+              ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO")
+              : "";
             const title = r.garantia
               ? `Motivo: ${r.garantia.label} · Reportado por: ${r.garantia.reportedBy}${fecha ? " · " + fecha : ""}`
               : "Garantía (reportada)";
