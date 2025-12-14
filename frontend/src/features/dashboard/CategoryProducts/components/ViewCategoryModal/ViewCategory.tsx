@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import Modal from "../../../components/Modal"; 
+import Modal from "../../../components/Modal";
 import Colors from "@/shared/theme/colors";
 import { useViewCategory } from "../../hooks/useViewCategory";
 import { ViewCategoryModalProps } from "../../types/typeCategoryProducts";
@@ -26,18 +26,17 @@ const ViewCategoryModal: React.FC<ViewCategoryModalProps> = ({
 
   // Footer del modal
   const footer = (
-    <button
-      type="button"
-      onClick={onClose}
-      className="px-4 py-2 rounded-md font-medium text-white text-sm"
-      style={{
-        backgroundColor: Colors.buttons.quaternary,
-        color: Colors.texts.quaternary,
-      }}
-    >
-      Cerrar
-    </button>
+    <div className="flex justify-end w-full">
+      <button
+        type="button"
+        onClick={onClose}
+        className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+      >
+        Cerrar
+      </button>
+    </div>
   );
+
 
   return (
     <Modal
@@ -128,11 +127,10 @@ const ViewCategoryModal: React.FC<ViewCategoryModalProps> = ({
           </label>
           <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
             <span
-              className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                category.status
-                  ? "text-green-600 bg-green-100"
-                  : "text-gray-500 bg-gray-100"
-              }`}
+              className={`rounded-full px-2 py-1 text-xs font-semibold ${category.status
+                ? "text-green-600 bg-green-100"
+                : "text-gray-500 bg-gray-100"
+                }`}
             >
               {category.status ? "Activo" : "Inactivo"}
             </span>

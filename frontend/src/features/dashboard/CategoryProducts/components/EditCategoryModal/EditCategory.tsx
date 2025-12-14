@@ -1,6 +1,6 @@
 "use client";
 import React, { useRef } from "react";
-import Modal from "../../../components/Modal"; 
+import Modal from "../../../components/Modal";
 import Colors from "@/shared/theme/colors";
 import { useEditCategoryForm } from "../../hooks/useEditCategoryForm";
 import { EditCategoryModalProps } from "../../types/typeCategoryProducts";
@@ -30,30 +30,24 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
   if (!isOpen || !category) return null;
 
   const footer = (
-    <>
+    <div className="flex justify-end gap-2 sm:gap-3 w-full">
       <button
         type="button"
         onClick={onClose}
-        className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-        style={{
-          backgroundColor: Colors.buttons.tertiary,
-          color: Colors.texts.quaternary,
-        }}
+        className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
       >
         Cancelar
       </button>
+
       <button
         type="submit"
-        className="px-4 py-2 rounded-md font-medium text-white text-sm"
-        style={{
-          backgroundColor: Colors.buttons.quaternary,
-          color: Colors.texts.quaternary,
-        }}
+        className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
       >
-        Guardar Cambios
+        Guardar cambios
       </button>
-    </>
+    </div>
   );
+
 
   return (
     <Modal
@@ -61,7 +55,7 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       widthClass="max-w-md"
-      footer={null} 
+      footer={null}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Icono */}
@@ -149,7 +143,7 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
             className="block text-sm font-medium mb-1"
             style={{ color: Colors.texts.primary }}
           >
-            Nombre*
+            Nombre <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
