@@ -46,9 +46,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   const [description, setDescription] = useState("");
 
   const [supplierCategory, setSupplierCategory] = useState("");
-  const [supplierPrice, setSupplierPrice] = useState<string>("");
-
-  const [salePrice, setSalePrice] = useState<string>("");
   const [code, setCode] = useState<string>("");
 
   const [categoryId, setCategoryId] = useState<string>("");
@@ -58,17 +55,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 
   const [errors, setErrors] = useState<ProductErrors>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const formatMoney = (num: number | null | undefined) => {
-    if (num === null || num === undefined) return "";
-    return Number(num).toLocaleString("es-CO");
-  };
-
-  const handleMoneyChange = (setter: (v: string) => void) => (value: string) => {
-    const numericValue = value.replace(/\D/g, "");
-    const formatted = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    setter(formatted);
-  };
 
   const validateField = (field: ProductFormField, value: unknown) => {
     const error = validateProductField(field, value, products, product?.id);
@@ -87,13 +73,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       setDescription(product.description ?? "");
 
       setSupplierCategory(product.supplierCategory ?? "");
-      setSupplierPrice(formatMoney(product.supplierPrice));
-
-      setSalePrice(
-        product.salePrice === null || product.salePrice === undefined
-          ? ""
-          : formatMoney(product.salePrice)
-      );
       setCode(product.code ?? "");
 
       setCategoryId(String(product.categoryId));
@@ -113,12 +92,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       name,
       description: description ?? null,
       supplierCategory,
-      supplierPrice,
-
-      salePrice,
-      code,
-
       categoryId,
+      code,
       image,
     };
 
@@ -142,9 +117,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       description: description ?? null,
 
       supplierCategory: supplierCategory.trim(),
-      supplierPrice: Number(String(supplierPrice).replace(/\./g, "")),
-
-      salePrice: Number(String(salePrice).replace(/\./g, "")),
       code: code.trim(),
 
       categoryId: Number(categoryId),
@@ -189,7 +161,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       <form id="edit-product-form" onSubmit={handleSubmit} className="flex flex-col h-full">
         <div className="flex-1 grid grid-cols-2 gap-3 p-1">
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Nombre <span className="text-red-500">*</span>
             </label>
             <input
@@ -206,25 +181,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Precio proveedor <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={supplierPrice}
-              onChange={(e) => handleMoneyChange(setSupplierPrice)(e.target.value)}
-              onBlur={() => validateField("supplierPrice", supplierPrice)}
-              inputMode="numeric"
-              className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.supplierPrice ? "red" : Colors.table.lines }}
-            />
-            {errors.supplierPrice && (
-              <span className="text-xs text-red-500">{errors.supplierPrice}</span>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Categoría del proveedor <span className="text-red-500">*</span>
             </label>
             <input
@@ -244,7 +204,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Categoría <span className="text-red-500">*</span>
             </label>
             <select
@@ -264,27 +227,16 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
                 </option>
               ))}
             </select>
-            {errors.categoryId && <span className="text-xs text-red-500">{errors.categoryId}</span>}
+            {errors.categoryId && (
+              <span className="text-xs text-red-500">{errors.categoryId}</span>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
-              Precio venta <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={salePrice}
-              onChange={(e) => handleMoneyChange(setSalePrice)(e.target.value)}
-              onBlur={() => validateField("salePrice", salePrice)}
-              inputMode="numeric"
-              className="w-full px-2 py-1 border rounded-md"
-              style={{ borderColor: errors.salePrice ? "red" : Colors.table.lines }}
-            />
-            {errors.salePrice && <span className="text-xs text-red-500">{errors.salePrice}</span>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Código <span className="text-red-500">*</span>
             </label>
             <input
@@ -303,7 +255,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 
           <div className="col-span-2 grid grid-cols-3 gap-3">
             <div className="col-span-2 flex flex-col">
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
                 Descripción
               </label>
               <textarea
@@ -316,7 +271,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             </div>
 
             <div className="col-span-1 flex flex-col">
-              <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+              <label
+                className="block text-sm font-medium mb-1"
+                style={{ color: Colors.texts.primary }}
+              >
                 Imagen <span className="text-red-500">*</span>
               </label>
 
@@ -361,7 +319,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           </div>
 
           <div className="col-span-2">
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
               Estado
             </label>
             <select
@@ -378,6 +339,6 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       </form>
     </Modal>
   );
-};
+};  
 
 export default EditProductModal;

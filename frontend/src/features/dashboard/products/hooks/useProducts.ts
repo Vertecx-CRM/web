@@ -7,7 +7,14 @@ import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 
 import type { Product, CreateProductData, EditProductData } from "../types/typesProducts";
 import type { UpdateProductPayload, StatusQuery } from "../api/products.api";
-import { createProduct, deleteProduct, getProducts, updateProduct, getProductDeletionInfo } from "../api/products.api";
+import {
+  createProduct,
+  deleteProduct,
+  getProducts,
+  updateProduct,
+  getProductDeletionInfo,
+  type ProductDeletionInfo,
+} from "../api/products.api";
 
 type ApiErrorShape = {
   response?: {
@@ -125,11 +132,6 @@ export const useProducts = () => {
       if (!payload.categoryId) throw new Error("Debe seleccionar una categoría.");
       if (!payload.supplierCategory?.trim())
         throw new Error("La categoría del proveedor es obligatoria.");
-      if (!payload.supplierPrice || payload.supplierPrice <= 0)
-        throw new Error("El precio debe ser mayor a 0.");
-
-      if (payload.salePrice === null || payload.salePrice === undefined || payload.salePrice <= 0)
-        throw new Error("El precio de venta es obligatorio y debe ser mayor a 0.");
       if (!payload.code?.trim()) throw new Error("El código es obligatorio.");
 
       const imageUrl = await requireImageUrl(payload.image);
@@ -141,8 +143,6 @@ export const useProducts = () => {
         suppliercategory: payload.supplierCategory.trim(),
         image: imageUrl,
         productcode: payload.code.trim(),
-        productpriceofsale: payload.salePrice,
-        productpriceofsupplier: payload.supplierPrice,
         isactive: true,
       });
 
@@ -169,11 +169,6 @@ export const useProducts = () => {
       if (!payload.categoryId) throw new Error("Debe seleccionar una categoría.");
       if (!payload.supplierCategory?.trim())
         throw new Error("La categoría del proveedor es obligatoria.");
-      if (!payload.supplierPrice || payload.supplierPrice <= 0)
-        throw new Error("El precio debe ser mayor a 0.");
-
-      if (payload.salePrice === null || payload.salePrice === undefined || payload.salePrice <= 0)
-        throw new Error("El precio de venta es obligatorio y debe ser mayor a 0.");
       if (!payload.code?.trim()) throw new Error("El código es obligatorio.");
 
       const body: UpdateProductPayload = {
@@ -181,9 +176,7 @@ export const useProducts = () => {
         productdescription: (payload.description ?? "").trim() || null,
         categoryid: payload.categoryId,
         suppliercategory: payload.supplierCategory.trim(),
-        productcode: payload.code.trim(),
-        productpriceofsale: payload.salePrice,
-        productpriceofsupplier: payload.supplierPrice,
+        productcode: payload.code?.trim(),
         isactive: payload.state === "Activo",
       };
 
@@ -215,7 +208,7 @@ export const useProducts = () => {
   };
 
   const handleDeleteProduct = async (product: Product): Promise<boolean> => {
-    let info: { canDelete: boolean; reason?: string } | null = null;
+    let info: ProductDeletionInfo | null = null;
 
     setLoading(true);
     try {
@@ -257,10 +250,12 @@ export const useProducts = () => {
     }
 
     if (info?.canDelete === false) {
-      const reason = info.reason?.trim() || "Está asociado a compras/órdenes/ventas u otros registros.";
+      const reason =
+        info.reason?.trim() ||
+        "Está asociado a compras/órdenes/ventas u otros registros.";
       const isAlreadyInactive = product.state === "Inactivo";
 
-      if (isAlreadyInactive) {
+      if (isAlreadyInactive || info.canDeactivate === false) {
         return confirmDelete(
           {
             itemName: product.name,
@@ -269,13 +264,13 @@ export const useProducts = () => {
             customMessage:
               `El producto "${product.name}" no se puede eliminar.\n` +
               `${reason}\n\n` +
-              `Este producto ya se encuentra desactivado.`,
+              `Este producto ya se encuentra desactivado o no se puede desactivar.`,
             showConfirmButton: false,
             showCancelButton: true,
             cancelButtonText: "Cerrar",
             skipSuccessToast: true,
           },
-          async () => { }
+          async () => {}
         );
       }
 

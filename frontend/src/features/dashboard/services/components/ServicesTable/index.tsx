@@ -16,18 +16,26 @@ interface ServicesTableProps {
   onCreate: () => void;
 }
 
-// Extendemos Service solo para la tabla, con el campo de búsqueda
 type ServiceRow = Service & {
+  rowNumber: number;
   searchText: string;
+  stateSearch: "activo" | "inactivo";
 };
 
 const normalizeForSearch = (value: string): string => {
   const lower = value.toLowerCase();
-  const withoutAccents = lower
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  // Guardamos ambas variantes para matchear con o sin tilde
+  const withoutAccents = lower.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   return `${lower} ${withoutAccents}`;
+};
+
+const toStateSearch = (state: unknown): "activo" | "inactivo" => {
+  const s = String(state ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  return s === "activo" ? "activo" : "inactivo";
 };
 
 const buildSearchText = (s: Service): string => {
@@ -40,10 +48,9 @@ const buildSearchText = (s: Service): string => {
     parts.push(normalizeForSearch(str));
   };
 
-  add(s.id);        // ID
-  add(s.name);      // Nombre
-  add(s.category);  // Categoría
-  add(s.state);     // Estado (Activo / Inactivo)
+  add(s.id);
+  add(s.name);
+  add(s.category);
 
   return parts.join(" ");
 };
@@ -62,15 +69,17 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
 
   const rows: ServiceRow[] = useMemo(
     () =>
-      sortedServices.map((s) => ({
+      sortedServices.map((s, index) => ({
         ...s,
+        rowNumber: index + 1,
         searchText: buildSearchText(s),
+        stateSearch: toStateSearch(s.state),
       })),
     [sortedServices]
   );
 
   const columns: Column<ServiceRow>[] = [
-    { key: "id", header: "ID" },
+    { key: "rowNumber", header: "#" },
     {
       key: "name",
       header: "Nombre",
@@ -89,8 +98,8 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
           typeof s.image === "string"
             ? s.image.trim()
             : s.image instanceof File
-            ? URL.createObjectURL(s.image)
-            : "";
+              ? URL.createObjectURL(s.image)
+              : "";
 
         const isBase64 = typeof image === "string" && image.startsWith("data:image");
         const isBlob = typeof image === "string" && image.startsWith("blob:");
@@ -147,9 +156,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
       data={rows}
       columns={columns}
       pageSize={6}
-      // Buscamos solo sobre searchText, que ya contiene id, nombre, categoría y estado
-      // normalizados (mayúsculas, minúsculas y tildes)
-      searchableKeys={["searchText"]}
+      searchableKeys={["searchText", "stateSearch"]}
       onView={onView as (s: ServiceRow) => void}
       onEdit={onEdit as (s: ServiceRow) => void}
       onDelete={onDelete as (s: ServiceRow) => void}
@@ -163,7 +170,7 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
               id="download-excel-btn-services"
               data={sortedServices as unknown as Record<string, unknown>[]}
               fileName="reporte_servicios.xlsx"
-              headers={["ID", "Nombre", "Categoría", "Estado"]}
+              headers={["#", "Nombre", "Categoría", "Estado"]}
             />
           </div>
 

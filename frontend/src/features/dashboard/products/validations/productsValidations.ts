@@ -5,8 +5,6 @@ export type ProductFormField =
   | "description"
   | "categoryId"
   | "supplierCategory"
-  | "supplierPrice"
-  | "salePrice"
   | "code"
   | "image";
 
@@ -20,19 +18,9 @@ export type ProductFormDraft = {
 
   supplierCategory: string;
 
-  supplierPrice: number | string;
-  salePrice?: number | string | null;
-
   code?: string | null;
 
   image: File | string | null | undefined;
-};
-
-const toNumber = (v: unknown): number => {
-  if (typeof v === "number") return v;
-  const s = String(v ?? "").replace(/\./g, "").trim();
-  const n = Number(s);
-  return Number.isNaN(n) ? NaN : n;
 };
 
 export const validateProductField = (
@@ -53,22 +41,6 @@ export const validateProductField = (
       return;
     }
 
-    case "supplierPrice": {
-      if (value === "" || value === undefined || value === null) return "El precio es obligatorio";
-      const n = toNumber(value);
-      if (Number.isNaN(n) || n <= 0) return "El precio debe ser mayor que 0";
-      return;
-    }
-
-    // CAMBIO: ahora es obligatorio
-    case "salePrice": {
-      if (value === "" || value === undefined || value === null)
-        return "El precio de venta es obligatorio";
-      const n = toNumber(value);
-      if (Number.isNaN(n) || n <= 0) return "El precio de venta debe ser mayor que 0";
-      return;
-    }
-
     case "categoryId": {
       const n = Number(value);
       if (!n || n < 1) return "La categoría es obligatoria";
@@ -81,11 +53,17 @@ export const validateProductField = (
       return;
     }
 
-    // CAMBIO: ahora es obligatorio
     case "code": {
       const v = String(value ?? "").trim();
       if (!v) return "El código es obligatorio";
       if (v.length > 20) return "El código no puede superar 20 caracteres";
+
+      const duplicated = products.some((p) => {
+        const code = String(p.code ?? "").trim();
+        return code.toLowerCase() === v.toLowerCase() && p.id !== currentId;
+      });
+
+      if (duplicated) return "Ya existe un producto con este código";
       return;
     }
 
@@ -114,8 +92,6 @@ export const validateProductForm = (
   const fields: ProductFormField[] = [
     "name",
     "description",
-    "supplierPrice",
-    "salePrice",
     "categoryId",
     "supplierCategory",
     "code",

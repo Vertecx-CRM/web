@@ -107,7 +107,7 @@ export default function RegisterPurchaseForm({
 
   const [selectedSupplierPrice, setSelectedSupplierPrice] = useState<
     number | ""
-  >("");
+  >(""); // ya lo tenías
 
   const filteredProducts = useMemo(() => {
     if (!searchProduct.trim()) return products;
@@ -191,6 +191,20 @@ export default function RegisterPurchaseForm({
       return;
     }
 
+    if (!isNewProduct) {
+      // *** Validar que haya cantidad y precio en el input
+      if (!selectedSupplierPrice || Number(selectedSupplierPrice) <= 0) {
+        showWarning(
+          "Ingresa un precio de compra válido para el producto seleccionado."
+        );
+        return;
+      }
+      if (!quantity || quantity <= 0) {
+        showWarning("La cantidad debe ser mayor que 0.");
+        return;
+      }
+    }
+
     let supplierPrice = 0;
     let salePrice: number | undefined;
 
@@ -200,9 +214,15 @@ export default function RegisterPurchaseForm({
         newProductSalePrice === "" ? undefined : Number(newProductSalePrice);
     } else {
       const product = getSelectedProduct();
-      if (!product) return;
+      if (!product) {
+        showWarning("Selecciona un producto válido.");
+        return;
+      }
 
-      supplierPrice = product.productpriceofsupplier;
+      // *** AQUÍ USAMOS EL VALOR DEL INPUT, NO EL DE BD
+      supplierPrice =
+        selectedSupplierPrice === "" ? 0 : Number(selectedSupplierPrice);
+
       salePrice =
         existingSalePrice === "" ? undefined : Number(existingSalePrice);
     }
@@ -245,9 +265,12 @@ export default function RegisterPurchaseForm({
       setNewProductName("");
       setNewProductPrice("");
       setNewProductSalePrice("");
+      setQuantity(1);
     } else {
       setExistingSalePrice("");
       setSelectedProduct("");
+      setSelectedSupplierPrice(""); // *** limpiar input de precio compra
+      setQuantity(1);
     }
   };
 
@@ -422,6 +445,7 @@ export default function RegisterPurchaseForm({
               setNewProductName("");
               setNewProductPrice("");
               setNewProductSalePrice("");
+              setSelectedSupplierPrice(""); // ***
             }}
             className={`text-xs px-3 py-2 rounded-md transition ${
               !isNewProduct
@@ -439,6 +463,7 @@ export default function RegisterPurchaseForm({
               setSelectedProduct("");
               setSearchProduct("");
               setExistingSalePrice("");
+              setSelectedSupplierPrice(""); // ***
             }}
             className={`text-xs px-3 py-2 rounded-md transition ${
               isNewProduct
@@ -450,16 +475,13 @@ export default function RegisterPurchaseForm({
           </button>
         </div>
 
-        {/* =============================
-    MODO SELECCIONAR PRODUCTO
-   ============================= */}
+        {/* MODO SELECCIONAR PRODUCTO */}
         {!isNewProduct && (
           <>
-            {/* LABEL GENERAL */}
             <label className="block text-sm font-medium mb-2">Producto</label>
 
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-              {/* BUSCADOR / SELECT FILTRABLE */}
+              {/* BUSCADOR */}
               <div className="flex-1">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Buscar o seleccionar
@@ -498,7 +520,7 @@ export default function RegisterPurchaseForm({
                             onClick={() => {
                               setSelectedProduct(String(p.productid));
                               setSelectedSupplierPrice(
-                                p.productpriceofsupplier
+                                p.productpriceofsupplier || "" // ***
                               );
                               setSearchProduct("");
                               setDropdownOpen(false);
@@ -507,7 +529,7 @@ export default function RegisterPurchaseForm({
                           >
                             <span>{p.productname}</span>
                             <span className="text-gray-600 font-semibold">
-                              {formatCOP(p.productpriceofsupplier)}
+                              {formatCOP(p.productpriceofsupplier || 0)}
                             </span>
                           </div>
                         ))
@@ -580,12 +602,9 @@ export default function RegisterPurchaseForm({
           </>
         )}
 
-        {/* =============================
-      MODO CREAR PRODUCTO
-     ============================= */}
+        {/* MODO CREAR PRODUCTO */}
         {isNewProduct && (
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-            {/* Nombre */}
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Nombre del producto
@@ -599,7 +618,6 @@ export default function RegisterPurchaseForm({
               />
             </div>
 
-            {/* Precio proveedor */}
             <div className="flex-1 sm:w-32">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Precio compra (unidad)
@@ -617,7 +635,6 @@ export default function RegisterPurchaseForm({
               />
             </div>
 
-            {/* Precio venta */}
             <div className="flex-1 sm:w-32">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Precio venta (unidad) — opcional
@@ -635,7 +652,6 @@ export default function RegisterPurchaseForm({
               />
             </div>
 
-            {/* Cantidad */}
             <div className="flex-1 sm:w-20">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Cantidad
@@ -710,7 +726,6 @@ export default function RegisterPurchaseForm({
                   )}
                 </div>
 
-                {/* Botón eliminar */}
                 <button
                   type="button"
                   onClick={() => removeFromCart(index)}
