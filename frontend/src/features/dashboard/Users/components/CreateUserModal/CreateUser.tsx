@@ -64,33 +64,27 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   };
 
   const footer = (
-    <>
+    <div className="flex justify-end gap-2 sm:gap-3 w-full">
       <button
         type="button"
         onClick={onClose}
-        className="px-4 py-2 rounded-md font-medium text-sm"
-        style={{
-          backgroundColor: Colors.buttons.tertiary,
-          color: Colors.texts.quaternary,
-        }}
+        className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+        disabled={isSubmitting}
       >
         Cancelar
       </button>
 
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="px-4 py-2 rounded-md font-medium text-sm disabled:opacity-50"
-        style={{
-          backgroundColor: Colors.buttons.quaternary,
-          color: Colors.texts.quaternary,
-        }}
         form="create-user-form"
+        disabled={isSubmitting}
+        className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Guardar
       </button>
-    </>
+    </div>
   );
+
 
   if (!isOpen) return null;
 
@@ -429,11 +423,10 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
                             )
                           }
                           onBlur={() => handleBlur("techniciantypeids")}
-                          className={`px-4 py-2 rounded-full border text-sm transition ${
-                            selected
+                          className={`px-4 py-2 rounded-full border text-sm transition ${selected
                               ? "bg-red-600 text-white border-red-600 shadow-sm"
                               : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                          }`}
+                            }`}
                           aria-pressed={selected}
                         >
                           {type.name}
