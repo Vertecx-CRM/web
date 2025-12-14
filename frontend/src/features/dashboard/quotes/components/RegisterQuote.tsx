@@ -1,239 +1,663 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Colors from "@/shared/theme/colors";
-import {
-  validateQuoteField,
-  validateQuoteForm,
-  QuoteErrors,
-} from "../validations/quotesValidations";
-import { IQuote } from "../types/Quote.type";
-import { showError } from "@/shared/utils/notifications";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+import { QuoteCreatePayload, QuoteDetailPayload } from "../types/Quote.type";
+import { api } from "@/shared/utils/apiClient";
 
-interface Material {
-  name: string;
-  subtotal: number;
-}
-
-interface QuoteForm {
-  serviceTypes: {
-    mantenimiento: boolean;
-    instalacion: boolean;
+/* ================================
+ * TIPOS
+ * ================================ */
+type CustomerFromApi = {
+  customerid: number;
+  users: {
+    name: string;
+    lastname: string;
+    documentnumber: string;
+    email: string;
   };
-  client: string;
-  status: string;
-  description: string;
-  materials: Material[];
-  total: number;
+};
+
+type TechnicianFromApi = {
+  technicianid: number;
+  users: {
+    name: string;
+    lastname: string;
+    documentnumber: string;
+    email: string;
+  };
+};
+
+type ProductFromApi = {
+  productid: number;
+  productname: string;
+  productpriceofsale: number;
+  productstock: number;
+  isactive: boolean;
+};
+
+/* ================================
+ * ESTADO DEL FORMULARIO
+ * ================================ */
+interface QuoteFormState {
+  serviceRequestId: number;
+  customerid: number | "";
+  technicianid: number | "";
+  statesid: number;
+  servicetype: "MANTENIMIENTO" | "INSTALACION" | "";
+  observation: string;
+  details: QuoteDetailPayload[];
 }
 
 interface Props {
-  onSave?: (data: QuoteForm) => void;
+  onSave?: (payload: QuoteCreatePayload) => Promise<void>;
 }
 
 export default function RegisterQuoteForm({ onSave }: Props) {
-  const [form, setForm] = useState<QuoteForm>({
-    serviceTypes: { mantenimiento: false, instalacion: false },
-    client: "",
-    status: "",
-    description: "",
-    materials: [],
-    total: 20000,
+  /* ================================
+   * STATE PRINCIPAL
+   * ================================ */
+  const [form, setForm] = useState<QuoteFormState>({
+    serviceRequestId: 17,
+    customerid: "",
+    technicianid: "",
+    statesid: 5,
+    servicetype: "",
+    observation: "",
+    details: [],
   });
-  const [errors, setErrors] = useState<QuoteErrors>({});
 
-  const handleFieldValidation = (
-    field: keyof Omit<IQuote, "id">,
-    value: any
-  ) => {
-    const error = validateQuoteField(field, value, []); // puedes pasar mockQuotes si lo deseas
-    setErrors((prev) => ({ ...prev, [field]: error }));
+  /* ================================
+   * CLIENTES
+   * ================================ */
+  const [customers, setCustomers] = useState<CustomerFromApi[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerList, setShowCustomerList] = useState(false);
+  const customerRef = useRef<HTMLDivElement>(null);
+
+  /* ================================
+   * TÉCNICOS
+   * ================================ */
+  const [technicians, setTechnicians] = useState<TechnicianFromApi[]>([]);
+  const [technicianSearch, setTechnicianSearch] = useState("");
+  const [showTechnicianList, setShowTechnicianList] = useState(false);
+  const technicianRef = useRef<HTMLDivElement>(null);
+
+  /* ================================
+   * PRODUCTOS
+   * ================================ */
+  const [products, setProducts] = useState<ProductFromApi[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductList, setShowProductList] = useState(false);
+  const [isManualProduct, setIsManualProduct] = useState(false);
+  const productRef = useRef<HTMLDivElement>(null);
+
+  /* ================================
+   * DETALLE ACTUAL
+   * ================================ */
+  const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
+    productid: null,
+    description: "",
+    quantity: 1,
+    unitprice: 0,
+    subtotal: 0,
+    availability: "DISPONIBLE",
+  });
+
+  /* ================================
+   * EFECTOS PARA CERRAR LISTAS AL HACER CLICK AFUERA
+   * ================================ */
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        customerRef.current &&
+        !customerRef.current.contains(event.target as Node)
+      ) {
+        setShowCustomerList(false);
+      }
+      if (
+        technicianRef.current &&
+        !technicianRef.current.contains(event.target as Node)
+      ) {
+        setShowTechnicianList(false);
+      }
+      if (
+        productRef.current &&
+        !productRef.current.contains(event.target as Node)
+      ) {
+        setShowProductList(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  /* ================================
+   * CARGA DE DATOS
+   * ================================ */
+  useEffect(() => {
+    api.get("/customers").then((r) => setCustomers(r.data));
+    api.get("/technicians").then((r) => setTechnicians(r.data));
+    api.get("/products?status=all").then((r) => setProducts(r.data));
+  }, []);
+
+  /* ================================
+   * FILTROS
+   * ================================ */
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.toLowerCase();
+    return customers.filter((c) =>
+      `${c.users.name} ${c.users.lastname} ${c.users.documentnumber}`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [customerSearch, customers]);
+
+  const filteredTechnicians = useMemo(() => {
+    const q = technicianSearch.toLowerCase();
+    return technicians.filter((t) =>
+      `${t.users.name} ${t.users.lastname} ${t.users.documentnumber}`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [technicianSearch, technicians]);
+
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.toLowerCase();
+    return products.filter(
+      (p) =>
+        p.productname.toLowerCase().includes(q) ||
+        p.productid.toString().includes(q)
+    );
+  }, [productSearch, products]);
+
+  /* ================================
+   * TOTALES
+   * ================================ */
+  const subtotal = useMemo(
+    () => form.details.reduce((a, d) => a + d.subtotal, 0),
+    [form.details]
+  );
+  const tax = Math.round(subtotal * 0.19);
+  const total = subtotal + tax;
+
+  /* ================================
+   * HANDLERS PARA PRODUCTOS
+   * ================================ */
+  const handleProductModeChange = (manual: boolean) => {
+    setIsManualProduct(manual);
+    setProductSearch("");
+    setShowProductList(false);
+    setDetailForm({
+      productid: null,
+      description: "",
+      quantity: 1,
+      unitprice: 0,
+      subtotal: 0,
+      availability: manual ? "SOLICITAR" : "DISPONIBLE",
+    });
   };
 
-  const [newMaterial, setNewMaterial] = useState("");
-  const [subtotal, setSubtotal] = useState<number>(0);
-
-  const clients = [
-    "Pedro Pablo",
-    "Juan David Usuga",
-    "Estefanía Valle",
-    "Danier Álvarez",
-  ];
-  const statuses = ["Pendiente", "Aprobada", "Rechazada", "Anulada"];
-
-  /** ✅ Añadir material */
-  const handleAddMaterial = () => {
-    if (!newMaterial || subtotal <= 0) return;
-    const material = { name: newMaterial, subtotal };
-    const updatedMaterials = [...form.materials, material];
-    const newTotal =
-      form.total +
-      updatedMaterials.reduce((acc, m) => acc + m.subtotal, 0) -
-      form.materials.reduce((acc, m) => acc + m.subtotal, 0);
-
-    setForm({ ...form, materials: updatedMaterials, total: newTotal });
-    setNewMaterial("");
-    setSubtotal(0);
+  const handleSelectProduct = (product: ProductFromApi) => {
+    setDetailForm({
+      productid: product.productid,
+      description: product.productname,
+      quantity: 1,
+      unitprice: product.productpriceofsale,
+      subtotal: product.productpriceofsale,
+      availability: product.productstock > 0 ? "DISPONIBLE" : "NO_DISPONIBLE",
+    });
+    setProductSearch(product.productname);
+    setShowProductList(false);
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validationErrors = validateQuoteForm(form as any, []);
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) {
-      showError("Corrige los errores antes de guardar");
+  /* ================================
+   * HANDLERS PARA DETALLES
+   * ================================ */
+  const handleAddDetail = () => {
+    if (!detailForm.description.trim()) {
+      showError("La descripción es obligatoria");
+      return;
+    }
+    if (detailForm.quantity <= 0 || detailForm.unitprice < 0) {
+      showError("Cantidad y precio inválidos");
       return;
     }
 
-    if (onSave) onSave(form);
+    const subtotal = detailForm.quantity * detailForm.unitprice;
+
+    // Configurar disponibilidad basada en el tipo de producto
+    let availability = detailForm.availability;
+    if (isManualProduct) {
+      // Producto manual: stock 0, se solicita comprar
+      availability = "SOLICITAR";
+    } else if (detailForm.productid === null) {
+      // Producto no seleccionado de la lista
+      availability = "NO_DISPONIBLE";
+    }
+
+    const newDetail: QuoteDetailPayload = {
+      ...detailForm,
+      productid: isManualProduct ? null : detailForm.productid,
+      subtotal,
+      availability,
+    };
+
+    setForm((prev) => ({
+      ...prev,
+      details: [...prev.details, newDetail],
+    }));
+
+    // Resetear formulario de detalle
+    setDetailForm({
+      productid: null,
+      description: "",
+      quantity: 1,
+      unitprice: 0,
+      subtotal: 0,
+      availability: isManualProduct ? "SOLICITAR" : "DISPONIBLE",
+    });
+
+    setProductSearch("");
   };
 
+  const handleRemoveDetail = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      details: prev.details.filter((_, i) => i !== index),
+    }));
+  };
+
+  /* ================================
+   * HANDLER PARA ENVIAR FORMULARIO
+   * ================================ */
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.customerid || !form.technicianid || !form.servicetype) {
+      showError("Cliente, técnico y tipo de servicio son obligatorios");
+      return;
+    }
+
+    if (form.details.length === 0) {
+      showError("Agrega al menos un producto");
+      return;
+    }
+
+    const payload: QuoteCreatePayload = {
+      serviceRequestId: form.serviceRequestId,
+      customerid: Number(form.customerid),
+      technicianid: Number(form.technicianid),
+      statesid: form.statesid,
+      servicetype: form.servicetype,
+      observation: form.observation,
+      subtotal,
+      tax,
+      total,
+      details: form.details.map((detail) => ({
+        ...detail,
+        // Asegurar que productos manuales tengan productid null
+        productid: detail.productid === undefined ? null : detail.productid,
+      })),
+    };
+
+    await onSave?.(payload);
+    showSuccess("Cotización guardada exitosamente");
+    // Resetear formulario
+    setForm({
+      serviceRequestId: 17,
+      customerid: "",
+      technicianid: "",
+      statesid: 5,
+      servicetype: "",
+      observation: "",
+      details: [],
+    });
+  };
+
+  /* ================================
+   * RENDER
+   * ================================ */
   return (
-    <form
-      onSubmit={handleSave}
-      className="flex flex-col gap-5 p-5 text-sm text-gray-800"
-    >
-      {/* 🔹 Tipo de servicio */}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-5 text-sm">
+      {/* TIPO DE SERVICIO */}
       <div>
-        <label className="block text-base font-semibold mb-2">
-          Tipo de servicio
-        </label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.serviceTypes.mantenimiento}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceTypes: {
-                    ...form.serviceTypes,
-                    mantenimiento: e.target.checked,
-                  },
-                })
-              }
-              className="w-4 h-4 accent-gray-800"
-            />
-            Mantenimiento
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.serviceTypes.instalacion}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  serviceTypes: {
-                    ...form.serviceTypes,
-                    instalacion: e.target.checked,
-                  },
-                })
-              }
-              className="w-4 h-4 accent-gray-800"
-            />
-            Instalación
-          </label>
-        </div>
-      </div>
-
-      {/* 🔹 Cliente */}
-      <div>
-        <label className="block text-base font-semibold mb-1">Cliente</label>
+        <label className="block mb-1 font-medium">Tipo de servicio *</label>
         <select
-          value={form.client}
-          onChange={(e) => setForm({ ...form, client: e.target.value })}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-black"
+          value={form.servicetype}
+          onChange={(e) =>
+            setForm({ ...form, servicetype: e.target.value as any })
+          }
+          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
         >
-          <option value="">Selecciona el cliente</option>
-          {clients.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
+          <option value="">Seleccione un tipo</option>
+          <option value="MANTENIMIENTO">Mantenimiento</option>
+          <option value="INSTALACION">Instalación</option>
         </select>
       </div>
 
-      {/* 🔹 Estado */}
-      <div>
-        <label className="block text-base font-semibold mb-1">Estado</label>
-        <select
-          value={form.status}
-          onChange={(e) => setForm({ ...form, status: e.target.value })}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-600 focus:outline-none focus:ring-1 focus:ring-black"
-        >
-          <option value="">Selecciona el estado</option>
-          {statuses.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+      {/* CLIENTE */}
+      <div ref={customerRef} className="relative">
+        <label className="block mb-1 font-medium">Cliente *</label>
+        <input
+          type="text"
+          placeholder="Buscar cliente por nombre, apellido o documento"
+          value={customerSearch}
+          onChange={(e) => {
+            setCustomerSearch(e.target.value);
+            setShowCustomerList(true);
+          }}
+          onFocus={() => setShowCustomerList(true)}
+          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+        {showCustomerList && filteredCustomers.length > 0 && (
+          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+            {filteredCustomers.map((c) => (
+              <div
+                key={c.customerid}
+                onClick={() => {
+                  setForm({ ...form, customerid: c.customerid });
+                  setCustomerSearch(
+                    `${c.users.name} ${c.users.lastname} (${c.users.documentnumber})`
+                  );
+                  setShowCustomerList(false);
+                }}
+                className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+              >
+                <div className="font-medium">
+                  {c.users.name} {c.users.lastname}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Documento: {c.users.documentnumber}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Email: {c.users.email}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {showCustomerList &&
+          filteredCustomers.length === 0 &&
+          customerSearch && (
+            <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg p-3">
+              <div className="text-gray-500">No se encontraron clientes</div>
+            </div>
+          )}
       </div>
 
-      {/* 🔹 Descripción */}
+      {/* TÉCNICO */}
+      <div ref={technicianRef} className="relative">
+        <label className="block mb-1 font-medium">Técnico *</label>
+        <input
+          type="text"
+          placeholder="Buscar técnico por nombre, apellido o documento"
+          value={technicianSearch}
+          onChange={(e) => {
+            setTechnicianSearch(e.target.value);
+            setShowTechnicianList(true);
+          }}
+          onFocus={() => setShowTechnicianList(true)}
+          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+        {showTechnicianList && filteredTechnicians.length > 0 && (
+          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+            {filteredTechnicians.map((t) => (
+              <div
+                key={t.technicianid}
+                onClick={() => {
+                  setForm({ ...form, technicianid: t.technicianid });
+                  setTechnicianSearch(
+                    `${t.users.name} ${t.users.lastname} (${t.users.documentnumber})`
+                  );
+                  setShowTechnicianList(false);
+                }}
+                className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+              >
+                <div className="font-medium">
+                  {t.users.name} {t.users.lastname}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Documento: {t.users.documentnumber}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Email: {t.users.email}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* OBSERVACIÓN */}
       <div>
-        <label className="block text-base font-semibold mb-1">
-          Descripción
-        </label>
+        <label className="block mb-1 font-medium">Observación</label>
         <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Ingrese sus observaciones"
+          placeholder="Observaciones adicionales sobre la cotización"
+          value={form.observation}
+          onChange={(e) => setForm({ ...form, observation: e.target.value })}
+          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={3}
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-gray-600 resize-none focus:outline-none focus:ring-1 focus:ring-black"
-        ></textarea>
+        />
       </div>
 
-      {/* 🔹 Materiales */}
-      <div className="p-3 border rounded-lg bg-gray-50 flex flex-col gap-3">
-        <div className="flex justify-between text-sm font-semibold text-gray-700">
-          <span>Camara hivision pro</span>
-          <span>Subtotal +20,000</span>
-        </div>
+      {/* DETALLES DE PRODUCTOS */}
+      <div className="border p-4 rounded-lg bg-gray-50">
+        <h3 className="font-bold mb-3">Detalles de productos</h3>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {/* SELECTOR DE MODO */}
+        <div className="flex gap-2 mb-4">
           <button
             type="button"
-            onClick={handleAddMaterial}
-            className="flex items-center justify-center gap-2 bg-gray-500 text-white rounded-md px-4 py-2 w-full sm:w-auto hover:bg-gray-600 transition-all"
+            onClick={() => handleProductModeChange(false)}
+            className={`px-4 py-2 rounded ${
+              !isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
           >
-            Añadir más materiales +
+            Producto existente
           </button>
+          <button
+            type="button"
+            onClick={() => handleProductModeChange(true)}
+            className={`px-4 py-2 rounded ${
+              isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"
+            }`}
+          >
+            Producto manual (para comprar)
+          </button>
+        </div>
 
-          <input
-            type="number"
-            value={subtotal || ""}
-            onChange={(e) => setSubtotal(Number(e.target.value))}
-            className="w-20 border border-gray-300 rounded-md text-center py-2 text-gray-700 focus:ring-1 focus:ring-black"
-            placeholder="00"
-          />
+        {/* BUSCADOR DE PRODUCTOS EXISTENTES */}
+        {!isManualProduct && (
+          <div ref={productRef} className="relative mb-4">
+            <label className="block mb-1 font-medium">
+              Buscar producto existente
+            </label>
+            <input
+              type="text"
+              placeholder="Escriba para buscar productos..."
+              value={productSearch}
+              onChange={(e) => {
+                setProductSearch(e.target.value);
+                setShowProductList(true);
+              }}
+              onFocus={() => setShowProductList(true)}
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {showProductList && filteredProducts.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
+                {filteredProducts.map((p) => (
+                  <div
+                    key={p.productid}
+                    onClick={() => handleSelectProduct(p)}
+                    className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+                  >
+                    <div className="font-medium">{p.productname}</div>
+                    <div className="flex justify-between text-sm">
+                      <span>Stock: {p.productstock}</span>
+                      <span className="font-medium">
+                        ${p.productpriceofsale.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      ID: {p.productid} | Estado:{" "}
+                      {p.isactive ? "Activo" : "Inactivo"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FORMULARIO DE DETALLE */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label className="block mb-1 font-medium">Descripción *</label>
+            <input
+              type="text"
+              placeholder="Nombre del producto"
+              value={detailForm.description}
+              onChange={(e) =>
+                setDetailForm({ ...detailForm, description: e.target.value })
+              }
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1 font-medium">Cantidad *</label>
+            <input
+              type="number"
+              min="1"
+              value={detailForm.quantity}
+              onChange={(e) =>
+                setDetailForm({
+                  ...detailForm,
+                  quantity: Number(e.target.value),
+                })
+              }
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1 font-medium">Precio unitario *</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={detailForm.unitprice}
+              onChange={(e) =>
+                setDetailForm({
+                  ...detailForm,
+                  unitprice: Number(e.target.value),
+                })
+              }
+              className="w-full border rounded px-3 py-2"
+            />
+          </div>
+        </div>
+
+        {/* INFORMACIÓN DEL PRODUCTO */}
+        <div className="mb-4 p-3 bg-blue-50 rounded">
+          <div className="text-sm">
+            <strong>Tipo:</strong>{" "}
+            {isManualProduct ? "Producto manual" : "Producto existente"}
+            <br />
+            <strong>Disponibilidad:</strong> {detailForm.availability}
+            {detailForm.productid && (
+              <>
+                <br />
+                <strong>ID Producto:</strong> {detailForm.productid}
+              </>
+            )}
+            <br />
+            <strong>Subtotal:</strong> $
+            {(detailForm.quantity * detailForm.unitprice).toLocaleString()}
+          </div>
+        </div>
+
+        {/* BOTÓN AGREGAR */}
+        <button
+          type="button"
+          onClick={handleAddDetail}
+          style={{ backgroundColor: Colors.buttons.secondary }}
+          className="text-white px-4 py-2 rounded hover:opacity-90"
+        >
+          Agregar producto
+        </button>
+
+        {/* LISTA DE PRODUCTOS AGREGADOS */}
+        {form.details.length > 0 && (
+          <div className="mt-6">
+            <h4 className="font-bold mb-2">
+              Productos agregados ({form.details.length})
+            </h4>
+            <div className="border rounded overflow-hidden">
+              {form.details.map((d, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-gray-50"
+                >
+                  <div className="flex-1">
+                    <div className="font-medium">{d.description}</div>
+                    <div className="text-sm text-gray-600">
+                      Cantidad: {d.quantity} | Precio: $
+                      {d.unitprice.toLocaleString()} | Subtotal: $
+                      {d.subtotal.toLocaleString()} | Tipo:{" "}
+                      {d.productid === null
+                        ? "Manual (para comprar)"
+                        : "Existente"}{" "}
+                      | Disponibilidad: {d.availability}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDetail(i)}
+                    className="ml-4 text-red-500 hover:text-red-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* RESUMEN FINANCIERO */}
+      <div className="border p-4 rounded-lg bg-gray-50">
+        <h3 className="font-bold mb-3">Resumen financiero</h3>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span>Subtotal:</span>
+            <span>${subtotal.toLocaleString("es-CO")}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>IVA (19%):</span>
+            <span>${tax.toLocaleString("es-CO")}</span>
+          </div>
+          <div className="flex justify-between text-lg font-bold pt-2 border-t">
+            <span>Total:</span>
+            <span>${total.toLocaleString("es-CO")}</span>
+          </div>
         </div>
       </div>
 
-      {/* 🔹 Total general */}
-      <div className="flex justify-between items-center text-sm mt-2">
-        <span className="font-semibold">Total general</span>
-        <span>{form.total.toLocaleString("es-CO")}</span>
-      </div>
-
-      {/* 🔹 Botones */}
-      <div className="flex justify-end gap-3 mt-3">
-        <button
-          type="button"
-          className="bg-gray-300 text-black rounded-lg px-5 py-2 hover:bg-gray-200 transition-all"
-        >
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          style={{ backgroundColor: Colors.buttons.primary }}
-          className="rounded-lg px-5 py-2 text-white hover:opacity-90 transition-all"
-        >
-          Guardar
-        </button>
-      </div>
+      {/* BOTÓN GUARDAR */}
+      <button
+        type="submit"
+        style={{ backgroundColor: Colors.buttons.primary }}
+        className="w-full text-white px-4 py-3 rounded font-medium hover:opacity-90"
+      >
+        Guardar Cotización
+      </button>
     </form>
   );
 }

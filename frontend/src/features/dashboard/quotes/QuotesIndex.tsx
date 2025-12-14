@@ -12,6 +12,7 @@ import { quotes as mockQuotes } from "./mock/quotes.mock";
 import RegisterQuoteForm from "./components/RegisterQuote";
 import ViewQuote from "./components/ViewQuote";
 import Image from "next/image";
+import { createQuote } from "./api/quotes.api";
 
 export default function QuotesIndex() {
   const [quotesData, setQuotesData] = useState<IQuote[]>(mockQuotes);
@@ -128,10 +129,11 @@ export default function QuotesIndex() {
   };
 
   /** ================================
-   * ➕ Agregar Cotización Nueva
+   * Agregar Cotización Nueva
    * ================================ */
-  const handleAddQuote = (newQuote: IQuote) => {
-    setQuotesData((prev) => [...prev, { ...newQuote, id: prev.length + 1 }]);
+
+  const handleAddQuote = async (payload: any) => {
+    await createQuote(payload);
     setRegisterModalOpen(false);
   };
 
