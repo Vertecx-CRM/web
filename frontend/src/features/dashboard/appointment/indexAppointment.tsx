@@ -188,7 +188,12 @@ const detectServiceTypeKey = (value?: string | null): ServiceTypeFilterKey | nul
 type TechnicianEntry = {
   technicianid?: number | null;
   technicianId?: number | null;
-  users?: { name?: string | null; lastname?: string | null };
+  users?: {
+    userid?: number | null;
+    id?: number | null;
+    name?: string | null;
+    lastname?: string | null;
+  };
   title?: string | null;
 };
 
@@ -203,6 +208,13 @@ const buildTechnicianLabel = (tech: TechnicianEntry | null | undefined) => {
   return "Técnico";
 };
 
+const resolveTechniciansFromLinks = (request?: ServiceRequestDTO): TechnicianEntry[] => {
+  if (!request?.techniciansMap?.length) return [];
+  return request.techniciansMap
+    .map((link) => link?.technician)
+    .filter((tech): tech is TechnicianEntry => Boolean(tech));
+};
+
 const getEventTechnicians = (event: AppointmentEvent): TechnicianEntry[] => {
   if (event.source === "order") {
     return event.order?.technicians ?? [];
@@ -212,6 +224,7 @@ const getEventTechnicians = (event: AppointmentEvent): TechnicianEntry[] => {
     ...(event.request?.assignedTechnicians ?? []),
     ...(event.request?.serviceRequestTechnicians ?? []),
     ...(event.request?.requestTechnicians ?? []),
+    ...resolveTechniciansFromLinks(event.request),
   ];
 };
 
