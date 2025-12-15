@@ -6,7 +6,10 @@ import TopNav from "@/features/dashboard/layout/TopNav";
 import RequireAuth from "@/features/auth/requireauth";
 import { useAuth } from "@/features/auth/authcontext";
 import { useRouter, usePathname } from "next/navigation";
-import { MODULE_TO_PATH, pickDefaultDashboardRoute } from "@/features/auth/authz";
+import {
+  MODULE_TO_PATH,
+  pickDefaultDashboardRoute,
+} from "@/features/auth/authz";
 import { ChangePasswordModal } from "@/features/auth/Components/PasswordModals";
 import { routes } from "@/shared/routes";
 import { ToastContainer } from "react-toastify";
@@ -129,10 +132,7 @@ export default function DashboardLayout({
 
       <div className="flex h-screen">
         {!hideAside && (
-          <AsideNav
-            isCollapsed={isCollapsed}
-            setIsCollapsed={setIsCollapsed}
-          />
+          <AsideNav isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
         )}
 
         <div

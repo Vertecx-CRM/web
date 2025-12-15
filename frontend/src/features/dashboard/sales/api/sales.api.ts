@@ -56,3 +56,19 @@ export const getSaleById = async (id: number): Promise<ISale> => {
     throw error;
   }
 };
+
+   // ANULAR VENTA (FALTABA)
+
+export const cancelSale = async (
+  saleid: number,
+  data: { observation: string }
+) => {
+  try {
+    const response = await api.patch(`/sales/${saleid}/cancel`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Error al anular la venta:", error);
+    throw error;
+  }
+};
+

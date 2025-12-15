@@ -2,12 +2,13 @@
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { DataTable, Column } from "../components/datatable/DataTable";
+import { DataTable, } from "../components/datatable/DataTable";
 import EditClientModal from "./components/EditClientsModal/EditClients";
 import ViewClientModal from "./components/ViewClientsModal/ViewClients";
 import CreateClientModal from "./components/CreateClientsModal/CreateClients";
 import { useClients } from "../Clients/hooks/useClients";
 import { Client, EditClientData } from "./types/typeClients";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
 export default function Clients() {
   const {
@@ -18,6 +19,7 @@ export default function Clients() {
     viewingClient,
     handleCreateClient,
     handleEditClient,
+    handleDeleteClient,
     handleView,
     handleEdit,
     handleDelete,
@@ -123,3 +125,17 @@ export default function Clients() {
     </div>
   );
 }
+
+
+  // ============================
+  // SEARCHABLE KEYS
+  // ============================
+  const searchableKeys: (keyof Client)[] = [
+    "nombre",
+    "apellido",
+    "documento",
+    "correoElectronico",
+    "telefono",
+    "rol",
+    "estado"
+  ];

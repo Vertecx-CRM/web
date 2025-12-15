@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import Colors from "@/shared/theme/colors";
 import { SearchIcon } from "./icons/SearchIcon";
 import { PlusIcon } from "./icons/PlusIcon";
@@ -38,7 +44,9 @@ function Th({
 const OptimizedTd = React.memo(OptimizedTdComponent);
 export const ActionButton = React.memo(ActionButtonComponent);
 export const ActionButtons = React.memo(ActionButtonsComponent);
-const MobileCard = React.memo(MobileCardComponent) as typeof MobileCardComponent;
+const MobileCard = React.memo(
+  MobileCardComponent
+) as typeof MobileCardComponent;
 const CreateButton = React.memo(CreateButtonComponent);
 const Pagination = React.memo(PaginationComponent);
 
@@ -55,6 +63,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     onDelete,
     onCancel,
     onCheck,
+    onApprove,
     onCreate,
     searchPlaceholder = "Buscar…",
     createButtonText = "Crear",
@@ -130,7 +139,10 @@ const DataTableComponent = <T extends { [key: string]: any }>(
       const raw = normalizeText(estado);
       if (!raw) return [];
 
-      if (raw.includes("garantiareportada") || raw.includes("garantia_reportada")) {
+      if (
+        raw.includes("garantiareportada") ||
+        raw.includes("garantia_reportada")
+      ) {
         return [
           "garantia reportada",
           "garantia (reportada)",
@@ -141,13 +153,24 @@ const DataTableComponent = <T extends { [key: string]: any }>(
       }
 
       if (raw.includes("garantia")) {
-        return ["garantia", "en garantia", "garantia sin reporte"].map(normalizeText);
-      }
-
-      if (raw.includes("anul") || raw.includes("cancel") || raw.includes("revoke")) {
-        return ["anulada", "anulado", "cancelada", "cancelado", "revocada", "revoke"].map(
+        return ["garantia", "en garantia", "garantia sin reporte"].map(
           normalizeText
         );
+      }
+
+      if (
+        raw.includes("anul") ||
+        raw.includes("cancel") ||
+        raw.includes("revoke")
+      ) {
+        return [
+          "anulada",
+          "anulado",
+          "cancelada",
+          "cancelado",
+          "revocada",
+          "revoke",
+        ].map(normalizeText);
       }
 
       if (raw.includes("aprob") || raw.includes("approved")) {
@@ -197,7 +220,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
       const cleaned = numericCandidate.replace(/[^0-9.-]/g, "");
       if (cleaned && !isNaN(Number(cleaned))) {
         return Array.from(
-          new Set([str, cleaned, ...moneyTokens(Number(cleaned))].map(normalizeText))
+          new Set(
+            [str, cleaned, ...moneyTokens(Number(cleaned))].map(normalizeText)
+          )
         );
       }
 
@@ -228,13 +253,16 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     const hasKey = (k: string) => searchableKeys.includes(k as any);
 
     const pickStatusText = (row: any): string => {
-      if (hasKey("status") && row?.status != null) return normalizeText(row.status);
-      if (hasKey("estado") && row?.estado != null) return normalizeText(row.estado);
+      if (hasKey("status") && row?.status != null)
+        return normalizeText(row.status);
+      if (hasKey("estado") && row?.estado != null)
+        return normalizeText(row.estado);
       if (hasKey("state")) {
         if (typeof row?.state === "string") return normalizeText(row.state);
         if (row?.state?.name != null) return normalizeText(row.state.name);
       }
-      if (hasKey("stateSearch") && row?.stateSearch != null) return normalizeText(row.stateSearch);
+      if (hasKey("stateSearch") && row?.stateSearch != null)
+        return normalizeText(row.stateSearch);
       if (hasKey("statusSearch") && row?.statusSearch != null)
         return normalizeText(row.statusSearch);
       return "";
@@ -311,7 +339,8 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const visibleColumns = useMemo(
     () =>
       columns.filter(
-        (col) => col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
+        (col) =>
+          col.priority === "high" || (!col.priority && columns.indexOf(col) < 3)
       ),
     [columns]
   );
@@ -321,64 +350,77 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   }, [freeze]);
 
   const showActionsColumn =
-    canView(module) || canUpdate(module) || canDelete(module) || onCancel || onCheck || renderActions;
+    canView(module) ||
+    canUpdate(module) ||
+    canDelete(module) ||
+    onCancel ||
+    onCheck ||
+    onApprove ||
+    renderActions;
 
   const Row = useMemo(() => {
-    const RowComponent = React.memo(({ row, index }: { row: T; index: number }) => {
-      const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
-      const isDesktop = typeof window !== "undefined" ? window.innerWidth >= 768 : true;
-      const colsToRender = isDesktop ? columns : visibleColumns;
+    const RowComponent = React.memo(
+      ({ row, index }: { row: T; index: number }) => {
+        const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+        const isDesktop =
+          typeof window !== "undefined" ? window.innerWidth >= 768 : true;
+        const colsToRender = isDesktop ? columns : visibleColumns;
 
-      return (
-        <tr
-          className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
-          style={{
-            top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
-            width: "100%",
-            height: `${ROW_HEIGHT}px`,
-          }}
-        >
-          {colsToRender.map((c, colIndex) => (
-            <OptimizedTd
-              key={String(c.key)}
-              colIndex={colIndex}
-              header={c.header}
-              width={c.width}
-              className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
-            >
-              <div className="truncate" title={String((row as any)[c.key])}>
-                {c.render ? c.render(row) : String((row as any)[c.key])}
-              </div>
-            </OptimizedTd>
-          ))}
+        return (
+          <tr
+            className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
+            style={{
+              top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
+              width: "100%",
+              height: `${ROW_HEIGHT}px`,
+            }}
+          >
+            {colsToRender.map((c, colIndex) => (
+              <OptimizedTd
+                key={String(c.key)}
+                colIndex={colIndex}
+                header={c.header}
+                width={c.width}
+                className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
+              >
+                <div className="truncate" title={String((row as any)[c.key])}>
+                  {c.render ? c.render(row) : String((row as any)[c.key])}
+                </div>
+              </OptimizedTd>
+            ))}
 
-          {showActionsColumn && (
-            <OptimizedTd header="Acciones">
-              {renderActions ? (
-                renderActions(row)
-              ) : (
-                <ActionButtons
-                  row={row}
-                  onView={canView(module) ? onView : undefined}
-                  onEdit={canUpdate(module) ? onEdit : undefined}
-                  onDelete={canDelete(module) ? onDelete : undefined}
-                  onCancel={onCancel}
-                  onCheck={onCheck}
-                  actionGuard={actionGuard}
-                  renderExtraActions={renderExtraActions}
-                />
-              )}
-            </OptimizedTd>
-          )}
+            {showActionsColumn && (
+              <OptimizedTd header="Acciones">
+                {renderActions ? (
+                  renderActions(row)
+                ) : (
+                  <ActionButtons
+                    row={row}
+                    onView={canView(module) ? onView : undefined}
+                    onEdit={canUpdate(module) ? onEdit : undefined}
+                    onDelete={canDelete(module) ? onDelete : undefined}
+                    onCancel={onCancel}
+                    onCheck={onCheck}
+                    onApprove={onApprove}
+                    actionGuard={actionGuard}
+                    renderExtraActions={renderExtraActions}
+                  />
+                )}
+              </OptimizedTd>
+            )}
 
-          {renderTail && (
-            <OptimizedTd header={tailHeader ?? "Imprimir"} className="text-center">
-              {renderTail(row)}
-            </OptimizedTd>
-          )}
-        </tr>
-      );
-    });
+            {renderTail && (
+              <OptimizedTd
+                header={tailHeader ?? "Imprimir"}
+                className="text-center"
+              >
+                {renderTail(row)}
+              </OptimizedTd>
+            )}
+          </tr>
+        );
+      }
+    );
 
     RowComponent.displayName = "RowComponent";
     return RowComponent;
@@ -390,6 +432,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     onDelete,
     onCancel,
     onCheck,
+    onApprove,
     renderActions,
     renderExtraActions,
     renderTail,
@@ -404,7 +447,10 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   ]);
 
   return (
-    <div className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-6" style={tableStyle}>
+    <div
+      className="flex flex-col gap-2 sm:gap-4 px-2 sm:px-0 mt-4 sm:mt-6"
+      style={tableStyle}
+    >
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {searchableKeys.length > 0 && (
           <div className="flex items-center gap-3 w-full sm:max-w-lg">
@@ -455,14 +501,20 @@ const DataTableComponent = <T extends { [key: string]: any }>(
             {rightActions}
             {onCreate && canCreate(module) && (
               <div className="hidden md:block">
-                <CreateButton onCreate={onCreate} createButtonText={createButtonText} />
+                <CreateButton
+                  onCreate={onCreate}
+                  createButtonText={createButtonText}
+                />
               </div>
             )}
           </div>
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden" style={tableStyle}>
+      <div
+        className="bg-white rounded-xl shadow-lg overflow-hidden"
+        style={tableStyle}
+      >
         {mobileCardView && (
           <div className="md:hidden">
             <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
@@ -476,6 +528,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                   onDelete={canDelete(module) ? onDelete : undefined}
                   onCancel={onCancel}
                   onCheck={onCheck}
+                  onApprove={onApprove}
                   actionGuard={actionGuard}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
@@ -484,13 +537,20 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                 />
               ))}
               {current.length === 0 && (
-                <div className="text-center py-8 text-gray-500">No se encontraron resultados</div>
+                <div className="text-center py-8 text-gray-500">
+                  No se encontraron resultados
+                </div>
               )}
             </div>
           </div>
         )}
 
-        <div className={`${mobileCardView ? "hidden md:block" : "block"} overflow-x-auto`} style={tableStyle}>
+        <div
+          className={`${
+            mobileCardView ? "hidden md:block" : "block"
+          } overflow-x-auto`}
+          style={tableStyle}
+        >
           <div
             className="max-h-[600px] overflow-y-auto"
             onScroll={handleScroll}
@@ -508,7 +568,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                     </Th>
                   ))}
                   {showActionsColumn && <Th>Acciones</Th>}
-                  {renderTail && <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>}
+                  {renderTail && (
+                    <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
+                  )}
                 </tr>
               </thead>
 
@@ -520,18 +582,26 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                 }}
               >
                 {visibleRows.map((row, index) => (
-                  <Row key={resolveRowKey(row, startIndex + index)} row={row} index={index} />
+                  <Row
+                    key={resolveRowKey(row, startIndex + index)}
+                    row={row}
+                    index={index}
+                  />
                 ))}
               </tbody>
             </table>
 
             {current.length === 0 && (
-              <div className="text-center py-12 text-gray-500">No se encontraron resultados</div>
+              <div className="text-center py-12 text-gray-500">
+                No se encontraron resultados
+              </div>
             )}
           </div>
         </div>
 
-        {totalPages > 1 && <Pagination page={page} totalPages={totalPages} goTo={goTo} />}
+        {totalPages > 1 && (
+          <Pagination page={page} totalPages={totalPages} goTo={goTo} />
+        )}
       </div>
 
       {onCreate && canCreate(module) && (

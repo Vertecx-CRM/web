@@ -1,36 +1,144 @@
 "use client";
 import { X } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart } from "../contexts/CartContext";
+import ClientCreateRequestModal from "@/features/dashboard/requests/components/ClientRequestModal";
+
+type SessionUser = {
+  userid: number;
+  email: string;
+  name: string;
+  roleid: number;
+  rolename: string;
+  exp: number;
+};
+
+function getAuthenticatedUser(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = localStorage.getItem("accessToken");
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as SessionUser;
+
+    if (!parsed.userid || !parsed.exp) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (parsed.exp < now) {
+      localStorage.removeItem("accessToken");
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+type Address = {
+  city: string;
+  zone: string;
+  streetType: string; // Calle / Carrera / Avenida / Transversal
+  streetNumber: string;
+  secondaryNumber: string;
+  complement?: string;
+};
+
+const CITIES = ["Medellín", "Bogotá", "Cali", "Barranquilla"];
+const ZONES = ["Centro", "Norte", "Sur", "Oriente", "Occidente"];
+const STREET_TYPES = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"];
 
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
-  const [address, setAddress] = useState("");
-  const [error, setError] = useState("");
   const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
+  const [addressError, setAddressError] = useState("");
+  const [error, setError] = useState("");
+  const [openServiceModal, setOpenServiceModal] = useState(false);
+  const [authUser, setAuthUser] = useState<SessionUser | null>(null);
+
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
+    null
+  );
+  const user = getAuthenticatedUser();
+
+  const [address, setAddress] = useState({
+    city: "",
+    zone: "",
+    streetType: "",
+    streetNumber: "",
+    secondaryNumber: "",
+    complement: "",
+  });
 
   const { cart, updateQuantity, toggleService, removeFromCart } = useCart();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const raw = localStorage.getItem("accessToken");
+    if (!raw) {
+      setAuthUser(null);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as SessionUser;
+
+      const now = Math.floor(Date.now() / 1000);
+      if (!parsed.userid || parsed.exp < now) {
+        localStorage.removeItem("accessToken");
+        setAuthUser(null);
+        return;
+      }
+
+      setAuthUser(parsed);
+    } catch {
+      setAuthUser(null);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
   const hasService = cart.some((item) => item.service);
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
+  const validateAddress = (): string | null => {
+    if (!address.city) return "Seleccione una ciudad";
+    if (!address.zone) return "Seleccione la zona o barrio";
+    if (!address.streetType) return "Seleccione el tipo de vía";
+    if (!address.streetNumber.trim()) return "Ingrese el número de la vía";
+    if (!address.secondaryNumber.trim()) return "Ingrese el número secundario";
+    return null;
+  };
+
   const handlePurchase = () => {
-    if (!address.trim()) {
-      setError(
-        "⚠️ Por favor ingrese una dirección de envío antes de continuar."
-      );
+    const validationError = validateAddress();
+
+    if (validationError) {
+      setAddressError(validationError);
       return;
     }
+
+    setAddressError("");
     setError("");
+    localStorage.setItem(
+      "vertecx_cart",
+      JSON.stringify({
+        cart,
+        address,
+        total,
+        hasService,
+        savedAt: new Date().toISOString(),
+      })
+    );
+
     window.location.href = "/payments/register";
     onClose();
   };
@@ -161,7 +269,13 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                 </motion.span>
 
                                 <button
-                                  className="cursor-pointer transition hover:scale-110 hover:bg-red-300/60 rounded"
+                                  disabled={item.quantity >= item.stock}
+                                  className={`cursor-pointer transition rounded 
+    ${
+      item.quantity >= item.stock
+        ? "opacity-40 cursor-not-allowed"
+        : "hover:scale-110 hover:bg-red-300/60"
+    }`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     updateQuantity(item.id, 1);
@@ -175,13 +289,40 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                     className="rotate-180"
                                   />
                                 </button>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  Stock disponible: {item.stock}
+                                </div>
+
+                                {item.error && (
+                                  <div className="text-xs text-red-600 mt-1 font-medium">
+                                    {item.error}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="p-3 text-center">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+
+                                  const user = getAuthenticatedUser();
+
+                                  if (!user) {
+                                    setError(
+                                      "Debes iniciar sesión para solicitar un servicio."
+                                    );
+                                    return;
+                                  }
+
                                   toggleService(item.id);
+
+                                  if (!item.service) {
+                                    setSelectedServiceId(Number(item.id));
+                                    setOpenServiceModal(true);
+                                  } else {
+                                    setSelectedServiceId(null);
+                                    setOpenServiceModal(false);
+                                  }
                                 }}
                               >
                                 <Image
@@ -239,15 +380,92 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
             <p className="text-gray-800">
               <span className="font-semibold">Cédula:</span> 1033259147
             </p>
-            <textarea
-              placeholder="Ingrese su dirección de envío"
-              className={`w-full border p-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-red-600 transition ${
-                error ? "border-red-500" : "border-gray-300"
-              }`}
-              rows={3}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
+            <div className="flex flex-col gap-3">
+              <h4 className="font-semibold text-gray-800">
+                Dirección de envío
+              </h4>
+
+              <select
+                value={address.city}
+                onChange={(e) =>
+                  setAddress({ ...address, city: e.target.value })
+                }
+                className="border rounded p-2"
+              >
+                <option value="">Ciudad</option>
+                {CITIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={address.zone}
+                onChange={(e) =>
+                  setAddress({ ...address, zone: e.target.value })
+                }
+                className="border rounded p-2"
+              >
+                <option value="">Zona / Barrio</option>
+                {ZONES.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </select>
+
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={address.streetType}
+                  onChange={(e) =>
+                    setAddress({ ...address, streetType: e.target.value })
+                  }
+                  className="border rounded p-2"
+                >
+                  <option value="">Tipo</option>
+                  {STREET_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  placeholder="Número"
+                  value={address.streetNumber}
+                  onChange={(e) =>
+                    setAddress({ ...address, streetNumber: e.target.value })
+                  }
+                  className="border rounded p-2"
+                />
+              </div>
+
+              <input
+                placeholder="# secundaria (ej: 23-18)"
+                value={address.secondaryNumber}
+                onChange={(e) =>
+                  setAddress({ ...address, secondaryNumber: e.target.value })
+                }
+                className="border rounded p-2"
+              />
+
+              <input
+                placeholder="Complemento (Apto, Casa, Torre...)"
+                value={address.complement}
+                onChange={(e) =>
+                  setAddress({ ...address, complement: e.target.value })
+                }
+                className="border rounded p-2"
+              />
+
+              {addressError && (
+                <p className="text-sm text-red-600 font-medium">
+                  {addressError}
+                </p>
+              )}
+            </div>
+
             {error && <p className="text-red-600 text-sm">{error}</p>}
           </div>
 
@@ -299,6 +517,21 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           </div>
         </div>
       </motion.div>{" "}
+      {authUser && (
+        <ClientCreateRequestModal
+          isOpen={openServiceModal}
+          onClose={() => {
+            setOpenServiceModal(false);
+            setSelectedServiceId(null);
+          }}
+          onSave={async (payload) => {
+            console.log("Solicitud de servicio:", payload);
+          }}
+          clientId={authUser.userid}
+          clientLabel={authUser.name}
+          initialServiceId={selectedServiceId}
+        />
+      )}
     </div>
   );
 }

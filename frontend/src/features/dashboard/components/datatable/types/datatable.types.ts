@@ -19,6 +19,8 @@ export type DataTableProps<T> = {
   onCancel?: (row: T) => void;
   onCheck?: (row: T) => void;
   onCreate?: () => void;
+  onApprove?: (row: T) => void;
+
   searchPlaceholder?: string;
   createButtonText?: string;
   rightActions?: React.ReactNode;

@@ -1,3 +1,5 @@
+import { ReactNode } from "react";
+
 export interface purchaseOrder {
   monto: string;
   fechaCreacion: ReactNode;
@@ -6,10 +8,18 @@ export interface purchaseOrder {
   proveedor: string;
   precioUnitario: number;
   fecha: string;
-  estado: "Pendiente" | "Completada" | "Cancelada" | "En Proceso";
+  estado: "Pendiente" | "Completada" | "Anulada" | "En Proceso";
   descripcion?: string;
   cantidad?: number;
   total?: number;
+  subtotal?: number;
+  iva?: number;
+  productos?: any[];
+  // Campos para anulación
+  motivoAnulacion?: string;
+  fechaAnulacion?: string;
+  usuarioAnulacion?: string;
+  producto?: string;
 }
 
 export interface purchaseOrderBase {
@@ -23,12 +33,25 @@ export interface purchaseOrderBase {
 
 export interface createPurchaseOrderData extends purchaseOrderBase {
   cantidad: number;
+  estado?: "Pendiente" | "Completada" | "Anulada" | "En Proceso";
+  productos?: any[];
+  subtotal?: number;
+  iva?: number;
+  total?: number;
 }
 
 export interface editPurchaseOrder extends purchaseOrderBase {
   id: number;
-  estado: "Pendiente" | "Completada" | "Cancelada" | "En Proceso";
+  estado: "Pendiente" | "Completada" | "Anulada" | "En Proceso";
   cantidad: number;
+  productos?: any[];
+  subtotal?: number;
+  iva?: number;
+  total?: number;
+  // Campos para anulación
+  motivoAnulacion?: string;
+  fechaAnulacion?: string;
+  usuarioAnulacion?: string;
 }
 
 export interface formErrors {
@@ -38,6 +61,7 @@ export interface formErrors {
   fecha: string;
   descripcion: string;
   cantidad: string;
+  estado: string;
 }
 
 export interface formTouched {
@@ -47,6 +71,7 @@ export interface formTouched {
   fecha: boolean;
   descripcion: boolean;
   cantidad: boolean;
+  estado: boolean;
 }
 
 export interface createPurchaseOrderModalProps {
@@ -72,7 +97,7 @@ export interface PurchaseOrdersTableProps {
   purchaseOrders: purchaseOrder[];
   onView: (purchaseOrder: purchaseOrder) => void;
   onEdit: (purchaseOrder: editPurchaseOrder) => void;
-  onDelete: (purchaseOrder: purchaseOrder) => void;
+  onCancel: (purchaseOrder: purchaseOrder, reason: string) => void;
   onCreate: () => void;
 }
 

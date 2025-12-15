@@ -31,7 +31,7 @@ export default function ViewQuote({ quote }: ViewQuoteProps) {
     : "—";
 
   return (
-    <div className="flex flex-col gap-5 text-sm text-gray-800 p-4 max-h-[85vh] overflow-y-auto">
+    <div className="flex flex-col gap-5 text-sm text-gray-800 p-4 max-h-[85vh] overflow-y-hidden">
       {/* ================================
        * INFORMACIÓN GENERAL
        * ================================ */}
