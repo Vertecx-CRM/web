@@ -15,6 +15,8 @@ type ProductFromApi = {
   productname: string;
   productdescription: string | null;
 
+  productstock: number;
+
   categoryid: number;
   category?: ProductCategoryFromApi | null;
 
@@ -46,6 +48,7 @@ const toLanding = (p: ProductFromApi): Product => ({
   category: getCategoryName(p.category) || "Sin categoría",
   image: p.image || undefined,
   price: p.productpriceofsale === null ? undefined : toNumber(p.productpriceofsale),
+  stock: p.productstock ?? 0,
 });
 
 export const getLandingProducts = async (): Promise<Product[]> => {

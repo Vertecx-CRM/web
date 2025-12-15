@@ -157,10 +157,31 @@ export function useOrdersServicesLookups() {
       setCustomers(unwrapList(cs));
       setTechnicians(unwrapList(ts));
       setProducts(unwrapList(ps));
-      setServices(unwrapList(sv));
 
-      if (unwrapList(typesRaw).length) {
-        setServiceTypes(unwrapList(typesRaw));
+      const svList = unwrapList(sv);
+      if (svList.length) {
+        setServices(svList);
+      } else {
+        try {
+          const sRes = await tryGet<any>([
+            "api/services",
+            "/api/services",
+            "services",
+            "/services",
+            "api/servicios",
+            "/api/servicios",
+            "servicios",
+            "/servicios",
+          ]);
+          setServices(unwrapList(sRes.data));
+        } catch {
+          setServices([]);
+        }
+      }
+
+      const typesList = unwrapList(typesRaw);
+      if (typesList.length) {
+        setServiceTypes(typesList);
       } else {
         try {
           const tr = await tryGet<any>([
@@ -168,6 +189,14 @@ export function useOrdersServicesLookups() {
             "/services/types",
             "api/services/types",
             "/api/services/types",
+            "api/services-types",
+            "/api/services-types",
+            "services-types",
+            "/services-types",
+            "api/service-types",
+            "/api/service-types",
+            "service-types",
+            "/service-types",
           ]);
           setServiceTypes(unwrapList(tr.data));
         } catch {

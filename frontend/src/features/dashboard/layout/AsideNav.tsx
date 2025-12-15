@@ -140,7 +140,10 @@ const AsideNav = ({
   const { user } = useAuth();
 
   const permissions = useMemo<string[]>(
-    () => ((user as any)?.permissions || (user as any)?.permission || []) as string[],
+    () =>
+      ((user as any)?.permissions ||
+        (user as any)?.permission ||
+        []) as string[],
     [user]
   );
 
@@ -159,7 +162,11 @@ const AsideNav = ({
   const isLinkActive = useCallback(
     (href: string) => {
       if (href === routes.dashboard.main) return pathname === href;
-      return pathname === href || pathname.startsWith(href + "/") || pathname.startsWith(href);
+      return (
+        pathname === href ||
+        pathname.startsWith(href + "/") ||
+        pathname.startsWith(href)
+      );
     },
     [pathname]
   );
@@ -226,7 +233,10 @@ const AsideNav = ({
         parent: "productos",
         icon: Box,
         label: "Productos",
-        childrenRoutes: [routes.dashboard.products, routes.dashboard.productsCategories],
+        childrenRoutes: [
+          routes.dashboard.products,
+          routes.dashboard.productsCategories,
+        ],
         items: [
           {
             href: routes.dashboard.productsCategories,
@@ -245,7 +255,10 @@ const AsideNav = ({
         parent: "servicios",
         icon: Wrench,
         label: "Servicios",
-        childrenRoutes: [routes.dashboard.services, routes.dashboard.technicians],
+        childrenRoutes: [
+          routes.dashboard.services,
+          routes.dashboard.technicians,
+        ],
         items: [
           {
             href: routes.dashboard.services,
@@ -305,6 +318,12 @@ const AsideNav = ({
           },
         ],
       },
+      {
+        type: "link" as const,
+        href: routes.path,
+        label: "volver",
+        icon: ChevronLeft,
+      },
     ],
     [isLinkActive, pathname]
   );
@@ -337,7 +356,7 @@ const AsideNav = ({
       <nav className="flex flex-col gap-1 px-2">
         {menuConfig.map((item) => {
           if (item.type === "link") {
-            if (!canView(item.module)) return null;
+            if (item.module && !canView(item.module)) return null;
 
             return (
               <MenuItem

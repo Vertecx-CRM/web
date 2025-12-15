@@ -56,14 +56,63 @@ export const getProductsForQuote = async (): Promise<any> => {
   }
 };
 
-export const getServicesRequestsForQuote = async (): Promise<any> => {
+export const getServicesRequestsForQuote = async (): Promise<any[]> => {
   try {
     const { data } = await api.get("/service-requests");
-    return data;
+
+    const filtered = data.filter(
+      (request: any) =>
+        request.stateId === 4 &&
+        request.stateId === 3 &&
+        request.stateId === 5 &&
+        request.quoteId == 8
+    );
+
+    return filtered;
   } catch (error) {
     console.error("Error al obtener las solicitudes de servicio:", error);
     showError("Error al obtener las solicitudes de servicio");
     throw error;
   }
 };
-  
+
+/* ================================
+ * APROBAR COTIZACIÓN
+ * ================================ */
+export const approveQuote = async (quoteId: number): Promise<void> => {
+  try {
+    await api.patch(`/quotes/${quoteId}/approve`);
+  } catch (error) {
+    console.error("Error al aprobar la cotización:", error);
+    showError("Error al aprobar la cotización. Inténtalo nuevamente.");
+    throw error;
+  }
+};
+
+/* ================================
+ * ANULAR COTIZACIÓN (ADMIN)
+ * ================================ */
+export const revokeQuote = async (
+  quoteId: number,
+  observation?: string
+): Promise<void> => {
+  try {
+    await api.patch(`/quotes/${quoteId}/cancel`, {
+      observation: observation ?? null,
+    });
+  } catch (error) {
+    console.error("Error al revocar la cotización:", error);
+    showError("Error al revocar la cotización. Inténtalo nuevamente.");
+    throw error;
+  }
+};
+
+export const cancelQuote = async (quoteId: number): Promise<void> => {
+  try {
+    await api.patch(`/quotes/${quoteId}/cancel-client`);
+  } catch (error) {
+    console.error("Error al cancelar la cotización:", error);
+    showError("Error al cancelar la cotización. Inténtalo nuevamente.");
+    throw error;
+  }
+};

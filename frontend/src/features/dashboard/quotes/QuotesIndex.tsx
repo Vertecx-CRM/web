@@ -11,8 +11,64 @@ import Image from "next/image";
 
 import RegisterQuoteForm from "./components/RegisterQuote";
 import ViewQuote from "./components/ViewQuote";
-import { createQuote, getQuotes } from "./api/quotes.api";
+import {
+  createQuote,
+  getQuotes,
+  approveQuote,
+  cancelQuote,
+  revokeQuote,
+} from "./api/quotes.api";
 import { QuoteTableRow } from "./types/Quote.type";
+
+/* ================================
+ * NORMALIZACIÓN DE ESTADOS (VISUAL)
+ * ================================ */
+type QuoteStatusConfig = {
+  label: string;
+  className: string;
+};
+
+const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
+  if (!status) {
+    return { label: "—", className: "text-slate-500" };
+  }
+
+  const value = status.toLowerCase();
+
+  if (value.includes("pend")) {
+    return { label: "Pendiente", className: "text-yellow-600" };
+  }
+
+  if (value.includes("aprob") || value.includes("approved")) {
+    return { label: "Aprobada", className: "text-green-600" };
+  }
+
+  if (value.includes("cancel")) {
+    return { label: "Cancelada", className: "text-gray-600" };
+  }
+
+  if (value.includes("revoke") || value.includes("anul")) {
+    return { label: "Anulada", className: "text-red-600" };
+  }
+
+  return { label: status, className: "text-slate-500" };
+};
+
+/* ================================
+ * ESTADO EN ESPAÑOL (BÚSQUEDA)
+ * ================================ */
+const normalizeQuoteStatusText = (status?: string): string => {
+  if (!status) return "";
+
+  const value = status.toLowerCase();
+
+  if (value.includes("pend")) return "pendiente";
+  if (value.includes("aprob") || value.includes("approved")) return "aprobada";
+  if (value.includes("cancel")) return "cancelada";
+  if (value.includes("revoke") || value.includes("anul")) return "anulada";
+
+  return value;
+};
 
 export default function QuotesIndex() {
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
@@ -27,21 +83,27 @@ export default function QuotesIndex() {
    * ================================ */
   const fetchQuotes = async () => {
     setLoading(true);
+
     const data = await getQuotes();
 
-    const mapped: QuoteTableRow[] = data.map((q: any) => ({
-      id: q.quotesid,
-      client: `${q.customer?.users?.name ?? ""} ${
-        q.customer?.users?.lastname ?? ""
-      }`,
-      technician: `${q.technician?.users?.name ?? ""} ${
-        q.technician?.users?.lastname ?? ""
-      }`,
-      status: q.state?.name ?? "—",
-      creationDate: q.createdat,
-      amount: Number(q.total),
-      raw: q,
-    }));
+    const mapped: QuoteTableRow[] = data.map((q: any) => {
+      const rawStatus = q.state?.name ?? "";
+
+      return {
+        id: q.quotesid,
+        client: `${q.customer?.users?.name ?? ""} ${
+          q.customer?.users?.lastname ?? ""
+        }`,
+        technician: `${q.technician?.users?.name ?? ""} ${
+          q.technician?.users?.lastname ?? ""
+        }`,
+        status: rawStatus, // render
+        statusSearch: normalizeQuoteStatusText(rawStatus), // 🔑 búsqueda en español
+        creationDate: q.createdat,
+        amount: Number(q.total),
+        raw: q,
+      };
+    });
 
     setQuotesData(mapped);
     setLoading(false);
@@ -67,14 +129,10 @@ export default function QuotesIndex() {
       key: "status",
       header: "Estado",
       render: (row) => {
-        const map: Record<string, string> = {
-          Pendient: "text-yellow-600",
-          Aprobada: "text-green-600",
-          Anulada: "text-red-600",
-        };
+        const config = normalizeQuoteStatus(row.status);
         return (
-          <span className={`font-semibold ${map[row.status] ?? ""}`}>
-            {row.status}
+          <span className={`font-semibold ${config.className}`}>
+            {config.label}
           </span>
         );
       },
@@ -92,22 +150,90 @@ export default function QuotesIndex() {
   ];
 
   /* ================================
-   * ANULAR
+   * APROBAR
    * ================================ */
-  const handleCancelQuote = (row: QuoteTableRow) => {
-    Swal.fire({
-      title: "¿Anular cotización?",
-      text: `Cliente: ${row.client}`,
+  const handleApproveQuote = async (row: QuoteTableRow) => {
+    const r = await Swal.fire({
+      title: "¿Aprobar cotización?",
+      text: `Total: ${row.amount.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+      })}`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Sí, aprobar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#16a34a",
+    });
+
+    if (!r.isConfirmed) return;
+
+    await approveQuote(row.id);
+    await fetchQuotes();
+
+    Swal.fire("Aprobada", "Cotización aprobada correctamente", "success");
+  };
+
+  /* ================================
+   * CANCELAR (CLIENTE)
+   * ================================ */
+  const handleCancelQuote = async (row: QuoteTableRow) => {
+    const r = await Swal.fire({
+      title: "¿Cancelar cotización?",
+      text: "Esta acción no se puede deshacer",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Sí, anular",
+      confirmButtonText: "Sí, cancelar",
+      cancelButtonText: "Volver",
+      confirmButtonColor: "#b91c1c",
+    });
+
+    if (!r.isConfirmed) return;
+
+    await cancelQuote(row.id);
+    await fetchQuotes();
+
+    Swal.fire("Cancelada", "Cotización cancelada", "success");
+  };
+
+  /* ================================
+   * ANULAR (ADMIN)
+   * ================================ */
+  const handleRevokeQuote = async (row: QuoteTableRow) => {
+    const status = row.statusSearch;
+
+    if (status !== "aprobada") {
+      await Swal.fire({
+        icon: "warning",
+        title: "Acción no permitida",
+        text: "Solo se pueden anular cotizaciones que estén aprobadas.",
+        confirmButtonText: "Entendido",
+        confirmButtonColor: "#b20000",
+      });
+      return;
+    }
+
+    const r = await Swal.fire({
+      title: "¿Anular cotización?",
+      input: "textarea",
+      inputLabel: "Observación (opcional)",
+      inputPlaceholder: "Motivo de la anulación",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Anular",
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#b20000",
-    }).then((r) => {
-      if (r.isConfirmed) {
-        // aquí iría el endpoint real de anulación
-        Swal.fire("Anulada", "Cotización anulada", "success");
-      }
+    });
+
+    if (!r.isConfirmed) return;
+
+    await revokeQuote(row.id, r.value);
+    await fetchQuotes();
+
+    await Swal.fire({
+      icon: "success",
+      title: "Cotización anulada",
+      text: "La cotización fue anulada correctamente.",
     });
   };
 
@@ -134,15 +260,24 @@ export default function QuotesIndex() {
           data={quotesData}
           columns={columns}
           loading={loading}
-          searchableKeys={["client", "technician", "status"]}
+          searchableKeys={[
+            "id",
+            "client",
+            "technician",
+            "statusSearch", // 👈 estado en español
+            "amount",
+            "creationDate",
+          ]}
           pageSize={8}
           onView={(row) => {
             setSelectedQuote(row.raw);
             setDetailModalOpen(true);
           }}
-          onCancel={handleCancelQuote}
           onCreate={() => setRegisterModalOpen(true)}
           createButtonText="Crear Cotización"
+          onCheck={handleApproveQuote}
+          onCancel={handleCancelQuote}
+          onDelete={handleRevokeQuote}
           rightActions={
             <button className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#b20000] text-white text-sm font-semibold hover:bg-[#910000]">
               <Image
@@ -156,7 +291,6 @@ export default function QuotesIndex() {
           }
         />
 
-        {/* MODAL CREAR */}
         <Modal
           title="Registrar Cotización"
           isOpen={isRegisterModalOpen}
@@ -166,7 +300,6 @@ export default function QuotesIndex() {
           <RegisterQuoteForm onSave={handleAddQuote} />
         </Modal>
 
-        {/* MODAL VER */}
         <Modal
           title="Detalle de Cotización"
           isOpen={isDetailModalOpen}
