@@ -16,6 +16,7 @@ type ViewRequestData = {
   codigo: string;
   programada: string | null;
   programadaEnd: string | null;
+  tecnicos?: string[] | null;
 };
 
 type Props = {
@@ -28,12 +29,9 @@ type Props = {
 function estadoClass(v: string) {
   const s = (v || "").toLowerCase();
   if (s.includes("aprob")) return "text-green-600 bg-green-50 border-green-200";
-  if (s.includes("anul") || s.includes("cancel"))
-    return "text-red-600 bg-red-50 border-red-200";
-  if (s.includes("pend"))
-    return "text-yellow-700 bg-yellow-50 border-yellow-200";
-  if (s.includes("activo"))
-    return "text-emerald-700 bg-emerald-50 border-emerald-200";
+  if (s.includes("anul") || s.includes("cancel")) return "text-red-600 bg-red-50 border-red-200";
+  if (s.includes("pend")) return "text-yellow-700 bg-yellow-50 border-yellow-200";
+  if (s.includes("activo")) return "text-emerald-700 bg-emerald-50 border-emerald-200";
   return "text-gray-700 bg-gray-50 border-gray-200";
 }
 
@@ -80,6 +78,11 @@ export default function ViewRequestModal({
 
   const codigoMostrar = (data.codigo || "").trim() || "—";
 
+  const tecnicos = useMemo(() => {
+    const list = Array.isArray(data.tecnicos) ? data.tecnicos : [];
+    return list.map((t) => String(t || "").trim()).filter(Boolean);
+  }, [data.tecnicos]);
+
   return (
     <Modal
       title={title}
@@ -123,18 +126,14 @@ export default function ViewRequestModal({
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">
-              Cliente
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span className="truncate">{data.cliente || "—"}</span>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">
-              Servicio
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span className="truncate">{data.servicio || "—"}</span>
             </div>
@@ -143,9 +142,7 @@ export default function ViewRequestModal({
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">
-              Fecha de creación
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Fecha de creación</label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span>{data.fecha || "—"}</span>
             </div>
@@ -157,30 +154,22 @@ export default function ViewRequestModal({
             </label>
             <div className="flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span>{programadaDate || "—"}</span>
-              <span className="text-xs text-gray-500">
-                {programadaTime ? `Hora: ${programadaTime}` : ""}
-              </span>
+              <span className="text-xs text-gray-500">{programadaTime ? `Hora: ${programadaTime}` : ""}</span>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">
-              Fecha y hora final
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Fecha y hora final</label>
             <div className="flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span>{programadaEndDate || "—"}</span>
-              <span className="text-xs text-gray-500">
-                {programadaEndTime ? `Hora: ${programadaEndTime}` : ""}
-              </span>
+              <span className="text-xs text-gray-500">{programadaEndTime ? `Hora: ${programadaEndTime}` : ""}</span>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">
-              Dirección
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
             <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
               <span className="truncate">{data.direccion || "—"}</span>
             </div>
@@ -188,9 +177,29 @@ export default function ViewRequestModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">
-            Descripción
-          </label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Técnicos</label>
+
+          {tecnicos.length ? (
+            <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              {tecnicos.map((t, i) => (
+                <span
+                  key={`${t}-${i}`}
+                  className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-900"
+                  title={t}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-900">
+              <span className="truncate">—</span>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
           <div className="min-h-[80px] whitespace-pre-line rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
             {data.descripcion?.trim() ? data.descripcion : "—"}
           </div>

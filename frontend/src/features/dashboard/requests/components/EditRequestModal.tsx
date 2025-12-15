@@ -11,28 +11,29 @@ import {
 import { api } from "@/lib/api";
 
 export type EditRequestPayload = {
-  tipos: ("Mantenimiento" | "Instalacion")[];
-  servicio: string;
-  cliente: string;
-  descripcion: string;
+  serviceId: number;
+  clientId: number;
+  serviceType: string;
+  description: string;
   direccion: string;
-  programada: string | null;
-  horaProgramada: string | null;
-  horaFinal: string | null;
+  scheduledAt: string | null;
+  scheduledEndAt: string | null;
   estado?: string;
   technicians: number[];
 };
 
 type ServiceOption = Option & {
   typeofserviceid?: number | null;
-  typeofservicename?: string | null;
-  serviceTypeCode?: string | null;
+};
+
+type ServiceTypeApi = {
+  typeofserviceid: number;
+  name: string;
 };
 
 type ServiceTypeOption = {
   id: number;
   label: string;
-  code: string;
 };
 
 type TechnicianOption = {
@@ -47,7 +48,17 @@ type Props = {
   title?: string;
   servicios?: ServiceOption[] | null;
   clientes?: Option[] | null;
-  initial?: (Partial<EditRequestPayload> & { technicians?: number[] }) | null;
+  initial?:
+    | (Partial<EditRequestPayload> &
+        Partial<{
+          servicio: string;
+          cliente: string;
+          descripcion: string;
+          programada: string | null;
+          horaProgramada: string | null;
+          horaFinal: string | null;
+        }> & { technicians?: number[] })
+    | null;
 };
 
 type ErrorKey =
@@ -123,15 +134,6 @@ function isAllowedTime(hm: string) {
   return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
 }
 
-function normalizeTipoFromLabel(label: string): "Mantenimiento" | "Instalacion" {
-  const norm = label
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-  if (norm.startsWith("instal")) return "Instalacion";
-  return "Mantenimiento";
-}
-
 function addMinutesToTime(hm: string, add: number) {
   const base = timeToMinutes(hm);
   if (!Number.isFinite(base)) return hm;
@@ -166,6 +168,52 @@ function initials(name: string) {
   return (a + b).toUpperCase() || "T";
 }
 
+function parseISOToLocalParts(iso: string | null | undefined) {
+  if (!iso) return { date: null as string | null, time: null as string | null };
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return { date: null, time: null };
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return { date: `${y}-${m}-${day}`, time: `${hh}:${mm}` };
+}
+
+function combineDateTimeLocal(ymd: string, hm: string) {
+  const d = parseYMD(ymd);
+  if (!d) return null;
+  const mins = timeToMinutes(hm);
+  if (!Number.isFinite(mins)) return null;
+  const hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm, 0, 0);
+  return dt.toISOString();
+}
+
+function inferTypeIdFromServiceType(serviceTypes: ServiceTypeOption[], serviceType: string) {
+  const st = normalizeText(serviceType);
+  if (!st) return null;
+
+  const exact = serviceTypes.find((t) => normalizeText(t.label) === st);
+  if (exact) return exact.id;
+
+  const hasInst = st.includes("instal");
+  const hasMant = st.includes("manten");
+
+  if (hasInst) {
+    const m = serviceTypes.find((t) => normalizeText(t.label).includes("instal"));
+    if (m) return m.id;
+  }
+  if (hasMant) {
+    const m = serviceTypes.find((t) => normalizeText(t.label).includes("manten"));
+    if (m) return m.id;
+  }
+
+  const partial = serviceTypes.find((t) => normalizeText(t.label).includes(st));
+  return partial ? partial.id : null;
+}
+
 export default function EditRequestModal({
   isOpen,
   onClose,
@@ -187,8 +235,7 @@ export default function EditRequestModal({
   const [horaProgramada, setHoraProgramada] = useState<string | null>(null);
   const [horaFinal, setHoraFinal] = useState<string | null>(null);
 
-  const [tipos, setTipos] = useState<("Mantenimiento" | "Instalacion")[]>([]);
-  const [estado] = useState<string | undefined>(initial?.estado as any);
+  const [estado] = useState<string | undefined>((initial as any)?.estado);
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -198,6 +245,9 @@ export default function EditRequestModal({
   const [loadingLookups, setLoadingLookups] = useState(false);
   const [serviciosLocal, setServiciosLocal] = useState<ServiceOption[]>([]);
   const [clientesLocal, setClientesLocal] = useState<Option[]>([]);
+
+  const [serviceTypes, setServiceTypes] = useState<ServiceTypeOption[]>([]);
+  const [serviceTypesLoading, setServiceTypesLoading] = useState(false);
 
   const finalServicios = useMemo<ServiceOption[]>(() => {
     const fromProps = (Array.isArray(servicios) ? servicios : []) as ServiceOption[];
@@ -209,32 +259,6 @@ export default function EditRequestModal({
     return fromProps.length ? fromProps : clientesLocal;
   }, [clientes, clientesLocal]);
 
-  const serviceTypes = useMemo<ServiceTypeOption[]>(() => {
-    const map = new Map<number, ServiceTypeOption>();
-
-    (finalServicios || []).forEach((s) => {
-      const typeId = s.typeofserviceid;
-      const typeName = s.typeofservicename;
-      if (!typeId || !typeName) return;
-      if (map.has(typeId)) return;
-
-      let code = (s.serviceTypeCode || "").trim();
-      if (!code) {
-        const norm = typeName
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase();
-        if (norm.startsWith("mantenimiento")) code = "MANTENIMIENTO";
-        else if (norm.startsWith("instal")) code = "INSTALACION";
-        else code = typeName;
-      }
-
-      map.set(typeId, { id: typeId, label: typeName, code });
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-  }, [finalServicios]);
-
   const selectedType = useMemo(
     () => (serviceTypeId ? serviceTypes.find((t) => t.id === serviceTypeId) || null : null),
     [serviceTypeId, serviceTypes]
@@ -243,11 +267,7 @@ export default function EditRequestModal({
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     const list = finalServicios || [];
     if (!serviceTypeId) return list;
-
-    const hasTypeInfo = list.some((s) => s.typeofserviceid != null);
-    if (!hasTypeInfo) return list;
-
-    return list.filter((s) => s.typeofserviceid === serviceTypeId);
+    return list.filter((s) => Number(s.typeofserviceid) === Number(serviceTypeId));
   }, [finalServicios, serviceTypeId]);
 
   const [techniciansRaw, setTechniciansRaw] = useState<any[]>([]);
@@ -278,6 +298,8 @@ export default function EditRequestModal({
   const [techActiveIndex, setTechActiveIndex] = useState(0);
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
+
+  const [hasAppliedInitialType, setHasAppliedInitialType] = useState(false);
 
   function markTouched(key: ErrorKey) {
     setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
@@ -329,11 +351,9 @@ export default function EditRequestModal({
   function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
     if (!end) return "Selecciona la hora final.";
     if (!isAllowedTime(end)) return "Horario permitido: 07:00–17:00.";
-
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
       return "La hora final no puede estar en el pasado.";
     }
-
     if (!start) return null;
     const s = timeToMinutes(start);
     const e = timeToMinutes(end);
@@ -447,7 +467,6 @@ export default function EditRequestModal({
             ? `No se pudieron cargar los servicios (${status}).`
             : "No se pudieron cargar los servicios."
         );
-        console.error("LOOKUP services ERROR →", sr.reason);
       }
 
       if (cr.status === "fulfilled") setClientesLocal(cr.value as Option[]);
@@ -459,7 +478,6 @@ export default function EditRequestModal({
             ? `No se pudieron cargar los clientes (${status}).`
             : "No se pudieron cargar los clientes."
         );
-        console.error("LOOKUP customers ERROR →", cr.reason);
       }
 
       setLoadingLookups(false);
@@ -476,20 +494,61 @@ export default function EditRequestModal({
     let cancelled = false;
 
     async function run() {
+      setServiceTypesLoading(true);
+      try {
+        const { data } = await api.get("services/types");
+        const list: ServiceTypeApi[] = Array.isArray(data)
+          ? data
+          : Array.isArray((data as any)?.data)
+          ? (data as any).data
+          : [];
+        const mapped = list
+          .map((x) => ({
+            id: Number(x.typeofserviceid),
+            label: String(x.name || "").trim(),
+          }))
+          .filter((x) => Number.isFinite(x.id) && x.id > 0 && x.label);
+
+        mapped.sort((a, b) => a.label.localeCompare(b.label));
+
+        if (!cancelled) setServiceTypes(mapped);
+      } catch (e: any) {
+        if (!cancelled) {
+          setServiceTypes([]);
+          showError("No se pudieron cargar los tipos de servicio.");
+        }
+      } finally {
+        if (!cancelled) setServiceTypesLoading(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    async function run() {
       setTechLoading(true);
       setTechError(null);
       try {
         const { data } = await api.get("technicians");
         const list = Array.isArray(data)
           ? data
-          : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.technicians)
-          ? data.technicians
+          : Array.isArray((data as any)?.data)
+          ? (data as any).data
+          : Array.isArray((data as any)?.technicians)
+          ? (data as any).technicians
           : [];
         if (!cancelled) setTechniciansRaw(list);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando técnicos.";
+        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando técnicos.";
         if (!cancelled) {
           setTechError(String(msg));
           setTechniciansRaw([]);
@@ -509,18 +568,38 @@ export default function EditRequestModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setServicio(String(initial?.servicio ?? ""));
-    setCliente(String(initial?.cliente ?? ""));
-    setDescripcion(String(initial?.descripcion ?? ""));
-    setDireccion(String(initial?.direccion ?? ""));
-    setProgramada((initial?.programada as any) ?? null);
-    setHoraProgramada((initial?.horaProgramada as any) ?? null);
-    setHoraFinal((initial?.horaFinal as any) ?? null);
-    setTipos((initial?.tipos as any) ?? []);
+    const init = initial as any;
 
-    const initTechs = Array.isArray(initial?.technicians) ? initial!.technicians! : [];
+    const initServiceId = String(
+      init?.servicio ?? init?.serviceId ?? ""
+    ).trim();
+    const initClientId = String(
+      init?.cliente ?? init?.clientId ?? ""
+    ).trim();
+
+    setServicio(initServiceId);
+    setCliente(initClientId);
+
+    setDescripcion(String(init?.descripcion ?? init?.description ?? ""));
+    setDireccion(String(init?.direccion ?? ""));
+
+    const partsStart =
+      init?.programada || init?.horaProgramada
+        ? { date: init?.programada ?? null, time: init?.horaProgramada ?? null }
+        : parseISOToLocalParts(init?.scheduledAt ?? null);
+
+    const partsEnd =
+      init?.horaFinal
+        ? { date: partsStart.date, time: init?.horaFinal ?? null }
+        : parseISOToLocalParts(init?.scheduledEndAt ?? null);
+
+    setProgramada(partsStart.date);
+    setHoraProgramada(partsStart.time);
+    setHoraFinal(partsEnd.time);
+
+    const initTechs = Array.isArray(init?.technicians) ? init.technicians : [];
     setSelectedTechnicians(
-      initTechs.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
+      initTechs.map((x: any) => Number(x)).filter((x: number) => Number.isFinite(x) && x > 0)
     );
 
     setTechQuery("");
@@ -532,43 +611,53 @@ export default function EditRequestModal({
 
     setSaving(false);
     setTechError(null);
+
+    setHasAppliedInitialType(false);
   }, [isOpen, initial]);
 
   useEffect(() => {
-    if (!serviceTypes.length) {
-      setServiceTypeId(null);
+    if (!isOpen) return;
+    if (hasAppliedInitialType) return;
+    if (serviceTypesLoading) return;
+    if (!serviceTypes.length) return;
+
+    const init = initial as any;
+
+    const initServiceId = String(init?.servicio ?? init?.serviceId ?? "").trim();
+    const svc = initServiceId ? finalServicios.find((s) => String(s.id) === initServiceId) : null;
+
+    const fromService =
+      svc?.typeofserviceid != null && Number.isFinite(Number(svc.typeofserviceid))
+        ? Number(svc.typeofserviceid)
+        : null;
+
+    const fromServiceTypeStr = init?.serviceType
+      ? inferTypeIdFromServiceType(serviceTypes, String(init.serviceType))
+      : null;
+
+    const desired = fromService ?? fromServiceTypeStr ?? null;
+
+    if (desired && serviceTypes.some((t) => t.id === desired)) {
+      setServiceTypeId(desired);
+      setHasAppliedInitialType(true);
       return;
     }
 
-    if (serviceTypeId && serviceTypes.some((t) => t.id === serviceTypeId)) return;
-
-    if (initial?.tipos?.length) {
-      const p = String(initial.tipos[0]).toLowerCase();
-      const match = serviceTypes.find((t) => {
-        const lbl = t.label
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLowerCase();
-        return lbl.startsWith(p.substring(0, 4));
-      });
-      if (match) {
-        setServiceTypeId(match.id);
-        return;
-      }
-    }
-
     setServiceTypeId(serviceTypes[0].id);
-  }, [serviceTypes, serviceTypeId, initial]);
+    setHasAppliedInitialType(true);
+  }, [isOpen, hasAppliedInitialType, serviceTypesLoading, serviceTypes, finalServicios, initial]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (!hasAppliedInitialType) return;
     if (!serviceTypeId) return;
     if (!servicio) return;
+
     if (!filteredServicios.some((s) => String(s.id) === String(servicio))) {
       setServicio("");
       markTouched("servicio");
     }
-  }, [isOpen, serviceTypeId, filteredServicios, servicio]);
+  }, [isOpen, hasAppliedInitialType, serviceTypeId, filteredServicios, servicio]);
 
   useEffect(() => {
     setTechActiveIndex(0);
@@ -683,6 +772,11 @@ export default function EditRequestModal({
       return;
     }
 
+    if (serviceTypesLoading) {
+      showInfo("Espera a que carguen los tipos de servicio.");
+      return;
+    }
+
     if (techLoading) {
       showInfo("Espera a que carguen los técnicos.");
       return;
@@ -700,17 +794,22 @@ export default function EditRequestModal({
       return;
     }
 
-    const tiposFinal = tipos.length > 0 ? tipos : [normalizeTipoFromLabel(selectedType.label)];
+    const scheduledAtISO = combineDateTimeLocal(programada, horaProgramada);
+    const scheduledEndAtISO = combineDateTimeLocal(programada, horaFinal);
+
+    if (!scheduledAtISO || !scheduledEndAtISO) {
+      showError("Fecha u horas inválidas.");
+      return;
+    }
 
     const payload: EditRequestPayload = {
-      tipos: tiposFinal,
-      servicio: String(servicio),
-      cliente: String(cliente),
-      descripcion: String(descripcion ?? "").trim(),
+      serviceId: Number(servicio),
+      clientId: Number(cliente),
+      serviceType: String(selectedType.label).trim(),
+      description: String(descripcion ?? "").trim(),
       direccion: String(direccion ?? "").trim().slice(0, 255),
-      programada,
-      horaProgramada,
-      horaFinal,
+      scheduledAt: scheduledAtISO,
+      scheduledEndAt: scheduledEndAtISO,
       estado,
       technicians: selectedTechnicians,
     };
@@ -750,10 +849,12 @@ export default function EditRequestModal({
             type="button"
             onClick={submit}
             className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-            disabled={saving || loadingLookups || techLoading}
+            disabled={saving || loadingLookups || techLoading || serviceTypesLoading}
             title={
               loadingLookups
                 ? "Cargando servicios/clientes..."
+                : serviceTypesLoading
+                ? "Cargando tipos..."
                 : techLoading
                 ? "Cargando técnicos..."
                 : undefined
@@ -769,7 +870,7 @@ export default function EditRequestModal({
           <div className="mb-1 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
             <span className="text-[11px] text-gray-500">
-              {loadingLookups
+              {serviceTypesLoading
                 ? "Cargando tipos..."
                 : serviceTypes.length
                 ? "Selecciona uno"
@@ -786,7 +887,17 @@ export default function EditRequestModal({
                   onClick={() => {
                     markTouched("tipo");
                     setServiceTypeId(t.id);
-                    setTipos([normalizeTipoFromLabel(t.label)]);
+                    setHasAppliedInitialType(true);
+                    if (servicio && !finalServicios.some((s) => String(s.id) === String(servicio))) {
+                      setServicio("");
+                    } else {
+                      const ok = finalServicios.some(
+                        (s) =>
+                          String(s.id) === String(servicio) &&
+                          Number(s.typeofserviceid) === Number(t.id)
+                      );
+                      if (servicio && !ok) setServicio("");
+                    }
                   }}
                   className={[
                     "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
@@ -794,16 +905,14 @@ export default function EditRequestModal({
                       ? "bg-black text-white border-black"
                       : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
                   ].join(" ")}
-                  disabled={saving || loadingLookups}
+                  disabled={saving || serviceTypesLoading}
                 >
                   {t.label}
                 </button>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-500">
-              Configura tipos de servicio en el catálogo de servicios.
-            </p>
+            <p className="text-xs text-gray-500">No hay tipos de servicio configurados.</p>
           )}
 
           {shouldShowError("tipo") && errors.tipo && (
@@ -822,12 +931,10 @@ export default function EditRequestModal({
                   setServicio(e.target.value);
                 }}
                 onBlur={() => markTouched("servicio")}
-                disabled={saving || loadingLookups}
+                disabled={saving || loadingLookups || serviceTypesLoading}
                 className={[
                   "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("servicio") && errors.servicio
-                    ? "border-red-500"
-                    : "border-gray-300",
+                  shouldShowError("servicio") && errors.servicio ? "border-red-500" : "border-gray-300",
                 ].join(" ")}
               >
                 <option value="">
@@ -867,9 +974,7 @@ export default function EditRequestModal({
                 disabled={saving || loadingLookups}
                 className={[
                   "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("cliente") && errors.cliente
-                    ? "border-red-500"
-                    : "border-gray-300",
+                  shouldShowError("cliente") && errors.cliente ? "border-red-500" : "border-gray-300",
                 ].join(" ")}
               >
                 <option value="">
@@ -908,9 +1013,7 @@ export default function EditRequestModal({
               placeholder="Ej. Calle 123 #45-67"
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-                shouldShowError("direccion") && errors.direccion
-                  ? "border-red-500"
-                  : "border-gray-300",
+                shouldShowError("direccion") && errors.direccion ? "border-red-500" : "border-gray-300",
               ].join(" ")}
             />
             {shouldShowError("direccion") && errors.direccion && (
@@ -928,9 +1031,7 @@ export default function EditRequestModal({
               onBlur={() => markTouched("programada")}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-                shouldShowError("programada") && errors.programada
-                  ? "border-red-500"
-                  : "border-gray-300",
+                shouldShowError("programada") && errors.programada ? "border-red-500" : "border-gray-300",
               ].join(" ")}
               required
             />
@@ -950,9 +1051,7 @@ export default function EditRequestModal({
               onBlur={() => markTouched("horaProgramada")}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaProgramada") && errors.horaProgramada
-                  ? "border-red-500"
-                  : "border-gray-300",
+                shouldShowError("horaProgramada") && errors.horaProgramada ? "border-red-500" : "border-gray-300",
               ].join(" ")}
               disabled={!programada}
               required
@@ -973,9 +1072,7 @@ export default function EditRequestModal({
               onBlur={() => markTouched("horaFinal")}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaFinal") && errors.horaFinal
-                  ? "border-red-500"
-                  : "border-gray-300",
+                shouldShowError("horaFinal") && errors.horaFinal ? "border-red-500" : "border-gray-300",
               ].join(" ")}
               disabled={!programada}
               required
@@ -1100,9 +1197,7 @@ export default function EditRequestModal({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-medium">{t.label}</span>
-                            <span className="block text-xs text-gray-500">
-                              Técnico #{t.technicianid}
-                            </span>
+                            <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
                           </span>
                           <span className="text-xs text-gray-400">Agregar</span>
                         </button>
@@ -1133,9 +1228,7 @@ export default function EditRequestModal({
             placeholder="Describe brevemente la solicitud"
             className={[
               "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-              shouldShowError("descripcion") && errors.descripcion
-                ? "border-red-500"
-                : "border-gray-300",
+              shouldShowError("descripcion") && errors.descripcion ? "border-red-500" : "border-gray-300",
             ].join(" ")}
           />
           {shouldShowError("descripcion") && errors.descripcion && (

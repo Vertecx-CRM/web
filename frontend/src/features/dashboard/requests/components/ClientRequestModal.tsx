@@ -37,44 +37,12 @@ type Props = {
   servicios?: ServiceOption[] | null;
   clientId: number;
   clientLabel?: string;
-  initialDate?: string | null;
-  initialTime?: string | null;
-  initialEndTime?: string | null;
+  initialServiceId?: number | null;
 };
 
-type ErrorKey =
-  | "tipo"
-  | "serviceId"
-  | "description"
-  | "direccion"
-  | "horaProgramada"
-  | "horaFinal";
-
+type ErrorKey = "tipo" | "serviceId" | "description" | "direccion";
 type Errors = Partial<Record<ErrorKey, string | null>>;
 type Touched = Partial<Record<ErrorKey, boolean>>;
-
-function toIsoFromLocalDateTime(date: string, time: string) {
-  const [y, m, d] = date.split("-").map((n) => Number(n));
-  const [hh, mm] = time.split(":").map((n) => Number(n));
-  const dt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
-  return dt.toISOString();
-}
-
-function timeToMinutes(t: string) {
-  const [hh, mm] = t.split(":").map((n) => Number(n));
-  return (hh || 0) * 60 + (mm || 0);
-}
-
-function minutesToTime(total: number) {
-  const m = ((total % 1440) + 1440) % 1440;
-  const hh = String(Math.floor(m / 60)).padStart(2, "0");
-  const mm = String(m % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-function addMinutesToTime(t: string, add: number) {
-  return minutesToTime(timeToMinutes(t) + add);
-}
 
 function getBackendMessage(err: unknown) {
   const anyErr = err as any;
@@ -91,17 +59,12 @@ export default function ClientCreateRequestModal({
   servicios,
   clientId,
   clientLabel,
-  initialDate = null,
-  initialTime = null,
-  initialEndTime = null,
+  initialServiceId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
   const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
-  const [programada, setProgramada] = useState<string | null>(initialDate);
-  const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
-  const [horaFinal, setHoraFinal] = useState<string | null>(initialEndTime);
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -173,172 +136,125 @@ export default function ClientCreateRequestModal({
     return v !== "" ? null : "Selecciona un servicio.";
   }
 
-  function validateHoraProgramada(start: string | null, hasDate: boolean) {
-    if (!hasDate) return null;
-    return start ? null : "Selecciona la hora inicial.";
+  function validateTipo(id: number | null) {
+    return id ? null : "Selecciona un tipo.";
   }
 
-  function validateHoraFinal(start: string | null, end: string | null, hasDate: boolean) {
-    if (!hasDate) return null;
-    if (!end) return "Selecciona la hora final.";
-    if (!start) return null;
-    return timeToMinutes(end) <= timeToMinutes(start)
-      ? "La hora final debe ser mayor que la hora inicial."
-      : null;
-  }
-
-  const errors = useMemo<Errors>(() => {
+  const errors: Errors = useMemo(() => {
     const e: Errors = {};
-
-    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
+    e.tipo = validateTipo(serviceTypeId);
     e.serviceId = validateServiceId(serviceId);
-    e.direccion = validateDireccion(direccion);
     e.description = validateDescription(description);
-
-    if (programada) {
-      e.horaProgramada = validateHoraProgramada(horaProgramada, true);
-      e.horaFinal = validateHoraFinal(horaProgramada, horaFinal, true);
-    } else {
-      e.horaProgramada = null;
-      e.horaFinal = null;
-    }
-
+    e.direccion = validateDireccion(direccion);
     return e;
-  }, [serviceTypeId, serviceId, direccion, description, programada, horaProgramada, horaFinal]);
+  }, [serviceTypeId, serviceId, description, direccion]);
 
-  function markTouched(key: ErrorKey) {
-    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  function markTouched(k: ErrorKey) {
+    setTouched((p) => ({ ...p, [k]: true }));
   }
 
-  function shouldShowError(key: ErrorKey) {
-    return Boolean(submitAttempted || touched[key]);
+  function shouldShowError(k: ErrorKey) {
+    return !!submitAttempted || !!touched[k];
   }
 
-  function isValidNow() {
-    return Object.values(errors).every((x) => !x);
+  function resetForm() {
+    setServiceTypeId(null);
+    setServiceId("");
+    setDescription("");
+    setDireccion("");
+    setTouched({});
+    setSubmitAttempted(false);
   }
 
   useEffect(() => {
     if (!isOpen) return;
+    setTouched({});
+    setSubmitAttempted(false);
+  }, [isOpen]);
 
-    let alive = true;
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (Array.isArray(servicios) && servicios.length) return;
+
+    let cancel = false;
 
     (async () => {
-      const hasServicios = Array.isArray(servicios) && servicios.length > 0;
-
-      if (hasServicios) setServiciosLocal(servicios as ServiceOption[]);
-      if (hasServicios) return;
-
-      setLoadingLookups(true);
-
-      const [sr] = await Promise.allSettled([
-        hasServicios ? Promise.resolve(servicios as ServiceOption[]) : getServiceOptions(),
-      ]);
-
-      if (!alive) return;
-
-      if (sr.status === "fulfilled") setServiciosLocal(sr.value as ServiceOption[]);
-      else {
+      try {
+        setLoadingLookups(true);
+        const opts = await getServiceOptions();
+        if (cancel) return;
+        setServiciosLocal(Array.isArray(opts) ? (opts as any) : []);
+      } catch {
+        if (cancel) return;
         setServiciosLocal([]);
-        const status = (sr.reason as any)?.response?.status;
-        showError(
-          status
-            ? `No se pudieron cargar los servicios (${status}).`
-            : "No se pudieron cargar los servicios."
-        );
-        console.error("LOOKUP services ERROR →", sr.reason);
+      } finally {
+        if (cancel) return;
+        setLoadingLookups(false);
       }
-
-      setLoadingLookups(false);
     })();
 
     return () => {
-      alive = false;
+      cancel = true;
     };
   }, [isOpen, servicios]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (!initialServiceId) return;
+    if (!finalServicios.length) return;
 
-    setServiceTypeId(null);
-    setServiceId("");
-    setDescription("");
-    setDireccion("");
-    setProgramada(initialDate);
-    setHoraProgramada(initialTime);
-    setHoraFinal(initialEndTime);
-    setTouched({});
-    setSubmitAttempted(false);
-    setSaving(false);
-  }, [isOpen, initialDate, initialTime, initialEndTime]);
+    const found = finalServicios.find((s: any) => Number(s?.id) === Number(initialServiceId));
+    if (!found) return;
 
-  useEffect(() => {
-    if (!serviceTypes.length) {
-      setServiceTypeId(null);
-      return;
-    }
-    if (serviceTypeId && serviceTypes.some((t) => t.id === serviceTypeId)) return;
-    setServiceTypeId(serviceTypes[0].id);
-  }, [serviceTypes, serviceTypeId]);
+    const sid = Number(found.id);
+    if (Number.isFinite(sid) && sid > 0) setServiceId(sid as any);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (serviceId === "") return;
-    if (!filteredServicios.some((s) => Number(s.id) === Number(serviceId))) {
-      setServiceId("");
-      markTouched("serviceId");
-    }
-  }, [isOpen, filteredServicios, serviceId]);
+    const tid = Number(found.typeofserviceid);
+    if (Number.isFinite(tid) && tid > 0) setServiceTypeId(tid);
+  }, [isOpen, initialServiceId, finalServicios]);
 
   async function submit() {
-    if (saving) return;
-
     setSubmitAttempted(true);
 
-    if (loadingLookups) {
-      showInfo("Espera a que carguen los servicios.");
+    const errKeys = Object.keys(errors) as ErrorKey[];
+    const firstError = errKeys.find((k) => !!errors[k]);
+    if (firstError) {
+      showInfo("Revisa los campos marcados.");
       return;
     }
-
-    if (!isValidNow()) return;
 
     if (!selectedType) {
-      showError("Selecciona un tipo de servicio.");
+      showInfo("Selecciona un tipo de servicio.");
       return;
     }
 
-    if (!clientId) {
-      showError("No se pudo identificar al cliente.");
+    const sid = Number(serviceId);
+    if (!Number.isFinite(sid) || sid <= 0) {
+      showInfo("Selecciona un servicio válido.");
       return;
     }
 
-    const scheduledAt =
-      programada && horaProgramada ? toIsoFromLocalDateTime(programada, horaProgramada) : null;
-
-    const scheduledEndAt =
-      programada && horaFinal ? toIsoFromLocalDateTime(programada, horaFinal) : null;
-
-    const dir = String(direccion ?? "").trim().slice(0, 255);
-
-    const payload: CreateRequestPayload = {
-      serviceType: selectedType.code,
-      serviceId: Number(serviceId),
-      clientId,
-      description: String(description ?? "").trim(),
-      direccion: dir,
-      scheduledAt,
-      scheduledEndAt,
-      stateId: 1,
-    };
-
-    setSaving(true);
     try {
+      setSaving(true);
+
+      const payload: CreateRequestPayload = {
+        scheduledAt: null,
+        scheduledEndAt: null,
+        serviceType: selectedType.code,
+        description: String(description || "").trim(),
+        direccion: String(direccion || "").trim(),
+        stateId: 5,
+        serviceId: sid,
+        clientId,
+      };
+
       await onSave(payload);
-      showSuccess("Solicitud creada correctamente.");
+
+      resetForm();
       onClose();
     } catch (err) {
-      const msg = getBackendMessage(err);
-      showError(msg || "No se pudo crear la solicitud.");
+      showError(getBackendMessage(err) || "No se pudo crear la solicitud.");
     } finally {
       setSaving(false);
     }
@@ -424,7 +340,7 @@ export default function ClientCreateRequestModal({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
             <div className="relative">
@@ -488,74 +404,6 @@ export default function ClientCreateRequestModal({
               <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
             )}
           </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
-            <input
-              type="date"
-              value={programada ?? ""}
-              onChange={(e) => {
-                const v = e.target.value || null;
-                setProgramada(v);
-
-                if (!v) {
-                  setHoraProgramada(null);
-                  setHoraFinal(null);
-                } else {
-                  markTouched("horaProgramada");
-                  markTouched("horaFinal");
-                }
-              }}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Hora (inicio)</label>
-            <input
-              type="time"
-              disabled={!programada}
-              value={horaProgramada ?? ""}
-              onChange={(e) => {
-                markTouched("horaProgramada");
-                const v = e.target.value || null;
-                setHoraProgramada(v);
-
-                if (programada && v && !horaFinal) {
-                  setHoraFinal(addMinutesToTime(v, 60));
-                }
-              }}
-              onBlur={() => markTouched("horaProgramada")}
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaProgramada") && errors.horaProgramada ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-            />
-            {shouldShowError("horaProgramada") && errors.horaProgramada && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Hora final</label>
-            <input
-              type="time"
-              disabled={!programada}
-              value={horaFinal ?? ""}
-              onChange={(e) => {
-                markTouched("horaFinal");
-                setHoraFinal(e.target.value || null);
-              }}
-              onBlur={() => markTouched("horaFinal")}
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaFinal") && errors.horaFinal ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-            />
-            {shouldShowError("horaFinal") && errors.horaFinal && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
-            )}
-          </div>
         </div>
 
         <div>
@@ -568,7 +416,6 @@ export default function ClientCreateRequestModal({
             }}
             onBlur={() => markTouched("description")}
             rows={3}
-            placeholder="Describe brevemente la solicitud"
             className={[
               "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
               shouldShowError("description") && errors.description ? "border-red-500" : "border-gray-300",

@@ -103,16 +103,37 @@ export async function getServiceRequest(id: number): Promise<ServiceRequestDTO> 
   return unwrap<ServiceRequestDTO>(res.data);
 }
 
-export async function createServiceRequest(payload: CreateServiceRequestInput): Promise<ServiceRequestDTO> {
+export async function createServiceRequest(
+  payload: CreateServiceRequestInput
+): Promise<ServiceRequestDTO> {
   console.log("PAYLOAD ENVIADO →", payload);
 
+  const hasValidClientId = Number(payload?.clientId) > 0;
+  const hasTechnicians = Array.isArray(payload?.technicians) && payload.technicians.length > 0;
+
+  const useFromAuth = !hasValidClientId || !hasTechnicians;
+
+  const endpoint = useFromAuth ? "/service-requests/from-auth" : "/service-requests";
+
+  const body = useFromAuth
+    ? {
+        scheduledAt: payload.scheduledAt ?? null,
+        scheduledEndAt: payload.scheduledEndAt ?? null,
+        serviceType: payload.serviceType,
+        description: payload.description,
+        direccion: payload.direccion,
+        stateId: payload.stateId,
+        serviceId: payload.serviceId,
+      }
+    : payload;
+
   try {
-    const res = await api.post<any>("/service-requests", payload);
+    const res = await api.post<any>(endpoint, body as any);
     return unwrap<ServiceRequestDTO>(res.data);
   } catch (err) {
     const e = err as AxiosError<any>;
-    const body = await readAxiosErrorBody(e);
-    console.error("ERROR POST /service-requests →", e.response?.status, body ?? e.message);
+    const bodyErr = await readAxiosErrorBody(e);
+    console.error(`ERROR POST ${endpoint} →`, e.response?.status, bodyErr ?? e.message);
     throw err;
   }
 }

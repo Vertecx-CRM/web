@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import ClientRequestModal, {
-  type ClientData,
+  type CreateRequestPayload,
 } from "@/features/dashboard/requests/components/ClientRequestModal";
 import {
   createServiceRequest,
   type ServiceTypeApi,
   type CreateServiceRequestInput,
 } from "@/features/dashboard/requests/services/servicerequests.service";
-import { showError, showSuccess } from "@/shared/utils/notifications";
+import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
+import { useAuth } from "@/features/auth/authcontext";
 
 interface CardServicesProps {
   title: string;
@@ -19,7 +20,23 @@ interface CardServicesProps {
   image?: string;
   serviceId: number;
   clientId: number;
-  serviceType: ServiceTypeApi;
+  clientLabel?: string;
+}
+
+function resolveServiceType(category?: string): ServiceTypeApi {
+  const s = String(category || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (s.includes("instal")) return "INSTALACION";
+  return "MANTENIMIENTO";
+}
+
+function getBackendMessage(err: any) {
+  const msg = err?.response?.data?.message ?? err?.message ?? "";
+  if (Array.isArray(msg)) return msg.filter(Boolean).join(" | ");
+  return String(msg || "");
 }
 
 export default function CardServices({
@@ -29,40 +46,49 @@ export default function CardServices({
   image,
   serviceId,
   clientId,
-  serviceType,
+  clientLabel,
 }: CardServicesProps) {
-  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const { ready, isAuthenticated } = useAuth();
+
+  const serviceType = useMemo(() => resolveServiceType(category), [category]);
 
   const handleOpenModal = () => {
-    setIsClientModalOpen(true);
+    if (!ready) {
+      showInfo("Cargando sesión...");
+      return;
+    }
+    if (!isAuthenticated) {
+      showInfo("Debes iniciar sesión para contratar este servicio.");
+      return;
+    }
+    setOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setIsClientModalOpen(false);
-  };
+  const handleCloseModal = () => setOpen(false);
 
-  const handleSaveClient = async (client: ClientData) => {
+  const handleSave = async (data: CreateRequestPayload) => {
     const payload: CreateServiceRequestInput = {
-      scheduledAt: null,
-      scheduledEndAt: null,
-      serviceType,
-      description: client.nombre
-        ? `Solicitud desde landing para el servicio "${title}". Cliente: ${client.nombre}${
-            client.correo ? ` - ${client.correo}` : ""
-          }${client.telefono ? ` - ${client.telefono}` : ""}`
-        : `Solicitud desde landing para el servicio "${title}".`,
-      direccion: client.direccion?.trim() || "",
-      stateId: 1,
-      serviceId,
-      clientId,
+      scheduledAt: data.scheduledAt ?? null,
+      scheduledEndAt: data.scheduledEndAt ?? null,
+      serviceType: (data.serviceType as any) ?? serviceType,
+      description: String(data.description ?? "").trim(),
+      direccion: String(data.direccion ?? "").trim(),
+      stateId: 5,
+      serviceId: Number(serviceId),
+      clientId: Number(clientId) || 0,
+      technicians: [],
     };
 
     try {
       await createServiceRequest(payload);
       showSuccess("Hemos recibido tu solicitud. Pronto nos pondremos en contacto.");
       handleCloseModal();
-    } catch (error) {
-      showError("No fue posible registrar la solicitud. Intenta nuevamente.");
+    } catch (error: any) {
+      showError(
+        getBackendMessage(error) || "No fue posible registrar la solicitud. Intenta nuevamente."
+      );
       throw error;
     }
   };
@@ -82,11 +108,7 @@ export default function CardServices({
       >
         <div className="h-56 bg-gray-200 flex-shrink-0">
           {image && (
-            <img
-              src={image}
-              alt={title}
-              className="w-full h-full object-cover"
-            />
+            <img src={image} alt={title} className="w-full h-full object-cover" />
           )}
         </div>
 
@@ -94,9 +116,7 @@ export default function CardServices({
           <div>
             <h3 className="text-lg font-bold text-gray-800">{title}</h3>
             {category && (
-              <span className="text-sm font-semibold text-[#B20000]">
-                {category}
-              </span>
+              <span className="text-sm font-semibold text-[#B20000]">{category}</span>
             )}
             <p className="text-gray-600 text-sm mt-1">{description}</p>
           </div>
@@ -118,10 +138,13 @@ export default function CardServices({
       </motion.div>
 
       <ClientRequestModal
-        isOpen={isClientModalOpen}
+        isOpen={open}
         onClose={handleCloseModal}
-        onSave={handleSaveClient}
-        title="Datos del cliente"
+        onSave={handleSave}
+        title="Solicitar servicio"
+        clientId={Number(clientId) || 0}
+        clientLabel={clientLabel}
+        initialServiceId={serviceId}
       />
     </>
   );
