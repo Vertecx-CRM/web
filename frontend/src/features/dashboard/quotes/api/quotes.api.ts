@@ -56,14 +56,16 @@ export const getProductsForQuote = async (): Promise<any> => {
   }
 };
 
-export const getServicesRequestsForQuote = async (): Promise<any> => {
+export const getServicesRequestsForQuote = async (): Promise<any[]> => {
   try {
     const { data } = await api.get("/service-requests");
-    return data;
+
+    const filtered = data.filter((request: any) => request.stateId === 5 && request.quoteId == 8);
+
+    return filtered;
   } catch (error) {
     console.error("Error al obtener las solicitudes de servicio:", error);
     showError("Error al obtener las solicitudes de servicio");
     throw error;
   }
 };
-  

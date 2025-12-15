@@ -10,6 +10,7 @@ export interface Product {
   category: string;
   image?: string;
   price?: number;
+  stock: number;
 }
 
 export const useProducts = (fallbackProducts: Product[] = []) => {
@@ -79,6 +80,8 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
         normalizedTitle.includes(normalizedSearch) ||
         normalizedDescription.includes(normalizedSearch) ||
         normalizedCategory.includes(normalizedSearch);
+
+      
 
       return categoryMatch && searchMatch;
     });

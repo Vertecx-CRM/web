@@ -74,7 +74,7 @@ export default function QuotesIndex() {
         };
         return (
           <span className={`font-semibold ${map[row.status] ?? ""}`}>
-            {row.status}
+            {row.status === 'Pendient' ? 'Pendiente' : row.status}
           </span>
         );
       },
