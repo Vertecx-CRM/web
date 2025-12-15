@@ -57,7 +57,10 @@ export function useOrdersServicesLookups() {
     setError(null);
 
     const reqs = await Promise.allSettled([
-      api.get("/customers", { signal: controller.signal }),
+      api.get("/customers", {
+        signal: controller.signal,
+        params: { includeRelations: true },
+      }),
       api.get("/technicians", { signal: controller.signal }),
       api.get("/products", { signal: controller.signal }),
       api.get("/services", { signal: controller.signal }),
