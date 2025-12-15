@@ -1,54 +1,84 @@
 import * as Yup from "yup";
 
 
+  // TIPOS AUXILIARES
+export interface CartItem {
+  productid: number;
+  productname: string;
+  quantity: number;
+  unitprice: number;
+  productstock?: number;
+}
 
-  // VALIDACIÓN DE ITEMS (CART)
 
-export const saleItemValidationSchema = Yup.object({
+   //VALIDACIÓN ITEMS
+const cartItemSchema = Yup.object().shape({
   productid: Yup.number()
-    .typeError("El producto es inválido")
-    .required("Debe seleccionar un producto válido"),
+    .required("El producto es obligatorio")
+    .positive("Producto inválido"),
+
+  productname: Yup.string().required(),
 
   quantity: Yup.number()
-    .typeError("La cantidad debe ser numérica")
+    .required("La cantidad es obligatoria")
     .integer("La cantidad debe ser un número entero")
-    .positive("La cantidad debe ser mayor a 0")
-    .required("La cantidad es obligatoria"),
+    .positive("La cantidad debe ser mayor que 0"),
 
   unitprice: Yup.number()
-    .typeError("El precio debe ser numérico")
-    .positive("El precio debe ser mayor a 0")
-    .required("El precio es obligatorio"),
+    .required("El precio unitario es obligatorio")
+    .positive("El precio unitario debe ser mayor que 0"),
+
+  productstock: Yup.number()
+    .nullable()
+    .notRequired()
+    .test(
+      "stock",
+      "Cantidad supera el stock disponible",
+      function (value) {
+        const quantity = (this.parent as any).quantity;
+        if (value === undefined || value === null) return true;
+        return quantity <= value;
+      }
+    ),
 });
 
 
-
-  // VALIDACIÓN DE LA VENTA
-
+  // VALIDACIÓN FORMULARIO
 export const saleValidationSchema = Yup.object({
   salecode: Yup.string()
     .trim()
-    .required("Debe ingresar el código de la venta"),
+    .required("El código de venta es obligatorio"),
 
   customerid: Yup.number()
-    .typeError("Debe seleccionar un cliente válido")
-    .required("El cliente es obligatorio"),
+    .typeError("Debe seleccionar un cliente")
+    .required("Debe seleccionar un cliente")
+    .positive("Cliente inválido"),
 
   saledate: Yup.date()
-    .typeError("Debe seleccionar una fecha válida")
-    .max(new Date(), "La fecha no puede ser futura")
-    .required("La fecha de la venta es obligatoria"),
+    .required("La fecha de venta es obligatoria")
+    .max(new Date(), "La fecha de venta no puede ser futura"),
 
-  salestatus: Yup.mixed<"Pending" | "Completed" | "Cancelled">()
-    .oneOf(["Pending", "Completed", "Cancelled"])
-    .required(),
+  paymentmethod: Yup.string()
+    .required("Debe seleccionar un método de pago")
+    .oneOf(
+      ["Efectivo", "Transferencia", "Tarjeta"],
+      "Método de pago inválido"
+    ),
 
-  paymentmethod: Yup.string().required("Debe seleccionar el método de pago"),
-
-  notes: Yup.string().nullable(),
+  notes: Yup.string()
+    .max(300, "Las observaciones no pueden superar los 300 caracteres")
+    .nullable(),
 
   cart: Yup.array()
-    .of(saleItemValidationSchema)
+    .of(cartItemSchema)
     .min(1, "Debe agregar al menos un producto")
-    .required("Debe agregar productos a la venta"),
+    .test(
+      "no-duplicates",
+      "No puede agregar el mismo producto más de una vez",
+      (cart) => {
+        if (!cart) return true;
+        const ids = cart.map((i) => i.productid);
+        return new Set(ids).size === ids.length;
+      }
+    ),
 });
