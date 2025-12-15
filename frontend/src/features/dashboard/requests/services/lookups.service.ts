@@ -93,7 +93,9 @@ export async function getServiceOptions(): Promise<
 }
 
 export async function getCustomerOptions(): Promise<Option[]> {
-  const res = await api.get<any>("/customers");
+  const res = await api.get<any>("/customers", {
+    params: { includeRelations: true },
+  });
   const list = unwrapList<CustomerApi>(res.data);
 
   return list
