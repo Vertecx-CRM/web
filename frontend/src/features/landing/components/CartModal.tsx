@@ -1,9 +1,42 @@
 "use client";
 import { X } from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart } from "../contexts/CartContext";
+import ClientCreateRequestModal from "@/features/dashboard/requests/components/ClientRequestModal";
+
+type SessionUser = {
+  userid: number;
+  email: string;
+  name: string;
+  roleid: number;
+  rolename: string;
+  exp: number;
+};
+
+function getAuthenticatedUser(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = localStorage.getItem("accessToken");
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as SessionUser;
+
+    if (!parsed.userid || !parsed.exp) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (parsed.exp < now) {
+      localStorage.removeItem("accessToken");
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 interface CartModalProps {
   isOpen: boolean;
@@ -27,6 +60,13 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
   const [addressError, setAddressError] = useState("");
   const [error, setError] = useState("");
+  const [openServiceModal, setOpenServiceModal] = useState(false);
+  const [authUser, setAuthUser] = useState<SessionUser | null>(null);
+
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
+    null
+  );
+  const user = getAuthenticatedUser();
 
   const [address, setAddress] = useState({
     city: "",
@@ -38,6 +78,31 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   });
 
   const { cart, updateQuantity, toggleService, removeFromCart } = useCart();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const raw = localStorage.getItem("accessToken");
+    if (!raw) {
+      setAuthUser(null);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as SessionUser;
+
+      const now = Math.floor(Date.now() / 1000);
+      if (!parsed.userid || parsed.exp < now) {
+        localStorage.removeItem("accessToken");
+        setAuthUser(null);
+        return;
+      }
+
+      setAuthUser(parsed);
+    } catch {
+      setAuthUser(null);
+    }
+  }, []);
 
   if (!isOpen) return null;
 
@@ -239,7 +304,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+
+                                  const user = getAuthenticatedUser();
+
+                                  if (!user) {
+                                    setError(
+                                      "Debes iniciar sesión para solicitar un servicio."
+                                    );
+                                    return;
+                                  }
+
                                   toggleService(item.id);
+
+                                  if (!item.service) {
+                                    setSelectedServiceId(Number(item.id));
+                                    setOpenServiceModal(true);
+                                  } else {
+                                    setSelectedServiceId(null);
+                                    setOpenServiceModal(false);
+                                  }
                                 }}
                               >
                                 <Image
@@ -434,6 +517,21 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           </div>
         </div>
       </motion.div>{" "}
+      {authUser && (
+        <ClientCreateRequestModal
+          isOpen={openServiceModal}
+          onClose={() => {
+            setOpenServiceModal(false);
+            setSelectedServiceId(null);
+          }}
+          onSave={async (payload) => {
+            console.log("Solicitud de servicio:", payload);
+          }}
+          clientId={authUser.userid}
+          clientLabel={authUser.name}
+          initialServiceId={selectedServiceId}
+        />
+      )}
     </div>
   );
 }
