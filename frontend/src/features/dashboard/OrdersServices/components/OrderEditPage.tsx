@@ -61,6 +61,9 @@ type ServiceOption = {
 
 const IVA_PCT = 19;
 
+const DESC_MIN = 5;
+const DESC_MAX = 500;
+
 function uid() {
   return Math.random().toString(36).slice(2, 9);
 }
@@ -101,6 +104,7 @@ type Errors = Partial<{
   viaticos: string;
   servicios: string;
   materiales: string;
+  description: string;
 }>;
 
 function useDesktopQuery() {
@@ -889,6 +893,11 @@ export default function OrderEditPage() {
     if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
     if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
 
+    const desc = String(descripcion || "").trim();
+    if (!desc) errs.description = "La descripción es obligatoria.";
+    else if (desc.length < DESC_MIN) errs.description = `La descripción debe tener al menos ${DESC_MIN} caracteres.`;
+    else if (desc.length > DESC_MAX) errs.description = `La descripción no puede superar ${DESC_MAX} caracteres.`;
+
     if (servicios.length === 0) {
       errs.servicios = "Debes añadir al menos un servicio.";
       if (!tipoId) errs.tipo = "Selecciona el tipo de servicio para añadir servicios.";
@@ -921,7 +930,7 @@ export default function OrderEditPage() {
   }
 
   function focusFirstError(er: Errors) {
-    const order = ["clientId", "tipo", "schedule", "technicians", "viaticos", "materiales", "servicios"] as const;
+    const order = ["clientId", "tipo", "schedule", "technicians", "viaticos", "description", "materiales", "servicios"] as const;
     const key = order.find((k) => (er as any)[k]);
     if (!key) return;
     const el = document.getElementById(`field-${key}`);
@@ -1049,6 +1058,12 @@ export default function OrderEditPage() {
   useEffect(() => {
     if (servicios.length) setErrors((p) => ({ ...p, servicios: undefined }));
   }, [servicios]);
+
+  useEffect(() => {
+    const t = String(descripcion || "").trim();
+    if (!t) return;
+    if (t.length >= DESC_MIN && t.length <= DESC_MAX) setErrors((p) => ({ ...p, description: undefined }));
+  }, [descripcion]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1250,8 +1265,6 @@ export default function OrderEditPage() {
         <div className="mx-auto max-w-7xl px-4 py-3" style={{ paddingLeft: isDesktop ? sidebarW + 16 : 16 }}>
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="text-sm">
-              <div className="text-xs text-gray-500">Total estimado</div>
-              <div className="text-lg font-semibold text-gray-900">{formatCOP(totalPagar)}</div>
             </div>
             <div className="flex items-center justify-end gap-2">
               <button
@@ -1310,6 +1323,7 @@ export default function OrderEditPage() {
                   {errors.schedule && <li>{errors.schedule}</li>}
                   {errors.technicians && <li>{errors.technicians}</li>}
                   {errors.viaticos && <li>{errors.viaticos}</li>}
+                  {errors.description && <li>{errors.description}</li>}
                   {errors.materiales && <li>{errors.materiales}</li>}
                   {errors.servicios && <li>{errors.servicios}</li>}
                 </ul>
@@ -1833,22 +1847,48 @@ export default function OrderEditPage() {
                       {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
 
-                    <div className="md:col-span-12">
+                    <div className="md:col-span-12" id="field-description">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
                         Descripción
                       </label>
                       <textarea
                         id="field-desc"
                         value={descripcion}
-                        onChange={(e) => setDescripcion(e.target.value)}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDescripcion(v);
+                          const t = String(v || "").trim();
+                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
+                          else if (t.length < DESC_MIN)
+                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
+                          else if (t.length > DESC_MAX)
+                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
+                          else setErrors((p) => ({ ...p, description: undefined }));
+                        }}
+                        onBlur={() => {
+                          const t = String(descripcion || "").trim();
+                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
+                          else if (t.length < DESC_MIN)
+                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
+                          else if (t.length > DESC_MAX)
+                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
+                          else setErrors((p) => ({ ...p, description: undefined }));
+                        }}
                         rows={3}
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200"
+                        className={`w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200 ${
+                          errors.description ? errorRing : ""
+                        }`}
                         placeholder="Describe el servicio, alcance, observaciones, etc."
                       />
-                      <div className="mt-1 text-[11px] text-gray-500">
-                        Se guardará exactamente el texto que escribas aquí (no se construye una descripción automática).
+                      <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-gray-500">
+                        <span>Se guardará exactamente el texto que escribas aquí (no se construye una descripción automática).</span>
+                        <span>
+                          {String(descripcion || "").trim().length}/{DESC_MAX}
+                        </span>
                       </div>
+                      {errors.description && <p className={errorText}>{errors.description}</p>}
                     </div>
+
 
                     <div className="md:col-span-12" id="field-files">
                       <div className="flex items-center justify-between gap-2">
