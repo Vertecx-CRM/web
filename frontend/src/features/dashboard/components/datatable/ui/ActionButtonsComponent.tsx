@@ -9,6 +9,7 @@ export function ActionButtonsComponent({
   onDelete,
   onCancel,
   onCheck,
+  onApprove,
   renderExtraActions,
   compact = false,
   actionGuard,
@@ -18,12 +19,12 @@ export function ActionButtonsComponent({
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
   onCancel?: (row: any) => void;
+  onApprove?: (row: any) => void;
+
   onCheck?: (row: any) => void;
   renderExtraActions?: (row: any) => React.ReactNode;
   compact?: boolean;
-  actionGuard?: (
-    row: any
-  ) => {
+  actionGuard?: (row: any) => {
     disableEdit?: boolean;
     disableDelete?: boolean;
     disableCancel?: boolean;
@@ -77,7 +78,9 @@ export function ActionButtonsComponent({
                   setShowDropdown(false);
                 }}
                 className={`w-full text-left px-3 py-2 text-xs ${
-                  editDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-50"
+                  editDisabled
+                    ? "opacity-40 cursor-not-allowed"
+                    : "hover:bg-gray-50"
                 }`}
               >
                 Editar
@@ -121,6 +124,14 @@ export function ActionButtonsComponent({
                 {cancelTitle}
               </button>
             )}
+
+            {onApprove && (
+              <ActionButton
+                icon="/icons/check.svg"
+                title="Aprobar"
+                onClick={() => onApprove(row)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -130,7 +141,11 @@ export function ActionButtonsComponent({
   return (
     <div className="text-center gap-2 text-gray-600 flex justify-center">
       {onView && (
-        <ActionButton icon="/icons/Eye.svg" title="Ver" onClick={() => onView(row)} />
+        <ActionButton
+          icon="/icons/Eye.svg"
+          title="Ver"
+          onClick={() => onView(row)}
+        />
       )}
 
       {onEdit && (
@@ -171,6 +186,14 @@ export function ActionButtonsComponent({
           icon="/assets/imgs/check-circle.png"
           title="Marcar"
           onClick={() => onCheck(row)}
+        />
+      )}
+
+      {onApprove && (
+        <ActionButton
+          icon="/icons/check.svg"
+          title="Aprobar"
+          onClick={() => onApprove(row)}
         />
       )}
 
