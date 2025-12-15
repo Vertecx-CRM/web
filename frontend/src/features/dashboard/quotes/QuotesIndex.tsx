@@ -20,6 +20,40 @@ import {
 } from "./api/quotes.api";
 import { QuoteTableRow } from "./types/Quote.type";
 
+/* ================================
+ * NORMALIZACIÓN DE ESTADOS
+ * ================================ */
+type QuoteStatusConfig = {
+  label: string;
+  className: string;
+};
+
+const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
+  if (!status) {
+    return { label: "—", className: "text-slate-500" };
+  }
+
+  const value = status.toLowerCase();
+
+  if (value.includes("pendient")) {
+    return { label: "Pendiente", className: "text-yellow-600" };
+  }
+
+  if (value.includes("approved")) {
+    return { label: "Aprobada", className: "text-green-600" };
+  }
+
+  if (value.includes("cancel")) {
+    return { label: "Cancelada", className: "text-gray-600" };
+  }
+
+  if (value.includes("revoke") || value.includes("anul")) {
+    return { label: "Anulada", className: "text-red-600" };
+  }
+
+  return { label: status, className: "text-slate-500" };
+};
+
 export default function QuotesIndex() {
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,16 +108,11 @@ export default function QuotesIndex() {
       key: "status",
       header: "Estado",
       render: (row) => {
-        const map: Record<string, string> = {
-          Pendient: "text-yellow-600",
-          Aprobada: "text-green-600",
-          Anulada: "text-red-600",
-          Cancelada: "text-gray-600",
-        };
+        const config = normalizeQuoteStatus(row.status);
 
         return (
-          <span className={`font-semibold ${map[row.status] ?? ""}`}>
-            {row.status === "Pendient" ? "Pendiente" : row.status}
+          <span className={`font-semibold ${config.className}`}>
+            {config.label}
           </span>
         );
       },
@@ -150,10 +179,10 @@ export default function QuotesIndex() {
   /* ================================
    * ANULAR (ADMIN)
    * ================================ */
-
   const handleRevokeQuote = async (row: QuoteTableRow) => {
-    // VALIDACIÓN DE ESTADO
-    if (row.status !== "Aprobada") {
+    const status = row.status?.toLowerCase();
+
+    if (!status?.includes("aprob")) {
       await Swal.fire({
         icon: "warning",
         title: "Acción no permitida",
@@ -164,7 +193,6 @@ export default function QuotesIndex() {
       return;
     }
 
-    // CONFIRMACIÓN
     const r = await Swal.fire({
       title: "¿Anular cotización?",
       input: "textarea",
@@ -236,7 +264,6 @@ export default function QuotesIndex() {
           }
         />
 
-        {/* MODAL CREAR */}
         <Modal
           title="Registrar Cotización"
           isOpen={isRegisterModalOpen}
@@ -246,7 +273,6 @@ export default function QuotesIndex() {
           <RegisterQuoteForm onSave={handleAddQuote} />
         </Modal>
 
-        {/* MODAL VER */}
         <Modal
           title="Detalle de Cotización"
           isOpen={isDetailModalOpen}
