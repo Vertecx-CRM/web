@@ -69,6 +69,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
       data.serviceRequestTechnicians,
       data.assignedTechnicians,
       data.requestTechnicians,
+      data.techniciansMap?.map((entry) => entry?.technician),
     ];
     const list = sources.flatMap((set) => (Array.isArray(set) ? set : []));
     const uniques: Record<string, typeof list[number]> = {};

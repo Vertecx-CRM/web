@@ -5,6 +5,38 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart } from "../contexts/CartContext";
 import ClientCreateRequestModal from "@/features/dashboard/requests/components/ClientRequestModal";
+import { useCreateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
+import { showSuccess, showError } from "@/shared/utils/notifications";
+import { createSale } from "@/features/dashboard/sales/api/sales.api";
+
+function getUserFromToken(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+
+  const token = localStorage.getItem("accessToken");
+  if (!token) return null;
+
+  try {
+    const payloadBase64 = token.split(".")[1];
+    if (!payloadBase64) return null;
+
+    const payloadJson = atob(payloadBase64);
+    const payload = JSON.parse(payloadJson);
+
+    const now = Math.floor(Date.now() / 1000);
+    if (!payload.userid || payload.exp < now) return null;
+
+    return {
+      userid: payload.userid,
+      email: payload.email,
+      name: payload.name,
+      roleid: payload.roleid,
+      rolename: payload.rolename,
+      exp: payload.exp,
+    };
+  } catch {
+    return null;
+  }
+}
 
 type SessionUser = {
   userid: number;
@@ -14,29 +46,6 @@ type SessionUser = {
   rolename: string;
   exp: number;
 };
-
-function getAuthenticatedUser(): SessionUser | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = localStorage.getItem("accessToken");
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as SessionUser;
-
-    if (!parsed.userid || !parsed.exp) return null;
-
-    const now = Math.floor(Date.now() / 1000);
-    if (parsed.exp < now) {
-      localStorage.removeItem("accessToken");
-      return null;
-    }
-
-    return parsed;
-  } catch {
-    return null;
-  }
-}
 
 interface CartModalProps {
   isOpen: boolean;
@@ -56,17 +65,56 @@ const CITIES = ["Medellín", "Bogotá", "Cali", "Barranquilla"];
 const ZONES = ["Centro", "Norte", "Sur", "Oriente", "Occidente"];
 const STREET_TYPES = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"];
 
+function buildSalePayload({
+  cart,
+  userId,
+}: {
+  cart: typeof cart;
+  userId: number;
+}) {
+  const subtotal = cart.reduce(
+    (acc, item) => acc + item.price * item.quantity,
+    0
+  );
+
+  const taxpercent = 19;
+  const taxamount = Math.round((subtotal * taxpercent) / 100);
+
+  return {
+    customerid: userId,
+    saledate: new Date().toISOString(),
+    salecode: `VEN-${Date.now()}`,
+    subtotal,
+    taxpercent,
+    taxamount,
+    discountamount: 0,
+    totalamount: subtotal + taxamount + 20000, // envío
+    paymentmethod: "Cash", // TEMPORAL
+    salestatus: "Pending",
+    notes: "Venta creada desde carrito",
+    details: cart.map((item) => ({
+      productid: Number(item.id),
+      quantity: item.quantity,
+      unitprice: item.price,
+      discountpercent: 0,
+    })),
+  };
+}
+
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
   const [addressError, setAddressError] = useState("");
   const [error, setError] = useState("");
   const [openServiceModal, setOpenServiceModal] = useState(false);
   const [authUser, setAuthUser] = useState<SessionUser | null>(null);
+  const createRequestMut = useCreateServiceRequest();
+  const [serviceDraft, setServiceDraft] = useState<CreateRequestPayload | null>(
+    null
+  );
 
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
     null
   );
-  const user = getAuthenticatedUser();
 
   const [address, setAddress] = useState({
     city: "",
@@ -80,28 +128,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const { cart, updateQuantity, toggleService, removeFromCart } = useCart();
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const raw = localStorage.getItem("accessToken");
-    if (!raw) {
-      setAuthUser(null);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as SessionUser;
-
-      const now = Math.floor(Date.now() / 1000);
-      if (!parsed.userid || parsed.exp < now) {
-        localStorage.removeItem("accessToken");
-        setAuthUser(null);
-        return;
-      }
-
-      setAuthUser(parsed);
-    } catch {
-      setAuthUser(null);
-    }
+    const user = getUserFromToken();
+    setAuthUser(user);
   }, []);
 
   if (!isOpen) return null;
@@ -118,29 +146,58 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     return null;
   };
 
-  const handlePurchase = () => {
-    const validationError = validateAddress();
+  const fullAddress = `${address.streetType} ${address.streetNumber} #${
+    address.secondaryNumber
+  }, ${address.zone}, ${address.city}${
+    address.complement ? ` (${address.complement})` : ""
+  }`;
 
+  const handlePurchase = async () => {
+    const validationError = validateAddress();
     if (validationError) {
       setAddressError(validationError);
       return;
     }
 
-    setAddressError("");
-    setError("");
-    localStorage.setItem(
-      "vertecx_cart",
-      JSON.stringify({
-        cart,
-        address,
-        total,
-        hasService,
-        savedAt: new Date().toISOString(),
-      })
-    );
+    if (!authUser) {
+      showError("Usuario no autenticado.");
+      return;
+    }
 
-    window.location.href = "/payments/register";
-    onClose();
+    try {
+      // Crear solicitud de servicio (si existe)
+      if (hasService && serviceDraft) {
+        await createRequestMut.mutateAsync(serviceDraft);
+      }
+
+      // Crear venta
+      const salePayload = buildSalePayload({
+        cart,
+        userId: authUser.userid,
+        total,
+      });
+
+      await createSale(salePayload);
+
+      // Persistencia auxiliar (opcional)
+      localStorage.setItem(
+        "vertecx_cart",
+        JSON.stringify({
+          cart,
+          address,
+          total,
+          hasService,
+          savedAt: new Date().toISOString(),
+        })
+      );
+
+      showSuccess("Compra y servicio confirmados correctamente.");
+
+      window.location.href = "/payments/register";
+      onClose();
+    } catch (err) {
+      showError("No se pudo completar la compra.");
+    }
   };
 
   return (
@@ -305,14 +362,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                 onClick={(e) => {
                                   e.stopPropagation();
 
-                                  const user = getAuthenticatedUser();
-
-                                  if (!user) {
+                                  // Debe estar autenticado
+                                  if (!authUser) {
                                     setError(
                                       "Debes iniciar sesión para solicitar un servicio."
                                     );
                                     return;
                                   }
+
+                                  // Validar dirección ANTES de abrir el modal
+                                  const addressValidationError =
+                                    validateAddress();
+                                  if (addressValidationError) {
+                                    setAddressError(addressValidationError);
+                                    setError("");
+                                    return;
+                                  }
+
+                                  // Todo OK → activar servicio y abrir modal
+                                  setAddressError("");
 
                                   toggleService(item.id);
 
@@ -525,11 +593,16 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
             setSelectedServiceId(null);
           }}
           onSave={async (payload) => {
-            console.log("Solicitud de servicio:", payload);
+            // Solo guardar en memoria
+            setServiceDraft(payload);
+
+            showSuccess("Servicio listo. Confirma el carrito para enviarlo.");
+            setOpenServiceModal(false);
           }}
           clientId={authUser.userid}
           clientLabel={authUser.name}
           initialServiceId={selectedServiceId}
+          initialDireccion={fullAddress}
         />
       )}
     </div>

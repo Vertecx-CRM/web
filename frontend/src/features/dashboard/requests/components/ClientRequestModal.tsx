@@ -38,6 +38,7 @@ type Props = {
   clientId: number;
   clientLabel?: string;
   initialServiceId?: number | null;
+  initialDireccion?: string | null;
   pendingStateId?: number | null;
   scheduledStateId?: number | null;
 };
@@ -62,8 +63,6 @@ export default function ClientCreateRequestModal({
   clientId,
   clientLabel,
   initialServiceId = null,
-  pendingStateId = null,
-  scheduledStateId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
@@ -79,7 +78,9 @@ export default function ClientCreateRequestModal({
   const [serviciosLocal, setServiciosLocal] = useState<ServiceOption[]>([]);
 
   const finalServicios = useMemo<ServiceOption[]>(() => {
-    const fromProps = (Array.isArray(servicios) ? servicios : []) as ServiceOption[];
+    const fromProps = (
+      Array.isArray(servicios) ? servicios : []
+    ) as ServiceOption[];
     return fromProps.length ? fromProps : serviciosLocal;
   }, [servicios, serviciosLocal]);
 
@@ -106,11 +107,16 @@ export default function ClientCreateRequestModal({
       map.set(typeId, { id: typeId, label: typeName, code });
     });
 
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    return Array.from(map.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
   }, [finalServicios]);
 
   const selectedType = useMemo(
-    () => (serviceTypeId ? serviceTypes.find((t) => t.id === serviceTypeId) || null : null),
+    () =>
+      serviceTypeId
+        ? serviceTypes.find((t) => t.id === serviceTypeId) || null
+        : null,
     [serviceTypeId, serviceTypes]
   );
 
@@ -178,6 +184,13 @@ export default function ClientCreateRequestModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (!initialDireccion) return;
+
+    setDireccion(initialDireccion);
+  }, [isOpen, initialDireccion]);
+
+  useEffect(() => {
+    if (!isOpen) return;
 
     if (Array.isArray(servicios) && servicios.length) return;
 
@@ -208,7 +221,9 @@ export default function ClientCreateRequestModal({
     if (!initialServiceId) return;
     if (!finalServicios.length) return;
 
-    const found = finalServicios.find((s: any) => Number(s?.id) === Number(initialServiceId));
+    const found = finalServicios.find(
+      (s: any) => Number(s?.id) === Number(initialServiceId)
+    );
     if (!found) return;
 
     const sid = Number(found.id);
@@ -308,7 +323,9 @@ export default function ClientCreateRequestModal({
 
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Tipo de servicio
+            </h3>
             <span className="text-[11px] text-gray-500">
               {loadingLookups
                 ? "Cargando tipos..."
@@ -353,7 +370,9 @@ export default function ClientCreateRequestModal({
 
         <div className="grid grid-cols-1 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Servicio
+            </label>
             <div className="relative">
               <select
                 value={serviceId === "" ? "" : String(serviceId)}
@@ -366,7 +385,9 @@ export default function ClientCreateRequestModal({
                 disabled={saving || loadingLookups}
                 className={[
                   "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("serviceId") && errors.serviceId ? "border-red-500" : "border-gray-300",
+                  shouldShowError("serviceId") && errors.serviceId
+                    ? "border-red-500"
+                    : "border-gray-300",
                 ].join(" ")}
               >
                 <option value="">
@@ -397,7 +418,9 @@ export default function ClientCreateRequestModal({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">
+              Dirección
+            </label>
             <input
               value={direccion}
               onChange={(e) => {
@@ -408,7 +431,9 @@ export default function ClientCreateRequestModal({
               placeholder="Ej. Calle 123 #45-67"
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-                shouldShowError("direccion") && errors.direccion ? "border-red-500" : "border-gray-300",
+                shouldShowError("direccion") && errors.direccion
+                  ? "border-red-500"
+                  : "border-gray-300",
               ].join(" ")}
             />
             {shouldShowError("direccion") && errors.direccion && (
@@ -418,7 +443,9 @@ export default function ClientCreateRequestModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">
+            Descripción
+          </label>
           <textarea
             value={description}
             onChange={(e) => {
@@ -429,7 +456,9 @@ export default function ClientCreateRequestModal({
             rows={3}
             className={[
               "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-              shouldShowError("description") && errors.description ? "border-red-500" : "border-gray-300",
+              shouldShowError("description") && errors.description
+                ? "border-red-500"
+                : "border-gray-300",
             ].join(" ")}
           />
           {shouldShowError("description") && errors.description && (

@@ -27,6 +27,9 @@ const techLabel = (event: AppointmentEvent) => {
     ...(event.source === "request" ? event.request?.assignedTechnicians ?? [] : []),
     ...(event.source === "request" ? event.request?.serviceRequestTechnicians ?? [] : []),
     ...(event.source === "request" ? event.request?.requestTechnicians ?? [] : []),
+    ...(event.source === "request"
+      ? event.request?.techniciansMap?.map((link) => link?.technician) ?? []
+      : []),
   ].filter(Boolean);
 
   const names = technicians
