@@ -39,6 +39,44 @@ type ServiceTypeOption = {
   label: string;
 };
 
+function toNum(v: any, fallback = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeKey(v: any): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function unwrapList(x: any): any[] {
+  if (Array.isArray(x)) return x;
+  if (x && typeof x === "object") {
+    if (Array.isArray((x as any).data)) return (x as any).data;
+    if (Array.isArray((x as any).items)) return (x as any).items;
+    if (Array.isArray((x as any).results)) return (x as any).results;
+    if (Array.isArray((x as any).rows)) return (x as any).rows;
+  }
+  return [];
+}
+
+function dedupeById<T = any>(arr: T[], getId?: (x: any) => any): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const x of arr || []) {
+    const rawId = getId ? getId(x) : (x as any)?.serviceid ?? (x as any)?.id ?? (x as any)?.productid;
+    const key = rawId === undefined || rawId === null ? "" : String(rawId);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(x);
+  }
+  return out;
+}
+
+
 type ServiceOption = {
   serviceid: number;
   name: string;
@@ -197,9 +235,14 @@ function isAllowedTime(hm: string) {
 type QuoteLike = any;
 
 type QuoteNormalized = {
+  servicerequestid?: number;
+  serviceRequestId?: number;
+  serviceid?: number;
   quotesid?: number;
   clientid?: number;
+  technicianid?: number;
   typeofserviceid?: number | null;
+  typeofservicename?: string | null;
   fechainicio?: string;
   fechafin?: string;
   horainicio?: string;
@@ -299,6 +342,14 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
 
   const quotesid = pickNumber(root?.quotesid, root?.quotationid, root?.cotizacionid, root?.id);
 
+  const servicerequestid = pickNumber(
+    root?.servicerequestid,
+    root?.serviceRequestId,
+    root?.servicerequestId,
+    root?.service_request_id
+  );
+
+  const serviceid = pickNumber(root?.serviceid, root?.serviceId, root?.service?.serviceid, root?.service?.id);
   const clientid = pickNumber(
     root?.clientid,
     root?.customerid,
@@ -306,6 +357,13 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
     root?.customer?.customerid,
     root?.client?.id,
     root?.customer?.id
+  );
+
+  const technicianid = pickNumber(
+    root?.technicianid,
+    root?.technicianId,
+    root?.technician?.technicianid,
+    root?.technician?.id
   );
 
   const techs = toNumArray(root?.technicians ?? root?.technicianids ?? root?.techs ?? root?.assignedTechnicians);
@@ -328,6 +386,12 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
     root?.quoteDetails?.services ??
     [];
   const servicesArr = Array.isArray(rawServices) ? rawServices : [];
+
+  const rawDetails = Array.isArray(root?.details)
+    ? root.details
+    : Array.isArray(root?.quoteDetails)
+      ? root.quoteDetails
+      : [];
 
   const rawProducts =
     root?.products ??
@@ -352,6 +416,22 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
       servicesArr?.[0]?.service?.typeOfServiceId
     ) ?? null;
 
+  const typeofservicename =
+    pickString(
+      root?.typeofservicename,
+      root?.servicetype,
+      root?.serviceType,
+      root?.typeName,
+      root?.type,
+      root?.service?.typeofservicename,
+      root?.service?.typeName,
+      servicesArr?.[0]?.typeofservicename,
+      servicesArr?.[0]?.service?.typeofservicename,
+      servicesArr?.[0]?.service?.typeName
+    ) || null;
+
+  const mergedProducts = [...productsArr, ...rawDetails];
+
   const services = servicesArr
     .map((s: any) => {
       const serviceid = pickNumber(s?.serviceid, s?.id, s?.service?.serviceid, s?.service?.id);
@@ -366,11 +446,11 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
     })
     .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
 
-  const products = productsArr
+  const products = mergedProducts
     .map((p: any) => {
       const productid = pickNumber(p?.productid, p?.id, p?.product?.productid, p?.product?.id);
       const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
-      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.valor);
+      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.valor, p?.subtotal);
       if (!productid) return null;
       return {
         productid,
@@ -389,6 +469,11 @@ function normalizeQuote(q: QuoteLike): QuoteNormalized {
     horainicio,
     horafin,
     viaticos,
+    technicianid,
+    servicerequestid: servicerequestid ?? undefined,
+    serviceRequestId: servicerequestid ?? undefined,
+    serviceid: serviceid ?? undefined,
+    typeofservicename,
     technicians: techs,
     description,
     services,
@@ -421,7 +506,27 @@ export default function OrderCreatePage() {
     return Number.isFinite(n) && n > 0 ? n : null;
   })();
 
-  const {
+  const [servicesAll, setServicesAll] = useState<any[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await api.get<any>("/services");
+        if (!alive) return;
+        const list = unwrapList((res as any)?.data);
+        setServicesAll(list);
+      } catch {
+        if (!alive) return;
+        setServicesAll([]);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+const {
     loading: lookupsLoading,
     error: lookupsError,
     customers: customersRaw,
@@ -482,15 +587,25 @@ export default function OrderCreatePage() {
       .filter((x) => Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
   }, [serviceTypesRaw]);
 
+  
   const servicesCatalog = useMemo<ServiceOption[]>(() => {
-    return (servicesRaw || [])
+    const merged = dedupeById<any>([...(servicesAll || []), ...(servicesRaw || [])]);
+    return merged
       .map((s: any) => {
         const serviceid = Number(s?.serviceid ?? s?.id);
         const name = String(s?.name ?? s?.servicename ?? `Servicio #${serviceid}`).trim();
-        const typeofserviceid = Number(s?.typeofserviceid ?? s?.typeOfServiceId ?? s?.typeofservice?.typeofserviceid);
-        const typeofservicename = (s?.typeofservicename ?? s?.typeofservicename ?? s?.typeName ?? null) as any;
+        const typeofserviceid = Number(
+          s?.typeofserviceid ?? s?.typeOfServiceId ?? s?.typeofservice?.typeofserviceid
+        );
+        const typeofservicename = (s?.typeofservicename ?? s?.typeName ?? s?.typeofservice?.name ?? null) as any;
         const stateid = s?.stateid != null ? Number(s.stateid) : null;
-        const statename = s?.statename != null ? String(s.statename) : null;
+        const statename =
+          s?.statename != null
+            ? String(s.statename)
+            : s?.state?.name != null
+              ? String(s.state.name)
+              : null;
+
         return { serviceid, name, typeofserviceid, typeofservicename, stateid, statename } as ServiceOption;
       })
       .filter(
@@ -500,7 +615,7 @@ export default function OrderCreatePage() {
           Number.isFinite(x.typeofserviceid) &&
           x.typeofserviceid > 0
       );
-  }, [servicesRaw]);
+  }, [servicesAll, servicesRaw]);
 
   function getServicesForTipo(tid: number | null) {
     if (!tid) return [];
@@ -1233,21 +1348,63 @@ export default function OrderCreatePage() {
     const nextClient = nq.clientid && customers.some((c) => c.customerid === nq.clientid) ? nq.clientid : "";
     setClientId(nextClient as any);
 
+    const typeMatchByName =
+      nq.typeofservicename && serviceTypes.length
+        ? serviceTypes.find((t) => normalizeKey(t.name) === normalizeKey(nq.typeofservicename))?.typeofserviceid ??
+          null
+        : null;
+
     const inferredTypeFromServices =
       nq.services && nq.services.length
         ? servicesCatalog.find((x) => x.serviceid === nq.services![0].serviceid)?.typeofserviceid ?? null
         : null;
 
-    const candidateType = nq.typeofserviceid ?? inferredTypeFromServices;
+    const candidateType = nq.typeofserviceid ?? inferredTypeFromServices ?? typeMatchByName;
 
     const typeId =
       candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType) ? candidateType : null;
 
     skipClearOnTipoChangeRef.current = true;
     setTipoId(typeId);
+    // Si la cotización viene asociada a una solicitud, precarga el servicio de esa solicitud
+    if (nq?.serviceRequestId) {
+      api
+        .get<any>(`/service-requests/${nq.serviceRequestId}`)
+        .then((srRes) => {
+          const sr = (srRes as any)?.data ?? null;
+          const srv = sr?.service ?? null;
+          const srvId = pickNumber(sr?.serviceId, sr?.serviceid, srv?.serviceid);
+          const srvTypeId = pickNumber(srv?.typeofserviceid, srv?.typeOfServiceId, srv?.typeofserviceId);
 
-    const techIds = (nq.technicians || []).filter((id) => technicians.some((t) => t.technicianid === id));
-    setSelectedTechnicians(techIds);
+          if (typeof srvTypeId === "number") setTipoId(srvTypeId);
+
+          const name = String(srv?.name ?? "").trim();
+          const price = pickNumber(srv?.servicepriceofsale, srv?.serviceprice, srv?.price, srv?.precio) ?? 0;
+
+          if (srvId && name) {
+            setServicios((prev) => {
+              const exists = prev.some((x: any) => pickNumber(x?.serviceid, x?.id) === srvId);
+              if (exists) return prev;
+              return [
+                ...prev,
+                { id: `sr-${srvId}`, nombre: name, precio: price, tipoId: srvTypeId ?? typeId },
+              ];
+            });
+          }
+        })
+        .catch(() => {});
+    }
+
+
+
+    const techSet = new Set<number>();
+    for (const id of nq.technicians || []) {
+      if (technicians.some((t) => t.technicianid === id)) techSet.add(id);
+    }
+    if (Number.isFinite(nq.technicianid) && technicians.some((t) => t.technicianid === nq.technicianid)) {
+      techSet.add(Number(nq.technicianid));
+    }
+    setSelectedTechnicians(Array.from(techSet));
 
     const v = Number.isFinite(Number(nq.viaticos)) ? Math.max(0, Math.round(Number(nq.viaticos))) : 0;
     setViaticosInput(String(v));
