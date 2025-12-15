@@ -7,6 +7,7 @@ import { useCart } from "../contexts/CartContext";
 import ClientCreateRequestModal from "@/features/dashboard/requests/components/ClientRequestModal";
 import { useCreateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
 import { showSuccess, showError } from "@/shared/utils/notifications";
+import { createSale } from "@/features/dashboard/sales/api/sales.api";
 
 function getUserFromToken(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -63,6 +64,42 @@ type Address = {
 const CITIES = ["Medellín", "Bogotá", "Cali", "Barranquilla"];
 const ZONES = ["Centro", "Norte", "Sur", "Oriente", "Occidente"];
 const STREET_TYPES = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"];
+
+function buildSalePayload({
+  cart,
+  userId,
+}: {
+  cart: typeof cart;
+  userId: number;
+}) {
+  const subtotal = cart.reduce(
+    (acc, item) => acc + item.price * item.quantity,
+    0
+  );
+
+  const taxpercent = 19;
+  const taxamount = Math.round((subtotal * taxpercent) / 100);
+
+  return {
+    customerid: userId,
+    saledate: new Date().toISOString(),
+    salecode: `VEN-${Date.now()}`,
+    subtotal,
+    taxpercent,
+    taxamount,
+    discountamount: 0,
+    totalamount: subtotal + taxamount + 20000, // envío
+    paymentmethod: "Cash", // TEMPORAL
+    salestatus: "Pending",
+    notes: "Venta creada desde carrito",
+    details: cart.map((item) => ({
+      productid: Number(item.id),
+      quantity: item.quantity,
+      unitprice: item.price,
+      discountpercent: 0,
+    })),
+  };
+}
 
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
@@ -122,13 +159,27 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
       return;
     }
 
+    if (!authUser) {
+      showError("Usuario no autenticado.");
+      return;
+    }
+
     try {
-      // 1️⃣ Si hay servicio, enviarlo AHORA
+      // Crear solicitud de servicio (si existe)
       if (hasService && serviceDraft) {
         await createRequestMut.mutateAsync(serviceDraft);
       }
 
-      // 2️⃣ Guardar carrito / continuar flujo normal
+      // Crear venta
+      const salePayload = buildSalePayload({
+        cart,
+        userId: authUser.userid,
+        total,
+      });
+
+      await createSale(salePayload);
+
+      // Persistencia auxiliar (opcional)
       localStorage.setItem(
         "vertecx_cart",
         JSON.stringify({
@@ -140,10 +191,12 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         })
       );
 
+      showSuccess("Compra y servicio confirmados correctamente.");
+
       window.location.href = "/payments/register";
       onClose();
     } catch (err) {
-      showError("No se pudo confirmar el servicio.");
+      showError("No se pudo completar la compra.");
     }
   };
 
