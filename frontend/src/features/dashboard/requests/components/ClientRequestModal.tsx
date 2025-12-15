@@ -63,6 +63,9 @@ export default function ClientCreateRequestModal({
   clientId,
   clientLabel,
   initialServiceId = null,
+  initialDireccion,
+  pendingStateId = null,
+  scheduledStateId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
