@@ -1,175 +1,136 @@
-// validations/clientsValidations.ts
+//  IMPORTS 
 import { Dispatch, SetStateAction } from "react";
 import { ClientBase, FormErrors, FormTouched } from "../types/typeClients";
 import { showWarning } from "@/shared/utils/notifications";
 
-// ==================== HELPERS ====================
+//  REGEX 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const numericRegex = /^[0-9]+$/;
+const alphaRegex = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]+$/;
 
-export const hasNumbers = (str: string): boolean => /\d/.test(str);
+// REGLAS DE VALIDACIÓN 
+// Cada campo tiene su función unificada
+export const fieldValidators: Record<keyof ClientBase,
+(value: string) => string
+> = {
+  nombre: (v) => {
+    if (!v.trim()) return "El nombre es obligatorio";
+    if (!alphaRegex.test(v)) return "El nombre solo puede contener letras y espacios";
+    if (v.length < 2) return "El nombre debe tener mínimo 2 caracteres";
+    return "";
+  },
 
-export const hasSpecialChars = (str: string): boolean =>
-  /[@,.;:\-_\{\[\}^\]`+*~´¨¡¿'\\?=)(/&%$#"!°|¬<>]/.test(str);
+  apellido: (v) => {
+    if (!v.trim()) return "El apellido es obligatorio";
+    if (!alphaRegex.test(v)) return "El apellido solo puede contener letras y espacios";
+    return "";
+  },
 
-// ==================== VALIDACIÓN DE CAMPOS ====================
+  documento: (v) => {
+    if (!v.trim()) return "El documento es obligatorio";
+    if (!numericRegex.test(v)) return "El documento debe contener solo números";
+    if (v.length < 6 || v.length > 15)
+      return "El documento debe tener entre 6 y 15 dígitos";
+    return "";
+  },
 
-export const validateField = (fieldName: string, value: string): string => {
-  if (fieldName === "nombre") {
-    if (!value.trim()) return "El nombre es requerido";
-    if (value.length < 2) return "El nombre debe tener al menos 2 caracteres";
-    if (/[0-9]/.test(value)) return "El nombre no puede contener números";
-    if (hasSpecialChars(value)) return "El nombre no puede contener caracteres especiales";
-  }
+  telefono: (v) => {
+    if (!v.trim()) return "El teléfono es obligatorio";
+    if (!numericRegex.test(v)) return "El teléfono debe contener solo números";
+    if (v.length < 7 || v.length > 10)
+      return "El teléfono debe ser un número válido (7-10 dígitos)";
+    return "";
+  },
 
-  if (fieldName === "documento") {
-    if (!value.trim()) return "El documento es requerido";
-    if (!/^[0-9]{6,15}$/.test(value))
-      return "El documento debe tener entre 6 y 15 dígitos numéricos";
-  }
+  correoElectronico: (v) => {
+    if (!v.trim()) return "El correo es obligatorio";
+    if (!emailRegex.test(v)) return "El formato del correo es inválido";
+    return "";
+  },
 
-  if (fieldName === "telefono") {
-    if (!value.trim()) return "El teléfono es requerido";
-    if (!/^[0-9]{7,10}$/.test(value))
-      return "El teléfono debe ser un número válido de 7 a 10 dígitos";
-  }
+  tipo: (v) => {
+    if (!v.trim()) return "El tipo de documento es obligatorio";
+    return "";
+  },
 
-  if (fieldName === "correo") {
-    if (!value.trim()) return "El correo es requerido";
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) return "Formato de correo inválido";
-  }
+  rol: (v) => {
+    if (!v.trim()) return "El rol es obligatorio";
+    return "";
+  },
 
-  if (fieldName === "tipo") {
-    if (!value.trim()) return "El tipo de documento es requerido";
-  }
-
-  if (fieldName === "rol") {
-    if (!value.trim()) return "El rol es requerido";
-  }
-
-  if (fieldName === "estado") {
-    if (!["Activo", "Inactivo"].includes(value))
+  estado: (v) => {
+    if (!v.trim()) return "El estado es obligatorio";
+    if (!["Activo", "Inactivo"].includes(v))
       return "El estado debe ser Activo o Inactivo";
-  }
+    return "";
+  },
 
-  return "";
 };
+
+// VALIDACIÓN GENERAL
 
 export const validateAllFields = (data: ClientBase): FormErrors => {
-  return {
-    nombre: validateField("nombre", data.nombre),
-    documento: validateField("documento", data.documento),
-    telefono: validateField("telefono", data.telefono),
-    // validateField espera "correo", pero en el objeto usamos correoElectronico
-    correoElectronico: validateField("correo", data.correoElectronico),
-    tipo: validateField("tipo", data.tipo),
-    rol: validateField("rol", data.rol),
-    estado: validateField("estado", data.estado),
+  const errors: FormErrors = {
+    nombre: fieldValidators.nombre(data.nombre),
+    apellido: fieldValidators.apellido(data.apellido),
+    documento: fieldValidators.documento(data.documento),
+    telefono: fieldValidators.telefono(data.telefono),
+    correoElectronico: fieldValidators.correoElectronico(data.correoElectronico),
+    tipo: fieldValidators.tipo(data.tipo),
+    rol: fieldValidators.rol(data.rol),
+    estado: fieldValidators.estado(data.estado),
   };
+
+  return errors;
 };
 
-// ==================== VALIDACIONES CON NOTIFICACIONES ====================
+// VALIDACIÓN GLOBAL CON NOTIFICACIONES
 
 export const validateFormWithNotification = (
-  formData: ClientBase,
+  data: ClientBase,
   setErrors: Dispatch<SetStateAction<FormErrors>>,
   setTouched: Dispatch<SetStateAction<FormTouched>>
 ): boolean => {
-  const newErrors = validateAllFields(formData);
+  const errors = validateAllFields(data);
 
-  setErrors(newErrors);
+  setErrors(errors);
 
-  // Marcar todos los campos como tocados
-  const allTouched = Object.keys(newErrors).reduce((acc, key) => {
-    // @ts-ignore -- key proviene de FormErrors keys
-    acc[key] = true;
-    return acc;
-  }, {} as Partial<FormTouched>);
+  // marcar todos como tocados
+  setTouched({
+    nombre: true,
+    apellido: true,
+    documento: true,
+    telefono: true,
+    correoElectronico: true,
+    tipo: true,
+    rol: true,
+    estado: true,
+  });
 
-  setTouched(allTouched as FormTouched);
+  const firstError = Object.values(errors).find((x) => x !== "");
 
-  const hasErrors = Object.values(newErrors).some((error) => error !== "");
-
-  if (hasErrors) {
-    showWarning("Por favor complete los campos correctamente");
-
-    const firstError = Object.values(newErrors).find((e) => e !== "");
-    if (firstError) {
-      setTimeout(() => {
-        showWarning(firstError);
-      }, 100);
-    }
-
+  if (firstError) {
+    showWarning(firstError);
     return false;
   }
 
   return true;
 };
 
-// ==================== VALIDACIONES INDIVIDUALES CON NOTIFICACIÓN ====================
+// VALIDACIÓN DE UN SOLO CAMPO (REUTILIZABLE)
 
-export const validateNombreWithNotification = (
-  formData: ClientBase,
+export const validateSingleField = <
+  K extends keyof ClientBase
+>(
+  field: K,
+  value: string,
   setErrors: Dispatch<SetStateAction<FormErrors>>,
   setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("nombre", formData.nombre);
-  setErrors((prev) => ({ ...prev, nombre: error }));
-  setTouched((prev) => ({ ...prev, nombre: true }));
+) => {
+  const error = fieldValidators[field](value);
+
+  setErrors((prev) => ({ ...prev, [field]: error }));
+  setTouched((prev) => ({ ...prev, [field]: true }));
+
   if (error) showWarning(error);
 };
-
-export const validateDocumentoWithNotification = (
-  formData: ClientBase,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("documento", formData.documento);
-  setErrors((prev) => ({ ...prev, documento: error }));
-  setTouched((prev) => ({ ...prev, documento: true }));
-  if (error) showWarning(error);
-};
-
-export const validateTelefonoWithNotification = (
-  formData: ClientBase,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("telefono", formData.telefono);
-  setErrors((prev) => ({ ...prev, telefono: error }));
-  setTouched((prev) => ({ ...prev, telefono: true }));
-  if (error) showWarning(error);
-};
-
-export const validateCorreoWithNotification = (
-  formData: ClientBase,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("correo", formData.correoElectronico);
-  setErrors((prev) => ({ ...prev, correoElectronico: error }));
-  setTouched((prev) => ({ ...prev, correoElectronico: true }));
-  if (error) showWarning(error);
-};
-
-export const validateTipoWithNotification = (
-  formData: ClientBase,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("tipo", formData.tipo);
-  setErrors((prev) => ({ ...prev, tipo: error }));
-  setTouched((prev) => ({ ...prev, tipo: true }));
-  if (error) showWarning(error);
-};
-
-export const validateRolWithNotification = (
-  formData: ClientBase,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
-): void => {
-  const error = validateField("rol", formData.rol);
-  setErrors((prev) => ({ ...prev, rol: error }));
-  setTouched((prev) => ({ ...prev, rol: true }));
-  if (error) showWarning(error);
-};
-
