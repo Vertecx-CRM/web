@@ -6,9 +6,27 @@ export type StateDTO = {
   name: string;
 };
 
+export type TechnicianUserDTO = {
+  userid?: number;
+  id?: number;
+  name?: string;
+  lastname?: string;
+  email?: string;
+  documentnumber?: string;
+};
+
 export type TechnicianDTO = {
-  technicianid: number;
-  users?: { name?: string; lastname?: string } | null;
+  technicianid?: number;
+  technicianId?: number;
+  title?: string | null;
+  users?: TechnicianUserDTO | null;
+};
+
+export type ServiceRequestTechnicianMapDTO = {
+  serviceRequestTechniciansId?: number;
+  serviceRequestId?: number;
+  technicianId?: number;
+  technician?: TechnicianDTO | null;
 };
 
 export type ServiceRequestDTO = {
@@ -36,6 +54,9 @@ export type ServiceRequestDTO = {
   customer?: any;
   technicians?: TechnicianDTO[];
   assignedTechnicians?: TechnicianDTO[];
+  techniciansMap?: ServiceRequestTechnicianMapDTO[];
+  serviceRequestTechnicians?: ServiceRequestTechnicianMapDTO[];
+  requestTechnicians?: ServiceRequestTechnicianMapDTO[];
   technicianId?: number;
   technicianid?: number;
 };
