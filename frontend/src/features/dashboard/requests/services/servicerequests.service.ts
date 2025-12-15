@@ -4,51 +4,37 @@ import type { AxiosError } from "axios";
 export type StateDTO = {
   stateid: number;
   name: string;
-  description?: string | null;
 };
 
-type TechnicianDTO = {
-  technicianid?: number;
-  technicianId?: number;
-  id?: number;
-  title?: string | null;
-  users?: { name?: string | null; lastname?: string | null; roles?: { name?: string | null } | null } | null;
-  technician?: {
-    technicianid?: number;
-    technicianId?: number;
-    users?: { name?: string | null; lastname?: string | null; roles?: { name?: string | null } | null } | null;
-    title?: string | null;
-  } | null;
+export type TechnicianDTO = {
+  technicianid: number;
+  users?: { name?: string; lastname?: string } | null;
 };
 
 export type ServiceRequestDTO = {
-  serviceRequestId: number;
-  scheduledAt: string | null;
-  scheduledEndAt: string | null;
-  serviceType: string;
-  description: string | null;
-  direccion: string | null;
-  createdAt: string;
-  stateId: number;
-  serviceId: number;
-  clientId: number;
-  state?: { stateid: number; name: string; description?: string | null };
-  service?: {
-    serviceid: number;
-    name: string;
-    category?: string | null;
-    price?: number | null;
-    image?: string | null;
-  };
-  customer?: {
-    customerid: number;
-    customercity?: string | null;
-    customerzipcode?: string | null;
-    users?: { userid: number; name?: string | null; lastname?: string | null; email?: string | null };
-  };
+  serviceRequestId?: number;
+  servicerequestid?: number;
+  id?: number;
+  scheduledAt?: string | null;
+  scheduledat?: string | null;
+  scheduledEndAt?: string | null;
+  scheduledendat?: string | null;
+  serviceType?: string;
+  servicetype?: string;
+  direccion?: string;
+  description?: string;
+  createdAt?: string;
+  createdat?: string;
+  stateId?: number;
+  stateid?: number;
+  serviceId?: number;
+  serviceid?: number;
+  clientId?: number;
+  clientid?: number;
+  state?: { stateid?: number; name?: string } | null;
+  service?: { serviceid?: number; name?: string; servicename?: string } | null;
+  customer?: any;
   technicians?: TechnicianDTO[];
-  serviceRequestTechnicians?: TechnicianDTO[];
-  requestTechnicians?: TechnicianDTO[];
   assignedTechnicians?: TechnicianDTO[];
   technicianId?: number;
   technicianid?: number;
@@ -65,6 +51,7 @@ export type CreateServiceRequestInput = {
   stateId: number;
   serviceId: number;
   clientId: number;
+  technicians: number[];
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;

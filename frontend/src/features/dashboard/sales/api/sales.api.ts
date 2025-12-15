@@ -9,6 +9,34 @@ export const getSales = async (signal?: AbortSignal): Promise<ISale[]> => {
   return data;
 };
 
+export const getCustomersForSale = async (): Promise<any[]> => {
+  try {
+    const { data } = await api.get<any[]>("/customers");
+    return data;
+  } catch (error) {
+    console.error("Error al obtener los clientes:", error);
+    throw new Error(
+      error?.response?.data?.message ??
+        "No se pudo cargar el listado de clientes."
+    );
+  }
+};
+
+export const getProductsForSale = async (): Promise<any[]> => {
+  try {
+    const { data } = await api.get<any[]>("/products", {
+      params: { status: "active" },
+    });
+    return data;
+  } catch (error) {
+    console.error("Error al obtener los productos:", error);
+    throw new Error(
+      error?.response?.data?.message ??
+        "No se pudo cargar el listado de productos."
+    );
+  }
+};
+
 export const createSale = async (sale: Partial<ISale>) => {
   try {
     const { data } = await api.post("/sales", sale);

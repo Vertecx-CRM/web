@@ -13,20 +13,22 @@ import {
   Cell,
 } from "recharts";
 import Colors from "@/shared/theme/colors";
+import { getMonthNumberFromLabel, MonthSelection } from "./monthUtils";
+import { formatCOP } from "../../indexDashboard"
 
 interface YearlyGraphProps {
-  title: string;               
-  data: { month: string; total: number }[]; 
-  onMonthClick: (month: string) => void;
-  isCurrency?: boolean; 
+  title: string;
+  data: { month: string; total: number }[];
+  onMonthClick: (month: MonthSelection) => void;
+  isCurrency?: boolean;
 }
 
 // Componente Tooltip personalizado
 const CustomTooltip = ({ active, payload, isCurrency }: any) => {
   if (active && payload && payload.length) {
     const value = payload[0].value;
-    const displayValue = isCurrency ? `$${value}` : value;
-    
+    const displayValue = isCurrency ? formatCOP(value) : value;
+
     return (
       <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg">
         <p className="font-bold text-gray-800">{`Mes: ${payload[0].payload.month}`}</p>
@@ -39,6 +41,15 @@ const CustomTooltip = ({ active, payload, isCurrency }: any) => {
 
 export const YearlyGraph = ({ title, data, onMonthClick, isCurrency = true }: YearlyGraphProps) => {
   const maxValue = Math.max(...data.map((item) => item.total));
+
+  const handleBarClick = (entry: any) => {
+    if (!entry) return;
+    const monthValue = getMonthNumberFromLabel(entry.month);
+    onMonthClick({
+      label: entry.month,
+      value: monthValue,
+    });
+  };
 
   return (
     <ResponsiveContainer width="100%" height={300}>
@@ -56,7 +67,7 @@ export const YearlyGraph = ({ title, data, onMonthClick, isCurrency = true }: Ye
           strokeDasharray="5 5"
           strokeWidth={2}
           label={{
-            value: "MAX",
+            value: isCurrency ? `MAX ${formatCOP(maxValue)}` : `MAX ${maxValue}`,
             position: "right",
             fill: Colors.texts.primary,
             dx: -4,
@@ -68,7 +79,7 @@ export const YearlyGraph = ({ title, data, onMonthClick, isCurrency = true }: Ye
           dataKey="total"
           radius={[8, 8, 8, 8]}
           activeBar={<Rectangle fill={Colors.graphic.lineThird} stroke="purple" />}
-          onClick={(_, index) => onMonthClick(data[index].month)}
+          onClick={handleBarClick}
         >
           {data.map((entry, index) => (
             <Cell

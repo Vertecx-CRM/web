@@ -11,6 +11,7 @@ import {
 } from "./components/PieChart/pieChart";
 import { CustomBarChart } from "./components/BarChar/barChart";
 import { dashboardApi } from "./api/dashboardApi";
+import { MonthSelection } from "./components/BarChar/monthUtils";
 
 type CategoryProductsResponse = {
   category: string;
@@ -24,6 +25,14 @@ function Loader() {
     </div>
   );
 }
+
+export const formatCOP = (value: number | string) =>
+  Number(value ?? 0).toLocaleString("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  });
+
 
 export const IndexDashboard = () => {
   // ESTADOS
@@ -53,9 +62,9 @@ export const IndexDashboard = () => {
     return years;
   });
 
-  const [selectedMonthSales, setSelectedMonthSales] = useState<string | null>(null);
-  const [selectedMonthShopping, setSelectedMonthShopping] = useState<string | null>(null);
-  const [selectedMonthClients, setSelectedMonthClients] = useState<string | null>(null);
+  const [selectedMonthSales, setSelectedMonthSales] = useState<MonthSelection | null>(null);
+  const [selectedMonthShopping, setSelectedMonthShopping] = useState<MonthSelection | null>(null);
+  const [selectedMonthClients, setSelectedMonthClients] = useState<MonthSelection | null>(null);
   const [loading, setLoading] = useState(true);
 
   // CARGAR TODA LA DATA DEL DASHBOARD
@@ -146,7 +155,7 @@ export const IndexDashboard = () => {
                 </h2>
                 <Image src="/icons/cash-stack.svg" alt="Ventas" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
               </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">${totalSales}</p>
+              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{formatCOP(totalSales)}</p>
             </div>
           </div>
         </div>
@@ -161,7 +170,7 @@ export const IndexDashboard = () => {
                 </h2>
                 <Image src="/icons/cart2.svg" alt="Compras" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
               </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">${totalPurchases}</p>
+              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{formatCOP(totalPurchases)}</p>
             </div>
           </div>
         </div>
@@ -205,13 +214,14 @@ export const IndexDashboard = () => {
             <div className="bg-white rounded-lg p-6 flex flex-col h-full">
               {!selectedMonthSales ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4">Ventas: ${totalSales}</h2>
+                  <h2 className="text-xl font-bold mb-4">Ventas: {formatCOP(totalSales)}</h2>
                   <YearlyGraph title="Ventas" data={salesYear} onMonthClick={setSelectedMonthSales} isCurrency={true} />
                 </>
               ) : (
                 <MonthlyGraph
                   title="Ventas"
-                  month={selectedMonthSales}
+                  month={selectedMonthSales?.label ?? ""}
+                  monthNumber={selectedMonthSales?.value}
                   data={salesYear}
                   onBack={() => setSelectedMonthSales(null)}
                   isCurrency={true}
@@ -228,13 +238,14 @@ export const IndexDashboard = () => {
             <div className="bg-white rounded-lg p-6 flex flex-col h-full">
               {!selectedMonthShopping ? (
                 <>
-                  <h2 className="text-xl font-bold mb-4">Compras: ${totalPurchases}</h2>
+                  <h2 className="text-xl font-bold mb-4">Compras: {formatCOP(totalPurchases)}</h2>
                   <YearlyGraph title="Compras" data={purchasesYear} onMonthClick={setSelectedMonthShopping} isCurrency={true} />
                 </>
               ) : (
                 <MonthlyGraph
                   title="Compras"
-                  month={selectedMonthShopping}
+                  month={selectedMonthShopping?.label ?? ""}
+                  monthNumber={selectedMonthShopping?.value}
                   data={purchasesYear}
                   onBack={() => setSelectedMonthShopping(null)}
                   isCurrency={true}
@@ -318,13 +329,16 @@ export const IndexDashboard = () => {
               </>
             ) : (
               <MonthlyGraph
+                key={`clients-${selectedYear}-${selectedMonthClients?.value}`}
                 title="Clientes"
-                month={selectedMonthClients}
+                month={selectedMonthClients?.label ?? ""}
+                monthNumber={selectedMonthClients?.value}
                 data={clientsYear}
                 onBack={() => setSelectedMonthClients(null)}
                 isCurrency={false}
                 year={selectedYear}
               />
+
             )}
           </div>
         </div>

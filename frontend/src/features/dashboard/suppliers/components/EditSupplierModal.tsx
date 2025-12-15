@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Star, Upload } from "lucide-react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { SupplierSubmitPayload } from "@/features/dashboard/suppliers/components/CreateSuppliersModal";
-import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
+import { showError, showWarning } from "@/shared/utils/notifications";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 
 type SupplierForm = {
@@ -44,10 +44,16 @@ const initialForm: SupplierForm = {
 };
 
 function sanitizeName(v: string) {
-  return v.replace(/[^A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ'’.\- ]/g, "").replace(/\s{2,}/g, " ").slice(0, 80);
+  return v
+    .replace(/[^A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ'’.\- ]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .slice(0, 80);
 }
 function sanitizeContact(v: string) {
-  return v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’.\- ]/g, "").replace(/\s{2,}/g, " ").slice(0, 80);
+  return v
+    .replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’.\- ]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .slice(0, 80);
 }
 function sanitizePhone(v: string) {
   let s = v.replace(/[^\d+]/g, "");
@@ -68,7 +74,6 @@ function roundToStep(n: number, step = 0.1) {
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
-
 function sanitizeNITBaseOnly(v: string) {
   return String(v ?? "")
     .replace(/[^\d]/g, "")
@@ -137,13 +142,6 @@ function validateAllFields(form: SupplierForm): ErrorMap {
   return e;
 }
 
-function firstError(e: ErrorMap): string | null {
-  for (const k of Object.keys(e) as (keyof ErrorMap)[]) {
-    if (e[k]) return e[k] as string;
-  }
-  return null;
-}
-
 function DecimalStarRating({
   value,
   onChange,
@@ -185,6 +183,7 @@ function DecimalStarRating({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (disabled) return;
+
     if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
       onChange(roundToStep(value + step, step));
@@ -207,7 +206,9 @@ function DecimalStarRating({
     <div className="flex items-center gap-3">
       <div
         ref={ref}
-        className={`flex items-center gap-1 select-none ${disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+        className={`flex items-center gap-1 select-none ${
+          disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+        }`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
@@ -252,7 +253,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
     if (saving) return;
 
     if (supplier && !loadedFromProp) {
-      setForm({
+      const next: SupplierForm = {
         name: supplier.name ?? "",
         nit: String(supplier.nit ?? "").replace(/[^\d]/g, ""),
         phone: supplier.phone ?? "",
@@ -263,7 +264,9 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
         status: supplier.status ?? "Activo",
         imageFile: null,
         imageUrl: supplier.imageUrl ?? null,
-      });
+      };
+      setForm(next);
+      setErrors(validateAllFields(next));
       setLoadedFromProp(true);
     }
   }, [isOpen, supplier, saving, loadedFromProp]);
@@ -277,34 +280,55 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
     }
   }, [isOpen]);
 
-  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
-
-  const validateField = (k: keyof SupplierForm | "image") => {
-    const value = k === "image" ? form.imageFile : form[k as keyof SupplierForm];
-    const msg = validators[k](value as any, form);
-    setErrors((er) => ({ ...er, [k]: msg }));
+  const validateAndSet = <K extends keyof SupplierForm | "image">(
+    key: K,
+    nextForm: SupplierForm
+  ) => {
+    const value = key === "image" ? nextForm.imageFile : nextForm[key as keyof SupplierForm];
+    const msg = validators[key](value as any, nextForm);
+    setErrors((er) => ({ ...er, [key]: msg }));
     return msg;
+  };
+
+  const update = <K extends keyof SupplierForm>(k: K, v: SupplierForm[K]) => {
+    setForm((prev) => {
+      const next = { ...prev, [k]: v };
+      if (k === "name") validateAndSet("name", next);
+      if (k === "nit") validateAndSet("nit", next);
+      if (k === "phone") validateAndSet("phone", next);
+      if (k === "email") validateAndSet("email", next);
+      if (k === "address") validateAndSet("address", next);
+      if (k === "contactName") validateAndSet("contactName", next);
+      if (k === "status") validateAndSet("status", next);
+      if (k === "rating") validateAndSet("rating", next);
+      return next;
+    });
   };
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    const err = validators.image(file, form);
-    setErrors((er) => ({ ...er, image: err }));
-    if (err) {
-      showError(err);
-      return;
-    }
-    update("imageFile", file);
-    update("imageUrl", file ? URL.createObjectURL(file) : null);
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        imageFile: file,
+        imageUrl: file ? URL.createObjectURL(file) : prev.imageUrl,
+      };
+      const err = validators.image(file, next);
+      setErrors((er) => ({ ...er, image: err }));
+      if (err) showError(err);
+      return next;
+    });
   }
 
   function validateAll() {
     const e = validateAllFields(form);
     setErrors(e);
-    const bad = firstError(e);
-    if (bad) showWarning(bad);
-    return !bad;
+
+    const hasErrors = Object.values(e).some((v) => Boolean(v));
+    if (hasErrors) showWarning("Todos los campos deben estar llenos.");
+
+    return !hasErrors;
   }
 
   async function handleSubmit(evt: React.FormEvent) {
@@ -338,7 +362,6 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
       };
 
       await onSave(payload);
-      showSuccess("Proveedor actualizado correctamente.");
       onClose();
     } catch (err: any) {
       showError(err?.message || "Ocurrió un error al guardar.");
@@ -378,7 +401,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
           <input
             value={form.name}
             onChange={(e) => update("name", sanitizeName(e.target.value))}
-            onBlur={() => validateField("name")}
+            onBlur={() => validateAndSet("name", form)}
             placeholder="Ingrese el nombre"
             className="w-full px-2 py-1 border rounded-md"
           />
@@ -392,7 +415,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
           <input
             value={form.nit}
             onChange={(e) => update("nit", sanitizeNITBaseOnly(e.target.value))}
-            onBlur={() => validateField("nit")}
+            onBlur={() => validateAndSet("nit", form)}
             placeholder="900123456"
             inputMode="numeric"
             pattern="\d*"
@@ -408,7 +431,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
           <input
             value={form.phone}
             onChange={(e) => update("phone", sanitizePhone(e.target.value))}
-            onBlur={() => validateField("phone")}
+            onBlur={() => validateAndSet("phone", form)}
             placeholder="+57 3001234567"
             inputMode="tel"
             className="w-full px-2 py-1 border rounded-md"
@@ -424,7 +447,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
             type="email"
             value={form.email}
             onChange={(e) => update("email", e.target.value)}
-            onBlur={() => validateField("email")}
+            onBlur={() => validateAndSet("email", form)}
             placeholder="correo@dominio.com"
             className="w-full px-2 py-1 border rounded-md"
           />
@@ -438,7 +461,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
           <input
             value={form.address}
             onChange={(e) => update("address", e.target.value)}
-            onBlur={() => validateField("address")}
+            onBlur={() => validateAndSet("address", form)}
             placeholder="Calle 123 #45-67"
             className="w-full px-2 py-1 border rounded-md"
           />
@@ -452,7 +475,7 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
           <input
             value={form.contactName}
             onChange={(e) => update("contactName", sanitizeContact(e.target.value))}
-            onBlur={() => validateField("contactName")}
+            onBlur={() => validateAndSet("contactName", form)}
             placeholder="Nombre del contacto"
             className="w-full px-2 py-1 border rounded-md"
           />
@@ -478,13 +501,14 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
                 <Upload size={16} />
               )}
             </div>
+
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
               className="hidden"
               onChange={handleFile}
-              onBlur={() => validateField("image")}
+              onBlur={() => validateAndSet("image", form)}
             />
           </div>
           {errors.image && <p className="text-xs text-red-600 mt-1">{errors.image}</p>}
@@ -504,7 +528,12 @@ export default function EditSupplierModal({ isOpen, onClose, onSave, supplier, t
 
         <div className="col-span-2">
           <label className="block text-sm font-medium mb-1">Calificación</label>
-          <DecimalStarRating value={sanitizeRating(form.rating)} onChange={(v) => update("rating", v)} disabled={saving} step={0.1} />
+          <DecimalStarRating
+            value={sanitizeRating(form.rating)}
+            onChange={(v) => update("rating", v)}
+            disabled={saving}
+            step={0.1}
+          />
         </div>
       </form>
     </Modal>

@@ -1,11 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { ISale } from "../types/Sales.type";
-import { getProductsForPurchase } from "@/features/dashboard/purchases/api/purchases.api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
-import { getSales, createSale, cancelSale } from "../api/sales.api";
-import { saleValidationSchema } from "../validations/SalesValidations";
+import { ISale } from "../types/Sales.type";
+import {
+  getSales,
+  createSale,
+  cancelSale,
+  getProductsForSale,
+  getCustomersForSale,
+} from "../api/sales.api";
+import { saleValidationSchema } from "../validations/salesValidations";
 
 /* =======================
    TIPOS
@@ -13,11 +18,18 @@ import { saleValidationSchema } from "../validations/SalesValidations";
 export interface SaleFormState {
   salecode: string;
   customerid: string;
-  saledate: string; // yyyy-mm-dd (input date)
+  saledate: string; // yyyy-mm-dd
   salestatus: "Pending" | "Completed" | "Cancelled";
   notes: string;
   paymentmethod: string;
 }
+
+type CartItem = {
+  productid: number;
+  productname: string;
+  quantity: number;
+  unitprice: number;
+};
 
 /* =======================
    HOOK
@@ -25,18 +37,12 @@ export interface SaleFormState {
 export function useSales() {
   /* ---------- STATE ---------- */
   const [sales, setSales] = useState<ISale[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const [products, setProducts] = useState<any[]>([]);
-  const [cart, setCart] = useState<
-    {
-      productid: number;
-      productname: string;
-      quantity: number;
-      unitprice: number;
-    }[]
-  >([]);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -50,17 +56,14 @@ export function useSales() {
   });
 
   /* =======================
-     CÁLCULOS (FUENTE ÚNICA)
+     CÁLCULOS
   ======================== */
   const subtotal = useMemo(
     () => cart.reduce((acc, p) => acc + p.quantity * p.unitprice, 0),
     [cart]
   );
 
-  const taxamount = useMemo(
-    () => Math.round(subtotal * 0.19),
-    [subtotal]
-  );
+  const taxamount = useMemo(() => Math.round(subtotal * 0.19), [subtotal]);
 
   const totalamount = useMemo(
     () => subtotal + taxamount,
@@ -79,7 +82,7 @@ export function useSales() {
       setLoading(true);
       const data = await getSales(controller.signal);
       setSales(data);
-    } catch (err) {
+    } catch {
       toast.error("No se pudieron cargar las ventas");
     } finally {
       setLoading(false);
@@ -87,7 +90,8 @@ export function useSales() {
   }, []);
 
   useEffect(() => {
-    getProductsForPurchase().then(setProducts);
+    getProductsForSale().then(setProducts);
+    getCustomersForSale().then(setCustomers);
     fetchSales();
     return () => abortRef.current?.abort();
   }, [fetchSales]);
@@ -96,7 +100,9 @@ export function useSales() {
      HANDLERS
   ======================== */
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -115,7 +121,7 @@ export function useSales() {
   };
 
   /* =======================
-     VALIDACIÓN CON YUP
+     VALIDACIÓN (YUP)
   ======================== */
   const validateCreate = async () => {
     try {
@@ -129,11 +135,7 @@ export function useSales() {
       );
       return true;
     } catch (err: any) {
-      if (err.inner?.length) {
-        err.inner.forEach((e: any) => toast.error(e.message));
-      } else {
-        toast.error(err.message);
-      }
+      err.inner?.forEach((e: any) => toast.error(e.message));
       return false;
     }
   };
@@ -144,7 +146,6 @@ export function useSales() {
   const handleCreateSale = async () => {
     if (!(await validateCreate())) return;
 
-    // Regla de negocio: no permitir productos sin ID real
     if (cart.some((item) => !item.productid)) {
       toast.error("Todos los productos deben existir en el sistema");
       return;
@@ -159,10 +160,8 @@ export function useSales() {
         salestatus: form.salestatus,
         paymentmethod: form.paymentmethod,
         notes: form.notes || null,
-
         taxpercent: 19,
         discountamount: 0,
-
         details: cart.map((item) => ({
           productid: item.productid,
           quantity: item.quantity,
@@ -173,13 +172,10 @@ export function useSales() {
 
       await createSale(payload);
       toast.success("Venta creada correctamente");
-
       resetForm();
       await fetchSales();
     } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || "Error al crear la venta"
-      );
+      toast.error(err?.response?.data?.message || "Error al crear la venta");
     } finally {
       setSaving(false);
     }
@@ -207,6 +203,7 @@ export function useSales() {
     // data
     sales,
     products,
+    customers,
     cart,
 
     // state

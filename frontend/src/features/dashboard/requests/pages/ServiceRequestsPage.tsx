@@ -26,6 +26,7 @@ import {
 } from "@/features/dashboard/requests/utils/schedule";
 import { ToastContainer } from "react-toastify";
 import { showError, showSuccess } from "@/shared/utils/notifications";
+import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButton";
 
 const ICONS = {
   print: "/icons/printer.svg",
@@ -46,6 +47,7 @@ type Row = {
   stateId?: number | string;
   programada?: string | null;
   programadaEnd?: string | null;
+  technicians: number[];
 };
 
 function Loader() {
@@ -81,6 +83,21 @@ function getBackendMessage(err: any) {
   return String(msg || "");
 }
 
+function extractTechnicianIds(r: any): number[] {
+  const raw = r?.techniciansMap;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((m: any) =>
+      Number(
+        m?.technicianId ??
+          m?.technician?.technicianid ??
+          m?.technician?.id ??
+          m?.id
+      )
+    )
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
 export default function ServiceRequestsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -111,7 +128,8 @@ export default function ServiceRequestsPage() {
       const cliente = [nombre, apellido].filter(Boolean).join(" ");
 
       const descripcion = r?.description ?? "";
-      const direccion = r?.customer?.customercity ?? r?.address ?? "";
+      const direccion =
+        r?.direccion ?? r?.customer?.customercity ?? r?.address ?? "";
 
       const tipoRaw = r?.serviceType ?? r?.service?.category ?? "";
       const lower = String(tipoRaw).toLowerCase();
@@ -129,15 +147,26 @@ export default function ServiceRequestsPage() {
           : [];
 
       const scheduledAtDate = r?.scheduledAt ? new Date(r.scheduledAt) : null;
-      const scheduledEndAtDate = r?.scheduledEndAt ? new Date(r.scheduledEndAt) : null;
-      const programada = scheduledAtDate ? toLocalDateTimeValue(scheduledAtDate) : null;
-      const programadaEnd = scheduledEndAtDate ? toLocalDateTimeValue(scheduledEndAtDate) : null;
+      const scheduledEndAtDate = r?.scheduledEndAt
+        ? new Date(r.scheduledEndAt)
+        : null;
+
+      const programada = scheduledAtDate
+        ? toLocalDateTimeValue(scheduledAtDate)
+        : null;
+
+      const programadaEnd = scheduledEndAtDate
+        ? toLocalDateTimeValue(scheduledEndAtDate)
+        : null;
 
       const estado = r?.state?.name ?? r?.status ?? "";
       const stateId = r?.stateId ?? r?.state?.stateid ?? undefined;
+
       const fecha = r?.createdAt
         ? new Date(r.createdAt).toLocaleDateString("es-CO")
         : "";
+
+      const technicians = extractTechnicianIds(r);
 
       return {
         id,
@@ -154,9 +183,26 @@ export default function ServiceRequestsPage() {
         stateId,
         programada,
         programadaEnd,
+        technicians,
       };
     });
   }, [data]);
+
+  const xlsxRows = useMemo(() => {
+    return rows.map((r) => ({
+      Id: r.id,
+      Cliente: r.cliente,
+      Descripción: r.descripcion,
+      Servicio: r.servicio,
+      Tipo: r.tipo,
+      Dirección: r.direccion,
+      Fecha: r.fecha,
+      Estado: r.estado,
+      Programada: r.programada ?? "",
+      "Programada Fin": r.programadaEnd ?? "",
+      Técnicos: (r.technicians || []).join(", "),
+    }));
+  }, [rows]);
 
   const columns: Column<Row>[] = [
     { key: "id", header: "ID" },
@@ -171,7 +217,9 @@ export default function ServiceRequestsPage() {
       key: "estado",
       header: "Estado",
       render: (r) => (
-        <span className={`font-medium ${estadoClass(r.estado)}`}>{r.estado}</span>
+        <span className={`font-medium ${estadoClass(r.estado)}`}>
+          {r.estado}
+        </span>
       ),
     },
   ];
@@ -214,6 +262,20 @@ export default function ServiceRequestsPage() {
           }
         }
 
+        if (patch.programadaEnd !== undefined) {
+          if (patch.programadaEnd) {
+            const parts = splitDateTime(patch.programadaEnd);
+            const iso = buildScheduledAt(
+              parts.date,
+              parts.time,
+              it.scheduledEndAt ? new Date(it.scheduledEndAt) : null
+            );
+            merged.scheduledEndAt = iso;
+          } else {
+            merged.scheduledEndAt = null;
+          }
+        }
+
         if (patch.descripcion !== undefined) merged.description = patch.descripcion;
 
         if (patch.servicio !== undefined)
@@ -223,7 +285,9 @@ export default function ServiceRequestsPage() {
             serviceid: patch.serviceId ?? it?.service?.serviceid,
           };
 
-        if (patch.direccion !== undefined) merged.address = patch.direccion;
+        if (patch.direccion !== undefined) merged.direccion = patch.direccion;
+
+        if (patch.technicians !== undefined) merged.techniciansMap = patch.technicians;
 
         return merged;
       });
@@ -243,12 +307,13 @@ export default function ServiceRequestsPage() {
         serviceType: values.serviceType,
         description: values.description?.trim(),
         direccion: values.direccion?.trim(),
-        stateId: values.stateId ?? 1,
+        stateId: 5,
         serviceId: Number(values.serviceId),
         clientId: Number(values.clientId),
+        technicians: Array.isArray(values.technicians) ? values.technicians : [],
       };
 
-      await createMut.mutateAsync(dto);
+      await createMut.mutateAsync(dto as any);
       await queryClient.invalidateQueries({ queryKey: ["service-requests"] });
       setOpenCreate(false);
 
@@ -267,11 +332,13 @@ export default function ServiceRequestsPage() {
     setActionLoading(true);
     try {
       const id = Number(selected.id);
+
       const scheduledAt = buildScheduledAt(
         values.programada,
         values.horaProgramada,
         selected.programada ? new Date(selected.programada) : null
       );
+
       const scheduledEndAt = buildScheduledAt(
         values.programada,
         values.horaFinal,
@@ -288,6 +355,9 @@ export default function ServiceRequestsPage() {
         direccion: String(direccion || "").trim(),
         serviceId: parseMaybeId(values.servicio),
         clientId: parseMaybeId(values.cliente),
+        technicians: Array.isArray((values as any).technicians)
+          ? (values as any).technicians
+          : [],
       };
 
       const stateIdNum = values.estado ? parseMaybeId(values.estado) : 0;
@@ -298,6 +368,10 @@ export default function ServiceRequestsPage() {
           values.programada && values.horaProgramada
             ? `${values.programada}T${values.horaProgramada}`
             : null,
+        programadaEnd:
+          values.programada && values.horaFinal
+            ? `${values.programada}T${values.horaFinal}`
+            : null,
         descripcion: values.descripcion?.trim(),
         direccion: String(direccion || "").trim(),
         servicio: String(
@@ -307,10 +381,15 @@ export default function ServiceRequestsPage() {
         serviceId: parseMaybeId(values.servicio),
         cliente: selected.cliente,
         clienteId: selected.clienteId,
-        estado: stateIdNum ? String((values as any).estadoLabel || "") : selected.estado,
+        estado: stateIdNum
+          ? String((values as any).estadoLabel || "")
+          : selected.estado,
         stateId: stateIdNum || selected.stateId,
         tipo: values.tipos?.[0] === "Instalacion" ? "Instalacion" : "Mantenimiento",
         tipos: values.tipos?.length ? values.tipos : selected.tipos,
+        technicians: Array.isArray((values as any).technicians)
+          ? (values as any).technicians
+          : selected.technicians,
       });
 
       await updateMut.mutateAsync({ id, payload });
@@ -359,6 +438,7 @@ export default function ServiceRequestsPage() {
         stateId: 4,
         serviceId: parseMaybeId(String(row.serviceId ?? "")),
         clientId: parseMaybeId(String(row.clienteId ?? "")),
+        technicians: Array.isArray(row.technicians) ? row.technicians : [],
       };
 
       await updateMut.mutateAsync({ id, payload });
@@ -375,7 +455,36 @@ export default function ServiceRequestsPage() {
   }
 
   function printRequest(row: Row) {
-    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Solicitud #${row.id}</title><style>:root{color-scheme:light}body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";margin:24px}.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px}.h{font-size:20px;font-weight:700;margin:0 0 12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}.label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:4px}.val{font-size:14px;color:#111827}.desc{white-space:pre-wrap}.footer{margin-top:16px;font-size:12px;color:#6b7280}@media print{@page{size:A4;margin:16mm}body{margin:0}}</style></head><body><div class="card"><div class="h">Solicitud #${row.id}</div><div class="grid"><div class="item"><div class="label">Estado</div><div class="val">${row.estado}</div></div><div class="item"><div class="label">Fecha</div><div class="val">${row.fecha}</div></div><div class="item"><div class="label">Cliente</div><div class="val">${row.cliente}</div></div><div class="item"><div class="label">Servicio</div><div class="val">${row.servicio}</div></div><div class="item" style="grid-column:1/-1"><div class="label">Dirección</div><div class="val">${row.direccion || "—"}</div></div></div><div class="item" style="margin-top:12px"><div class="label">Tipo de servicio</div><div class="val">${row.tipo || "—"}</div></div><div class="item" style="margin-top:12px"><div class="label">Descripción</div><div class="val desc">${row.descripcion || "—"}</div></div><div class="footer">Código: SRV-${String(row.id).padStart(6, "0")}</div></div></body></html>`;
+    const techs = (row.technicians || []).length
+      ? row.technicians.join(", ")
+      : "—";
+
+    const fechaProg = row.programada ? row.programada : "—";
+    const fechaFin = row.programadaEnd ? row.programadaEnd : "—";
+
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Solicitud #${
+      row.id
+    }</title><style>:root{color-scheme:light}body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";margin:24px}.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px}.h{font-size:20px;font-weight:700;margin:0 0 12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.item{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px}.label{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:4px}.val{font-size:14px;color:#111827}.desc{white-space:pre-wrap}.footer{margin-top:16px;font-size:12px;color:#6b7280}@media print{@page{size:A4;margin:16mm}body{margin:0}}</style></head><body><div class="card"><div class="h">Solicitud #${
+      row.id
+    }</div><div class="grid"><div class="item"><div class="label">Estado</div><div class="val">${
+      row.estado
+    }</div></div><div class="item"><div class="label">Fecha</div><div class="val">${
+      row.fecha
+    }</div></div><div class="item"><div class="label">Cliente</div><div class="val">${
+      row.cliente
+    }</div></div><div class="item"><div class="label">Servicio</div><div class="val">${
+      row.servicio
+    }</div></div><div class="item"><div class="label">Técnicos</div><div class="val">${techs}</div></div><div class="item"><div class="label">Programada</div><div class="val">${fechaProg}</div></div><div class="item"><div class="label">Hora final</div><div class="val">${fechaFin}</div></div><div class="item" style="grid-column:1/-1"><div class="label">Dirección</div><div class="val">${
+      row.direccion || "—"
+    }</div></div></div><div class="item" style="margin-top:12px"><div class="label">Tipo de servicio</div><div class="val">${
+      row.tipo || "—"
+    }</div></div><div class="item" style="margin-top:12px"><div class="label">Descripción</div><div class="val desc">${
+      row.descripcion || "—"
+    }</div></div><div class="footer">Código: SRV-${String(row.id).padStart(
+      6,
+      "0"
+    )}</div></div></body></html>`;
+
     const iframe: HTMLIFrameElement = document.createElement("iframe");
     Object.assign(iframe.style, {
       position: "fixed",
@@ -396,99 +505,6 @@ export default function ServiceRequestsPage() {
     document.body.appendChild(iframe);
   }
 
-  async function downloadReport() {
-    setActionLoading(true);
-    try {
-      const mod = await import("exceljs");
-      const ExcelJS: any = (mod as any).default ?? mod;
-
-      const wb = new ExcelJS.Workbook();
-      wb.creator = "Vertecx";
-      wb.created = new Date();
-
-      const ws = wb.addWorksheet("Solicitudes");
-      ws.columns = [
-        { header: "Id", key: "id", width: 8 },
-        { header: "Cliente", key: "cliente", width: 24 },
-        { header: "Descripción", key: "descripcion", width: 46 },
-        { header: "Servicio", key: "servicio", width: 18 },
-        { header: "Tipo", key: "tipo", width: 18 },
-        { header: "Dirección", key: "direccion", width: 30 },
-        { header: "Fecha", key: "fecha", width: 14 },
-        { header: "Estado", key: "estado", width: 14 },
-        { header: "Programada", key: "programada", width: 20 },
-      ];
-
-      const header = ws.getRow(1) as any;
-      header.font = { bold: true };
-      header.alignment = { vertical: "middle" };
-      header.height = 18;
-      header.eachCell?.((cell: any) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFE5E7EB" } },
-          left: { style: "thin", color: { argb: "FFE5E7EB" } },
-          bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
-          right: { style: "thin", color: { argb: "FFE5E7EB" } },
-        };
-      });
-
-      rows.forEach((r) => {
-        const row = ws.addRow({
-          id: r.id,
-          cliente: r.cliente,
-          descripcion: r.descripcion,
-          servicio: r.servicio,
-          tipo: r.tipo,
-          direccion: r.direccion,
-          fecha: r.fecha,
-          estado: r.estado,
-          programada: r.programada ?? "",
-        }) as any;
-
-        row.eachCell?.((cell: any) => {
-          cell.border = {
-            top: { style: "thin", color: { argb: "FFF1F5F9" } },
-            left: { style: "thin", color: { argb: "FFF1F5F9" } },
-            bottom: { style: "thin", color: { argb: "FFF1F5F9" } },
-            right: { style: "thin", color: { argb: "FFF1F5F9" } },
-          };
-          cell.alignment = { vertical: "top", wrapText: true };
-        });
-      });
-
-      ws.autoFilter = { from: "A1", to: "I1" } as any;
-
-      (ws.columns as any[]).forEach((col: any) => {
-        let max = col.header ? String(col.header).length : 10;
-        col.eachCell?.({ includeEmpty: false }, (cell: any) => {
-          max = Math.max(max, String(cell.value ?? "").length);
-        });
-        col.width = Math.max(col.width ?? 10, Math.min(max + 2, 60));
-      });
-
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "reporte_solicitudes.xlsx";
-      document.body.appendChild(a);
-      a.click?.();
-      a.remove?.();
-      URL.revokeObjectURL(url);
-
-      showSuccess("Reporte descargado correctamente.");
-    } catch (err: any) {
-      const msg = getBackendMessage(err);
-      showError(msg || "No se pudo generar el reporte.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
   return (
     <RequireAuth>
       <main className="flex-1 flex flex-col bg-gray-100 relative">
@@ -506,14 +522,69 @@ export default function ServiceRequestsPage() {
             columns={columns}
             pageSize={5}
             searchableKeys={["id", "cliente", "servicio", "tipo", "estado"]}
+            actionGuard={(row) => {
+              const estado = String(row?.estado ?? "").toLowerCase().trim();
+              const cancelado =
+                estado.includes("cancel") ||
+                estado.includes("anul") ||
+                estado.includes("anulado");
+
+              return {
+                disableCancel: cancelado,
+                cancelTitle: cancelado ? "Ya está cancelada." : "Anular",
+              };
+            }}
             rightActions={
-              <button
-                onClick={downloadReport}
-                className="cursor-pointer inline-flex h-9 items-center rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
-                disabled={busy}
-              >
-                Descargar Reporte
-              </button>
+              <>
+                <div className="hidden md:block">
+                  <DownloadXLSXButton
+                    id="download-excel-btn"
+                    data={xlsxRows as unknown as Record<string, unknown>[]}
+                    fileName="reporte_solicitudes.xlsx"
+                    headers={[
+                      "Id",
+                      "Cliente",
+                      "Descripción",
+                      "Servicio",
+                      "Tipo",
+                      "Dirección",
+                      "Fecha",
+                      "Estado",
+                      "Programada",
+                      "Programada Fin",
+                      "Técnicos",
+                    ]}
+                    excludeKeys={[]}
+                  />
+                </div>
+
+                <button
+                  onClick={() =>
+                    document
+                      .querySelector<HTMLButtonElement>("#download-excel-btn")
+                      ?.click()
+                  }
+                  className="fixed bottom-20 right-6 z-50 flex md:hidden items-center justify-center w-12 h-12 rounded-full shadow-lg text-white transition-transform hover:scale-105"
+                  style={{ background: "#B20000" }}
+                  type="button"
+                  title="Descargar reporte"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"
+                    />
+                  </svg>
+                </button>
+              </>
             }
             onCreate={() => setOpenCreate(true)}
             createButtonText="Crear Solicitud"
@@ -569,6 +640,7 @@ export default function ServiceRequestsPage() {
                   horaProgramada: partsStart.time,
                   horaFinal: partsEnd.time,
                   estado: String(selected.stateId ?? ""),
+                  technicians: selected.technicians ?? [],
                 }}
                 servicios={serviceOptions}
                 clientes={customerOptions}
@@ -593,6 +665,7 @@ export default function ServiceRequestsPage() {
               estado: selected.estado,
               codigo: `SRV-${String(selected.id).padStart(6, "0")}`,
               programada: selected.programada ?? null,
+              programadaEnd: selected.programadaEnd ?? null,
             }}
             title="Detalle de la Solicitud"
           />

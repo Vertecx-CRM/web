@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
-import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
+import { showError, showInfo, showWarning } from "@/shared/utils/notifications";
 import {
   getServiceOptions,
   getCustomerOptions,
 } from "@/features/dashboard/requests/services/lookups.service";
+import { api } from "@/lib/api";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -18,6 +19,7 @@ export type CreateRequestPayload = {
   stateId?: number;
   serviceId: number;
   clientId: number;
+  technicians: number[];
 };
 
 type ServiceOption = Option & {
@@ -32,6 +34,11 @@ type ServiceTypeOption = {
   code: string;
 };
 
+type TechnicianOption = {
+  technicianid: number;
+  label: string;
+};
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
@@ -44,7 +51,19 @@ type Props = {
   initialEndTime?: string | null;
 };
 
-type Errors = Record<string, string | null>;
+type ErrorKey =
+  | "tipo"
+  | "serviceId"
+  | "clientId"
+  | "description"
+  | "direccion"
+  | "programada"
+  | "horaProgramada"
+  | "horaFinal"
+  | "technicians";
+
+type Errors = Partial<Record<ErrorKey, string | null>>;
+type Touched = Partial<Record<ErrorKey, boolean>>;
 
 function toIsoFromLocalDateTime(date: string, time: string) {
   const [y, m, d] = date.split("-").map((n) => Number(n));
@@ -53,26 +72,87 @@ function toIsoFromLocalDateTime(date: string, time: string) {
   return dt.toISOString();
 }
 
-function timeToMinutes(t: string) {
-  const [hh, mm] = t.split(":").map((n) => Number(n));
-  return (hh || 0) * 60 + (mm || 0);
+function parseYMD(ymd: string) {
+  const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
-function minutesToTime(total: number) {
-  const m = ((total % 1440) + 1440) % 1440;
-  const hh = String(Math.floor(m / 60)).padStart(2, "0");
-  const mm = String(m % 60).padStart(2, "0");
-  return `${hh}:${mm}`;
+function timeToMinutes(hm: string) {
+  const [h, m] = (hm || "").split(":").map((x) => Number(x));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
+  return h * 60 + m;
 }
 
-function addMinutesToTime(t: string, add: number) {
-  return minutesToTime(timeToMinutes(t) + add);
+function todayStartLocal() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+}
+
+function isPastDateLocal(ymd: string) {
+  const d = parseYMD(ymd);
+  if (!d) return false;
+  return d.getTime() < todayStartLocal().getTime();
+}
+
+function isPastDateTimeLocal(ymd: string, hm: string) {
+  const d = parseYMD(ymd);
+  if (!d) return false;
+  const mins = timeToMinutes(hm);
+  if (!Number.isFinite(mins)) return false;
+
+  const hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm, 0, 0);
+  return dt.getTime() < Date.now();
+}
+
+function ymdTodayString() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const SCHEDULE_MIN = 7 * 60;
+const SCHEDULE_MAX = 17 * 60;
+
+function isAllowedDate(ymd: string) {
+  const d = parseYMD(ymd);
+  if (!d) return false;
+  const day = d.getDay();
+  return day >= 1 && day <= 6;
+}
+
+function isAllowedTime(hm: string) {
+  const mins = timeToMinutes(hm);
+  if (!Number.isFinite(mins)) return false;
+  return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
 }
 
 function getBackendMessage(err: any) {
   const msg = err?.response?.data?.message ?? err?.message ?? "";
   if (Array.isArray(msg)) return msg.filter(Boolean).join(" | ");
   return String(msg || "");
+}
+
+function normalizeText(v: string) {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function initials(name: string) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const a = parts[0]?.[0] ?? "";
+  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return (a + b).toUpperCase() || "T";
 }
 
 export default function CreateRequestModal({
@@ -89,12 +169,17 @@ export default function CreateRequestModal({
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
   const [clientId, setClientId] = useState<number | "">("");
+
   const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
+
   const [programada, setProgramada] = useState<string | null>(initialDate);
   const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
   const [horaFinal, setHoraFinal] = useState<string | null>(initialEndTime);
-  const [errors, setErrors] = useState<Errors>({});
+
+  const [touched, setTouched] = useState<Touched>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
   const [saving, setSaving] = useState(false);
 
   const [loadingLookups, setLoadingLookups] = useState(false);
@@ -131,11 +216,7 @@ export default function CreateRequestModal({
         else code = typeName;
       }
 
-      map.set(typeId, {
-        id: typeId,
-        label: typeName,
-        code,
-      });
+      map.set(typeId, { id: typeId, label: typeName, code });
     });
 
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
@@ -149,12 +230,175 @@ export default function CreateRequestModal({
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     const list = finalServicios || [];
     if (!serviceTypeId) return list;
-
     const hasTypeInfo = list.some((s) => s.typeofserviceid != null);
     if (!hasTypeInfo) return list;
-
     return list.filter((s) => s.typeofserviceid === serviceTypeId);
   }, [finalServicios, serviceTypeId]);
+
+  const [techniciansRaw, setTechniciansRaw] = useState<any[]>([]);
+  const [techLoading, setTechLoading] = useState(false);
+  const [techError, setTechError] = useState<string | null>(null);
+
+  const technicians = useMemo<TechnicianOption[]>(() => {
+    return (techniciansRaw || [])
+      .map((t: any) => {
+        const u = t?.users || t?.user || t?.Users || {};
+        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
+      })
+      .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
+  }, [techniciansRaw]);
+
+  const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
+  const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+
+  const selectedTechniciansFull = useMemo(() => {
+    const map = new Map(technicians.map((t) => [t.technicianid, t]));
+    return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
+  }, [technicians, selectedTechnicians]);
+
+  const [techQuery, setTechQuery] = useState("");
+  const [techOpen, setTechOpen] = useState(false);
+  const [techActiveIndex, setTechActiveIndex] = useState(0);
+  const techBoxRef = useRef<HTMLDivElement>(null);
+  const techInputRef = useRef<HTMLInputElement>(null);
+
+  function markTouched(key: ErrorKey) {
+    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }
+
+  function shouldShowError(key: ErrorKey) {
+    return Boolean(submitAttempted || touched[key]);
+  }
+
+  function validateDireccion(v: string) {
+    const dir = (v ?? "").trim();
+    if (dir.length < 3) return "Mínimo 3 caracteres.";
+    if (dir.length > 255) return "Máximo 255 caracteres.";
+    return null;
+  }
+
+  function validateDescription(v: string) {
+    const d = (v ?? "").trim();
+    return d.length >= 3 ? null : "Mínimo 3 caracteres.";
+  }
+
+  function validateServiceId(v: number | "") {
+    return v !== "" ? null : "Selecciona un servicio.";
+  }
+
+  function validateClientId(v: number | "") {
+    return v !== "" ? null : "Selecciona un cliente.";
+  }
+
+  function validateDateRequired(date: string | null) {
+    if (!date) return "Selecciona la fecha.";
+    const d = parseYMD(date);
+    if (!d) return "Fecha inválida.";
+    if (isPastDateLocal(date)) return "No puedes seleccionar una fecha pasada.";
+    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sábado).";
+    return null;
+  }
+
+  function validateStartTimeRequired(date: string | null, start: string | null) {
+    if (!start) return "Selecciona la hora inicial.";
+    if (!isAllowedTime(start)) return "Horario permitido: 07:00–17:00.";
+    if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
+    if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, start)) {
+      return "La hora inicial no puede estar en el pasado.";
+    }
+    return null;
+  }
+
+  function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
+    if (!end) return "Selecciona la hora final.";
+    if (!isAllowedTime(end)) return "Horario permitido: 07:00–17:00.";
+
+    if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
+      return "La hora final no puede estar en el pasado.";
+    }
+
+    if (!start) return null;
+    const s = timeToMinutes(start);
+    const e = timeToMinutes(end);
+    if (Number.isFinite(s) && Number.isFinite(e) && e <= s) {
+      return "La hora final debe ser mayor que la hora inicial.";
+    }
+    return null;
+  }
+
+  const errors = useMemo<Errors>(() => {
+    const e: Errors = {};
+
+    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
+    e.serviceId = validateServiceId(serviceId);
+    e.clientId = validateClientId(clientId);
+    e.direccion = validateDireccion(direccion);
+    e.description = validateDescription(description);
+
+    e.programada = validateDateRequired(programada);
+
+    const needsTime = !e.programada;
+    e.horaProgramada = needsTime ? validateStartTimeRequired(programada, horaProgramada) : null;
+    e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
+
+    e.technicians = selectedTechnicians.length ? null : "Selecciona al menos un técnico.";
+
+    return e;
+  }, [
+    serviceTypeId,
+    serviceId,
+    clientId,
+    direccion,
+    description,
+    programada,
+    horaProgramada,
+    horaFinal,
+    selectedTechnicians,
+  ]);
+
+  function isValidNow() {
+    return Object.values(errors).every((x) => !x);
+  }
+
+  const techOptions = useMemo(() => {
+    const q = normalizeText(techQuery);
+    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((t) => {
+        const label = normalizeText(t.label);
+        const idStr = String(t.technicianid);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { t, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
+    return scored.slice(0, 10).map((x) => x.t);
+  }, [technicians, techQuery, selectedTechSet]);
+
+  function addTechnician(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    markTouched("technicians");
+    setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setTechQuery("");
+    setTechOpen(false);
+    techInputRef.current?.focus();
+  }
+
+  function removeTechnician(id: number) {
+    markTouched("technicians");
+    setSelectedTechnicians((prev) => prev.filter((x) => x !== id));
+  }
+
+  function clearTechnicians() {
+    markTouched("technicians");
+    setSelectedTechnicians([]);
+  }
 
   useEffect(() => {
     if (!isOpen) return;
@@ -212,82 +456,222 @@ export default function CreateRequestModal({
   }, [isOpen, servicios, clientes]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    async function run() {
+      setTechLoading(true);
+      setTechError(null);
+      try {
+        const { data } = await api.get("technicians");
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.technicians)
+          ? data.technicians
+          : [];
+        if (!cancelled) setTechniciansRaw(list);
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || e?.message || "Error cargando técnicos.";
+        if (!cancelled) {
+          setTechError(String(msg));
+          setTechniciansRaw([]);
+        }
+      } finally {
+        if (!cancelled) setTechLoading(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setServiceTypeId(null);
+    setServiceId("");
+    setClientId("");
+    setDescription("");
+    setDireccion("");
+    setProgramada(initialDate ?? null);
+    setHoraProgramada(initialTime ?? null);
+    setHoraFinal(initialEndTime ?? null);
+
+    setSelectedTechnicians([]);
+    setTechQuery("");
+    setTechOpen(false);
+    setTechActiveIndex(0);
+
+    setTouched({});
+    setSubmitAttempted(false);
+
+    setSaving(false);
+    setTechError(null);
+  }, [isOpen, initialDate, initialTime, initialEndTime]);
+
+  useEffect(() => {
     if (!serviceTypes.length) {
       setServiceTypeId(null);
       return;
     }
     if (serviceTypeId && serviceTypes.some((t) => t.id === serviceTypeId)) return;
     setServiceTypeId(serviceTypes[0].id);
-  }, [serviceTypes]);
+  }, [serviceTypes, serviceTypeId]);
 
-  function validate() {
-    const e: Errors = {};
+  useEffect(() => {
+    if (!isOpen) return;
+    if (serviceId === "") return;
+    if (!filteredServicios.some((s) => Number(s.id) === Number(serviceId))) {
+      setServiceId("");
+      markTouched("serviceId");
+    }
+  }, [isOpen, filteredServicios, serviceId]);
 
-    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
-    e.serviceId = serviceId !== "" ? null : "Selecciona un servicio.";
-    e.clientId = clientId !== "" ? null : "Selecciona un cliente.";
-    e.description = description.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
+  useEffect(() => {
+    setTechActiveIndex(0);
+  }, [techQuery, techOpen]);
 
-    const dir = (direccion ?? "").trim();
-    if (dir.length < 3) e.direccion = "Mínimo 3 caracteres.";
-    else if (dir.length > 255) e.direccion = "Máximo 255 caracteres.";
-    else e.direccion = null;
+  useEffect(() => {
+    if (!techOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!techBoxRef.current) return;
+      if (!techBoxRef.current.contains(t)) setTechOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [techOpen]);
 
-    if (programada && !horaProgramada) e.horaProgramada = "Selecciona la hora inicial.";
-    else e.horaProgramada = null;
+  function handleProgramadaChange(next: string) {
+    markTouched("programada");
+    const v = next || null;
 
-    if (programada && !horaFinal) e.horaFinal = "Selecciona la hora final.";
-    else e.horaFinal = null;
-
-    if (programada && horaProgramada && horaFinal) {
-      const start = timeToMinutes(horaProgramada);
-      const end = timeToMinutes(horaFinal);
-      if (end <= start) e.horaFinal = "La hora final debe ser mayor que la hora inicial.";
+    if (!v) {
+      setProgramada(null);
+      return;
     }
 
-    setErrors(e);
-    return Object.values(e).every((x) => !x);
+    if (!parseYMD(v)) {
+      setProgramada(v);
+      return;
+    }
+
+    if (isPastDateLocal(v)) {
+      showWarning("No puedes seleccionar una fecha pasada.");
+      return;
+    }
+
+    if (!isAllowedDate(v)) {
+      showWarning("No se puede agendar los domingos. Solo lunes a sábado.");
+      return;
+    }
+
+    setProgramada(v);
+
+    if (horaProgramada && isPastDateTimeLocal(v, horaProgramada)) setHoraProgramada(null);
+    if (horaFinal && isPastDateTimeLocal(v, horaFinal)) setHoraFinal(null);
+  }
+
+  function handleHoraProgramadaChange(next: string) {
+    markTouched("horaProgramada");
+    const v = next || null;
+
+    if (!v) {
+      setHoraProgramada(null);
+      return;
+    }
+
+    if (!isAllowedTime(v)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      return;
+    }
+
+    if (timeToMinutes(v) === SCHEDULE_MAX) {
+      showWarning("La hora de inicio no puede ser 17:00.");
+      return;
+    }
+
+    if (programada && !isPastDateLocal(programada) && isPastDateTimeLocal(programada, v)) {
+      showWarning("La hora inicial no puede estar en el pasado.");
+      return;
+    }
+
+    setHoraProgramada(v);
+  }
+
+  function handleHoraFinalChange(next: string) {
+    markTouched("horaFinal");
+    const v = next || null;
+
+    if (!v) {
+      setHoraFinal(null);
+      return;
+    }
+
+    if (!isAllowedTime(v)) {
+      showWarning("Horario permitido: 07:00–17:00.");
+      return;
+    }
+
+    if (programada && !isPastDateLocal(programada) && isPastDateTimeLocal(programada, v)) {
+      showWarning("La hora final no puede estar en el pasado.");
+      return;
+    }
+
+    setHoraFinal(v);
   }
 
   async function submit() {
     if (saving) return;
+
+    setSubmitAttempted(true);
 
     if (loadingLookups) {
       showInfo("Espera a que carguen los servicios y clientes.");
       return;
     }
 
-    if (!validate()) return;
+    if (techLoading) {
+      showInfo("Espera a que carguen los técnicos.");
+      return;
+    }
+
+    if (!isValidNow()) return;
 
     if (!selectedType) {
-      setErrors((prev) => ({ ...prev, tipo: "Selecciona un tipo." }));
       showError("Selecciona un tipo de servicio.");
       return;
     }
 
-    const scheduledAt =
-      programada && horaProgramada ? toIsoFromLocalDateTime(programada, horaProgramada) : null;
+    if (!programada || !horaProgramada || !horaFinal) {
+      showError("Completa fecha y horas.");
+      return;
+    }
 
-    const scheduledEndAt =
-      programada && horaFinal ? toIsoFromLocalDateTime(programada, horaFinal) : null;
-
-    const dir = String(direccion ?? "").trim().slice(0, 255);
+    const scheduledAt = toIsoFromLocalDateTime(programada, horaProgramada);
+    const scheduledEndAt = toIsoFromLocalDateTime(programada, horaFinal);
 
     const payload: CreateRequestPayload = {
       serviceType: selectedType.code,
       serviceId: Number(serviceId),
       clientId: Number(clientId),
       description: String(description ?? "").trim(),
-      direccion: dir,
+      direccion: String(direccion ?? "").trim().slice(0, 255),
       scheduledAt,
       scheduledEndAt,
-      stateId: 1,
+      stateId: 5,
+      technicians: selectedTechnicians,
     };
 
     setSaving(true);
     try {
       await onSave(payload);
-      showSuccess("Solicitud creada correctamente.");
       onClose();
     } catch (err: any) {
       const msg = getBackendMessage(err);
@@ -296,6 +680,10 @@ export default function CreateRequestModal({
       setSaving(false);
     }
   }
+
+  const timeMin = "07:00";
+  const timeStartMax = "16:59";
+  const timeMax = "17:00";
 
   return (
     <Modal
@@ -316,8 +704,14 @@ export default function CreateRequestModal({
             type="button"
             onClick={submit}
             className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-            disabled={saving || loadingLookups}
-            title={loadingLookups ? "Cargando servicios/clientes..." : undefined}
+            disabled={saving || loadingLookups || techLoading}
+            title={
+              loadingLookups
+                ? "Cargando servicios/clientes..."
+                : techLoading
+                ? "Cargando técnicos..."
+                : undefined
+            }
           >
             {saving ? "Guardando..." : "Guardar"}
           </button>
@@ -344,8 +738,8 @@ export default function CreateRequestModal({
                   key={t.id}
                   type="button"
                   onClick={() => {
+                    markTouched("tipo");
                     setServiceTypeId(t.id);
-                    setErrors((prev) => ({ ...prev, tipo: null }));
                   }}
                   className={[
                     "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
@@ -365,7 +759,9 @@ export default function CreateRequestModal({
             </p>
           )}
 
-          {errors.tipo && <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>}
+          {shouldShowError("tipo") && errors.tipo && (
+            <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -374,9 +770,18 @@ export default function CreateRequestModal({
             <div className="relative">
               <select
                 value={serviceId === "" ? "" : String(serviceId)}
-                onChange={(e) => setServiceId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  markTouched("serviceId");
+                  setServiceId(e.target.value ? Number(e.target.value) : "");
+                }}
+                onBlur={() => markTouched("serviceId")}
                 disabled={saving || loadingLookups}
-                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+                className={[
+                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  shouldShowError("serviceId") && errors.serviceId
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
               >
                 <option value="">
                   {loadingLookups
@@ -397,7 +802,9 @@ export default function CreateRequestModal({
                 ▾
               </span>
             </div>
-            {errors.serviceId && <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>}
+            {shouldShowError("serviceId") && errors.serviceId && (
+              <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>
+            )}
           </div>
 
           <div>
@@ -405,9 +812,18 @@ export default function CreateRequestModal({
             <div className="relative">
               <select
                 value={clientId === "" ? "" : String(clientId)}
-                onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  markTouched("clientId");
+                  setClientId(e.target.value ? Number(e.target.value) : "");
+                }}
+                onBlur={() => markTouched("clientId")}
                 disabled={saving || loadingLookups}
-                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+                className={[
+                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  shouldShowError("clientId") && errors.clientId
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
               >
                 <option value="">
                   {loadingLookups
@@ -426,7 +842,9 @@ export default function CreateRequestModal({
                 ▾
               </span>
             </div>
-            {errors.clientId && <p className="mt-1 text-xs text-red-600">{errors.clientId}</p>}
+            {shouldShowError("clientId") && errors.clientId && (
+              <p className="mt-1 text-xs text-red-600">{errors.clientId}</p>
+            )}
           </div>
         </div>
 
@@ -435,46 +853,64 @@ export default function CreateRequestModal({
             <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
             <input
               value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
+              onChange={(e) => {
+                markTouched("direccion");
+                setDireccion(e.target.value);
+              }}
+              onBlur={() => markTouched("direccion")}
               placeholder="Ej. Calle 123 #45-67"
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                shouldShowError("direccion") && errors.direccion
+                  ? "border-red-500"
+                  : "border-gray-300",
+              ].join(" ")}
             />
-            {errors.direccion && <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>}
+            {shouldShowError("direccion") && errors.direccion && (
+              <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
+            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
             <input
               type="date"
+              min={ymdTodayString()}
               value={programada ?? ""}
-              onChange={(e) => {
-                const v = e.target.value || null;
-                setProgramada(v);
-                if (!v) {
-                  setHoraProgramada(null);
-                  setHoraFinal(null);
-                }
-              }}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              onChange={(e) => handleProgramadaChange(e.target.value)}
+              onBlur={() => markTouched("programada")}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                shouldShowError("programada") && errors.programada
+                  ? "border-red-500"
+                  : "border-gray-300",
+              ].join(" ")}
+              required
             />
+            {shouldShowError("programada") && errors.programada && (
+              <p className="mt-1 text-xs text-red-600">{errors.programada}</p>
+            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Hora (inicio)</label>
             <input
               type="time"
-              disabled={!programada}
+              min={timeMin}
+              max={timeStartMax}
               value={horaProgramada ?? ""}
-              onChange={(e) => {
-                const v = e.target.value || null;
-                setHoraProgramada(v);
-                if (programada && v && !horaFinal) {
-                  setHoraFinal(addMinutesToTime(v, 60));
-                }
-              }}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+              onChange={(e) => handleHoraProgramadaChange(e.target.value)}
+              onBlur={() => markTouched("horaProgramada")}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                shouldShowError("horaProgramada") && errors.horaProgramada
+                  ? "border-red-500"
+                  : "border-gray-300",
+              ].join(" ")}
+              disabled={!programada}
+              required
             />
-            {errors.horaProgramada && (
+            {shouldShowError("horaProgramada") && errors.horaProgramada && (
               <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
             )}
           </div>
@@ -483,25 +919,183 @@ export default function CreateRequestModal({
             <label className="mb-1 block text-xs font-medium text-gray-900">Hora final</label>
             <input
               type="time"
-              disabled={!programada}
+              min={timeMin}
+              max={timeMax}
               value={horaFinal ?? ""}
-              onChange={(e) => setHoraFinal(e.target.value || null)}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+              onChange={(e) => handleHoraFinalChange(e.target.value)}
+              onBlur={() => markTouched("horaFinal")}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                shouldShowError("horaFinal") && errors.horaFinal
+                  ? "border-red-500"
+                  : "border-gray-300",
+              ].join(" ")}
+              disabled={!programada}
+              required
             />
-            {errors.horaFinal && <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>}
+            {shouldShowError("horaFinal") && errors.horaFinal && (
+              <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
+            )}
           </div>
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-xs font-medium text-gray-900">Técnicos</label>
+            <button
+              type="button"
+              onClick={clearTechnicians}
+              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+              disabled={saving || techLoading || selectedTechnicians.length === 0}
+            >
+              Limpiar
+            </button>
+          </div>
+
+          <div
+            className={[
+              "rounded-lg border bg-gray-50 p-2",
+              shouldShowError("technicians") && errors.technicians
+                ? "border-red-500 ring-1 ring-red-500"
+                : "border-gray-300",
+            ].join(" ")}
+          >
+            {selectedTechniciansFull.length === 0 ? (
+              <div className="text-xs text-gray-500 px-1 py-1">
+                No has seleccionado técnicos.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {selectedTechniciansFull.map((t) => (
+                  <span
+                    key={t.technicianid}
+                    className="inline-flex items-center gap-2 rounded-full border bg-white px-2 py-1 text-xs"
+                  >
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border bg-gray-50 text-[10px] font-semibold">
+                      {initials(t.label)}
+                    </span>
+                    <span className="max-w-[220px] truncate">
+                      #{t.technicianid} — {t.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeTechnician(t.technicianid)}
+                      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
+                      disabled={saving || techLoading}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div ref={techBoxRef} className="relative mt-2">
+            <input
+              ref={techInputRef}
+              value={techQuery}
+              onChange={(e) => {
+                setTechQuery(e.target.value);
+                setTechOpen(true);
+              }}
+              onFocus={() => setTechOpen(true)}
+              onKeyDown={(e) => {
+                if (!techOpen) return;
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techOptions.length - 1)));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setTechActiveIndex((i) => Math.max(i - 1, 0));
+                } else if (e.key === "Enter") {
+                  if (techOptions[techActiveIndex]) {
+                    e.preventDefault();
+                    addTechnician(techOptions[techActiveIndex].technicianid);
+                  }
+                } else if (e.key === "Escape") {
+                  setTechOpen(false);
+                }
+              }}
+              placeholder={techLoading ? "Cargando técnicos..." : "Buscar por nombre o ID..."}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                shouldShowError("technicians") && errors.technicians
+                  ? "border-red-500 ring-1 ring-red-500"
+                  : "border-gray-300",
+              ].join(" ")}
+              disabled={saving || techLoading}
+              onBlur={() => markTouched("technicians")}
+            />
+
+            {techOpen && !techLoading && (
+              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                {techOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-gray-500">
+                    {selectedTechnicians.length === technicians.length
+                      ? "Ya seleccionaste todos los técnicos."
+                      : "No hay coincidencias."}
+                  </div>
+                ) : (
+                  <ul className="max-h-60 overflow-auto">
+                    {techOptions.map((t, idx) => (
+                      <li key={t.technicianid}>
+                        <button
+                          type="button"
+                          onMouseDown={(ev) => ev.preventDefault()}
+                          onClick={() => addTechnician(t.technicianid)}
+                          onMouseEnter={() => setTechActiveIndex(idx)}
+                          className={[
+                            "w-full px-3 py-2 text-left text-sm flex items-center gap-2",
+                            idx === techActiveIndex ? "bg-gray-100" : "bg-white",
+                          ].join(" ")}
+                        >
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                            {initials(t.label)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{t.label}</span>
+                            <span className="block text-xs text-gray-500">
+                              Técnico #{t.technicianid}
+                            </span>
+                          </span>
+                          <span className="text-xs text-gray-400">Agregar</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {techError && <p className="mt-1 text-xs text-red-600">{techError}</p>}
+          {shouldShowError("technicians") && errors.technicians && (
+            <p className="mt-1 text-xs text-red-600">{errors.technicians}</p>
+          )}
         </div>
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              markTouched("description");
+              setDescription(e.target.value);
+            }}
+            onBlur={() => markTouched("description")}
             rows={3}
             placeholder="Describe brevemente la solicitud"
-            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            className={[
+              "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+              shouldShowError("description") && errors.description
+                ? "border-red-500"
+                : "border-gray-300",
+            ].join(" ")}
           />
-          {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
+          {shouldShowError("description") && errors.description && (
+            <p className="mt-1 text-xs text-red-600">{errors.description}</p>
+          )}
         </div>
       </div>
     </Modal>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import type { Option } from "@/features/dashboard/requests/types/option.types";
 import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
 import { getServiceOptions } from "@/features/dashboard/requests/services/lookups.service";
 
@@ -42,7 +42,16 @@ type Props = {
   initialEndTime?: string | null;
 };
 
-type Errors = Record<string, string | null>;
+type ErrorKey =
+  | "tipo"
+  | "serviceId"
+  | "description"
+  | "direccion"
+  | "horaProgramada"
+  | "horaFinal";
+
+type Errors = Partial<Record<ErrorKey, string | null>>;
+type Touched = Partial<Record<ErrorKey, boolean>>;
 
 function toIsoFromLocalDateTime(date: string, time: string) {
   const [y, m, d] = date.split("-").map((n) => Number(n));
@@ -93,7 +102,10 @@ export default function ClientCreateRequestModal({
   const [programada, setProgramada] = useState<string | null>(initialDate);
   const [horaProgramada, setHoraProgramada] = useState<string | null>(initialTime);
   const [horaFinal, setHoraFinal] = useState<string | null>(initialEndTime);
-  const [errors, setErrors] = useState<Errors>({});
+
+  const [touched, setTouched] = useState<Touched>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
   const [saving, setSaving] = useState(false);
 
   const [loadingLookups, setLoadingLookups] = useState(false);
@@ -124,11 +136,7 @@ export default function ClientCreateRequestModal({
         else code = typeName;
       }
 
-      map.set(typeId, {
-        id: typeId,
-        label: typeName,
-        code,
-      });
+      map.set(typeId, { id: typeId, label: typeName, code });
     });
 
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
@@ -149,6 +157,67 @@ export default function ClientCreateRequestModal({
     return list.filter((s) => s.typeofserviceid === serviceTypeId);
   }, [finalServicios, serviceTypeId]);
 
+  function validateDireccion(v: string) {
+    const dir = (v ?? "").trim();
+    if (dir.length < 3) return "Mínimo 3 caracteres.";
+    if (dir.length > 255) return "Máximo 255 caracteres.";
+    return null;
+  }
+
+  function validateDescription(v: string) {
+    const d = (v ?? "").trim();
+    return d.length >= 3 ? null : "Mínimo 3 caracteres.";
+  }
+
+  function validateServiceId(v: number | "") {
+    return v !== "" ? null : "Selecciona un servicio.";
+  }
+
+  function validateHoraProgramada(start: string | null, hasDate: boolean) {
+    if (!hasDate) return null;
+    return start ? null : "Selecciona la hora inicial.";
+  }
+
+  function validateHoraFinal(start: string | null, end: string | null, hasDate: boolean) {
+    if (!hasDate) return null;
+    if (!end) return "Selecciona la hora final.";
+    if (!start) return null;
+    return timeToMinutes(end) <= timeToMinutes(start)
+      ? "La hora final debe ser mayor que la hora inicial."
+      : null;
+  }
+
+  const errors = useMemo<Errors>(() => {
+    const e: Errors = {};
+
+    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
+    e.serviceId = validateServiceId(serviceId);
+    e.direccion = validateDireccion(direccion);
+    e.description = validateDescription(description);
+
+    if (programada) {
+      e.horaProgramada = validateHoraProgramada(horaProgramada, true);
+      e.horaFinal = validateHoraFinal(horaProgramada, horaFinal, true);
+    } else {
+      e.horaProgramada = null;
+      e.horaFinal = null;
+    }
+
+    return e;
+  }, [serviceTypeId, serviceId, direccion, description, programada, horaProgramada, horaFinal]);
+
+  function markTouched(key: ErrorKey) {
+    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }
+
+  function shouldShowError(key: ErrorKey) {
+    return Boolean(submitAttempted || touched[key]);
+  }
+
+  function isValidNow() {
+    return Object.values(errors).every((x) => !x);
+  }
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -158,12 +227,13 @@ export default function ClientCreateRequestModal({
       const hasServicios = Array.isArray(servicios) && servicios.length > 0;
 
       if (hasServicios) setServiciosLocal(servicios as ServiceOption[]);
-
       if (hasServicios) return;
 
       setLoadingLookups(true);
 
-      const [sr] = await Promise.allSettled([hasServicios ? Promise.resolve(servicios as ServiceOption[]) : getServiceOptions()]);
+      const [sr] = await Promise.allSettled([
+        hasServicios ? Promise.resolve(servicios as ServiceOption[]) : getServiceOptions(),
+      ]);
 
       if (!alive) return;
 
@@ -188,6 +258,21 @@ export default function ClientCreateRequestModal({
   }, [isOpen, servicios]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
+    setServiceTypeId(null);
+    setServiceId("");
+    setDescription("");
+    setDireccion("");
+    setProgramada(initialDate);
+    setHoraProgramada(initialTime);
+    setHoraFinal(initialEndTime);
+    setTouched({});
+    setSubmitAttempted(false);
+    setSaving(false);
+  }, [isOpen, initialDate, initialTime, initialEndTime]);
+
+  useEffect(() => {
     if (!serviceTypes.length) {
       setServiceTypeId(null);
       return;
@@ -196,46 +281,28 @@ export default function ClientCreateRequestModal({
     setServiceTypeId(serviceTypes[0].id);
   }, [serviceTypes, serviceTypeId]);
 
-  function validate() {
-    const e: Errors = {};
-
-    e.tipo = serviceTypeId ? null : "Selecciona un tipo.";
-    e.serviceId = serviceId !== "" ? null : "Selecciona un servicio.";
-    e.description = description.trim().length >= 3 ? null : "Mínimo 3 caracteres.";
-
-    const dir = (direccion ?? "").trim();
-    if (dir.length < 3) e.direccion = "Mínimo 3 caracteres.";
-    else if (dir.length > 255) e.direccion = "Máximo 255 caracteres.";
-    else e.direccion = null;
-
-    if (programada && !horaProgramada) e.horaProgramada = "Selecciona la hora inicial.";
-    else e.horaProgramada = null;
-
-    if (programada && !horaFinal) e.horaFinal = "Selecciona la hora final.";
-    else e.horaFinal = null;
-
-    if (programada && horaProgramada && horaFinal) {
-      const start = timeToMinutes(horaProgramada);
-      const end = timeToMinutes(horaFinal);
-      if (end <= start) e.horaFinal = "La hora final debe ser mayor que la hora inicial.";
+  useEffect(() => {
+    if (!isOpen) return;
+    if (serviceId === "") return;
+    if (!filteredServicios.some((s) => Number(s.id) === Number(serviceId))) {
+      setServiceId("");
+      markTouched("serviceId");
     }
-
-    setErrors(e);
-    return Object.values(e).every((x) => !x);
-  }
+  }, [isOpen, filteredServicios, serviceId]);
 
   async function submit() {
     if (saving) return;
+
+    setSubmitAttempted(true);
 
     if (loadingLookups) {
       showInfo("Espera a que carguen los servicios.");
       return;
     }
 
-    if (!validate()) return;
+    if (!isValidNow()) return;
 
     if (!selectedType) {
-      setErrors((prev) => ({ ...prev, tipo: "Selecciona un tipo." }));
       showError("Selecciona un tipo de servicio.");
       return;
     }
@@ -299,7 +366,7 @@ export default function ClientCreateRequestModal({
             disabled={saving || loadingLookups}
             title={loadingLookups ? "Cargando servicios..." : undefined}
           >
-            {saving ? "Enviando..." : "Enviar solicitud"}
+            {saving ? "Enviando..." : "Guardar"}
           </button>
         </div>
       }
@@ -331,8 +398,8 @@ export default function ClientCreateRequestModal({
                   key={t.id}
                   type="button"
                   onClick={() => {
+                    markTouched("tipo");
                     setServiceTypeId(t.id);
-                    setErrors((prev) => ({ ...prev, tipo: null }));
                   }}
                   className={[
                     "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
@@ -352,7 +419,9 @@ export default function ClientCreateRequestModal({
             </p>
           )}
 
-          {errors.tipo && <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>}
+          {shouldShowError("tipo") && errors.tipo && (
+            <p className="mt-1 text-xs text-red-600">{errors.tipo}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -361,9 +430,17 @@ export default function ClientCreateRequestModal({
             <div className="relative">
               <select
                 value={serviceId === "" ? "" : String(serviceId)}
-                onChange={(e) => setServiceId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  markTouched("serviceId");
+                  const v = e.target.value ? Number(e.target.value) : "";
+                  setServiceId(v);
+                }}
+                onBlur={() => markTouched("serviceId")}
                 disabled={saving || loadingLookups}
-                className="w-full appearance-none rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+                className={[
+                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  shouldShowError("serviceId") && errors.serviceId ? "border-red-500" : "border-gray-300",
+                ].join(" ")}
               >
                 <option value="">
                   {loadingLookups
@@ -384,7 +461,10 @@ export default function ClientCreateRequestModal({
                 ▾
               </span>
             </div>
-            {errors.serviceId && <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>}
+
+            {shouldShowError("serviceId") && errors.serviceId && (
+              <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>
+            )}
           </div>
         </div>
 
@@ -393,11 +473,20 @@ export default function ClientCreateRequestModal({
             <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
             <input
               value={direccion}
-              onChange={(e) => setDireccion(e.target.value)}
+              onChange={(e) => {
+                markTouched("direccion");
+                setDireccion(e.target.value);
+              }}
+              onBlur={() => markTouched("direccion")}
               placeholder="Ej. Calle 123 #45-67"
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                shouldShowError("direccion") && errors.direccion ? "border-red-500" : "border-gray-300",
+              ].join(" ")}
             />
-            {errors.direccion && <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>}
+            {shouldShowError("direccion") && errors.direccion && (
+              <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
+            )}
           </div>
 
           <div>
@@ -408,9 +497,13 @@ export default function ClientCreateRequestModal({
               onChange={(e) => {
                 const v = e.target.value || null;
                 setProgramada(v);
+
                 if (!v) {
                   setHoraProgramada(null);
                   setHoraFinal(null);
+                } else {
+                  markTouched("horaProgramada");
+                  markTouched("horaFinal");
                 }
               }}
               className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
@@ -424,15 +517,21 @@ export default function ClientCreateRequestModal({
               disabled={!programada}
               value={horaProgramada ?? ""}
               onChange={(e) => {
+                markTouched("horaProgramada");
                 const v = e.target.value || null;
                 setHoraProgramada(v);
+
                 if (programada && v && !horaFinal) {
                   setHoraFinal(addMinutesToTime(v, 60));
                 }
               }}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+              onBlur={() => markTouched("horaProgramada")}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                shouldShowError("horaProgramada") && errors.horaProgramada ? "border-red-500" : "border-gray-300",
+              ].join(" ")}
             />
-            {errors.horaProgramada && (
+            {shouldShowError("horaProgramada") && errors.horaProgramada && (
               <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
             )}
           </div>
@@ -443,10 +542,19 @@ export default function ClientCreateRequestModal({
               type="time"
               disabled={!programada}
               value={horaFinal ?? ""}
-              onChange={(e) => setHoraFinal(e.target.value || null)}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+              onChange={(e) => {
+                markTouched("horaFinal");
+                setHoraFinal(e.target.value || null);
+              }}
+              onBlur={() => markTouched("horaFinal")}
+              className={[
+                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                shouldShowError("horaFinal") && errors.horaFinal ? "border-red-500" : "border-gray-300",
+              ].join(" ")}
             />
-            {errors.horaFinal && <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>}
+            {shouldShowError("horaFinal") && errors.horaFinal && (
+              <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
+            )}
           </div>
         </div>
 
@@ -454,12 +562,21 @@ export default function ClientCreateRequestModal({
           <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              markTouched("description");
+              setDescription(e.target.value);
+            }}
+            onBlur={() => markTouched("description")}
             rows={3}
             placeholder="Describe brevemente la solicitud"
-            className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            className={[
+              "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+              shouldShowError("description") && errors.description ? "border-red-500" : "border-gray-300",
+            ].join(" ")}
           />
-          {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description}</p>}
+          {shouldShowError("description") && errors.description && (
+            <p className="mt-1 text-xs text-red-600">{errors.description}</p>
+          )}
         </div>
       </div>
     </Modal>

@@ -1,7 +1,9 @@
-import { toast, ToastOptions } from 'react-toastify';
+import { toast, ToastOptions, Id } from "react-toastify";
 
-// Configuración por defecto para las notificaciones
+export const APP_TOAST_ID = "app";
+
 const defaultToastOptions: ToastOptions = {
+  containerId: APP_TOAST_ID,
   position: "bottom-right",
   autoClose: 3000,
   hideProgressBar: false,
@@ -11,34 +13,27 @@ const defaultToastOptions: ToastOptions = {
   theme: "light",
 };
 
-// Función para mostrar mensajes de éxito
-export const showSuccess = (message: string, options?: ToastOptions) => {
-  toast.success(message, {
+const mergeOptions = (options?: ToastOptions): ToastOptions => {
+  return {
     ...defaultToastOptions,
-    ...options,
-  });
+    ...(options || {}),
+    containerId: options?.containerId ?? APP_TOAST_ID,
+  };
 };
 
-// Función para mostrar mensajes de error
-export const showError = (message: string, options?: ToastOptions) => {
-  toast.error(message, {
-    ...defaultToastOptions,
-    ...options,
-  });
-};
+export const showSuccess = (message: string, options?: ToastOptions): Id =>
+  toast.success(message, mergeOptions(options));
 
-// Función para mostrar mensajes de advertencia
-export const showWarning = (message: string, options?: ToastOptions) => {
-  toast.warning(message, {
-    ...defaultToastOptions,
-    ...options,
-  });
-};
+export const showError = (message: string, options?: ToastOptions): Id =>
+  toast.error(message, mergeOptions(options));
 
-// Función para mostrar mensajes de información
-export const showInfo = (message: string, options?: ToastOptions) => {
-  toast.info(message, {
-    ...defaultToastOptions,
-    ...options,
-  });
+export const showWarning = (message: string, options?: ToastOptions): Id =>
+  toast.warning(message, mergeOptions(options));
+
+export const showInfo = (message: string, options?: ToastOptions): Id =>
+  toast.info(message, mergeOptions(options));
+
+export const dismissToast = (id?: Id) => {
+  if (id) toast.dismiss(id);
+  else toast.dismiss();
 };

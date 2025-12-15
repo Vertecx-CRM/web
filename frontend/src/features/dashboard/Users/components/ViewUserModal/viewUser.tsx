@@ -47,17 +47,15 @@ const ViewUserModal: React.FC<ViewUserModalProps> = ({
   const customer = user.customers?.[0];
 
   const footer = (
-    <button
-      type="button"
-      onClick={onClose}
-      className="px-4 py-2 rounded-md font-medium text-white text-sm"
-      style={{
-        backgroundColor: Colors.buttons.quaternary,
-        color: Colors.texts.quaternary,
-      }}
-    >
-      Cerrar
-    </button>
+    <div className="flex justify-end w-full">
+      <button
+        type="button"
+        onClick={onClose}
+        className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+      >
+        Cerrar
+      </button>
+    </div>
   );
 
   return (

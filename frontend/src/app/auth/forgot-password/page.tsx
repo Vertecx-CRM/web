@@ -1,30 +1,77 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { api } from "@/lib/api";
 import { routes } from "@/shared/routes";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 
+type FormState = { email: string };
+type FormErrors = { email: string };
+type FormTouched = { email: boolean };
+
+const emptyErrors: FormErrors = { email: "" };
+const emptyTouched: FormTouched = { email: false };
+
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [form, setForm] = useState<FormState>({ email: "" });
+  const [errors, setErrors] = useState<FormErrors>(emptyErrors);
+  const [touched, setTouched] = useState<FormTouched>(emptyTouched);
   const [loading, setLoading] = useState(false);
+
+  const validateEmail = (value: string) => {
+    const v = value.trim();
+    if (!v) return "El correo electrónico es obligatorio";
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(v);
+    if (!ok) return "Ingresa un correo electrónico válido";
+    return "";
+  };
+
+  const validateField = (name: keyof FormState, value: string) => {
+    if (name === "email") return validateEmail(value);
+    return "";
+  };
+
+  const setField = (name: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (touched[name]) {
+      const err = validateField(name, value);
+      setErrors((prev) => ({ ...prev, [name]: err }));
+    }
+  };
+
+  const touchField = (name: keyof FormState) => {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    const err = validateField(name, form[name]);
+    setErrors((prev) => ({ ...prev, [name]: err }));
+  };
+
+  const validateAll = () => {
+    const nextErrors: FormErrors = {
+      email: validateEmail(form.email),
+    };
+    setErrors(nextErrors);
+    setTouched({ email: true });
+    return !nextErrors.email;
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!email.trim()) {
-      showError("El correo es obligatorio");
-      return;
-    }
+    const ok = validateAll();
+    if (!ok) return;
 
     setLoading(true);
     try {
-      await api.post("/auth/forgot-password", { email: email.trim() });
+      await api.post("/auth/forgot-password", { email: form.email.trim() });
       showSuccess(
         "Si el correo existe en nuestro sistema, te enviaremos un enlace para restablecer tu contraseña."
       );
-      setEmail("");
+      setForm({ email: "" });
+      setErrors(emptyErrors);
+      setTouched(emptyTouched);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -35,13 +82,24 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const emailHasError = !!errors.email && touched.email;
+
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto h-12 w-12 rounded-2xl bg-red-600 flex items-center justify-center shadow-sm">
-            <span className="text-white font-bold text-lg">V</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative h-16 w-16 rounded-2xl border border-neutral-200 bg-white shadow-sm">
+              <Image
+                src="/assets/imgs/preview.png"
+                alt="Logo Vertecx"
+                fill
+                className="object-contain p-1 rounded-2xl"
+                priority
+              />
+            </div>
           </div>
+
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
             Recuperar contraseña
           </h1>
@@ -51,21 +109,35 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm">
-          <form onSubmit={handleSubmit} className="p-6">
+          <form noValidate onSubmit={handleSubmit} className="p-6">
             <label className="block text-sm font-medium text-neutral-800 mb-2">
               Correo electrónico
             </label>
 
             <div className="relative">
               <input
-                type="email"
-                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition
-                           focus:border-red-500 focus:ring-4 focus:ring-red-500/15"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                inputMode="email"
+                className={[
+                  "w-full rounded-xl border bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition",
+                  emailHasError
+                    ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-500/15"
+                    : "border-neutral-200 focus:border-red-500 focus:ring-4 focus:ring-red-500/15",
+                ].join(" ")}
+                value={form.email}
+                onChange={(e) => setField("email", e.target.value)}
+                onBlur={() => touchField("email")}
                 placeholder="tucorreo@ejemplo.com"
                 autoComplete="email"
+                aria-invalid={emailHasError}
+                aria-describedby={emailHasError ? "email-error" : undefined}
               />
+
+              {emailHasError ? (
+                <p id="email-error" className="mt-2 text-xs text-red-600">
+                  {errors.email}
+                </p>
+              ) : null}
             </div>
 
             <button
@@ -76,10 +148,6 @@ export default function ForgotPasswordPage() {
             >
               {loading ? "Enviando..." : "Enviar enlace"}
             </button>
-
-            <p className="mt-4 text-xs text-neutral-500 leading-relaxed">
-              Por seguridad, si el correo no existe, verás el mismo mensaje.
-            </p>
           </form>
 
           <div className="border-t border-neutral-200 px-6 py-4 text-center">

@@ -112,7 +112,7 @@ export default function ProductsIndex() {
             </div>
 
             <ProductsTable
-              key={status}
+              status={status}
               products={products}
               onView={(p) => setViewingProduct(p)}
               onEdit={(p) => setEditingProduct(p)}

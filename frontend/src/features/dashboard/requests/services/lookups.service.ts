@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import type { Option } from "@/features/dashboard/requests/types/option.types";
 
 type ServiceApi = {
   serviceid?: number;
@@ -54,6 +54,7 @@ export async function getServiceOptions(): Promise<
         s.typeOfServiceId ??
         s.typeofservice?.typeofserviceid ??
         null;
+
       const typeofserviceid =
         rawTypeId != null && Number.isFinite(Number(rawTypeId)) ? Number(rawTypeId) : null;
 
@@ -62,6 +63,7 @@ export async function getServiceOptions(): Promise<
         s.typeofservice?.typeofservicename ??
         s.typeofservice?.name ??
         null;
+
       const typeofservicename = rawTypeName != null ? String(rawTypeName).trim() : null;
 
       const serviceTypeCode =

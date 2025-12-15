@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import Colors from "@/shared/theme/colors";
 import type { Product } from "@/features/dashboard/products/types/typesProducts";
@@ -22,11 +22,18 @@ type ProductRowForXlsx = {
 
 interface ProductsTableProps {
   products: Product[];
+  status: "active" | "inactive" | "all";
   onView: (product: Product) => void;
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
   onCreate: () => void;
 }
+
+type ProductForTable = Product & {
+  rowNumber: number;
+  stateSearch: "activo" | "inactivo";
+  fullSearch: string;
+};
 
 const cleanText = (v: unknown) => {
   const s = String(v ?? "").trim();
@@ -35,6 +42,20 @@ const cleanText = (v: unknown) => {
   if (lower === "null" || lower === "undefined") return "—";
   return s;
 };
+
+const normalizeText = (v: unknown) => {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const digitsOnly = (v: unknown) => String(v ?? "").replace(/[^\d]/g, "");
+
+const isActiveState = (v: unknown) => normalizeText(v) === "activo";
+const isInactiveState = (v: unknown) => normalizeText(v) === "inactivo";
 
 const Trunc: React.FC<{
   value: unknown;
@@ -66,16 +87,64 @@ const Trunc: React.FC<{
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
+  status,
   onView,
   onEdit,
   onDelete,
   onCreate,
 }) => {
-  const columns: Column<Product>[] = [
+  const productsForTable: ProductForTable[] = useMemo(() => {
+    const sortedProducts = [...products].sort(
+      (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
+    );
+
+    const base =
+      status === "active"
+        ? sortedProducts.filter((p) => isActiveState(p.state))
+        : status === "inactive"
+        ? sortedProducts.filter((p) => isInactiveState(p.state))
+        : sortedProducts;
+
+    return base.map((p, index) => {
+      const stateSearch: "activo" | "inactivo" = isActiveState(p.state)
+        ? "activo"
+        : "inactivo";
+
+      const fullSearchText = [
+        p.id,
+        p.name,
+        p.description,
+        p.categoryName,
+        p.supplierCategory,
+        p.code,
+      ]
+        .map(normalizeText)
+        .join(" ");
+
+      const fullSearchNums = [
+        digitsOnly(p.id),
+        digitsOnly(p.stock),
+        digitsOnly(p.salePrice),
+        digitsOnly(p.supplierPrice),
+        digitsOnly(p.code),
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return {
+        ...p,
+        rowNumber: index + 1,
+        stateSearch,
+        fullSearch: `${fullSearchText} ${fullSearchNums}`.trim(),
+      };
+    });
+  }, [products, status]);
+
+  const columns: Column<ProductForTable>[] = [
     {
-      key: "id",
-      header: "ID",
-      render: (p) => <span className="tabular-nums whitespace-nowrap">{p.id}</span>,
+      key: "rowNumber",
+      header: "#",
+      render: (p) => <span className="tabular-nums whitespace-nowrap">{p.rowNumber}</span>,
     },
     {
       key: "name",
@@ -90,10 +159,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     {
       key: "supplierCategory",
       header: "Cat. proveedor",
-      render: (p) =>
-        <Trunc value={p.supplierCategory} max={24} className="max-w-[170px]" lines={2} />,
+      render: (p) => (
+        <Trunc value={p.supplierCategory} max={24} className="max-w-[170px]" lines={2} />
+      ),
     },
-
     {
       key: "salePrice",
       header: "Precio",
@@ -105,7 +174,6 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         </div>
       ),
     },
-
     {
       key: "stock",
       header: "Stock",
@@ -146,7 +214,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
     },
   ];
 
-  const xlsxRows: ProductRowForXlsx[] = products.map((p) => ({
+  const xlsxRows: ProductRowForXlsx[] = productsForTable.map((p) => ({
     ID: p.id,
     Nombre: cleanText(p.name),
     Descripción: cleanText(p.description),
@@ -164,16 +232,33 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
   return (
     <div className="w-full min-w-0">
-      <DataTable<Product>
+      <DataTable<ProductForTable>
         module="products"
-        data={products}
+        data={productsForTable}
         columns={columns}
         pageSize={10}
-        searchableKeys={["id", "name", "categoryName", "supplierCategory", "state"]}
-        onView={onView}
-        onEdit={onEdit}
-        onDelete={onDelete}
+        searchableKeys={[
+          "name",
+          "categoryName",
+          "supplierCategory",
+          "code",
+          "salePrice",
+          "stock",
+          "fullSearch",
+          "stateSearch",
+        ]}
+        onView={(p) => onView(p)}
+        onEdit={(p) => onEdit(p)}
+        onDelete={status === "inactive" ? undefined : (p) => onDelete(p)}
         onCreate={onCreate}
+        actionGuard={(row) =>
+          status === "all" && isInactiveState(row.state)
+            ? {
+                disableDelete: true,
+                deleteTitle: "No se puede eliminar un producto inactivo",
+              }
+            : {}
+        }
         searchPlaceholder="Buscar productos..."
         createButtonText="Crear Producto"
         rightActions={
@@ -183,15 +268,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 id="download-excel-btn"
                 data={xlsxRows as unknown as Record<string, unknown>[]}
                 fileName="reporte_productos.xlsx"
-                headers={[
-                  "ID",
-                  "Nombre",
-                  "Categoría",
-                  "Cat. proveedor",
-                  "Precio venta",
-                  "Stock",
-                  "Estado",
-                ]}
+                headers={["ID", "Nombre", "Categoría", "Cat. proveedor", "Precio venta", "Stock", "Estado"]}
               />
             </div>
 

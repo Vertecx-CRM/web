@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
+import { showError, showSuccess } from "@/shared/utils/notifications";
 
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
@@ -28,6 +29,31 @@ const ICONS = {
   print: "/icons/printer.svg",
   report: "/icons/alert-triangle.svg",
 };
+
+type FlashToast = { type: "success" | "error" | "warning"; message: string };
+
+function consumeFlashToast(): FlashToast | null {
+  try {
+    const raw = sessionStorage.getItem("flash_toast");
+    if (!raw) return null;
+
+    sessionStorage.removeItem("flash_toast");
+
+    const data = JSON.parse(raw);
+    const type = data?.type;
+    const message = String(data?.message || "").trim();
+
+    if (!message) return null;
+    if (type !== "success" && type !== "error" && type !== "warning") return null;
+
+    return { type, message };
+  } catch {
+    try {
+      sessionStorage.removeItem("flash_toast");
+    } catch {}
+    return null;
+  }
+}
 
 type RowTipo = "Instalación" | "Mantenimiento";
 type LineItem = { nombre: string; cantidad: number; precio?: number };
@@ -388,6 +414,32 @@ export default function OrdersServicesIndexPage() {
 
   const bodyOverflowRef = useRef<string | null>(null);
 
+  // ✅ Disparar notificación al aterrizar desde /new (flash toast)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const toast = consumeFlashToast();
+    if (!toast) return;
+
+    if (toast.type === "success") {
+      showSuccess(toast.message);
+      return;
+    }
+
+    if (toast.type === "error") {
+      showError(toast.message);
+      return;
+    }
+
+    // warning
+    Swal.fire({
+      icon: "warning",
+      title: "Atención",
+      text: toast.message,
+      confirmButtonColor: "#B20000",
+    });
+  }, []);
+
   const reloadOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -513,20 +565,11 @@ export default function OrdersServicesIndexPage() {
       setBusy(true);
       try {
         await markOrderServiceWarranty(row.id);
-        await Swal.fire({
-          icon: "success",
-          title: "Listo",
-          text: `La orden #${row.id} quedó marcada en garantía.`,
-          confirmButtonColor: "#B20000",
-        });
+        showSuccess(`La orden #${row.id} quedó marcada en garantía.`);
         await reloadOrders();
       } catch (e: any) {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo marcar la garantía.",
-          confirmButtonColor: "#B20000",
-        });
+        const message = e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo marcar la garantía.";
+        showError(message);
       } finally {
         setBusy(false);
       }
@@ -543,43 +586,48 @@ export default function OrdersServicesIndexPage() {
     setReportOpen(true);
   }, []);
 
-  const submitReport = useCallback(async () => {
-    if (!detalle.trim()) {
-      setErrorDetalle("Describe qué pasó");
-      return;
-    }
-    if (reportRowId == null) return;
+  const submitReport = useCallback(
+    async () => {
+      if (!detalle.trim()) {
+        setErrorDetalle("Describe qué pasó");
+        return;
+      }
+      if (reportRowId == null) return;
 
-    setBusy(true);
-    try {
-      await reportOrderServiceWarranty(reportRowId, {
-        label: motivo,
-        details: detalle.trim(),
-        notifiedClient: notifyClient,
-      });
+      setBusy(true);
+      try {
+        await reportOrderServiceWarranty(reportRowId, {
+          label: motivo,
+          details: detalle.trim(),
+          notifiedClient: notifyClient,
+        });
 
-      setReportOpen(false);
+        setReportOpen(false);
 
-      await Swal.fire({
-        icon: "success",
-        title: "Reporte guardado",
-        text: `Se registró el reporte de garantía para la orden #${reportRowId}.`,
-        confirmButtonColor: "#B20000",
-      });
+        await Swal.fire({
+          icon: "success",
+          title: "Reporte guardado",
+          text: `Se registró el reporte de garantía para la orden #${reportRowId}.`,
+          confirmButtonColor: "#B20000",
+        });
 
-      await reloadOrders();
-    } catch (e: any) {
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text:
-          e?.response?.data?.message?.[0] || e?.response?.data?.message || "No se pudo guardar el reporte de garantía.",
-        confirmButtonColor: "#B20000",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }, [detalle, motivo, notifyClient, reportRowId, reloadOrders]);
+        await reloadOrders();
+      } catch (e: any) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text:
+            e?.response?.data?.message?.[0] ||
+            e?.response?.data?.message ||
+            "No se pudo guardar el reporte de garantía.",
+          confirmButtonColor: "#B20000",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [detalle, motivo, notifyClient, reportRowId, reloadOrders]
+  );
 
   const openHistory = useCallback((row: Row) => {
     setHistoryOrderId(row.id);
@@ -921,7 +969,9 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
         header: "Estado",
         render: (r) => {
           if (r.estado === "GarantiaReportada") {
-            const fecha = r.garantia?.reportedAtISO ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO") : "";
+            const fecha = r.garantia?.reportedAtISO
+              ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO")
+              : "";
             const title = r.garantia
               ? `Motivo: ${r.garantia.label} · Reportado por: ${r.garantia.reportedBy}${fecha ? " · " + fecha : ""}`
               : "Garantía (reportada)";

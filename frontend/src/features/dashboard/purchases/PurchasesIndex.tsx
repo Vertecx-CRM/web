@@ -135,6 +135,18 @@ export default function PurchasesIndex() {
     []
   );
 
+  const buildSearchablePurchases = (purchases: IPurchase[]) => {
+    return purchases.map((purchase) => ({
+      ...purchase,
+      supplierName: purchase.supplier?.name ?? "",
+    }));
+  };
+
+  const purchasesForSearch = useMemo(
+    () => buildSearchablePurchases(purchases),
+    [purchases]
+  );
+
   // Memorizar las funciones de callback con dependencias específicas
   const handleCreate = useCallback(() => {
     resetForm();
@@ -146,8 +158,17 @@ export default function PurchasesIndex() {
     setDetailModalOpen(true);
   }, []);
 
+  console.log("purchases:", purchases);
+
   const searchableKeys = useMemo(
-    () => ["numberoforder", "reference", "createdat", "amount"],
+    () => [
+      "numberoforder",
+      "reference",
+      "supplierName",
+      "createdat",
+      "amount",
+      "state",
+    ],
     []
   );
 
@@ -263,7 +284,7 @@ export default function PurchasesIndex() {
     return (
       <DataTable
         module="purchases"
-        data={purchases}
+        data={purchasesForSearch}
         columns={columns}
         searchableKeys={searchableKeys}
         pageSize={8}
