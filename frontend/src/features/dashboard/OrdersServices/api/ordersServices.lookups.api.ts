@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { AxiosRequestConfig } from "axios";
 import { api } from "@/lib/api";
 
 type LookupsResponse = {
@@ -16,11 +17,11 @@ type LookupsResponse = {
   pendingState?: any;
 };
 
-async function tryGet<T = any>(paths: string[]) {
+async function tryGet<T = any>(paths: string[], config?: AxiosRequestConfig) {
   let lastErr: any = null;
   for (const p of paths) {
     try {
-      const res = await api.get<T>(p);
+      const res = await api.get<T>(p, config);
       return res;
     } catch (e: any) {
       lastErr = e;
@@ -84,7 +85,9 @@ export function useOrdersServicesLookups() {
 
     const fallback = async () => {
       const [cRes, tRes, pRes, sRes, typesRes] = await Promise.all([
-        tryGet<any>(["api/customers", "/api/customers", "customers", "/customers"]),
+        tryGet<any>(["api/customers", "/api/customers", "customers", "/customers"], {
+          params: { includeRelations: true },
+        }),
         tryGet<any>(["api/technicians", "/api/technicians", "technicians", "/technicians"]),
         tryGet<any>(["api/products", "/api/products", "products", "/products"]),
         tryGet<any>([
