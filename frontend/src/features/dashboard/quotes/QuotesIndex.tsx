@@ -21,7 +21,7 @@ import {
 import { QuoteTableRow } from "./types/Quote.type";
 
 /* ================================
- * NORMALIZACIÓN DE ESTADOS
+ * NORMALIZACIÓN DE ESTADOS (VISUAL)
  * ================================ */
 type QuoteStatusConfig = {
   label: string;
@@ -35,11 +35,11 @@ const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
 
   const value = status.toLowerCase();
 
-  if (value.includes("pendient")) {
+  if (value.includes("pend")) {
     return { label: "Pendiente", className: "text-yellow-600" };
   }
 
-  if (value.includes("approved")) {
+  if (value.includes("aprob") || value.includes("approved")) {
     return { label: "Aprobada", className: "text-green-600" };
   }
 
@@ -52,6 +52,22 @@ const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
   }
 
   return { label: status, className: "text-slate-500" };
+};
+
+/* ================================
+ * ESTADO EN ESPAÑOL (BÚSQUEDA)
+ * ================================ */
+const normalizeQuoteStatusText = (status?: string): string => {
+  if (!status) return "";
+
+  const value = status.toLowerCase();
+
+  if (value.includes("pend")) return "pendiente";
+  if (value.includes("aprob") || value.includes("approved")) return "aprobada";
+  if (value.includes("cancel")) return "cancelada";
+  if (value.includes("revoke") || value.includes("anul")) return "anulada";
+
+  return value;
 };
 
 export default function QuotesIndex() {
@@ -70,19 +86,24 @@ export default function QuotesIndex() {
 
     const data = await getQuotes();
 
-    const mapped: QuoteTableRow[] = data.map((q: any) => ({
-      id: q.quotesid,
-      client: `${q.customer?.users?.name ?? ""} ${
-        q.customer?.users?.lastname ?? ""
-      }`,
-      technician: `${q.technician?.users?.name ?? ""} ${
-        q.technician?.users?.lastname ?? ""
-      }`,
-      status: q.state?.name ?? "—",
-      creationDate: q.createdat,
-      amount: Number(q.total),
-      raw: q,
-    }));
+    const mapped: QuoteTableRow[] = data.map((q: any) => {
+      const rawStatus = q.state?.name ?? "";
+
+      return {
+        id: q.quotesid,
+        client: `${q.customer?.users?.name ?? ""} ${
+          q.customer?.users?.lastname ?? ""
+        }`,
+        technician: `${q.technician?.users?.name ?? ""} ${
+          q.technician?.users?.lastname ?? ""
+        }`,
+        status: rawStatus, // render
+        statusSearch: normalizeQuoteStatusText(rawStatus), // 🔑 búsqueda en español
+        creationDate: q.createdat,
+        amount: Number(q.total),
+        raw: q,
+      };
+    });
 
     setQuotesData(mapped);
     setLoading(false);
@@ -109,7 +130,6 @@ export default function QuotesIndex() {
       header: "Estado",
       render: (row) => {
         const config = normalizeQuoteStatus(row.status);
-
         return (
           <span className={`font-semibold ${config.className}`}>
             {config.label}
@@ -180,9 +200,9 @@ export default function QuotesIndex() {
    * ANULAR (ADMIN)
    * ================================ */
   const handleRevokeQuote = async (row: QuoteTableRow) => {
-    const status = row.status?.toLowerCase();
+    const status = row.statusSearch;
 
-    if (!status?.includes("aprob")) {
+    if (status !== "aprobada") {
       await Swal.fire({
         icon: "warning",
         title: "Acción no permitida",
@@ -240,7 +260,14 @@ export default function QuotesIndex() {
           data={quotesData}
           columns={columns}
           loading={loading}
-          searchableKeys={["client", "technician", "status"]}
+          searchableKeys={[
+            "id",
+            "client",
+            "technician",
+            "statusSearch", // 👈 estado en español
+            "amount",
+            "creationDate",
+          ]}
           pageSize={8}
           onView={(row) => {
             setSelectedQuote(row.raw);
