@@ -39,6 +39,8 @@ type Props = {
   clientLabel?: string;
   initialServiceId?: number | null;
   initialDireccion?: string | null;
+  pendingStateId?: number | null;
+  scheduledStateId?: number | null;
 };
 
 type ErrorKey = "tipo" | "serviceId" | "description" | "direccion";
@@ -62,6 +64,8 @@ export default function ClientCreateRequestModal({
   clientLabel,
   initialServiceId = null,
   initialDireccion,
+  pendingStateId = null,
+  scheduledStateId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
@@ -256,13 +260,20 @@ export default function ClientCreateRequestModal({
     try {
       setSaving(true);
 
+      const stateIdToSend =
+        pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0
+          ? pendingStateId
+          : scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0
+          ? scheduledStateId
+          : 5;
+
       const payload: CreateRequestPayload = {
         scheduledAt: null,
         scheduledEndAt: null,
         serviceType: selectedType.code,
         description: String(description || "").trim(),
         direccion: String(direccion || "").trim(),
-        stateId: 5,
+        stateId: stateIdToSend,
         serviceId: sid,
         clientId,
       };

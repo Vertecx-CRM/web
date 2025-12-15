@@ -49,6 +49,8 @@ type Props = {
   initialDate?: string | null;
   initialTime?: string | null;
   initialEndTime?: string | null;
+  pendingStateId?: number | null;
+  scheduledStateId?: number | null;
 };
 
 type ErrorKey =
@@ -165,6 +167,8 @@ export default function CreateRequestModal({
   initialDate = null,
   initialTime = null,
   initialEndTime = null,
+  pendingStateId = null,
+  scheduledStateId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
@@ -657,6 +661,13 @@ export default function CreateRequestModal({
     const scheduledAt = toIsoFromLocalDateTime(programada, horaProgramada);
     const scheduledEndAt = toIsoFromLocalDateTime(programada, horaFinal);
 
+    const stateIdToSend =
+      scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0
+        ? scheduledStateId
+        : pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0
+        ? pendingStateId
+        : 5;
+
     const payload: CreateRequestPayload = {
       serviceType: selectedType.code,
       serviceId: Number(serviceId),
@@ -665,7 +676,7 @@ export default function CreateRequestModal({
       direccion: String(direccion ?? "").trim().slice(0, 255),
       scheduledAt,
       scheduledEndAt,
-      stateId: 5,
+      stateId: stateIdToSend,
       technicians: selectedTechnicians,
     };
 

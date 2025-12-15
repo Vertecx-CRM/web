@@ -35,6 +35,17 @@ function findPendingStateId(statesPayload: any) {
   return Number.isFinite(n) ? n : null;
 }
 
+function findScheduledStateId(statesPayload: any) {
+  const states = asList(statesPayload);
+  const scheduled = states.find((s: any) => {
+    const name = normalizeKey(s?.name ?? s?.state ?? s?.label ?? s?.statename ?? "");
+    return name.includes("agend");
+  });
+  const id = scheduled?.stateid ?? scheduled?.id;
+  const n = Number(id);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function useOrdersServicesLookups() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +56,7 @@ export function useOrdersServicesLookups() {
   const [services, setServices] = useState<any[]>([]);
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [pendingStateId, setPendingStateId] = useState<number | null>(null);
+  const [scheduledStateId, setScheduledStateId] = useState<number | null>(null);
 
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -108,8 +120,13 @@ export function useOrdersServicesLookups() {
     }
 
     const statesRes = reqs[5];
-    if (statesRes.status === "fulfilled") setPendingStateId(findPendingStateId(statesRes.value.data));
-    else setPendingStateId(null);
+    if (statesRes.status === "fulfilled") {
+      setPendingStateId(findPendingStateId(statesRes.value.data));
+      setScheduledStateId(findScheduledStateId(statesRes.value.data));
+    } else {
+      setPendingStateId(null);
+      setScheduledStateId(null);
+    }
 
     if (failed.length) {
       const firstErr =
@@ -140,5 +157,16 @@ export function useOrdersServicesLookups() {
     return () => controllerRef.current?.abort();
   }, [refresh]);
 
-  return { loading, error, customers, technicians, products, services, serviceTypes, pendingStateId, refresh };
+  return {
+    loading,
+    error,
+    customers,
+    technicians,
+    products,
+    services,
+    serviceTypes,
+    pendingStateId,
+    scheduledStateId,
+    refresh,
+  };
 }

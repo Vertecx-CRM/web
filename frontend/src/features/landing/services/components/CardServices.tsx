@@ -12,6 +12,7 @@ import {
 } from "@/features/dashboard/requests/services/servicerequests.service";
 import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
 import { useAuth } from "@/features/auth/authcontext";
+import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 
 interface CardServicesProps {
   title: string;
@@ -51,6 +52,7 @@ export default function CardServices({
   const [open, setOpen] = useState(false);
 
   const { ready, isAuthenticated } = useAuth();
+  const { pendingStateId, scheduledStateId } = useRequestStates();
 
   const serviceType = useMemo(() => resolveServiceType(category), [category]);
 
@@ -69,13 +71,18 @@ export default function CardServices({
   const handleCloseModal = () => setOpen(false);
 
   const handleSave = async (data: CreateRequestPayload) => {
+    const stateIdToSend =
+      (scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0 && scheduledStateId) ||
+      (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+      5;
+
     const payload: CreateServiceRequestInput = {
       scheduledAt: data.scheduledAt ?? null,
       scheduledEndAt: data.scheduledEndAt ?? null,
       serviceType: (data.serviceType as any) ?? serviceType,
       description: String(data.description ?? "").trim(),
       direccion: String(data.direccion ?? "").trim(),
-      stateId: 5,
+      stateId: stateIdToSend,
       serviceId: Number(serviceId),
       clientId: Number(clientId) || 0,
       technicians: [],
@@ -145,6 +152,8 @@ export default function CardServices({
         clientId={Number(clientId) || 0}
         clientLabel={clientLabel}
         initialServiceId={serviceId}
+        pendingStateId={pendingStateId ?? undefined}
+        scheduledStateId={scheduledStateId ?? undefined}
       />
     </>
   );

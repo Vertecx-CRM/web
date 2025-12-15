@@ -27,6 +27,7 @@ import {
 import { ToastContainer } from "react-toastify";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButton";
+import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 
 const ICONS = {
   print: "/icons/printer.svg",
@@ -130,6 +131,7 @@ export default function ServiceRequestsPage() {
 
   const queryClient = useQueryClient();
   const { serviceOptions, customerOptions } = useLookups();
+  const { pendingStateId, scheduledStateId } = useRequestStates();
 
   const { data, isLoading, error } = useServiceRequests();
   const createMut = useCreateServiceRequest();
@@ -324,6 +326,10 @@ export default function ServiceRequestsPage() {
     setActionLoading(true);
     try {
       const v: any = values as any;
+      const stateIdToSend =
+        (scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0 && scheduledStateId) ||
+        (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+        5;
 
       const dto = {
         scheduledAt: v?.scheduledAt ?? null,
@@ -332,7 +338,7 @@ export default function ServiceRequestsPage() {
           v?.serviceType ?? tipoToBackend(Array.isArray(v?.tipos) ? v?.tipos?.[0] : undefined),
         description: (v?.description ?? v?.descripcion ?? "").trim(),
         direccion: (v?.direccion ?? "").trim(),
-        stateId: 5,
+        stateId: stateIdToSend,
         serviceId: Number(v?.serviceId ?? parseMaybeId(String(v?.servicio ?? ""))),
         clientId: Number(v?.clientId ?? parseMaybeId(String(v?.cliente ?? ""))),
         technicians: Array.isArray(v?.technicians) ? v.technicians : [],
@@ -408,11 +414,20 @@ export default function ServiceRequestsPage() {
         technicians,
       };
 
-      const stateIdNum = v?.stateId
-        ? Number(v.stateId)
-        : v?.estado
-        ? parseMaybeId(String(v.estado))
-        : 0;
+      let stateIdNum =
+        v?.stateId && Number.isFinite(Number(v.stateId))
+          ? Number(v.stateId)
+          : v?.estado
+          ? parseMaybeId(String(v.estado))
+          : 0;
+
+      if (!stateIdNum && scheduledAt) {
+        const fallbackState =
+          (scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0 && scheduledStateId) ||
+          (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+          0;
+        stateIdNum = fallbackState;
+      }
 
       if (stateIdNum > 0) payload.stateId = stateIdNum;
 
@@ -679,6 +694,8 @@ export default function ServiceRequestsPage() {
           title="Crear Solicitud"
           servicios={serviceOptions}
           clientes={customerOptions}
+          pendingStateId={pendingStateId ?? undefined}
+          scheduledStateId={scheduledStateId ?? undefined}
         />
 
         {openEdit &&
