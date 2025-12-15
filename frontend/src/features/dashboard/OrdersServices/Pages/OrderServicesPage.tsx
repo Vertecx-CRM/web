@@ -66,7 +66,7 @@ type WarrantyInfo = {
   notifiedClient?: boolean;
 };
 
-type Estado = "Aprobada" | "Anulada" | "Pendiente" | "Garantia" | "GarantiaReportada";
+type Estado = "Aprobada" | "Anulada" | "Pendiente" | "Agendada" | "Garantia" | "GarantiaReportada";
 
 type TechnicianOption = { technicianid: number; label: string };
 type OrderFile = { label?: string; url: string };
@@ -124,6 +124,7 @@ function EstadoText({ v }: { v: Estado }) {
   const STYLE: Record<Estado, string> = {
     Aprobada: "text-green-700",
     Pendiente: "text-yellow-700",
+    Agendada: "text-sky-700",
     Anulada: "text-red-700",
     Garantia: "text-blue-700",
     GarantiaReportada: "text-blue-700",
@@ -183,6 +184,7 @@ function mapEstadoFromBackend(name?: string | null): Estado {
   const n = (name || "").toLowerCase();
   if (n.includes("anul") || n.includes("revoke") || n.includes("cancel")) return "Anulada";
   if (n.includes("aprob") || n.includes("approved")) return "Aprobada";
+  if (n.includes("agend")) return "Agendada";
   if (n.includes("pend")) return "Pendiente";
   if (n.includes("garan") && (n.includes("report") || n.includes("rep"))) return "GarantiaReportada";
   if (n.includes("garan")) return "Garantia";

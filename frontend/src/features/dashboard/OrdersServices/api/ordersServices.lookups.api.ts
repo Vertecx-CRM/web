@@ -14,6 +14,8 @@ type LookupsResponse = {
   types?: any;
   pendingStateId?: number | null;
   pendingState?: any;
+  scheduledStateId?: number | null;
+  scheduledState?: any;
 };
 
 async function tryGet<T = any>(paths: string[]) {
@@ -67,6 +69,16 @@ function findPendingStateId(statesLike: any) {
   return typeof id === "number" ? id : null;
 }
 
+function findScheduledStateId(statesLike: any) {
+  const states = unwrapList(statesLike);
+  const scheduled = states.find((s: any) => {
+    const name = normalizeKey(s?.name ?? s?.state ?? s?.label ?? "");
+    return name.includes("agend");
+  });
+  const id = scheduled?.stateid ?? scheduled?.id;
+  return typeof id === "number" ? id : null;
+}
+
 export function useOrdersServicesLookups() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +89,7 @@ export function useOrdersServicesLookups() {
   const [services, setServices] = useState<any[]>([]);
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
   const [pendingStateId, setPendingStateId] = useState<number | null>(null);
+  const [scheduledStateId, setScheduledStateId] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -117,8 +130,10 @@ export function useOrdersServicesLookups() {
       try {
         const statesRes = await tryGet<any>(["api/states", "/api/states", "states", "/states"]);
         pending = findPendingStateId(statesRes.data);
+        setScheduledStateId(findScheduledStateId(statesRes.data));
       } catch {
         pending = null;
+        setScheduledStateId(null);
       }
 
       setCustomers(unwrapList(cRes.data));
@@ -147,9 +162,14 @@ export function useOrdersServicesLookups() {
       const typesRaw = data.serviceTypes ?? data.tiposServicio ?? data.types ?? [];
 
       let pending: number | null = null;
+      let scheduled: number | null = null;
       if (typeof data.pendingStateId === "number") pending = data.pendingStateId;
       else if (typeof data.pendingState?.stateid === "number") pending = data.pendingState.stateid;
       else if (typeof data.pendingState?.id === "number") pending = data.pendingState.id;
+
+      if (typeof data.scheduledStateId === "number") scheduled = data.scheduledStateId;
+      else if (typeof data.scheduledState?.stateid === "number") scheduled = data.scheduledState.stateid;
+      else if (typeof data.scheduledState?.id === "number") scheduled = data.scheduledState.id;
 
       setCustomers(unwrapList(cs));
       setTechnicians(unwrapList(ts));
@@ -202,6 +222,7 @@ export function useOrdersServicesLookups() {
       }
 
       setPendingStateId(pending ?? null);
+      setScheduledStateId(scheduled ?? findScheduledStateId(data));
       setError(null);
     } catch (e: any) {
       const status = e?.response?.status;
@@ -216,6 +237,7 @@ export function useOrdersServicesLookups() {
           setServices([]);
           setServiceTypes([]);
           setPendingStateId(null);
+          setScheduledStateId(null);
         }
       } else {
         setError(String(pickErrorMessage(e)));
@@ -225,6 +247,7 @@ export function useOrdersServicesLookups() {
         setServices([]);
         setServiceTypes([]);
         setPendingStateId(null);
+        setScheduledStateId(null);
       }
     } finally {
       setLoading(false);
@@ -235,5 +258,16 @@ export function useOrdersServicesLookups() {
     refresh();
   }, [refresh]);
 
-  return { loading, error, customers, technicians, products, services, serviceTypes, pendingStateId, refresh };
+  return {
+    loading,
+    error,
+    customers,
+    technicians,
+    products,
+    services,
+    serviceTypes,
+    pendingStateId,
+    scheduledStateId,
+    refresh,
+  };
 }
