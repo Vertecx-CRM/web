@@ -55,3 +55,15 @@ export const getProductsForQuote = async (): Promise<any> => {
     throw error;
   }
 };
+
+export const getServicesRequestsForQuote = async (): Promise<any> => {
+  try {
+    const { data } = await api.get("/service-requests");
+    return data;
+  } catch (error) {
+    console.error("Error al obtener las solicitudes de servicio:", error);
+    showError("Error al obtener las solicitudes de servicio");
+    throw error;
+  }
+};
+  

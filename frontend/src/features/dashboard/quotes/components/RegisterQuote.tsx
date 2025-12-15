@@ -5,29 +5,37 @@ import Colors from "@/shared/theme/colors";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import { QuoteCreatePayload, QuoteDetailPayload } from "../types/Quote.type";
 import { api } from "@/shared/utils/apiClient";
+import { getServicesRequestsForQuote } from "../api/quotes.api";
 
 /* ================================
  * TIPOS
  * ================================ */
-type CustomerFromApi = {
-  customerid: number;
-  users: {
-    name: string;
-    lastname: string;
-    documentnumber: string;
-    email: string;
+type ServiceRequestFromApi = {
+  serviceRequestId: number;
+  serviceType: string;
+  description: string;
+  direccion: string;
+  customer: {
+    customerid: number;
+    users: {
+      name: string;
+      lastname: string;
+      documentnumber: string;
+      email: string;
+    };
   };
-};
-
-type TechnicianFromApi = {
-  technicianid: number;
-  users: {
-    name: string;
-    lastname: string;
-    documentnumber: string;
-    email: string;
-    stateid?: number;
-  };
+  techniciansMap: Array<{
+    technician: {
+      technicianid: number;
+      users: {
+        name: string;
+        lastname: string;
+        documentnumber: string;
+        email: string;
+        stateid?: number;
+      };
+    };
+  }>;
 };
 
 type ProductFromApi = {
@@ -38,17 +46,13 @@ type ProductFromApi = {
   isactive: boolean;
 };
 
-const ACTIVE_TECHNICIAN_STATE_ID = 1;
-
 /* ================================
  * ESTADO DEL FORMULARIO
  * ================================ */
 interface QuoteFormState {
-  serviceRequestId: number;
-  customerid: number | "";
-  technicianid: number | "";
+  serviceRequestId: number | "";
   statesid: number;
-  servicetype: "MANTENIMIENTO" | "INSTALACION" | "";
+  servicetype: string;
   observation: string;
   details: QuoteDetailPayload[];
 }
@@ -62,30 +66,22 @@ export default function RegisterQuoteForm({ onSave }: Props) {
    * STATE PRINCIPAL
    * ================================ */
   const [form, setForm] = useState<QuoteFormState>({
-    serviceRequestId: 17,
-    customerid: "",
-    technicianid: "",
-    statesid: 5,
+    serviceRequestId: "",
+    statesid: 5, // Estado por defecto: Pendiente
     servicetype: "",
     observation: "",
     details: [],
   });
 
   /* ================================
-   * CLIENTES
+   * SOLICITUDES DE SERVICIO
    * ================================ */
-  const [customers, setCustomers] = useState<CustomerFromApi[]>([]);
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [showCustomerList, setShowCustomerList] = useState(false);
-  const customerRef = useRef<HTMLDivElement>(null);
-
-  /* ================================
-   * TÉCNICOS
-   * ================================ */
-  const [technicians, setTechnicians] = useState<TechnicianFromApi[]>([]);
-  const [technicianSearch, setTechnicianSearch] = useState("");
-  const [showTechnicianList, setShowTechnicianList] = useState(false);
-  const technicianRef = useRef<HTMLDivElement>(null);
+  const [serviceRequests, setServiceRequests] = useState<
+    ServiceRequestFromApi[]
+  >([]);
+  const [selectedServiceRequest, setSelectedServiceRequest] =
+    useState<ServiceRequestFromApi | null>(null);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
 
   /* ================================
    * PRODUCTOS
@@ -101,33 +97,21 @@ export default function RegisterQuoteForm({ onSave }: Props) {
   /* ================================
    * DETALLE ACTUAL
    * ================================ */
-const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
-  productid: null,
-  description: "",
-  quantity: 1,
-  unitprice: 0,
-  subtotal: 0,
-  availability: "DISPONIBLE",
-  isBackorder: false,
-});
+  const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
+    productid: null,
+    description: "",
+    quantity: 1,
+    unitprice: 0,
+    subtotal: 0,
+    availability: "DISPONIBLE",
+    isBackorder: false,
+  });
 
   /* ================================
    * EFECTOS PARA CERRAR LISTAS AL HACER CLICK AFUERA
    * ================================ */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        customerRef.current &&
-        !customerRef.current.contains(event.target as Node)
-      ) {
-        setShowCustomerList(false);
-      }
-      if (
-        technicianRef.current &&
-        !technicianRef.current.contains(event.target as Node)
-      ) {
-        setShowTechnicianList(false);
-      }
       if (
         productRef.current &&
         !productRef.current.contains(event.target as Node)
@@ -141,43 +125,58 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
   }, []);
 
   /* ================================
-   * CARGA DE DATOS
+   * CARGA DE DATOS INICIAL
    * ================================ */
   useEffect(() => {
-    api.get("/customers").then((r) => setCustomers(r.data));
-    api
-      .get("/technicians")
-      .then((r) =>
-        setTechnicians(
-          (r.data ?? []).filter(
-            (tech) => tech.users?.stateid === ACTIVE_TECHNICIAN_STATE_ID
-          )
-        )
-      );
-    api.get("/products?status=all").then((r) => setProducts(r.data));
+    const loadData = async () => {
+      try {
+        // Cargar solicitudes de servicio
+        const requests = await getServicesRequestsForQuote();
+        setServiceRequests(requests);
+
+        // Cargar productos
+        const productsResponse = await api.get("/products?status=all");
+        setProducts(productsResponse.data);
+      } catch (error) {
+        showError("Error al cargar los datos iniciales");
+        console.error(error);
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    loadData();
   }, []);
 
   /* ================================
-   * FILTROS
+   * MANEJO DE SELECCIÓN DE SERVICE REQUEST
    * ================================ */
-  const filteredCustomers = useMemo(() => {
-    const q = customerSearch.toLowerCase();
-    return customers.filter((c) =>
-      `${c.users.name} ${c.users.lastname} ${c.users.documentnumber}`
-        .toLowerCase()
-        .includes(q)
+  const handleServiceRequestChange = (serviceRequestId: number) => {
+    const selected = serviceRequests.find(
+      (req) => req.serviceRequestId === serviceRequestId
     );
-  }, [customerSearch, customers]);
 
-  const filteredTechnicians = useMemo(() => {
-    const q = technicianSearch.toLowerCase();
-    return technicians.filter((t) =>
-      `${t.users.name} ${t.users.lastname} ${t.users.documentnumber}`
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [technicianSearch, technicians]);
+    if (!selected) {
+      setSelectedServiceRequest(null);
+      setForm((prev) => ({
+        ...prev,
+        serviceRequestId: "",
+        servicetype: "",
+      }));
+      return;
+    }
 
+    setSelectedServiceRequest(selected);
+    setForm((prev) => ({
+      ...prev,
+      serviceRequestId: selected.serviceRequestId,
+      servicetype: selected.serviceType,
+    }));
+  };
+
+  /* ================================
+   * FILTROS DE PRODUCTOS
+   * ================================ */
   const filteredProducts = useMemo(() => {
     const q = productSearch.toLowerCase();
     return products.filter(
@@ -220,15 +219,18 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
     product: ProductFromApi,
     isBackorder: boolean
   ) => {
+    const unitprice = Number(product.productpriceofsale);
+
     setDetailForm({
       productid: product.productid,
       description: product.productname,
       quantity: 1,
-      unitprice: product.productpriceofsale,
-      subtotal: product.productpriceofsale,
+      unitprice,
+      subtotal: unitprice,
       availability: isBackorder ? "SOLICITAR" : "DISPONIBLE",
       isBackorder,
     });
+
     setProductSearch(product.productname);
     setShowProductList(false);
     setPendingBackorderProduct(null);
@@ -273,10 +275,8 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
     // Configurar disponibilidad basada en el tipo de producto
     let availability = detailForm.availability;
     if (isManualProduct) {
-      // Producto manual: stock 0, se solicita comprar
       availability = "SOLICITAR";
     } else if (detailForm.productid === null) {
-      // Producto no seleccionado de la lista
       availability = "NO_DISPONIBLE";
     }
 
@@ -290,7 +290,10 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
 
     setForm((prev) => {
       const updatedDetails = [...prev.details];
-      const normalizedDescription = normalizeDescription(detailPayload.description);
+      const normalizedDescription = normalizeDescription(
+        detailPayload.description
+      );
+
       if (detailPayload.productid !== null) {
         const existingIndex = updatedDetails.findIndex(
           (d) => d.productid === detailPayload.productid
@@ -365,8 +368,8 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.customerid || !form.technicianid || !form.servicetype) {
-      showError("Cliente, técnico y tipo de servicio son obligatorios");
+    if (!form.serviceRequestId || !form.servicetype) {
+      showError("Debe seleccionar una solicitud de servicio");
       return;
     }
 
@@ -375,152 +378,189 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
       return;
     }
 
+    // Preparar el payload según la especificación del endpoint
     const payload: QuoteCreatePayload = {
-      serviceRequestId: form.serviceRequestId,
-      customerid: Number(form.customerid),
-      technicianid: Number(form.technicianid),
+      serviceRequestId: Number(form.serviceRequestId),
       statesid: form.statesid,
-      servicetype: form.servicetype,
+      servicetype: form.servicetype as "MANTENIMIENTO" | "INSTALACION",
       observation: form.observation,
-      subtotal,
-      tax,
-      total,
       details: form.details.map(({ isBackorder, ...detail }) => ({
         ...detail,
-        // Asegurar que productos manuales tengan productid null
-        productid: detail.productid === undefined ? null : detail.productid,
+        productid: detail.productid ?? null,
       })),
     };
 
-    await onSave?.(payload);
-    showSuccess("Cotización guardada exitosamente");
-    // Resetear formulario
-    setForm({
-      serviceRequestId: 17,
-      customerid: "",
-      technicianid: "",
-      statesid: 5,
-      servicetype: "",
-      observation: "",
-      details: [],
-    });
+    try {
+      await onSave?.(payload);
+      showSuccess("Cotización guardada exitosamente");
+
+      // Resetear formulario
+      setForm({
+        serviceRequestId: "",
+        statesid: 5,
+        servicetype: "",
+        observation: "",
+        details: [],
+      });
+      setSelectedServiceRequest(null);
+      setDetailForm({
+        productid: null,
+        description: "",
+        quantity: 1,
+        unitprice: 0,
+        subtotal: 0,
+        availability: "DISPONIBLE",
+        isBackorder: false,
+      });
+    } catch (error) {
+      showError("Error al guardar la cotización");
+    }
   };
 
   /* ================================
    * RENDER
    * ================================ */
+  if (isLoadingRequests) {
+    return (
+      <div className="flex items-center justify-center p-10">
+        <div className="text-gray-500">Cargando datos...</div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-5 text-sm">
-      {/* TIPO DE SERVICIO */}
+      {/* SOLICITUD DE SERVICIO */}
       <div>
-        <label className="block mb-1 font-medium">Tipo de servicio *</label>
+        <label className="block mb-1 font-medium">
+          Solicitud de servicio *
+        </label>
         <select
-          value={form.servicetype}
-          onChange={(e) =>
-            setForm({ ...form, servicetype: e.target.value as any })
-          }
+          value={form.serviceRequestId}
+          onChange={(e) => handleServiceRequestChange(Number(e.target.value))}
           className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         >
-          <option value="">Seleccione un tipo</option>
-          <option value="MANTENIMIENTO">Mantenimiento</option>
-          <option value="INSTALACION">Instalación</option>
+          <option value="">Seleccione una solicitud</option>
+          {serviceRequests.map((request) => {
+            const customerLabel = request.customer?.users
+              ? `${request.customer.users.name} ${request.customer.users.lastname}`
+              : "Cliente no disponible";
+
+            return (
+              <option
+                key={request.serviceRequestId}
+                value={request.serviceRequestId}
+              >
+                #{request.serviceRequestId} - {customerLabel} -{" "}
+                {request.serviceType}
+              </option>
+            );
+          })}
         </select>
       </div>
 
-      {/* CLIENTE */}
-      <div ref={customerRef} className="relative">
-        <label className="block mb-1 font-medium">Cliente *</label>
-        <input
-          type="text"
-          placeholder="Buscar cliente por nombre, apellido o documento"
-          value={customerSearch}
-          onChange={(e) => {
-            setCustomerSearch(e.target.value);
-            setShowCustomerList(true);
-          }}
-          onFocus={() => setShowCustomerList(true)}
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-        {showCustomerList && filteredCustomers.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
-            {filteredCustomers.map((c) => (
-              <div
-                key={c.customerid}
-                onClick={() => {
-                  setForm({ ...form, customerid: c.customerid });
-                  setCustomerSearch(
-                    `${c.users.name} ${c.users.lastname} (${c.users.documentnumber})`
-                  );
-                  setShowCustomerList(false);
-                }}
-                className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
-              >
-                <div className="font-medium">
-                  {c.users.name} {c.users.lastname}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Documento: {c.users.documentnumber}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Email: {c.users.email}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {showCustomerList &&
-          filteredCustomers.length === 0 &&
-          customerSearch && (
-            <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg p-3">
-              <div className="text-gray-500">No se encontraron clientes</div>
-            </div>
-          )}
-      </div>
+      {/* INFORMACIÓN AUTOMÁTICA DEL SERVICE REQUEST */}
+      {selectedServiceRequest && (
+        <div className="border p-4 rounded-lg bg-gray-50 space-y-3">
+          <h3 className="font-bold text-gray-700">
+            Información de la solicitud seleccionada
+          </h3>
 
-      {/* TÉCNICO */}
-      <div ref={technicianRef} className="relative">
-        <label className="block mb-1 font-medium">Técnico *</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* CLIENTE */}
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Cliente</div>
+              <div className="font-medium">
+                {selectedServiceRequest.customer.users.name}{" "}
+                {selectedServiceRequest.customer.users.lastname}
+              </div>
+              <div className="text-sm text-gray-600">
+                Documento:{" "}
+                {selectedServiceRequest.customer.users.documentnumber}
+              </div>
+              <div className="text-sm text-gray-600">
+                Email: {selectedServiceRequest.customer.users.email}
+              </div>
+            </div>
+
+            {/* TÉCNICO */}
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Técnico asignado</div>
+              {selectedServiceRequest.techniciansMap &&
+              selectedServiceRequest.techniciansMap.length > 0 ? (
+                <>
+                  <div className="font-medium">
+                    {
+                      selectedServiceRequest.techniciansMap[0].technician.users
+                        .name
+                    }{" "}
+                    {
+                      selectedServiceRequest.techniciansMap[0].technician.users
+                        .lastname
+                    }
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Documento:{" "}
+                    {
+                      selectedServiceRequest.techniciansMap[0].technician.users
+                        .documentnumber
+                    }
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Email:{" "}
+                    {
+                      selectedServiceRequest.techniciansMap[0].technician.users
+                        .email
+                    }
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No hay técnico asignado
+                </div>
+              )}
+            </div>
+
+            {/* DETALLES DEL SERVICIO */}
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Tipo de servicio</div>
+              <div className="font-medium">
+                {selectedServiceRequest.serviceType}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Dirección</div>
+              <div className="font-medium">
+                {selectedServiceRequest.direccion}
+              </div>
+            </div>
+
+            <div className="space-y-1 md:col-span-2">
+              <div className="text-xs text-gray-500">
+                Descripción del servicio
+              </div>
+              <div className="font-medium">
+                {selectedServiceRequest.description}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TIPO DE SERVICIO (solo lectura cuando hay solicitud seleccionada) */}
+      <div>
+        <label className="block mb-1 font-medium">Tipo de servicio *</label>
         <input
           type="text"
-          placeholder="Buscar técnico por nombre, apellido o documento"
-          value={technicianSearch}
-          onChange={(e) => {
-            setTechnicianSearch(e.target.value);
-            setShowTechnicianList(true);
-          }}
-          onFocus={() => setShowTechnicianList(true)}
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
+          value={form.servicetype}
+          readOnly
+          className="w-full border rounded px-3 py-2 bg-gray-100"
         />
-        {showTechnicianList && filteredTechnicians.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
-            {filteredTechnicians.map((t) => (
-              <div
-                key={t.technicianid}
-                onClick={() => {
-                  setForm({ ...form, technicianid: t.technicianid });
-                  setTechnicianSearch(
-                    `${t.users.name} ${t.users.lastname} (${t.users.documentnumber})`
-                  );
-                  setShowTechnicianList(false);
-                }}
-                className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
-              >
-                <div className="font-medium">
-                  {t.users.name} {t.users.lastname}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Documento: {t.users.documentnumber}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Email: {t.users.email}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <p className="text-xs text-gray-500 mt-1">
+          Este campo se completa automáticamente desde la solicitud de servicio
+        </p>
       </div>
 
       {/* OBSERVACIÓN */}
@@ -619,11 +659,12 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
                 ))}
               </div>
             )}
+
             {pendingBackorderProduct && (
               <div className="mt-3 border border-yellow-200 rounded-lg bg-yellow-50 p-3 text-sm text-gray-800">
                 <p className="font-medium">
-                  Este producto no tiene stock disponible. ¿Desea agregarlo a
-                  la cotización como bajo pedido?
+                  Este producto no tiene stock disponible. ¿Desea agregarlo a la
+                  cotización como bajo pedido?
                 </p>
                 <p className="text-xs text-gray-600">
                   {pendingBackorderProduct.productname}
@@ -660,7 +701,7 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
               onChange={(e) =>
                 setDetailForm({ ...detailForm, description: e.target.value })
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -676,7 +717,7 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
                   quantity: Number(e.target.value),
                 })
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -687,13 +728,14 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
               min="0"
               step="0.01"
               value={detailForm.unitprice}
+              readOnly={!isManualProduct}
               onChange={(e) =>
                 setDetailForm({
                   ...detailForm,
                   unitprice: Number(e.target.value),
                 })
               }
-              className="w-full border rounded px-3 py-2"
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -722,7 +764,7 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
           type="button"
           onClick={handleAddDetail}
           style={{ backgroundColor: Colors.buttons.secondary }}
-          className="text-white px-4 py-2 rounded hover:opacity-90"
+          className="text-white px-4 py-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         >
           Agregar producto
         </button>
@@ -751,7 +793,7 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
                       <button
                         type="button"
                         onClick={() => handleRemoveDetail(i)}
-                        className="text-red-500 hover:text-red-700 text-sm"
+                        className="text-red-500 hover:text-red-700 text-sm focus:outline-none"
                       >
                         Eliminar
                       </button>
@@ -759,14 +801,11 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
                       <div>Cantidad: {d.quantity}</div>
                       <div>
-                        Precio unitario: $
-                        {d.unitprice.toLocaleString("es-CO")}
+                        Precio unitario: ${d.unitprice.toLocaleString("es-CO")}
                       </div>
+                      <div>Subtotal: ${d.subtotal.toLocaleString("es-CO")}</div>
                       <div>
-                        Subtotal: ${d.subtotal.toLocaleString("es-CO")}
-                      </div>
-                      <div>
-                        Tipo:{' '}
+                        Tipo:{" "}
                         {d.productid === null
                           ? "Manual (para comprar)"
                           : "Existente"}
@@ -788,7 +827,8 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
                             <span className="px-2 py-0.5 rounded-full border border-orange-300 bg-orange-100 font-semibold text-orange-800">
                               Bajo pedido
                             </span>
-                            Este producto no tiene stock disponible y se cotiza bajo solicitud.
+                            Este producto no tiene stock disponible y se cotiza
+                            bajo solicitud.
                           </span>
                         </div>
                       </div>
@@ -799,21 +839,23 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
             </div>
           </div>
         )}
-      {/* RESUMEN FINANCIERO */}
-      <div className="border p-4 rounded-lg bg-gray-50">
-        <h3 className="font-bold mb-3">Resumen financiero</h3>
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span>Subtotal:</span>
-            <span>${subtotal.toLocaleString("es-CO")}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>IVA (19%):</span>
-            <span>${tax.toLocaleString("es-CO")}</span>
-          </div>
-          <div className="flex justify-between text-lg font-bold pt-2 border-t">
-            <span>Total:</span>
-            <span>${total.toLocaleString("es-CO")}</span>
+
+        {/* RESUMEN FINANCIERO */}
+        <div className="mt-6 border p-4 rounded-lg bg-gray-50">
+          <h3 className="font-bold mb-3">Resumen financiero</h3>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span>Subtotal:</span>
+              <span>${subtotal.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>IVA (19%):</span>
+              <span>${tax.toLocaleString("es-CO")}</span>
+            </div>
+            <div className="flex justify-between text-lg font-bold pt-2 border-t">
+              <span>Total:</span>
+              <span>${total.toLocaleString("es-CO")}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -822,12 +864,11 @@ const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
       <button
         type="submit"
         style={{ backgroundColor: Colors.buttons.primary }}
-        className="w-full text-white px-4 py-3 rounded font-medium hover:opacity-90"
+        className="w-full text-white px-4 py-3 rounded font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        disabled={!form.serviceRequestId || form.details.length === 0}
       >
         Guardar Cotización
       </button>
-      </div>
     </form>
-    
   );
 }
