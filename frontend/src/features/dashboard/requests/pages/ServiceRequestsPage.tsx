@@ -48,6 +48,7 @@ type Row = {
   programada?: string | null;
   programadaEnd?: string | null;
   technicians: number[];
+  technicianNames: string[];
 };
 
 function Loader() {
@@ -96,6 +97,28 @@ function extractTechnicianIds(r: any): number[] {
       )
     )
     .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+function extractTechnicianNames(r: any): string[] {
+  const raw = r?.techniciansMap;
+  if (!Array.isArray(raw)) return [];
+  const names = raw
+    .map((m: any) => {
+      const u = m?.technician?.users ?? m?.users ?? null;
+      const name = String(u?.name ?? "").trim();
+      const last = String(u?.lastname ?? "").trim();
+      const full = [name, last].filter(Boolean).join(" ").trim();
+      if (full) return full;
+
+      const alt1 = String(m?.technician?.name ?? "").trim();
+      const alt2 = String(m?.technician?.lastname ?? "").trim();
+      const altFull = [alt1, alt2].filter(Boolean).join(" ").trim();
+      return altFull || "";
+    })
+    .map((x: string) => x.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(names));
 }
 
 export default function ServiceRequestsPage() {
@@ -154,7 +177,6 @@ export default function ServiceRequestsPage() {
       const programada = scheduledAtDate
         ? toLocalDateTimeValue(scheduledAtDate)
         : null;
-
       const programadaEnd = scheduledEndAtDate
         ? toLocalDateTimeValue(scheduledEndAtDate)
         : null;
@@ -167,6 +189,7 @@ export default function ServiceRequestsPage() {
         : "";
 
       const technicians = extractTechnicianIds(r);
+      const technicianNames = extractTechnicianNames(r);
 
       return {
         id,
@@ -184,6 +207,7 @@ export default function ServiceRequestsPage() {
         programada,
         programadaEnd,
         technicians,
+        technicianNames,
       };
     });
   }, [data]);
@@ -200,7 +224,9 @@ export default function ServiceRequestsPage() {
       Estado: r.estado,
       Programada: r.programada ?? "",
       "Programada Fin": r.programadaEnd ?? "",
-      Técnicos: (r.technicians || []).join(", "),
+      Técnicos:
+        (r.technicianNames || []).join(", ") ||
+        (r.technicians || []).join(", "),
     }));
   }, [rows]);
 
@@ -217,9 +243,7 @@ export default function ServiceRequestsPage() {
       key: "estado",
       header: "Estado",
       render: (r) => (
-        <span className={`font-medium ${estadoClass(r.estado)}`}>
-          {r.estado}
-        </span>
+        <span className={`font-medium ${estadoClass(r.estado)}`}>{r.estado}</span>
       ),
     },
   ];
@@ -287,8 +311,6 @@ export default function ServiceRequestsPage() {
 
         if (patch.direccion !== undefined) merged.direccion = patch.direccion;
 
-        if (patch.technicians !== undefined) merged.techniciansMap = patch.technicians;
-
         return merged;
       });
     });
@@ -301,16 +323,19 @@ export default function ServiceRequestsPage() {
   async function handleCreate(values: CreateRequestPayload) {
     setActionLoading(true);
     try {
+      const v: any = values as any;
+
       const dto = {
-        scheduledAt: values.scheduledAt ?? null,
-        scheduledEndAt: values.scheduledEndAt ?? null,
-        serviceType: values.serviceType,
-        description: values.description?.trim(),
-        direccion: values.direccion?.trim(),
+        scheduledAt: v?.scheduledAt ?? null,
+        scheduledEndAt: v?.scheduledEndAt ?? null,
+        serviceType:
+          v?.serviceType ?? tipoToBackend(Array.isArray(v?.tipos) ? v?.tipos?.[0] : undefined),
+        description: (v?.description ?? v?.descripcion ?? "").trim(),
+        direccion: (v?.direccion ?? "").trim(),
         stateId: 5,
-        serviceId: Number(values.serviceId),
-        clientId: Number(values.clientId),
-        technicians: Array.isArray(values.technicians) ? values.technicians : [],
+        serviceId: Number(v?.serviceId ?? parseMaybeId(String(v?.servicio ?? ""))),
+        clientId: Number(v?.clientId ?? parseMaybeId(String(v?.cliente ?? ""))),
+        technicians: Array.isArray(v?.technicians) ? v.technicians : [],
       };
 
       await createMut.mutateAsync(dto as any);
@@ -332,64 +357,88 @@ export default function ServiceRequestsPage() {
     setActionLoading(true);
     try {
       const id = Number(selected.id);
+      const v: any = values as any;
 
-      const scheduledAt = buildScheduledAt(
-        values.programada,
-        values.horaProgramada,
-        selected.programada ? new Date(selected.programada) : null
+      const scheduledAt =
+        v?.scheduledAt ??
+        buildScheduledAt(
+          v?.programada ?? null,
+          v?.horaProgramada ?? null,
+          selected.programada ? new Date(selected.programada) : null
+        );
+
+      const scheduledEndAt =
+        v?.scheduledEndAt ??
+        buildScheduledAt(
+          v?.programada ?? null,
+          v?.horaFinal ?? null,
+          selected.programadaEnd ? new Date(selected.programadaEnd) : null
+        );
+
+      const direccion = String(v?.direccion ?? selected.direccion ?? "").trim();
+
+      const serviceType =
+        v?.serviceType ??
+        tipoToBackend(Array.isArray(v?.tipos) ? v?.tipos?.[0] : undefined);
+
+      const description = String(v?.description ?? v?.descripcion ?? "").trim();
+
+      const serviceId = Number(
+        v?.serviceId ?? parseMaybeId(String(v?.servicio ?? selected.serviceId ?? ""))
       );
 
-      const scheduledEndAt = buildScheduledAt(
-        values.programada,
-        values.horaFinal,
-        selected.programadaEnd ? new Date(selected.programadaEnd) : null
+      const clientId = Number(
+        v?.clientId ?? parseMaybeId(String(v?.cliente ?? selected.clienteId ?? ""))
       );
 
-      const direccion = (values as any).direccion ?? selected.direccion;
+      const technicians = Array.isArray(v?.technicians)
+        ? v.technicians
+        : Array.isArray(selected.technicians)
+        ? selected.technicians
+        : [];
 
       const payload: any = {
         scheduledAt,
         scheduledEndAt,
-        serviceType: tipoToBackend(values.tipos?.[0]),
-        description: values.descripcion?.trim(),
-        direccion: String(direccion || "").trim(),
-        serviceId: parseMaybeId(values.servicio),
-        clientId: parseMaybeId(values.cliente),
-        technicians: Array.isArray((values as any).technicians)
-          ? (values as any).technicians
-          : [],
+        serviceType,
+        description,
+        direccion,
+        serviceId,
+        clientId,
+        technicians,
       };
 
-      const stateIdNum = values.estado ? parseMaybeId(values.estado) : 0;
+      const stateIdNum = v?.stateId
+        ? Number(v.stateId)
+        : v?.estado
+        ? parseMaybeId(String(v.estado))
+        : 0;
+
       if (stateIdNum > 0) payload.stateId = stateIdNum;
 
       optimisticPatch(id, {
-        programada:
-          values.programada && values.horaProgramada
-            ? `${values.programada}T${values.horaProgramada}`
-            : null,
-        programadaEnd:
-          values.programada && values.horaFinal
-            ? `${values.programada}T${values.horaFinal}`
-            : null,
-        descripcion: values.descripcion?.trim(),
-        direccion: String(direccion || "").trim(),
+        programada: scheduledAt ? toLocalDateTimeValue(new Date(scheduledAt)) : null,
+        programadaEnd: scheduledEndAt ? toLocalDateTimeValue(new Date(scheduledEndAt)) : null,
+        descripcion: description,
+        direccion,
         servicio: String(
-          serviceOptions.find((o) => String(o.id) === String(values.servicio))
-            ?.label ?? selected.servicio
+          serviceOptions.find((o) => String(o.id) === String(serviceId))?.label ??
+            selected.servicio
         ),
-        serviceId: parseMaybeId(values.servicio),
+        serviceId,
         cliente: selected.cliente,
         clienteId: selected.clienteId,
         estado: stateIdNum
-          ? String((values as any).estadoLabel || "")
+          ? String(v?.estadoLabel ?? v?.estadoName ?? v?.estadoText ?? selected.estado)
           : selected.estado,
         stateId: stateIdNum || selected.stateId,
-        tipo: values.tipos?.[0] === "Instalacion" ? "Instalacion" : "Mantenimiento",
-        tipos: values.tipos?.length ? values.tipos : selected.tipos,
-        technicians: Array.isArray((values as any).technicians)
-          ? (values as any).technicians
-          : selected.technicians,
+        tipo: String(serviceType || "").toLowerCase().includes("instal")
+          ? "Instalacion"
+          : "Mantenimiento",
+        tipos: String(serviceType || "").toLowerCase().includes("instal")
+          ? ["Instalacion"]
+          : ["Mantenimiento"],
+        technicians,
       });
 
       await updateMut.mutateAsync({ id, payload });
@@ -426,12 +475,21 @@ export default function ServiceRequestsPage() {
       optimisticPatch(id, { estado: "Cancelado", stateId: 4 });
 
       const parts = splitDateTime(row.programada ?? null);
-      const payload = {
-        scheduledAt: buildScheduledAt(
-          parts.date,
-          parts.time,
-          row.programada ? new Date(row.programada) : new Date()
-        ),
+      const scheduledAt = buildScheduledAt(
+        parts.date,
+        parts.time,
+        row.programada ? new Date(row.programada) : new Date()
+      );
+
+      const payload: any = {
+        scheduledAt,
+        scheduledEndAt: row.programadaEnd
+          ? buildScheduledAt(
+              splitDateTime(row.programadaEnd).date,
+              splitDateTime(row.programadaEnd).time,
+              row.programadaEnd ? new Date(row.programadaEnd) : null
+            )
+          : null,
         serviceType: tipoToBackend(row.tipos?.[0]),
         description: row.descripcion?.trim(),
         direccion: row.direccion?.trim(),
@@ -455,9 +513,12 @@ export default function ServiceRequestsPage() {
   }
 
   function printRequest(row: Row) {
-    const techs = (row.technicians || []).length
-      ? row.technicians.join(", ")
-      : "—";
+    const techs =
+      (row.technicianNames || []).length
+        ? row.technicianNames.join(", ")
+        : (row.technicians || []).length
+        ? row.technicians.join(", ")
+        : "—";
 
     const fechaProg = row.programada ? row.programada : "—";
     const fechaFin = row.programadaEnd ? row.programadaEnd : "—";
@@ -625,25 +686,32 @@ export default function ServiceRequestsPage() {
           (() => {
             const partsStart = splitDateTime(selected.programada ?? null);
             const partsEnd = splitDateTime(selected.programadaEnd ?? null);
+
+            const initialAny = {
+              serviceId: Number(selected.serviceId ?? 0) || undefined,
+              clientId: Number(selected.clienteId ?? 0) || undefined,
+              description: selected.descripcion ?? "",
+              direccion: selected.direccion ?? "",
+              scheduledAt:
+                partsStart.date && partsStart.time
+                  ? buildScheduledAt(partsStart.date, partsStart.time, null)
+                  : null,
+              scheduledEndAt:
+                partsStart.date && partsEnd.time
+                  ? buildScheduledAt(partsStart.date, partsEnd.time, null)
+                  : null,
+              stateId: Number(selected.stateId ?? 0) || undefined,
+              technicians: selected.technicians ?? [],
+            };
+
             return (
               <EditRequestModal
                 key={`edit-${selected.id}`}
                 isOpen={openEdit}
                 onClose={() => setOpenEdit(false)}
-                initial={{
-                  tipos: selected.tipos,
-                  servicio: String(selected.serviceId ?? ""),
-                  descripcion: selected.descripcion,
-                  direccion: selected.direccion,
-                  cliente: String(selected.clienteId ?? ""),
-                  programada: partsStart.date,
-                  horaProgramada: partsStart.time,
-                  horaFinal: partsEnd.time,
-                  estado: String(selected.stateId ?? ""),
-                  technicians: selected.technicians ?? [],
-                }}
-                servicios={serviceOptions}
-                clientes={customerOptions}
+                initial={initialAny as any}
+                servicios={serviceOptions as any}
+                clientes={customerOptions as any}
                 onSave={handleUpdate}
                 title="Editar Solicitud"
               />
@@ -666,6 +734,7 @@ export default function ServiceRequestsPage() {
               codigo: `SRV-${String(selected.id).padStart(6, "0")}`,
               programada: selected.programada ?? null,
               programadaEnd: selected.programadaEnd ?? null,
+              tecnicos: selected.technicianNames ?? [],
             }}
             title="Detalle de la Solicitud"
           />
