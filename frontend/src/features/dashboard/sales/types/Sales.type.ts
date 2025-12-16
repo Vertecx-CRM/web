@@ -1,26 +1,3 @@
-/* =======================
-   TIPOS RELACIONADOS
-======================= */
-
-export interface ICustomer {
-  customerid: number;
-  name: string;
-  lastname?: string | null;
-  email?: string | null;
-  phone?: string | null;
-}
-
-export interface IProduct {
-  productid: number;
-  productname: string;
-  productpriceofsale: number;
-  categoryid?: number;
-}
-
-/* =======================
-   DETALLE DE VENTA
-======================= */
-
 export interface ISaleDetail {
   saledetailid: number;
   saleid: number;
@@ -28,60 +5,45 @@ export interface ISaleDetail {
   quantity: number;
   unitprice: number;
   linetotal: number;
-
-  // relaciones
-  products?: IProduct;
 }
-
-/* =======================
-   VENTA (LECTURA)
-======================= */
 
 export interface ISale {
   saleid: number;
-  salecode: string;
-
-  customerid: number;
-  customer?: ICustomer;
-
-  saledate: string;      // ISO string
-  createddate: string;
-
   subtotal: number;
   taxamount: number;
   discountamount: number;
   totalamount: number;
-
+  createddate: string;
+  saledate: string;
+  customerid: number;
+  salecode: string;
+  createdby: string;
+  notes: string | null;
   paymentmethod: string;
-  salestatus: "Pending" | "Completed" | "Cancelled";
-
-  notes?: string | null;
-  createdby?: string | null;
-
+  salestatus: string;
   salesdetail: ISaleDetail[];
 }
 
-  // VENTA (CREACIÓN - FRONTEND)
-
-
-export interface CreateSaleDetailPayload {
-  productid: number;
-  quantity: number;
-  unitprice: number;
-  discountpercent?: number;
+// dto/create-sale.dto.ts
+export class CreateSaleDetailDto {
+  productid: number; // id producto seleccionado
+  quantity: number; // cantidad
+  unitprice: number; // precio unitario
+  discountpercent?: number; // opcional, si usas descuentos por línea
   notes?: string;
 }
 
-export interface CreateSalePayload {
-  customerid: number;
-  saledate: string;            // ISO
-  salestatus?: "Pending" | "Completed" | "Cancelled";
-  paymentmethod?: string;
-  notes?: string;
-  createdby?: string;
+export class CreateSaleDto {
+  customerid: number; // cliente seleccionado en el select
+  saledate: Date; // fecha de la venta
+  salestatus: string; // 'Pending', 'Completed', etc.
+  paymentmethod?: string; // 'Cash', 'Credit Card', etc.
+  notes?: string; // observaciones
+  createdby?: string; // usuario logueado (opcional)
 
-  taxpercent?: number;
-  discountamount?: number;
+  // Totales que ve el usuario en la tarjeta de la derecha:
+  taxpercent?: number; // ej: 19, si quieres mandarlo desde el front (opcional)
+  discountamount?: number; // descuento global (el de la tarjeta, no por línea)
 
-  details: CreateSaleDetailPayload[];
+  details: CreateSaleDetailDto[];
 }
