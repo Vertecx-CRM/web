@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
 import { format, getDay, parse, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
@@ -22,6 +22,7 @@ import { useLookups } from "@/features/dashboard/requests/hooks/useLookups";
 import {
   listServiceRequests,
   type ServiceRequestDTO,
+  updateServiceRequest,
 } from "@/features/dashboard/requests/services/servicerequests.service";
 import { useUpdateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
 import {
@@ -29,7 +30,11 @@ import {
   splitDateTime,
 } from "@/features/dashboard/requests/utils/schedule";
 import { showError } from "@/shared/utils/notifications";
-import { fetchOrdersServices } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
+import Swal from "sweetalert2";
+import {
+  fetchOrdersServices,
+  updateOrderService,
+} from "@/features/dashboard/OrdersServices/api/ordersServices.api";
 import { useAuth } from "@/features/auth/authcontext";
 
 const locales = { es };
@@ -257,6 +262,21 @@ const getEventServiceTypeKey = (event: AppointmentEvent): ServiceTypeFilterKey |
 const toPositiveNumber = (value: unknown) => {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : null;
+};
+
+const getOrderServiceRequestId = (order?: any): number | null => {
+  if (!order) return null;
+  const candidates = [
+    order.serviceRequestId,
+    order.servicerequestid,
+    order.servicerequestId,
+    order.service_request_id,
+  ];
+  for (const candidate of candidates) {
+    const id = toPositiveNumber(candidate);
+    if (id) return id;
+  }
+  return null;
 };
 
 const getEventTechnicianUserIds = (event: AppointmentEvent): number[] => {
@@ -490,6 +510,78 @@ export default function IndexAppointment() {
 
   const handleRequestEdit = (request: ServiceRequestDTO) => setEditingRequest(request);
 
+  const handleFinalizeEvent = useCallback(
+    async (event: AppointmentEvent) => {
+      if (!event) return;
+
+      const orderId =
+        event.source === "order"
+          ? toPositiveNumber(event.order?.ordersservicesid)
+          : null;
+      const serviceRequestId =
+        event.source === "request"
+          ? toPositiveNumber(event.request?.serviceRequestId)
+          : getOrderServiceRequestId(event.order);
+
+      if (!serviceRequestId && !orderId) {
+        Swal.fire(
+          "Sin registros relacionados",
+          "La cita no tiene orden ni solicitud asociada.",
+          "warning"
+        );
+        return;
+      }
+
+      const targets = [
+        serviceRequestId ? "solicitud de servicio" : null,
+        orderId ? "orden de servicio" : null,
+      ].filter(Boolean) as string[];
+      const verb = targets.length > 1 ? "marcarán" : "marcará";
+      const suffix = targets.length > 1 ? "finalizados" : "finalizado";
+
+      const confirm = await Swal.fire({
+        title: "Finalizar cita?",
+        text: `Se ${verb} ${targets.join(" y ")} como ${suffix} (estado 6).`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Finalizar",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (!confirm.isConfirmed) return;
+
+      setFinalizingEventId(event.id);
+      try {
+        const promises: Promise<any>[] = [];
+        if (serviceRequestId) {
+          promises.push(updateServiceRequest(serviceRequestId, { stateId: 6 }));
+        }
+        if (orderId) {
+          promises.push(updateOrderService(orderId, { stateid: 6 }));
+        }
+        if (promises.length) await Promise.all(promises);
+        await refetch();
+        Swal.fire(
+          "Finalizado",
+          `Se ${verb} ${targets.join(" y ")} como ${suffix} (estado 6).`,
+          "success"
+        );
+      } catch (err: any) {
+        console.error("Error al finalizar cita:", err);
+        Swal.fire(
+          "Error",
+          err?.response?.data?.message ??
+            err?.message ??
+            "No se pudieron actualizar los registros.",
+          "error"
+        );
+      } finally {
+        setFinalizingEventId(null);
+      }
+    },
+    [refetch]
+  );
+
   const stateOptions = useMemo(() => {
     const entries: Map<string, string> = new Map();
     events.forEach((event) => {
@@ -610,6 +702,7 @@ export default function IndexAppointment() {
   ]);
   const [fullWidthCalendar, setFullWidthCalendar] = useState(false);
   const [modalEvent, setModalEvent] = useState<AppointmentEvent | null>(null);
+  const [finalizingEventId, setFinalizingEventId] = useState<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -774,6 +867,8 @@ export default function IndexAppointment() {
         event={modalEvent}
         onClose={() => setModalEvent(null)}
         onEditRequest={handleRequestEdit}
+        onFinalize={handleFinalizeEvent}
+        isFinalizing={Boolean(modalEvent) && finalizingEventId === modalEvent?.id}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

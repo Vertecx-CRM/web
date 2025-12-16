@@ -46,9 +46,13 @@ const techLabel = (event: AppointmentEvent) => {
 const AppointmentDetailContent = ({
   event,
   onEditRequest,
+  onFinalize,
+  isFinalizing = false,
 }: {
   event: AppointmentEvent;
   onEditRequest?: (request: ServiceRequestDTO) => void;
+  onFinalize?: (event: AppointmentEvent) => void;
+  isFinalizing?: boolean;
 }) => {
   const palette = getStatePalette(event.stateLabel);
 
@@ -157,6 +161,18 @@ const AppointmentDetailContent = ({
           <RequestActions request={event.request} onEdit={onEditRequest} />
         )
       )}
+      {onFinalize && (
+        <div className="flex justify-end pt-4">
+          <button
+            type="button"
+            onClick={() => onFinalize(event)}
+            disabled={isFinalizing}
+            className="rounded-lg bg-sky-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-wait disabled:opacity-70"
+          >
+            {isFinalizing ? "Finalizando..." : "Finalizar cita"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -251,11 +267,15 @@ const AppointmentDetailModal = ({
   event,
   onClose,
   onEditRequest,
+  onFinalize,
+  isFinalizing,
 }: {
   open: boolean;
   event: AppointmentEvent | null;
   onClose: () => void;
   onEditRequest?: (request: ServiceRequestDTO) => void;
+  onFinalize?: (event: AppointmentEvent) => void;
+  isFinalizing?: boolean;
 }) => {
   return (
     <Modal
@@ -268,6 +288,8 @@ const AppointmentDetailModal = ({
         <AppointmentDetailContent
           event={event}
           onEditRequest={onEditRequest}
+          onFinalize={onFinalize}
+          isFinalizing={isFinalizing}
         />
       )}
     </Modal>
