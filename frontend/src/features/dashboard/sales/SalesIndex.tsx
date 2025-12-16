@@ -2,8 +2,10 @@
 
 import { useCallback, useMemo, useState } from "react";
 import RequireAuth from "../../auth/requireauth";
-import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
-import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+import {
+  Column,
+  DataTable,
+} from "@/features/dashboard/components/datatable/DataTable";
 import { ToastContainer } from "react-toastify";
 import { useSales } from "./hooks/useSales";
 import { ISale } from "./types/Sales.type";
@@ -14,90 +16,51 @@ import ViewSale from "./components/ViewSale";
 import { getSaleById } from "./api/sales.api";
 import { useLoader } from "@/shared/components/loader";
 
-/* =======================
-   MAPA DE ESTADOS (UI)
-======================= */
-const statusMap: Record<string, string> = {
-  Pending: "Pendiente",
-  Completed: "Completada",
-  Cancelled: "Cancelada",
-};
-
 function Loader() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-[spin_0.8s_linear_1]" />
     </div>
   );
 }
 
 export default function SalesIndex() {
   const salesHook = useSales();
-  const { sales, loading, handleCancelSale } = salesHook;
+  const { sales, loading } = salesHook;
   const { showLoader, hideLoader } = useLoader();
 
   const [isRegisterOpen, setRegisterOpen] = useState(false);
+
+  // Nuevo: modal de detalle
   const [isDetailOpen, setDetailOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<ISale | null>(null);
 
-  /* =======================
-     CONFIRMAR ANULACIÓN
-  ======================== */
-  const confirmCancelSale = useCallback(
-    (sale: ISale) => {
-      Swal.fire({
-        title: "¿Anular venta?",
-        input: "textarea",
-        inputLabel: "Motivo de anulación",
-        inputPlaceholder: "Escribe el motivo...",
-        showCancelButton: true,
-        confirmButtonText: "Anular",
-        confirmButtonColor: "#b20000",
-        preConfirm: (motivo) => {
-          if (!motivo || !motivo.trim()) {
-            Swal.showValidationMessage("El motivo es obligatorio");
-            return false;
-          }
-          return motivo;
-        },
-      }).then((result) => {
-        if (result.isConfirmed) {
-          handleCancelSale(sale.saleid, result.value);
-        }
-      });
-    },
-    [handleCancelSale]
-  );
+  const confirmDeleteSale = useCallback((sale: ISale) => {
+    Swal.fire({
+      title: "¿Eliminar?",
+      text: `Venta ${sale.salecode}`,
+      showCancelButton: true,
+      confirmButtonColor: "#b20000",
+    }).then((result) => {
+      if (result.isConfirmed) {
+        console.log("Eliminar:", sale.saleid);
+      }
+    });
+  }, []);
 
-  /* =======================
-     COLUMNAS TABLA
-  ======================== */
   const columns: Column<ISale>[] = useMemo(
     () => [
+      { key: "saleid", header: "#", render: (row) => row.saleid.toString() },
+      { key: "salecode", header: "Código Venta" },
       {
-        key: "saleid",
-        header: "#",
-        render: (row) => row.saleid.toString(),
-      },
-      {
-        key: "salecode",
-        header: "Código Venta",
-      },
-      {
-        key: "customer",
+        key: "customerid",
         header: "Cliente",
-        render: (row) =>
-          row.customer
-            ? `${row.customer.name} ${row.customer.lastname ?? ""}`
-            : "N/A",
+        render: (row) => `ID ${row.customerid}`,
       },
       {
         key: "saledate",
         header: "Fecha",
-        render: (row) =>
-          row.saledate
-            ? new Date(row.saledate).toLocaleDateString("es-CO")
-            : "-",
+        render: (row) => new Date(row.saledate).toLocaleDateString("es-CO"),
       },
       {
         key: "totalamount",
@@ -112,21 +75,14 @@ export default function SalesIndex() {
         key: "salestatus",
         header: "Estado",
         render: (row) => {
-          const status = row.salestatus;
-          const s = status?.toLowerCase();
-
+          const s = row.salestatus?.toLowerCase();
           const cls =
             s === "completed"
               ? "text-green-600"
               : s === "cancelled"
               ? "text-red-600"
               : "text-gray-600";
-
-          return (
-            <span className={`${cls} font-medium`}>
-              {statusMap[status] ?? status}
-            </span>
-          );
+          return <span className={`${cls} font-medium`}>{row.salestatus}</span>;
         },
       },
     ],
@@ -146,18 +102,15 @@ export default function SalesIndex() {
             module="sales"
             data={sales}
             columns={columns}
-            searchableKeys={[
-              "salecode",
-              "salestatus",
-              "saledate",
-              "totalamount",
-            ]}
+            searchableKeys={["salecode", "salestatus"]}
             pageSize={8}
-            onDelete={confirmCancelSale} // ← Anulación
-            onView={async (row: ISale) => {
+            onDelete={confirmDeleteSale}
+            onView={async (row) => {
               try {
-                showLoader();
+                showLoader(); // ⬅ Mostrar loading
+
                 const fullSale = await getSaleById(row.saleid);
+
                 setSelectedSale(fullSale);
                 setDetailOpen(true);
               } catch (error) {
@@ -166,8 +119,9 @@ export default function SalesIndex() {
                   "No se pudo cargar el detalle de la venta",
                   "error"
                 );
+                console.error(error);
               } finally {
-                hideLoader();
+                hideLoader(); // ⬅Ocultar loading SIEMPRE al terminar
               }
             }}
             onCreate={() => setRegisterOpen(true)}
@@ -175,7 +129,7 @@ export default function SalesIndex() {
           />
         )}
 
-        {/* MODAL REGISTRAR VENTA */}
+        {/* MODAL PARA REGISTRAR */}
         <Modal
           title="Registrar venta"
           isOpen={isRegisterOpen}
@@ -189,19 +143,19 @@ export default function SalesIndex() {
           />
         </Modal>
 
-        {/* MODAL DETALLE */}
+        {/* MODAL DETALLE DE VENTA */}
         <Modal
           title="Detalle de venta"
           isOpen={isDetailOpen}
           onClose={() => {
-            hideLoader();
+            hideLoader(); // ⬅ APAGAR LOADER AL CERRAR
             setDetailOpen(false);
-            setSelectedSale(null);
+            setSelectedSale(null); // ⬅ OPCIONAL PERO LIMPIA ESTADO
           }}
           footer={
             <button
               onClick={() => {
-                hideLoader();
+                hideLoader(); // ⬅ TAMBIÉN APAGAR AQUÍ
                 setDetailOpen(false);
                 setSelectedSale(null);
               }}
