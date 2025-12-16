@@ -9,12 +9,15 @@ import {
 import { ToastContainer } from "react-toastify";
 import { useSales } from "./hooks/useSales";
 import { ISale } from "./types/Sales.type";
+import { formatSaleCustomerLabel } from "./helpers/saleCustomerHelpers";
 import Swal from "sweetalert2";
 import Modal from "../components/Modal";
 import RegisterSaleForm from "./components/RegisterSale";
 import ViewSale from "./components/ViewSale";
-import { getSaleById } from "./api/sales.api";
+import { cancelSale, getSaleById } from "./api/sales.api";
 import { useLoader } from "@/shared/components/loader";
+import { translateSaleStatus } from "./helpers/saleStatusHelpers";
+import { useAuth } from "@/features/auth/authcontext";
 
 function Loader() {
   return (
@@ -26,8 +29,9 @@ function Loader() {
 
 export default function SalesIndex() {
   const salesHook = useSales();
-  const { sales, loading } = salesHook;
+  const { sales, loading, customers, refreshSales } = salesHook;
   const { showLoader, hideLoader } = useLoader();
+  const { user, profile } = useAuth();
 
   const [isRegisterOpen, setRegisterOpen] = useState(false);
 
@@ -35,18 +39,61 @@ export default function SalesIndex() {
   const [isDetailOpen, setDetailOpen] = useState(false);
   const [selectedSale, setSelectedSale] = useState<ISale | null>(null);
 
-  const confirmDeleteSale = useCallback((sale: ISale) => {
-    Swal.fire({
-      title: "¿Eliminar?",
-      text: `Venta ${sale.salecode}`,
-      showCancelButton: true,
-      confirmButtonColor: "#b20000",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        console.log("Eliminar:", sale.saleid);
+  const confirmCancelSale = useCallback(
+    async (sale: ISale) => {
+      const result = await Swal.fire({
+        title: "¿Estás seguro de cancelar?",
+        text: `Anular la venta ${sale.salecode}`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#b20000",
+        confirmButtonText: "Cancelar venta",
+        cancelButtonText: "Volver",
+        input: "textarea",
+        inputLabel: "Motivo de cancelación",
+        inputPlaceholder: "Describe el motivo",
+        inputAttributes: {
+          "aria-label": "Motivo de cancelación",
+        },
+        preConfirm: (value) => {
+          const reason = String(value ?? "").trim();
+          if (!reason) {
+            Swal.showValidationMessage("Debes indicar un motivo");
+            return null;
+          }
+          return reason;
+        },
+      });
+
+      if (!result.isConfirmed) {
+        return;
       }
-    });
-  }, []);
+
+      const observation = String(result.value ?? "").trim();
+      showLoader();
+      try {
+        await cancelSale(sale.saleid, observation);
+        await refreshSales();
+        await Swal.fire(
+          "Venta cancelada",
+          "El estado se actualizó correctamente.",
+          "success"
+        );
+      } catch (error) {
+        console.error("No se pudo cancelar la venta:", error);
+        Swal.fire(
+          "Error",
+          error instanceof Error
+            ? error.message
+            : "No se pudo cancelar la venta",
+          "error"
+        );
+      } finally {
+        hideLoader();
+      }
+    },
+    [hideLoader, refreshSales, showLoader]
+  );
 
   const columns: Column<ISale>[] = useMemo(
     () => [
@@ -55,7 +102,18 @@ export default function SalesIndex() {
       {
         key: "customerid",
         header: "Cliente",
-        render: (row) => `ID ${row.customerid}`,
+        render: (row) => {
+          const customerLabel = formatSaleCustomerLabel(row, customers);
+          return (
+            <span
+              className={
+                customerLabel.isMissing ? "text-gray-400 italic" : "font-medium"
+              }
+            >
+              {customerLabel.label}
+            </span>
+          );
+        },
       },
       {
         key: "saledate",
@@ -82,12 +140,32 @@ export default function SalesIndex() {
               : s === "cancelled"
               ? "text-red-600"
               : "text-gray-600";
-          return <span className={`${cls} font-medium`}>{row.salestatus}</span>;
+          return (
+            <span className={`${cls} font-medium`}>
+              {translateSaleStatus(row.salestatus)}
+            </span>
+          );
         },
       },
     ],
-    []
+    [customers]
   );
+
+  const normalizedRoleName = (
+    profile?.rolename ?? user?.rolename ?? ""
+  ).toLowerCase();
+  const isClientUser =
+    normalizedRoleName.includes("client") ||
+    normalizedRoleName.includes("cliente");
+
+  const filteredSales = useMemo(() => {
+    if (isClientUser && user?.userid != null) {
+      return sales.filter(
+        (sale) => sale.customer?.userid === user.userid
+      );
+    }
+    return sales;
+  }, [sales, user?.userid, isClientUser]);
 
   return (
     <RequireAuth>
@@ -100,11 +178,11 @@ export default function SalesIndex() {
         ) : (
           <DataTable
             module="sales"
-            data={sales}
+            data={filteredSales}
             columns={columns}
             searchableKeys={["salecode", "salestatus"]}
             pageSize={8}
-            onDelete={confirmDeleteSale}
+            onCancel={confirmCancelSale}
             onView={async (row) => {
               try {
                 showLoader(); // ⬅ Mostrar loading
