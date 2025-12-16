@@ -1,5 +1,5 @@
 "use client";
-import { X } from "lucide-react";
+import { X, ChevronUp, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -8,6 +8,7 @@ import ClientCreateRequestModal from "@/features/dashboard/requests/components/C
 import { useCreateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
 import { showSuccess, showError } from "@/shared/utils/notifications";
 import { createSale } from "@/features/dashboard/sales/api/sales.api";
+import Swal from "sweetalert2";
 
 function getUserFromToken(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -130,7 +131,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   useEffect(() => {
     const user = getUserFromToken();
     setAuthUser(user);
+
+    // Inicializar con todos los productos desplegados
+    const allProductIds = new Set(cart.map((item) => item.id));
+    setOpenProducts(allProductIds);
   }, []);
+
+  // Actualizar openProducts cuando cambie el carrito
+  useEffect(() => {
+    const currentIds = Array.from(openProducts);
+    const newIds = cart.map((item) => item.id);
+
+    // Mantener los que ya estaban abiertos y agregar nuevos productos
+    const updatedSet = new Set([
+      ...currentIds.filter((id) => newIds.includes(id)),
+      ...newIds.filter((id) => !currentIds.includes(id)),
+    ]);
+
+    setOpenProducts(updatedSet);
+  }, [cart]);
 
   if (!isOpen) return null;
 
@@ -174,7 +193,6 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
       const salePayload = buildSalePayload({
         cart,
         userId: authUser.userid,
-        total,
       });
 
       await createSale(salePayload);
@@ -191,7 +209,22 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         })
       );
 
-      showSuccess("Compra y servicio confirmados correctamente.");
+      // Mostrar Sweet Alert antes de redireccionar
+      await Swal.fire({
+        title: "¡Compra Exitosa!",
+        text: "La venta y solicitud de servicio han sido creadas correctamente.",
+        icon: "success",
+        confirmButtonText: "Continuar",
+        confirmButtonColor: "#dc2626",
+        timer: 3000,
+        timerProgressBar: true,
+        showClass: {
+          popup: "animate__animated animate__fadeInDown",
+        },
+        hideClass: {
+          popup: "animate__animated animate__fadeOutUp",
+        },
+      });
 
       window.location.href = "/payments/register";
       onClose();
@@ -237,27 +270,53 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                 whileTap={{ scale: 0.97 }}
                 layout
                 transition={{ duration: 0.4, ease: "easeInOut" }}
-                className={`cursor-pointer bg-gray-50 rounded-xl shadow-md hover:shadow-xl p-4 
-  
+                className={`cursor-pointer bg-gray-50 rounded-xl shadow-md hover:shadow-xl p-4 relative
   ${
     openProducts.has(item.id)
       ? "flex flex-col md:flex-row gap-6 items-start md:col-span-3"
       : "flex flex-col items-center"
   }`}
-                onClick={() => {
-                  setOpenProducts((prev) => {
-                    const newSet = new Set(prev);
-                    if (newSet.has(item.id)) {
-                      newSet.delete(item.id);
-                    } else {
-                      newSet.add(item.id);
-                    }
-                    return newSet;
-                  });
-                }}
               >
+                {/* Flecha de despliegue - arriba a la izquierda */}
+                <div className="absolute top-2 left-2 z-10">
+                  <button
+                    className="cursor-pointer p-1 hover:bg-gray-200 rounded transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenProducts((prev) => {
+                        const newSet = new Set(prev);
+                        if (newSet.has(item.id)) {
+                          newSet.delete(item.id);
+                        } else {
+                          newSet.add(item.id);
+                        }
+                        return newSet;
+                      });
+                    }}
+                  >
+                    {openProducts.has(item.id) ? (
+                      <ChevronUp className="h-4 w-4 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-600" />
+                    )}
+                  </button>
+                </div>
+
                 {/* Vista simple */}
-                <div className="flex flex-col items-center justify-between w-full md:w-40">
+                <div
+                  className="flex flex-col items-center justify-between w-full md:w-40"
+                  onClick={() => {
+                    setOpenProducts((prev) => {
+                      const newSet = new Set(prev);
+                      if (newSet.has(item.id)) {
+                        newSet.delete(item.id);
+                      } else {
+                        newSet.add(item.id);
+                      }
+                      return newSet;
+                    });
+                  }}
+                >
                   <p className="mt-2 font-medium text-gray-800 text-center">
                     {item.name}
                   </p>
@@ -392,16 +451,15 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                     setOpenServiceModal(false);
                                   }
                                 }}
+                                className={`cursor-pointer px-3 py-1 rounded text-sm font-medium transition ${
+                                  item.service
+                                    ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                    : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                                }`}
                               >
-                                <Image
-                                  src="/assets/imgs/check_box.png"
-                                  alt="Servicio"
-                                  width={25}
-                                  height={25}
-                                  className={`cursor-pointer  transition hover:scale-110 hover:bg-red-300/60 rounded ${
-                                    item.service ? "opacity-100" : "opacity-30"
-                                  }`}
-                                />
+                                {item.service
+                                  ? "✓ Servicio incluido"
+                                  : "➕ Incluir servicio"}
                               </button>
                             </td>
                             <td className="p-3 text-center">
