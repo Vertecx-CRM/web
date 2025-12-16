@@ -61,7 +61,7 @@ export const getServicesRequestsForQuote = async (): Promise<any[]> => {
     const { data } = await api.get("/service-requests");
 
     const filtered = data.filter(
-      (request: any) => request.stateId === 5 && request.quoteId == null
+      (request: any) => request.stateId === 11 && request.quoteId == null
     );
 
     return filtered;
@@ -81,6 +81,17 @@ export const approveQuote = async (quoteId: number): Promise<void> => {
   } catch (error) {
     console.error("Error al aprobar la cotización:", error);
     showError("Error al aprobar la cotización. Inténtalo nuevamente.");
+    throw error;
+  }
+};
+
+export const completeQuote = async (quoteId: number): Promise<any> => {
+  try {
+    const { data } = await api.patch(`/quotes/${quoteId}/complete`);
+    return data;
+  } catch (error) {
+    console.error("Error al completar la cotización:", error);
+    showError("Error al completar la cotización. Inténtalo nuevamente.");
     throw error;
   }
 };

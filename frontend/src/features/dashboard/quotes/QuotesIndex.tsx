@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "../../auth/requireauth";
 import { DataTable } from "../components/datatable/DataTable";
@@ -11,10 +11,13 @@ import Image from "next/image";
 
 import RegisterQuoteForm from "./components/RegisterQuote";
 import ViewQuote from "./components/ViewQuote";
+import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
+import { updateServiceRequest } from "@/features/dashboard/requests/services/servicerequests.service";
 import {
   createQuote,
   getQuotes,
   approveQuote,
+  completeQuote,
   cancelQuote,
   revokeQuote,
 } from "./api/quotes.api";
@@ -70,6 +73,51 @@ const normalizeQuoteStatusText = (status?: string): string => {
   return value;
 };
 
+const toPositiveInteger = (value: any): number | null => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  const integer = Math.trunc(numeric);
+  return integer > 0 ? integer : null;
+};
+
+const getQuoteServiceRequestId = (quote?: any): number | null => {
+  if (!quote) return null;
+  const candidates = [
+    quote.serviceRequest?.serviceRequestId,
+    quote.serviceRequest?.id,
+    quote.serviceRequestId,
+    quote.servicerequestid,
+    quote.servicerequestId,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveInteger(candidate);
+    if (id) return id;
+  }
+
+  return null;
+};
+
+const getQuoteOrderServiceId = (quote?: any): number | null => {
+  if (!quote) return null;
+  const candidates = [
+    quote.ordersservices?.ordersservicesid,
+    quote.ordersservices?.id,
+    quote.ordersservicesid,
+    quote.ordersservicesId,
+    quote.order?.ordersservicesid,
+    quote.order?.ordersservicesId,
+    quote.order?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveInteger(candidate);
+    if (id) return id;
+  }
+
+  return null;
+};
+
 export default function QuotesIndex() {
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +125,8 @@ export default function QuotesIndex() {
   const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
   const [isDetailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<any>(null);
+  const [isCompletingQuote, setCompletingQuote] = useState(false);
+  const [isFinalizingQuote, setFinalizingQuote] = useState(false);
 
   /* ================================
    * CARGAR COTIZACIONES
@@ -168,10 +218,42 @@ export default function QuotesIndex() {
 
     if (!r.isConfirmed) return;
 
-    await approveQuote(row.id);
-    await fetchQuotes();
+    try {
+      await approveQuote(row.id);
+    } catch (error: any) {
+      console.error("Error al aprobar la cotización:", error);
+      Swal.fire(
+        "Error",
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo aprobar la cotización.",
+        "error"
+      );
+      return;
+    }
 
-    Swal.fire("Aprobada", "Cotización aprobada correctamente", "success");
+    let completionResult: any = null;
+    try {
+      completionResult = await completeQuote(row.id);
+    } catch (error: any) {
+      console.error("Error al convertir la cotización:", error);
+      await fetchQuotes();
+      Swal.fire(
+        "Cotización aprobada",
+        "La cotización quedó en estado aprobada, pero no se pudo generar la venta.",
+        "warning"
+      );
+      return;
+    }
+
+    await fetchQuotes();
+    Swal.fire(
+      "Cotización completada",
+      completionResult?.sale
+        ? `Venta generada: ${completionResult.sale.salecode ?? completionResult.sale.saleid}`
+        : "La cotización se completó y se creó la venta asociada.",
+      "success"
+    );
   };
 
   /* ================================
@@ -237,6 +319,119 @@ export default function QuotesIndex() {
     });
   };
 
+  const handleCompleteQuote = useCallback(async () => {
+    if (!selectedQuote) return;
+
+    const quoteId = Number(
+      selectedQuote.quotesid ?? selectedQuote.id ?? selectedQuote.quoteId ?? 0
+    );
+    if (!quoteId) {
+      Swal.fire("Error", "ID de cotización inválido.", "error");
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: "¿Completar cotización?",
+      text: "Se generará la venta correspondiente y la cotización pasará a estado completado.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Completar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setCompletingQuote(true);
+      await completeQuote(quoteId);
+      await fetchQuotes();
+      setDetailModalOpen(false);
+      setSelectedQuote(null);
+      Swal.fire(
+        "Cotización completada",
+        "Se creó la venta asociada y la cotización se actualizó.",
+        "success"
+      );
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire(
+        "Error",
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo completar la cotización.",
+        "error"
+      );
+    } finally {
+      setCompletingQuote(false);
+    }
+  }, [selectedQuote, fetchQuotes]);
+
+  const handleFinalizeQuote = useCallback(async () => {
+    if (!selectedQuote) return;
+
+    const serviceRequestId = getQuoteServiceRequestId(selectedQuote);
+    const orderServiceId = getQuoteOrderServiceId(selectedQuote);
+
+    if (!serviceRequestId && !orderServiceId) {
+      Swal.fire(
+        "Sin registros relacionados",
+        "La cotización no tiene orden ni solicitud asociada.",
+        "warning"
+      );
+      return;
+    }
+
+    const targets = [
+      serviceRequestId ? "solicitud de servicio" : null,
+      orderServiceId ? "orden de servicio" : null,
+    ].filter(Boolean) as string[];
+    const targetText = targets.join(" y ");
+    const verb = targets.length > 1 ? "marcaran" : "marcara";
+    const suffix = targets.length > 1 ? "finalizados" : "finalizado";
+
+    const confirm = await Swal.fire({
+      title: "Finalizar cotización?",
+      text: `Se ${verb} ${targetText} como ${suffix} (estado 6).`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Finalizar",
+      cancelButtonText: "Cancelar",
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setFinalizingQuote(true);
+      const requests: Promise<any>[] = [];
+      if (serviceRequestId) {
+        requests.push(updateServiceRequest(serviceRequestId, { stateId: 6 }));
+      }
+      if (orderServiceId) {
+        requests.push(updateOrderService(orderServiceId, { stateid: 6 }));
+      }
+      if (requests.length) {
+        await Promise.all(requests);
+      }
+      await fetchQuotes();
+      Swal.fire(
+        "Finalizado",
+        `Se ${verb} ${targetText} como ${suffix} (estado 6).`,
+        "success"
+      );
+    } catch (error: any) {
+      console.error("Error al actualizar estados:", error);
+      Swal.fire(
+        "Error",
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudieron actualizar los registros.",
+        "error"
+      );
+    } finally {
+      setFinalizingQuote(false);
+    }
+  }, [selectedQuote, fetchQuotes]);
+
   /* ================================
    * CREAR
    * ================================ */
@@ -249,6 +444,16 @@ export default function QuotesIndex() {
   /* ================================
    * RENDER
    * ================================ */
+  const selectedQuoteStateName = selectedQuote?.state?.name ?? "";
+  const isSelectedQuoteCompleted = Boolean(
+    selectedQuoteStateName.toLowerCase().includes("complet")
+  );
+  const selectedServiceRequestId = getQuoteServiceRequestId(selectedQuote);
+  const selectedOrderServiceId = getQuoteOrderServiceId(selectedQuote);
+  const canFinalizeSelectedQuote = Boolean(
+    selectedServiceRequestId || selectedOrderServiceId
+  );
+
   return (
     <RequireAuth>
       <div className="p-6">
@@ -306,7 +511,17 @@ export default function QuotesIndex() {
           onClose={() => setDetailModalOpen(false)}
           footer={null}
         >
-          {selectedQuote && <ViewQuote quote={selectedQuote} />}
+          {selectedQuote && (
+            <ViewQuote
+              quote={selectedQuote}
+              canComplete={!isSelectedQuoteCompleted}
+              isCompleting={isCompletingQuote}
+              onComplete={handleCompleteQuote}
+              canFinalize={canFinalizeSelectedQuote}
+              isFinalizing={isFinalizingQuote}
+              onFinalize={handleFinalizeQuote}
+            />
+          )}
         </Modal>
       </div>
     </RequireAuth>

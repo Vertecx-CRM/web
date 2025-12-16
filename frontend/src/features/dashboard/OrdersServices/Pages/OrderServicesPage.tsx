@@ -67,7 +67,14 @@ type WarrantyInfo = {
   notifiedClient?: boolean;
 };
 
-type Estado = "Aprobada" | "Anulada" | "Pendiente" | "Agendada" | "Garantia" | "GarantiaReportada";
+type Estado =
+  | "Aprobada"
+  | "Anulada"
+  | "Pendiente"
+  | "Agendada"
+  | "Garantia"
+  | "GarantiaReportada"
+  | "Finalizado";
 
 type TechnicianOption = { technicianid: number; label: string };
 type OrderFile = { label?: string; url: string };
@@ -129,6 +136,7 @@ function EstadoText({ v }: { v: Estado }) {
     Anulada: "text-red-700",
     Garantia: "text-blue-700",
     GarantiaReportada: "text-blue-700",
+    Finalizado: "text-emerald-700",
   };
 
   const label = v === "GarantiaReportada" ? "Garantía (reportada)" : v;
@@ -183,6 +191,7 @@ function formatTimeES(input?: string | null) {
 
 function mapEstadoFromBackend(name?: string | null): Estado {
   const n = (name || "").toLowerCase();
+  if (n.includes("final") || n.includes("complet")) return "Finalizado";
   if (n.includes("anul") || n.includes("revoke") || n.includes("cancel")) return "Anulada";
   if (n.includes("aprob") || n.includes("approved")) return "Aprobada";
   if (n.includes("agend")) return "Agendada";

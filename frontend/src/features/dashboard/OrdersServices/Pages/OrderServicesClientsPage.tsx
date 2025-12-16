@@ -20,7 +20,7 @@ type Row = {
   tipo: "Instalación" | "Mantenimiento";
   tecnico: string;
   cliente: string;
-  estado: "Aprobada" | "Anulada" | "Pendiente";
+  estado: "Aprobada" | "Anulada" | "Pendiente" | "Finalizado";
   monto?: number;
 };
 
@@ -30,7 +30,7 @@ const MOCK: Row[] = [
   { id: 3, fechaProgramada: "13/06/2025", tipo: "Mantenimiento", tecnico: "Andrés Rojas", cliente: "Distribuciones Antioquia", estado: "Anulada", monto: 420000 },
   { id: 4, fechaProgramada: "14/06/2025", tipo: "Instalación", tecnico: "Mónica Silva", cliente: "Café La Montaña", estado: "Aprobada", monto: 780000 },
   { id: 5, fechaProgramada: "15/06/2025", tipo: "Instalación", tecnico: "Julián Ortiz", cliente: "Clínica San Rafael", estado: "Pendiente", monto: 3400000 },
-  { id: 6, fechaProgramada: "16/06/2025", tipo: "Mantenimiento", tecnico: "Sofía Herrera", cliente: "Universidad Central", estado: "Aprobada", monto: 520000 },
+  { id: 6, fechaProgramada: "16/06/2025", tipo: "Mantenimiento", tecnico: "Sofía Herrera", cliente: "Universidad Central", estado: "Finalizado", monto: 520000 },
 ];
 
 function formatCOP(n?: number) {
@@ -74,6 +74,7 @@ const selectedFilterClasses: Record<Filter, string> = {
   Aprobada: "bg-green-100 border-green-200 text-green-700",
   Pendiente: "bg-yellow-100 border-yellow-200 text-yellow-700",
   Anulada: "bg-red-100 border-red-200 text-red-700",
+  Finalizado: "bg-emerald-100 border-emerald-200 text-emerald-700",
 };
 
 export default function OrdersIndexPage() {
@@ -236,7 +237,7 @@ export default function OrdersIndexPage() {
         <div className="px-4 pb-6 pt-4 max-w-7xl w-full mx-auto">
           <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-4">
             <div className="flex gap-2">
-              {(["Todas", "Aprobada", "Pendiente", "Anulada"] as const).map((f) => {
+              {(["Todas", "Aprobada", "Pendiente", "Anulada", "Finalizado"] as const).map((f) => {
                 const active = filter === f;
                 return (
                   <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${active ? selectedFilterClasses[f] : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"}`}>
@@ -264,7 +265,19 @@ export default function OrdersIndexPage() {
                         <p className="text-xs text-gray-500">Programada: {row.fechaProgramada}</p>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${row.estado === "Aprobada" ? "bg-green-100 text-green-700" : row.estado === "Pendiente" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{row.estado}</span>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        row.estado === "Aprobada"
+                          ? "bg-green-100 text-green-700"
+                          : row.estado === "Pendiente"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : row.estado === "Finalizado"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {row.estado}
+                    </span>
                   </div>
 
                   <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden">
