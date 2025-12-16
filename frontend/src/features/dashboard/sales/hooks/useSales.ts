@@ -24,6 +24,14 @@ export interface SaleFormState {
   paymentmethod: string;
 }
 
+const createInitialFormState = (): SaleFormState => ({
+  salecode: "",
+  customerid: "",
+  saledate: "",
+  notes: "",
+  paymentmethod: "Cash",
+});
+
 export function useSales() {
   const [sales, setSales] = useState<ISale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +44,7 @@ export function useSales() {
 
   const [errors, setErrors] = useState<SaleErrors>({});
 
-  const [form, setForm] = useState<SaleFormState>({
-    salecode: "",
-    customerid: "",
-    saledate: "",
-    notes: "",
-    paymentmethod: "Efectivo",
-  });
+  const [form, setForm] = useState<SaleFormState>(createInitialFormState());
 
   const subtotal = useMemo(
     () => cart.reduce((acc, p) => acc + p.quantity * p.unitprice, 0),
@@ -140,6 +142,12 @@ export function useSales() {
     return res;
   };
 
+  const resetSaleForm = useCallback(() => {
+    setForm(createInitialFormState());
+    setCart([]);
+    setErrors({});
+  }, []);
+
   return {
     sales,
     loading,
@@ -157,5 +165,7 @@ export function useSales() {
     setErrors,
     handleChange,
     handleCreateSale,
+    resetSaleForm,
+    refreshSales: fetchSales,
   };
 }

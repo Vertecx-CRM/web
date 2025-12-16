@@ -71,16 +71,6 @@ export default function RegisterSaleForm({ hook, onClose }: Props) {
               <p className="text-red-600 text-sm mb-2">{errors.saledate}</p>
             )}
 
-            {/* Estado */}
-            <label className="block text-sm font-medium mb-1">
-              Estado Venta
-            </label>
-            <select
-              disabled
-              className="w-full border rounded-lg px-3 py-2 mb-4"
-            >
-              <option>Pendiente</option>
-            </select>
           </div>
 
           {/* PRODUCTOS */}

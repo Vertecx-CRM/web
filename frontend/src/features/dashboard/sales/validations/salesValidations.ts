@@ -63,7 +63,7 @@ export const validateSaleField = (
     case "paymentmethod":
       if (!value) return "Debe seleccionar un método de pago";
 
-      if (!["Efectivo", "Transferencia", "Tarjeta"].includes(value)) {
+      if (!["Efectivo", "Cash", "Transferencia", "Tarjeta"].includes(value)) {
         return "Método de pago inválido";
       }
       return;
