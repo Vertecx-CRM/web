@@ -260,22 +260,33 @@ export default function ClientCreateRequestModal({
     try {
       setSaving(true);
 
-      const stateIdToSend =
-        pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0
-          ? pendingStateId
-          : scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0
-          ? scheduledStateId
-          : 5;
-
-      const payload: CreateRequestPayload = {
+      const basePayload: CreateRequestPayload = {
         scheduledAt: null,
         scheduledEndAt: null,
         serviceType: selectedType.code,
         description: String(description || "").trim(),
         direccion: String(direccion || "").trim(),
-        stateId: stateIdToSend,
+        stateId: 0,
         serviceId: sid,
         clientId,
+      };
+
+      const hasProgrammedDate =
+        (basePayload.scheduledAt && String(basePayload.scheduledAt).trim()) ||
+        (basePayload.scheduledEndAt && String(basePayload.scheduledEndAt).trim());
+
+      const stateIdToSend =
+        (hasProgrammedDate &&
+          scheduledStateId &&
+          Number.isFinite(scheduledStateId) &&
+          scheduledStateId > 0 &&
+          scheduledStateId) ||
+        (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+        5;
+
+      const payload: CreateRequestPayload = {
+        ...basePayload,
+        stateId: stateIdToSend,
       };
 
       await onSave(payload);
