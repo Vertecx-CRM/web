@@ -167,6 +167,11 @@ export default function SalesIndex() {
     return sales;
   }, [sales, user?.userid, isClientUser]);
 
+  const sortedSales = useMemo(() => {
+    const sorted = [...filteredSales];
+    return sorted.sort((a, b) => b.saleid - a.saleid);
+  }, [filteredSales]);
+
   return (
     <RequireAuth>
       <div className="p-6">
@@ -178,7 +183,7 @@ export default function SalesIndex() {
         ) : (
           <DataTable
             module="sales"
-            data={filteredSales}
+            data={sortedSales}
             columns={columns}
             searchableKeys={["salecode", "salestatus"]}
             pageSize={8}
