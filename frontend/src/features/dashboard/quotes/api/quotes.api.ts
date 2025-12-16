@@ -61,11 +61,7 @@ export const getServicesRequestsForQuote = async (): Promise<any[]> => {
     const { data } = await api.get("/service-requests");
 
     const filtered = data.filter(
-      (request: any) =>
-        request.stateId === 4 &&
-        request.stateId === 3 &&
-        request.stateId === 5 &&
-        request.quoteId == 8
+      (request: any) => request.stateId === 5 && request.quoteId == null
     );
 
     return filtered;
