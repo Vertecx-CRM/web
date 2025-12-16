@@ -17,9 +17,9 @@ export interface CartItem {
   productstock?: number;
 }
 
-/**
- * Valida un campo individual del formulario de venta
- */
+
+//  * Valida un campo individual del formulario de venta
+
 export const validateSaleField = (
   field: keyof SaleErrors,
   value: any,
