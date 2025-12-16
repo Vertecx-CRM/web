@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import RequireAuth from "../../auth/requireauth";
 import {
+  ActionButton,
   Column,
   DataTable,
 } from "@/features/dashboard/components/datatable/DataTable";
@@ -14,7 +15,7 @@ import Swal from "sweetalert2";
 import Modal from "../components/Modal";
 import RegisterSaleForm from "./components/RegisterSale";
 import ViewSale from "./components/ViewSale";
-import { cancelSale, getSaleById } from "./api/sales.api";
+import { cancelSale, completeSale, getSaleById } from "./api/sales.api";
 import { useLoader } from "@/shared/components/loader";
 import { translateSaleStatus } from "./helpers/saleStatusHelpers";
 import { useAuth } from "@/features/auth/authcontext";
@@ -34,6 +35,7 @@ export default function SalesIndex() {
   const { user, profile } = useAuth();
 
   const [isRegisterOpen, setRegisterOpen] = useState(false);
+  const [isCompletingSale, setCompletingSale] = useState(false);
 
   // Nuevo: modal de detalle
   const [isDetailOpen, setDetailOpen] = useState(false);
@@ -65,11 +67,19 @@ export default function SalesIndex() {
         },
       });
 
-      if (!result.isConfirmed) {
-        return;
-      }
+    if (!result.isConfirmed) {
+      return;
+    }
 
-      const observation = String(result.value ?? "").trim();
+    const observation = String(result.value ?? "").trim();
+    if (isSaleCompleted(sale)) {
+      Swal.fire(
+        "Venta completada",
+        "No puedes cancelar una venta que ya está completada.",
+        "warning"
+      );
+      return;
+    }
       showLoader();
       try {
         await cancelSale(sale.saleid, observation);
@@ -94,6 +104,83 @@ export default function SalesIndex() {
     },
     [hideLoader, refreshSales, showLoader]
   );
+
+  const handleCompleteSale = useCallback(
+    async (sale: ISale | null) => {
+    if (!sale) return;
+    if (isSaleCancelled(sale)) {
+      Swal.fire(
+        "Venta cancelada",
+        "No puedes completar una venta que ya fue cancelada.",
+        "warning"
+      );
+      return;
+    }
+
+      const confirmation = await Swal.fire({
+        title: "¿Marcar venta como completada?",
+        text: "Esta acción actualizará la venta a estado Completado.",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Completar venta",
+        cancelButtonText: "Cancelar",
+      });
+
+      if (!confirmation.isConfirmed) {
+        return;
+      }
+
+      setCompletingSale(true);
+      showLoader();
+      try {
+        await completeSale(sale.saleid);
+        await refreshSales();
+        const updatedSale = await getSaleById(sale.saleid);
+        setSelectedSale(updatedSale);
+        Swal.fire(
+          "Venta completada",
+          "El estado se actualizó a Completado correctamente.",
+          "success"
+        );
+      } catch (error) {
+        console.error("No se pudo completar la venta:", error);
+        Swal.fire(
+          "Error",
+          error instanceof Error
+            ? error.message
+            : "No se pudo completar la venta",
+          "error"
+        );
+      } finally {
+        hideLoader();
+        setCompletingSale(false);
+      }
+    },
+    [hideLoader, refreshSales, showLoader]
+  );
+
+  const renderSaleExtraActions = useCallback(
+    (sale: ISale) => {
+      if (isSaleCompleted(sale) || isSaleCancelled(sale)) {
+        return null;
+      }
+
+      return (
+        <ActionButton
+          icon="/icons/complete.svg"
+          title="Completar"
+          onClick={() => handleCompleteSale(sale)}
+        />
+      );
+    },
+    [handleCompleteSale]
+  );
+
+  const isSaleCompleted = (sale?: ISale | null): boolean =>
+    (sale?.salestatus ?? "").toLowerCase() === "completed";
+
+  const isSaleCancelled = (sale?: ISale | null): boolean =>
+    (sale?.salestatus ?? "").toLowerCase() === "cancelled";
 
   const columns: Column<ISale>[] = useMemo(
     () => [
@@ -172,6 +259,9 @@ export default function SalesIndex() {
     return sorted.sort((a, b) => b.saleid - a.saleid);
   }, [filteredSales]);
 
+  const isSelectedSaleCompleted = isSaleCompleted(selectedSale);
+  const isSelectedSaleCancelled = isSaleCancelled(selectedSale);
+
   return (
     <RequireAuth>
       <div className="p-6">
@@ -209,6 +299,10 @@ export default function SalesIndex() {
             }}
             onCreate={() => setRegisterOpen(true)}
             createButtonText="Registrar venta"
+            renderExtraActions={renderSaleExtraActions}
+            actionGuard={(row) => ({
+              disableCancel: isSaleCancelled(row) || isSaleCompleted(row),
+            })}
           />
         )}
 
@@ -249,7 +343,13 @@ export default function SalesIndex() {
           }
         >
           {selectedSale && (
-            <ViewSale sale={selectedSale} customers={customers} />
+            <ViewSale
+              sale={selectedSale}
+              customers={customers}
+              canComplete={!isSelectedSaleCompleted && !isSelectedSaleCancelled}
+              isCompleting={isCompletingSale}
+              onComplete={() => handleCompleteSale(selectedSale)}
+            />
           )}
         </Modal>
       </div>

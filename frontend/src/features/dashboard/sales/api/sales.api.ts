@@ -71,6 +71,21 @@ export const cancelSale = async (id: number, observation: string) => {
   }
 };
 
+export const completeSale = async (id: number) => {
+  try {
+    const { data } = await api.patch(`/sales/${id}`, { salestatus: "Completed" });
+    return data;
+  } catch (error) {
+    console.error("Error al completar la venta:", error.response?.data ?? error);
+    const message =
+      error.response?.data?.message ??
+      error.response?.data?.error ??
+      error.message ??
+      "No se pudo completar la venta.";
+    throw new Error(message);
+  }
+};
+
 export const getSaleById = async (id: number): Promise<ISale> => {
   try {
     const { data } = await api.get(`/sales/${id}`);

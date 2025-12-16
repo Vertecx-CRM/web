@@ -1,7 +1,15 @@
 "use client";
 
+import { IQuote } from "../types/Quote.type";
+
 interface ViewQuoteProps {
-  quote: any;
+  quote: IQuote;
+  canComplete?: boolean;
+  isCompleting?: boolean;
+  onComplete?: () => Promise<void> | void;
+  canFinalize?: boolean;
+  isFinalizing?: boolean;
+  onFinalize?: () => Promise<void> | void;
 }
 
 const formatCOP = (value: number | string) =>
@@ -11,7 +19,15 @@ const formatCOP = (value: number | string) =>
     minimumFractionDigits: 0,
   }).format(Number(value));
 
-export default function ViewQuote({ quote }: ViewQuoteProps) {
+export default function ViewQuote({
+  quote,
+  canComplete = false,
+  isCompleting = false,
+  onComplete,
+  canFinalize = false,
+  isFinalizing = false,
+  onFinalize,
+}: ViewQuoteProps) {
   if (!quote) return null;
 
   const client = quote.customer?.users
@@ -110,6 +126,29 @@ export default function ViewQuote({ quote }: ViewQuoteProps) {
         <Row label="IVA (19%)" value={formatCOP(quote.tax)} />
         <Row label="Total" value={formatCOP(quote.total)} bold />
       </div>
+
+      {(canComplete && onComplete) || (canFinalize && onFinalize) ? (
+        <div className="flex flex-wrap justify-end gap-2 mt-3">
+          {canFinalize && onFinalize && (
+            <button
+              onClick={onFinalize}
+              disabled={isFinalizing || isCompleting}
+              className="bg-sky-600 text-white px-5 py-2 rounded-md shadow-sm hover:bg-sky-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isFinalizing ? "Actualizando..." : "Finalizar cotización"}
+            </button>
+          )}
+          {canComplete && onComplete && (
+            <button
+              onClick={onComplete}
+              disabled={isCompleting || isFinalizing}
+              className="bg-emerald-600 text-white px-5 py-2 rounded-md shadow-sm hover:bg-emerald-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isCompleting ? "Generando venta..." : "Completar cotización"}
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
