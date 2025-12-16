@@ -689,18 +689,36 @@ const {
     };
   }, []);
 
+  const approvedQuotes = useMemo(() => {
+    return (quotesRaw || []).filter((q) => {
+      const stateId = pickNumber(q?.state?.stateid, q?.stateid, q?.statesid, q?.state?.id);
+      if (Number.isFinite(stateId) && [3].includes(stateId)) return true;
+
+      const stateName =
+        q?.state?.name ??
+        q?.state?.statename ??
+        (typeof q?.state === "string" ? q.state : "") ??
+        q?.status ??
+        q?.stateName ??
+        q?.statename;
+
+      const normalized = normalizeText(stateName || "");
+      return normalized.includes("aprob") || normalized.includes("approv");
+    });
+  }, [quotesRaw]);
+
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
-    for (const q of quotesRaw || []) {
+    for (const q of approvedQuotes || []) {
       const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
-  }, [quotesRaw]);
+  }, [approvedQuotes]);
 
   const quoteOptions = useMemo(() => {
     const opts: Array<{ id: number; label: string }> = [];
-    for (const q of quotesRaw || []) {
+    for (const q of approvedQuotes || []) {
       const nq = normalizeQuote(q);
       const id = nq.quotesid ?? pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
@@ -724,7 +742,7 @@ const {
     }
     opts.sort((a, b) => b.id - a.id);
     return opts;
-  }, [quotesRaw, customers, serviceTypes]);
+  }, [approvedQuotes, customers, serviceTypes]);
 
   const [selectedQuotesId, setSelectedQuotesId] = useState<number | "">("");
 
@@ -1520,7 +1538,7 @@ const {
 
         if (quotesIdFromUrl) {
           raw = quoteMapById.get(quotesIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontró la cotización #${quotesIdFromUrl} en /quotes`);
+          if (!raw) throw new Error(`No se encontró la cotización aprobada #${quotesIdFromUrl} en /quotes`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
           if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
@@ -1571,7 +1589,7 @@ const {
 
     const raw = quoteMapById.get(id);
     if (!raw) {
-      const msg = `La cotización #${id} no está disponible en el listado de /quotes.`;
+      const msg = `La cotización #${id} no está disponible en el listado de cotizaciones aprobadas.`;
       setQuoteApplyError(msg);
       showError(msg);
       return;

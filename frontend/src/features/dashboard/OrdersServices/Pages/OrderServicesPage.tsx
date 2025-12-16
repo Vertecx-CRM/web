@@ -7,6 +7,7 @@ import RequireAuth from "@/features/auth/requireauth";
 import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
 import { showError, showSuccess } from "@/shared/utils/notifications";
+import { useAuth } from "@/features/auth/authcontext";
 
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
@@ -196,6 +197,110 @@ function inferTipo(desc?: string | null): RowTipo {
   if (d.includes("instal")) return "Instalación";
   if (d.includes("manten")) return "Mantenimiento";
   return "Mantenimiento";
+}
+
+function normalizeRoleName(role: any) {
+  return String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function toPositiveId(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function extractAuthClientId(user: any, profile: any): number | null {
+  const candidates = [
+    user?.customerid,
+    user?.clientid,
+    user?.clientId,
+    user?.customer?.customerid,
+    user?.customers?.[0]?.customerid,
+    user?.customer?.id,
+    user?.customers?.[0]?.id,
+    profile?.customerid,
+    profile?.clientid,
+    profile?.clientId,
+    profile?.customer?.customerid,
+    profile?.customers?.[0]?.customerid,
+    profile?.customer?.id,
+    profile?.customers?.[0]?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveId(candidate);
+    if (id) return id;
+  }
+  return null;
+}
+
+function extractAuthTechnicianId(user: any, profile: any): number | null {
+  const candidates = [
+    user?.technicianid,
+    user?.technicianId,
+    user?.technician?.technicianid,
+    user?.technicians?.[0]?.technicianid,
+    user?.technician?.id,
+    user?.technicians?.[0]?.id,
+    profile?.technicianid,
+    profile?.technicianId,
+    profile?.technician?.technicianid,
+    profile?.technicians?.[0]?.technicianid,
+    profile?.technician?.id,
+    profile?.technicians?.[0]?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveId(candidate);
+    if (id) return id;
+  }
+  return null;
+}
+
+function extractOrderClientIds(o: any): number[] {
+  const client = o?.client ?? o?.customer ?? o?.cliente ?? null;
+  const ids = [
+    o?.clientId,
+    o?.clientid,
+    o?.customerid,
+    client?.customerid,
+    client?.clientid,
+    client?.id,
+    client?.userid,
+    client?.users?.userid,
+    client?.users?.id,
+  ];
+
+  return Array.from(
+    new Set(
+      ids
+        .map((id) => toPositiveId(id))
+        .filter((id): id is number => id != null)
+    )
+  );
+}
+
+function extractOrderTechnicianIds(o: any): number[] {
+  const pools = [o?.technicians, o?.assignedTechnicians, o?.technician, o?.techs];
+  const ids: number[] = [];
+
+  pools.forEach((pool) => {
+    if (!Array.isArray(pool)) return;
+    pool.forEach((tech: any) => {
+      ids.push(
+        toPositiveId(tech?.technicianid),
+        toPositiveId(tech?.technicianId),
+        toPositiveId(tech?.id),
+        toPositiveId(tech?.users?.userid),
+        toPositiveId(tech?.userid)
+      );
+    });
+  });
+
+  return Array.from(new Set(ids.filter((id): id is number => id != null)));
 }
 
 function resolveWarrantyFromBackend(o: any): WarrantyInfo | undefined {
@@ -415,6 +520,71 @@ export default function OrdersServicesIndexPage() {
   const [historyTechnicians, setHistoryTechnicians] = useState<TechnicianOption[]>([]);
 
   const bodyOverflowRef = useRef<string | null>(null);
+  const { user, profile } = useAuth();
+
+  const normalizedRole = useMemo(() => {
+    const candidates = [
+      user?.rolename,
+      (user as any)?.role,
+      (user as any)?.role?.name,
+      (user as any)?.roles?.name,
+      profile?.rolename,
+      (profile as any)?.role,
+      (profile as any)?.role?.name,
+      (profile as any)?.roles?.name,
+    ];
+
+    const normalized = candidates
+      .map((r) => normalizeRoleName(r))
+      .find((r) => !!r);
+
+    return normalized || "";
+  }, [user, profile]);
+
+  const isClientRole = useMemo(
+    () =>
+      normalizedRole === "cliente" ||
+      normalizedRole === "client" ||
+      normalizedRole === "customer",
+    [normalizedRole]
+  );
+
+  const isTechnicianRole = useMemo(
+    () => normalizedRole === "tecnico" || normalizedRole === "technician",
+    [normalizedRole]
+  );
+
+  const clientIdFromAuth = useMemo(() => {
+    if (!isClientRole) return null;
+    return extractAuthClientId(user, profile);
+  }, [isClientRole, user, profile]);
+
+  const technicianIdFromAuth = useMemo(() => {
+    if (!isTechnicianRole) return null;
+    return extractAuthTechnicianId(user, profile);
+  }, [isTechnicianRole, user, profile]);
+
+  const filterOrdersForAuth = useCallback(
+    (list: any[]) => {
+      const arr = Array.isArray(list) ? list : [];
+      return arr.filter((o) => {
+        if (isClientRole) {
+          const clientIds = extractOrderClientIds(o);
+          const targetClientId = clientIdFromAuth ?? -1;
+          if (!clientIds.includes(targetClientId)) return false;
+        }
+
+        if (isTechnicianRole) {
+          const techIds = extractOrderTechnicianIds(o);
+          const targetTechId = technicianIdFromAuth ?? -1;
+          if (!techIds.includes(targetTechId)) return false;
+        }
+
+        return true;
+      });
+    },
+    [clientIdFromAuth, isClientRole, isTechnicianRole, technicianIdFromAuth]
+  );
 
   // ✅ Disparar notificación al aterrizar desde /new (flash toast)
   useEffect(() => {
@@ -440,13 +610,14 @@ export default function OrdersServicesIndexPage() {
       text: toast.message,
       confirmButtonColor: "#B20000",
     });
-  }, []);
+  }, [filterOrdersForAuth]);
 
   const reloadOrders = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchOrdersServices();
-      const mapped = (Array.isArray(data) ? data : []).map(toRow);
+      const filtered = filterOrdersForAuth(Array.isArray(data) ? data : []);
+      const mapped = filtered.map(toRow);
       setRows(sortRowsByIdAsc(mapped));
     } catch {
       setRows([]);
@@ -466,7 +637,8 @@ export default function OrdersServicesIndexPage() {
       setLoading(true);
       try {
         const data = await fetchOrdersServices();
-        const mapped = (Array.isArray(data) ? data : []).map(toRow);
+        const filtered = filterOrdersForAuth(Array.isArray(data) ? data : []);
+        const mapped = filtered.map(toRow);
         if (!mounted) return;
         setRows(sortRowsByIdAsc(mapped));
       } catch {
@@ -485,7 +657,7 @@ export default function OrdersServicesIndexPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [filterOrdersForAuth]);
 
   useEffect(() => {
     const anyOpen = reportOpen || historyOpen;
