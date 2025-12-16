@@ -39,15 +39,21 @@ export default function ViewSale({ sale, customers }: Props) {
   return (
     <div className="space-y-6 text-gray-900">
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase text-gray-400 tracking-wide">
-            Detalle de venta
-          </p>
-          <h2 className="text-lg font-semibold">{sale.salecode}</h2>
-          <p className="text-sm text-gray-500">
-            Registrada el {formatDateTime(sale.createddate)}
-          </p>
-        </div>
+      <div>
+        <p className="text-xs font-semibold uppercase text-gray-400 tracking-wide">
+          Detalle de venta
+        </p>
+        <h2 className="text-lg font-semibold">{sale.salecode}</h2>
+        <p className="text-sm text-gray-500">
+          Registrada el {formatDateTime(sale.createddate)}
+        </p>
+        <p
+          className={`text-sm ${customerLabel.isMissing ? "text-gray-500 italic" : "text-gray-700"
+            }`}
+        >
+          Cliente: {customerLabel.label}
+        </p>
+      </div>
         <div className="flex flex-col items-end gap-1 text-sm">
           <span
             className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusClasses(

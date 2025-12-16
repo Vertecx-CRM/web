@@ -248,7 +248,9 @@ export default function SalesIndex() {
             </button>
           }
         >
-          {selectedSale && <ViewSale sale={selectedSale} />}
+          {selectedSale && (
+            <ViewSale sale={selectedSale} customers={customers} />
+          )}
         </Modal>
       </div>
     </RequireAuth>

@@ -55,5 +55,7 @@ export const getLandingProducts = async (): Promise<Product[]> => {
   const { data } = await api.get<ProductFromApi[]>("/products", {
     params: { status: "active" },
   });
-  return (data ?? []).map(toLanding);
+  return (data ?? [])
+    .filter((product) => (product.productstock ?? 0) > 0)
+    .map(toLanding);
 };

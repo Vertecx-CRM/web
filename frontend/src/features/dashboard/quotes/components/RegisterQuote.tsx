@@ -647,9 +647,9 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                           </span>
                         )}
                       </div>
-                      <div className="font-medium">
-                        ${p.productpriceofsale.toLocaleString()}
-                      </div>
+                    <div className="font-medium">
+                      ${Number(p.productpriceofsale ?? 0).toLocaleString("es-CO")}
+                    </div>
                     </div>
                     <div className="text-xs text-gray-500">
                       ID: {p.productid} | Estado:{" "}
