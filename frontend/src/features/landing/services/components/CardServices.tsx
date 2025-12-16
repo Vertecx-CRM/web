@@ -12,6 +12,7 @@ import {
 } from "@/features/dashboard/requests/services/servicerequests.service";
 import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
 import { useAuth } from "@/features/auth/authcontext";
+import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 
 interface CardServicesProps {
   title: string;
@@ -50,9 +51,33 @@ export default function CardServices({
 }: CardServicesProps) {
   const [open, setOpen] = useState(false);
 
-  const { ready, isAuthenticated } = useAuth();
+  const { ready, isAuthenticated, user, profile } = useAuth();
+  const { pendingStateId, scheduledStateId } = useRequestStates();
 
   const serviceType = useMemo(() => resolveServiceType(category), [category]);
+
+  const isClientRole = useMemo(() => {
+    const candidates = [
+      user?.rolename,
+      (user as any)?.role,
+      (user as any)?.role?.name,
+      profile?.rolename,
+      (profile as any)?.role,
+      (profile as any)?.role?.name,
+    ];
+
+    const normalized = candidates
+      .map((r) =>
+        String(r ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter(Boolean);
+
+    return normalized.some((r) => r === "cliente" || r === "client" || r.includes("cliente"));
+  }, [user, profile]);
 
   const handleOpenModal = () => {
     if (!ready) {
@@ -63,19 +88,49 @@ export default function CardServices({
       showInfo("Debes iniciar sesión para contratar este servicio.");
       return;
     }
+    if (!isClientRole) {
+      showInfo("Solo usuarios con rol de Cliente pueden solicitar servicios.");
+      return;
+    }
     setOpen(true);
   };
 
   const handleCloseModal = () => setOpen(false);
 
   const handleSave = async (data: CreateRequestPayload) => {
+    if (!isClientRole) {
+      showInfo("No tienes permiso para enviar solicitudes de servicio.");
+      return;
+    }
+
+    const hasSchedule = Boolean(
+      (data.scheduledAt && String(data.scheduledAt).trim()) ||
+        (data.scheduledEndAt && String(data.scheduledEndAt).trim())
+    );
+
+    const fromPayloadState = Number(data?.stateId);
+    const resolvedPending =
+      pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0
+        ? Number(pendingStateId)
+        : null;
+    const resolvedScheduled =
+      scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0
+        ? Number(scheduledStateId)
+        : null;
+
+    const stateIdToSend =
+      (Number.isFinite(fromPayloadState) && fromPayloadState > 0 && fromPayloadState) ||
+      (hasSchedule && resolvedScheduled) ||
+      resolvedPending ||
+      5;
+
     const payload: CreateServiceRequestInput = {
       scheduledAt: data.scheduledAt ?? null,
       scheduledEndAt: data.scheduledEndAt ?? null,
       serviceType: (data.serviceType as any) ?? serviceType,
       description: String(data.description ?? "").trim(),
       direccion: String(data.direccion ?? "").trim(),
-      stateId: 5,
+      stateId: stateIdToSend,
       serviceId: Number(serviceId),
       clientId: Number(clientId) || 0,
       technicians: [],
@@ -145,6 +200,8 @@ export default function CardServices({
         clientId={Number(clientId) || 0}
         clientLabel={clientLabel}
         initialServiceId={serviceId}
+        pendingStateId={pendingStateId ?? undefined}
+        scheduledStateId={scheduledStateId ?? undefined}
       />
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Nav from "@/features/landing/layout/Nav";
 import { useAuth } from "@/features/auth/authcontext";
@@ -8,6 +8,7 @@ import { showError, showSuccess } from "@/shared/utils/notifications";
 import { useDocumentTypes } from "@/features/dashboard/Users/hooks/useDocumentTypes";
 import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 type FormState = {
   name: string;
@@ -182,6 +183,17 @@ export default function RegisterPage() {
 
   const [errors, setErrors] = useState<FormErrors>(emptyErrors);
   const [touched, setTouched] = useState<FormTouched>(emptyTouched);
+  const [checking, setChecking] = useState({
+    documentnumber: false,
+    phone: false,
+    email: false,
+  });
+
+  const latestCheckRef = useRef({
+    documentnumber: "",
+    phone: "",
+    email: "",
+  });
 
   const clientRole = useMemo(
     () => roles.find((r: any) => String(r?.name ?? "").toLowerCase() === "cliente"),
@@ -239,6 +251,73 @@ export default function RegisterPage() {
       setErrors((prev) => ({ ...prev, documentnumber: docErr }));
     }
   };
+
+  const runDuplicateCheck = async (
+    field: "documentnumber" | "phone" | "email",
+    value: string
+  ) => {
+    const cleanValue = sanitize(value);
+    if (!cleanValue) return;
+
+    latestCheckRef.current[field] = cleanValue;
+    setChecking((prev) => ({ ...prev, [field]: true }));
+
+    try {
+      const params: Record<string, string> = { [field]: cleanValue };
+      const res = await api.get("/users/check", { params });
+      const payload = (res.data?.data ?? res.data) as any;
+      const exists = Boolean(payload?.[field]);
+
+      const currentError = validateField(field, form[field], form);
+      const nextError =
+        currentError ||
+        (exists
+          ? `Ya existe un usuario con este ${
+              field === "documentnumber" ? "numero de documento" : field === "phone" ? "telefono" : "correo"
+            }`
+          : "");
+
+      if (latestCheckRef.current[field] !== cleanValue) return;
+      setErrors((prev) => ({ ...prev, [field]: nextError }));
+    } catch {
+      // Ignorar errores de red en validacion en vivo
+    } finally {
+      setChecking((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
+  useEffect(() => {
+    const localError = validateField("documentnumber", form.documentnumber, form);
+    if (!form.documentnumber || localError) return;
+    const handle = setTimeout(() => runDuplicateCheck("documentnumber", form.documentnumber), 450);
+    return () => {
+      clearTimeout(handle);
+      setChecking((prev) => ({ ...prev, documentnumber: false }));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.documentnumber, form.typeid]);
+
+  useEffect(() => {
+    const localError = validateField("phone", form.phone, form);
+    if (!form.phone || localError) return;
+    const handle = setTimeout(() => runDuplicateCheck("phone", form.phone), 450);
+    return () => {
+      clearTimeout(handle);
+      setChecking((prev) => ({ ...prev, phone: false }));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.phone]);
+
+  useEffect(() => {
+    const localError = validateField("email", form.email, form);
+    if (!form.email || localError) return;
+    const handle = setTimeout(() => runDuplicateCheck("email", form.email), 450);
+    return () => {
+      clearTimeout(handle);
+      setChecking((prev) => ({ ...prev, email: false }));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.email]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -299,6 +378,9 @@ export default function RegisterPage() {
   const errorText = (name: keyof FormState) =>
     touched[name] && errors[name] ? <p className="mt-1 text-xs text-red-700">{errors[name]}</p> : null;
 
+  const checkingText = (name: "documentnumber" | "phone" | "email") =>
+    checking[name] ? <p className="mt-1 text-xs text-gray-500">Verificando...</p> : null;
+
   const isNit = Number(form.typeid || 0) === 4;
 
   return (
@@ -315,6 +397,43 @@ export default function RegisterPage() {
             onSubmit={handleSubmit}
             className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5"
           >
+            <div>
+              <label className="text-sm font-semibold">Tipo de Documento</label>
+              <select
+                name="typeid"
+                value={form.typeid}
+                onChange={onChange}
+                onBlur={onBlur}
+                className={inputClass("typeid")}
+                aria-invalid={!!(touched.typeid && errors.typeid)}
+              >
+                <option value="">Seleccionar...</option>
+                {documentTypes.map((t: any) => (
+                  <option key={t.typeofdocumentid} value={t.typeofdocumentid}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {errorText("typeid")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Numero</label>
+              <input
+                name="documentnumber"
+                value={form.documentnumber}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Numero de documento"
+                className={inputClass("documentnumber")}
+                aria-invalid={!!(touched.documentnumber && errors.documentnumber)}
+                inputMode="text"
+                autoComplete="off"
+              />
+              {errorText("documentnumber")}
+              {checkingText("documentnumber")}
+            </div>
+
             <div>
               <label className="text-sm font-semibold">{isNit ? "Nombre de empresa" : "Nombre"}</label>
               <input
@@ -347,55 +466,38 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold">Tipo de Documento</label>
-              <select
-                name="typeid"
-                value={form.typeid}
-                onChange={onChange}
-                onBlur={onBlur}
-                className={inputClass("typeid")}
-                aria-invalid={!!(touched.typeid && errors.typeid)}
-              >
-                <option value="">Seleccionar…</option>
-                {documentTypes.map((t: any) => (
-                  <option key={t.typeofdocumentid} value={t.typeofdocumentid}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-              {errorText("typeid")}
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold">Número</label>
-              <input
-                name="documentnumber"
-                value={form.documentnumber}
-                onChange={onChange}
-                onBlur={onBlur}
-                placeholder="Número de documento"
-                className={inputClass("documentnumber")}
-                aria-invalid={!!(touched.documentnumber && errors.documentnumber)}
-                inputMode="text"
-                autoComplete="off"
-              />
-              {errorText("documentnumber")}
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold">Teléfono</label>
+              <label className="text-sm font-semibold">Telefono</label>
               <input
                 name="phone"
                 value={form.phone}
                 onChange={onChange}
                 onBlur={onBlur}
-                placeholder="Teléfono"
+                placeholder="Telefono"
                 className={inputClass("phone")}
                 aria-invalid={!!(touched.phone && errors.phone)}
                 inputMode="numeric"
                 autoComplete="tel"
               />
               {errorText("phone")}
+              {checkingText("phone")}
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold">Email</label>
+              <input
+                type="text"
+                inputMode="email"
+                name="email"
+                value={form.email}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="correo@empresa.com"
+                className={inputClass("email")}
+                aria-invalid={!!(touched.email && errors.email)}
+                autoComplete="email"
+              />
+              {errorText("email")}
+              {checkingText("email")}
             </div>
 
             <div>
@@ -427,23 +529,6 @@ export default function RegisterPage() {
                 autoComplete="postal-code"
               />
               {errorText("zipcode")}
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold">Email</label>
-              <input
-                type="text"
-                inputMode="email"
-                name="email"
-                value={form.email}
-                onChange={onChange}
-                onBlur={onBlur}
-                placeholder="correo@empresa.com"
-                className={inputClass("email")}
-                aria-invalid={!!(touched.email && errors.email)}
-                autoComplete="email"
-              />
-              {errorText("email")}
             </div>
 
             <div className="md:col-span-2 mt-4">

@@ -27,6 +27,8 @@ import {
 import { ToastContainer } from "react-toastify";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButton";
+import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
+import { useAuth } from "@/features/auth/authcontext";
 
 const ICONS = {
   print: "/icons/printer.svg",
@@ -121,6 +123,88 @@ function extractTechnicianNames(r: any): string[] {
   return Array.from(new Set(names));
 }
 
+function normalizeRoleName(role: any) {
+  return String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function toPositiveId(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function extractAuthClientId(user: any, profile: any): number | null {
+  const candidates = [
+    user?.customerid,
+    user?.clientid,
+    user?.clientId,
+    user?.customer?.customerid,
+    user?.customers?.[0]?.customerid,
+    user?.customer?.id,
+    user?.customers?.[0]?.id,
+    profile?.customerid,
+    profile?.clientid,
+    profile?.clientId,
+    profile?.customer?.customerid,
+    profile?.customers?.[0]?.customerid,
+    profile?.customer?.id,
+    profile?.customers?.[0]?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveId(candidate);
+    if (id) return id;
+  }
+  return null;
+}
+
+function extractAuthTechnicianId(user: any, profile: any): number | null {
+  const candidates = [
+    user?.technicianid,
+    user?.technicianId,
+    user?.technician?.technicianid,
+    user?.technicians?.[0]?.technicianid,
+    user?.technician?.id,
+    user?.technicians?.[0]?.id,
+    profile?.technicianid,
+    profile?.technicianId,
+    profile?.technician?.technicianid,
+    profile?.technicians?.[0]?.technicianid,
+    profile?.technician?.id,
+    profile?.technicians?.[0]?.id,
+  ];
+
+  for (const candidate of candidates) {
+    const id = toPositiveId(candidate);
+    if (id) return id;
+  }
+  return null;
+}
+
+function extractRequestClientIds(r: any): number[] {
+  const ids = [
+    r?.clientId,
+    r?.clientid,
+    r?.customer?.customerid,
+    r?.customer?.clientid,
+    r?.customer?.id,
+    r?.customer?.userid,
+    r?.customer?.users?.userid,
+    r?.customer?.users?.id,
+  ];
+
+  return Array.from(
+    new Set(
+      ids
+        .map((id) => toPositiveId(id))
+        .filter((id): id is number => id != null)
+    )
+  );
+}
+
 export default function ServiceRequestsPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -130,13 +214,77 @@ export default function ServiceRequestsPage() {
 
   const queryClient = useQueryClient();
   const { serviceOptions, customerOptions } = useLookups();
+  const { pendingStateId, scheduledStateId } = useRequestStates();
+  const { user, profile } = useAuth();
 
   const { data, isLoading, error } = useServiceRequests();
   const createMut = useCreateServiceRequest();
   const updateMut = useUpdateServiceRequest();
 
-  const rows: Row[] = useMemo(() => {
+  const normalizedRole = useMemo(() => {
+    const candidates = [
+      user?.rolename,
+      (user as any)?.role,
+      (user as any)?.role?.name,
+      (user as any)?.roles?.name,
+      profile?.rolename,
+      (profile as any)?.role,
+      (profile as any)?.role?.name,
+      (profile as any)?.roles?.name,
+    ];
+
+    const normalized = candidates
+      .map((r) => normalizeRoleName(r))
+      .find((r) => !!r);
+
+    return normalized || "";
+  }, [user, profile]);
+
+  const isClientRole = useMemo(
+    () =>
+      normalizedRole === "cliente" ||
+      normalizedRole === "client" ||
+      normalizedRole === "customer",
+    [normalizedRole]
+  );
+
+  const isTechnicianRole = useMemo(
+    () => normalizedRole === "tecnico" || normalizedRole === "technician",
+    [normalizedRole]
+  );
+
+  const clientIdFromAuth = useMemo(() => {
+    if (!isClientRole) return null;
+    return extractAuthClientId(user, profile);
+  }, [isClientRole, user, profile]);
+
+  const technicianIdFromAuth = useMemo(() => {
+    if (!isTechnicianRole) return null;
+    return extractAuthTechnicianId(user, profile);
+  }, [isTechnicianRole, user, profile]);
+
+  const filteredData = useMemo(() => {
     const list = Array.isArray(data) ? data : [];
+
+    return list.filter((r: any) => {
+      if (isClientRole) {
+        const clientIds = extractRequestClientIds(r);
+        const targetClientId = clientIdFromAuth ?? -1;
+        if (!clientIds.includes(targetClientId)) return false;
+      }
+
+      if (isTechnicianRole) {
+        const techIds = extractTechnicianIds(r);
+        const targetTechId = technicianIdFromAuth ?? -1;
+        if (!techIds.some((id) => id === targetTechId)) return false;
+      }
+
+      return true;
+    });
+  }, [data, clientIdFromAuth, isClientRole, isTechnicianRole, technicianIdFromAuth]);
+
+  const rows: Row[] = useMemo(() => {
+    const list = Array.isArray(filteredData) ? filteredData : [];
     return list.map((r: any) => {
       const id = r?.serviceRequestId ?? r?.id ?? "";
       const servicio = r?.service?.name ?? r?.serviceType ?? "";
@@ -210,7 +358,7 @@ export default function ServiceRequestsPage() {
         technicianNames,
       };
     });
-  }, [data]);
+  }, [filteredData]);
 
   const xlsxRows = useMemo(() => {
     return rows.map((r) => ({
@@ -324,6 +472,10 @@ export default function ServiceRequestsPage() {
     setActionLoading(true);
     try {
       const v: any = values as any;
+      const stateIdToSend =
+        (scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0 && scheduledStateId) ||
+        (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+        5;
 
       const dto = {
         scheduledAt: v?.scheduledAt ?? null,
@@ -332,7 +484,7 @@ export default function ServiceRequestsPage() {
           v?.serviceType ?? tipoToBackend(Array.isArray(v?.tipos) ? v?.tipos?.[0] : undefined),
         description: (v?.description ?? v?.descripcion ?? "").trim(),
         direccion: (v?.direccion ?? "").trim(),
-        stateId: 5,
+        stateId: stateIdToSend,
         serviceId: Number(v?.serviceId ?? parseMaybeId(String(v?.servicio ?? ""))),
         clientId: Number(v?.clientId ?? parseMaybeId(String(v?.cliente ?? ""))),
         technicians: Array.isArray(v?.technicians) ? v.technicians : [],
@@ -408,11 +560,20 @@ export default function ServiceRequestsPage() {
         technicians,
       };
 
-      const stateIdNum = v?.stateId
-        ? Number(v.stateId)
-        : v?.estado
-        ? parseMaybeId(String(v.estado))
-        : 0;
+      let stateIdNum =
+        v?.stateId && Number.isFinite(Number(v.stateId))
+          ? Number(v.stateId)
+          : v?.estado
+          ? parseMaybeId(String(v.estado))
+          : 0;
+
+      if (!stateIdNum && scheduledAt) {
+        const fallbackState =
+          (scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0 && scheduledStateId) ||
+          (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+          0;
+        stateIdNum = fallbackState;
+      }
 
       if (stateIdNum > 0) payload.stateId = stateIdNum;
 
@@ -679,6 +840,8 @@ export default function ServiceRequestsPage() {
           title="Crear Solicitud"
           servicios={serviceOptions}
           clientes={customerOptions}
+          pendingStateId={pendingStateId ?? undefined}
+          scheduledStateId={scheduledStateId ?? undefined}
         />
 
         {openEdit &&

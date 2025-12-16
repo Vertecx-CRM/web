@@ -23,9 +23,11 @@ export default function ProductSelectorModal({
   const [error, setError] = useState(""); // ← Mensaje de error (stock)
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) =>
-      p.productname.toLowerCase().includes(query.toLowerCase())
-    );
+    const normalizedQuery = query.trim().toLowerCase();
+    return products.filter((p) => {
+      const productName = (p.productname ?? "").toLowerCase();
+      return productName.includes(normalizedQuery);
+    });
   }, [query, products]);
 
   const reset = () => {
@@ -102,8 +104,8 @@ export default function ProductSelectorModal({
             >
               <div className="font-medium">{p.productname}</div>
               <div className="text-xs text-gray-600">
-                ${p.productpriceofsale.toLocaleString("es-CO")} — Stock:{" "}
-                {p.productstock}
+                ${(p.productpriceofsale ?? 0).toLocaleString("es-CO")} — Stock:{" "}
+                {p.productstock ?? 0}
               </div>
             </div>
           ))}

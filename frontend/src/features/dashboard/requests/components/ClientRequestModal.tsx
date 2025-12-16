@@ -39,6 +39,8 @@ type Props = {
   clientLabel?: string;
   initialServiceId?: number | null;
   initialDireccion?: string | null;
+  pendingStateId?: number | null;
+  scheduledStateId?: number | null;
 };
 
 type ErrorKey = "tipo" | "serviceId" | "description" | "direccion";
@@ -62,6 +64,8 @@ export default function ClientCreateRequestModal({
   clientLabel,
   initialServiceId = null,
   initialDireccion,
+  pendingStateId = null,
+  scheduledStateId = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
@@ -256,15 +260,33 @@ export default function ClientCreateRequestModal({
     try {
       setSaving(true);
 
-      const payload: CreateRequestPayload = {
+      const basePayload: CreateRequestPayload = {
         scheduledAt: null,
         scheduledEndAt: null,
         serviceType: selectedType.code,
         description: String(description || "").trim(),
         direccion: String(direccion || "").trim(),
-        stateId: 5,
+        stateId: 0,
         serviceId: sid,
         clientId,
+      };
+
+      const hasProgrammedDate =
+        (basePayload.scheduledAt && String(basePayload.scheduledAt).trim()) ||
+        (basePayload.scheduledEndAt && String(basePayload.scheduledEndAt).trim());
+
+      const stateIdToSend =
+        (hasProgrammedDate &&
+          scheduledStateId &&
+          Number.isFinite(scheduledStateId) &&
+          scheduledStateId > 0 &&
+          scheduledStateId) ||
+        (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+        5;
+
+      const payload: CreateRequestPayload = {
+        ...basePayload,
+        stateId: stateIdToSend,
       };
 
       await onSave(payload);

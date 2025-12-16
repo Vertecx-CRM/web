@@ -348,7 +348,7 @@ export default function OrderEditPage() {
     return Number.isFinite(n) && n > 0 ? n : null;
   }, [idParam]);
 
-  const {
+const {
     loading: lookupsLoading,
     error: lookupsError,
     customers: customersRaw,
@@ -357,21 +357,49 @@ export default function OrderEditPage() {
     services: servicesRaw,
     serviceTypes: serviceTypesRaw,
     pendingStateId,
+    scheduledStateId,
   } = useOrdersServicesLookups();
 
   const customers = useMemo<CustomerOption[]>(() => {
     return (customersRaw || [])
       .map((c: any) => {
-        const u = c?.users || c?.user || c?.Users || {};
-        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Cliente #${c?.customerid ?? c?.clientid ?? c?.id ?? "?"}`;
+        const base = c?.customer || c?.client || c;
+        const u = base?.users || base?.user || base?.Users || c?.users || c?.user || {};
+
+        const id = Number(
+          base?.customerid ??
+            base?.clientid ??
+            base?.customer_id ??
+            base?.client_id ??
+            base?.id ??
+            c?.customerid ??
+            c?.clientid ??
+            c?.id
+        );
+
+        const nameFromBase = [base?.name, base?.lastname].filter(Boolean).join(" ").trim();
+        const nameFromUser = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const altName = String(
+          base?.fullname ??
+            base?.fullName ??
+            base?.customername ??
+            base?.customerName ??
+            base?.clientname ??
+            base?.clientName ??
+            c?.fullname ??
+            c?.customername ??
+            ""
+        ).trim();
+
+        const label = nameFromBase || nameFromUser || altName || `Cliente #${id || "?"}`;
+
         return {
-          customerid: Number(c?.customerid ?? c?.clientid ?? c?.id),
+          customerid: id,
           label,
-          city: c?.customercity ?? c?.city ?? null,
-          zipcode: c?.customerzipcode ?? c?.zipcode ?? null,
-          phone: u?.phone ?? c?.phone ?? null,
-          email: u?.email ?? c?.email ?? null,
+          city: base?.customercity ?? base?.city ?? c?.customercity ?? c?.city ?? null,
+          zipcode: base?.customerzipcode ?? base?.zipcode ?? c?.customerzipcode ?? c?.zipcode ?? null,
+          phone: u?.phone ?? base?.phone ?? c?.phone ?? null,
+          email: u?.email ?? base?.email ?? c?.email ?? null,
         } as CustomerOption;
       })
       .filter((x) => Number.isFinite(x.customerid) && x.customerid > 0);
@@ -1118,6 +1146,13 @@ export default function OrderEditPage() {
 
     // Importante: NO se arma descripción estructurada. Se envía SOLO lo que escribió el usuario.
     const finalDescription = String(descripcion || "").trim();
+    const hasSchedule = !!(dateStart && dateEnd && timeStart && timeEnd);
+    const shouldUseScheduled =
+      hasSchedule &&
+      scheduledStateId != null &&
+      (orderNormalized?.stateid == null ||
+        (pendingStateId != null && orderNormalized?.stateid === pendingStateId));
+    const stateid = shouldUseScheduled ? scheduledStateId : orderNormalized?.stateid ?? pendingStateId ?? 1;
 
     setSaving(true);
     try {
@@ -1129,7 +1164,7 @@ export default function OrderEditPage() {
       const updateDto: UpdateOrdersServiceDto = {
         description: finalDescription,
         clientid: Number(clientId),
-        stateid: orderNormalized?.stateid ?? pendingStateId ?? 1,
+        stateid,
         fechainicio: dateStart,
         fechafin: dateEnd,
         horainicio: timeStart,

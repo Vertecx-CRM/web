@@ -296,11 +296,41 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO; embedded?: b
   const files = (order.files ?? []).filter(Boolean);
 
   const clientLabel = useMemo(() => {
-    if (!order.client) return "Cliente no asignado";
-    const parts = [order.client.users?.name ?? "", order.client.users?.lastname ?? "", order.client.customercity ?? ""]
+    const client = (order as any)?.client;
+    if (!client) return "Cliente no asignado";
+
+    const base = client?.customer || client?.client || client;
+    const u = base?.users || base?.user || base?.Users || {};
+
+    const nameParts = [base?.name ?? u?.name ?? "", base?.lastname ?? u?.lastname ?? ""]
       .filter(Boolean)
-      .join(" - ");
-    return parts || `Cliente ${order.client.customerid ?? order.client.userid ?? ""}`;
+      .join(" ")
+      .trim();
+
+    const altName = String(
+      base?.fullname ??
+        base?.fullName ??
+        base?.customername ??
+        base?.customerName ??
+        base?.clientname ??
+        base?.clientName ??
+        ""
+    )
+      .trim();
+
+    const city = base?.customercity ?? base?.city ?? "";
+    const labelParts = [nameParts || altName, city].filter(Boolean).join(" - ");
+
+    const id =
+      base?.customerid ??
+      base?.clientid ??
+      base?.customer_id ??
+      base?.client_id ??
+      base?.id ??
+      client?.userid ??
+      "";
+
+    return labelParts || `Cliente ${id ?? ""}`;
   }, [order.client]);
 
   const serviceItems: ServiceLine[] = useMemo(() => {

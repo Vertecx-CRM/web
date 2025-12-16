@@ -535,21 +535,49 @@ const {
     services: servicesRaw,
     serviceTypes: serviceTypesRaw,
     pendingStateId,
+    scheduledStateId,
   } = useOrdersServicesLookups();
 
   const customers = useMemo<CustomerOption[]>(() => {
     return (customersRaw || [])
       .map((c: any) => {
-        const u = c?.users || c?.user || c?.Users || {};
-        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Cliente #${c?.customerid ?? c?.clientid ?? c?.id ?? "?"}`;
+        const base = c?.customer || c?.client || c;
+        const u = base?.users || base?.user || base?.Users || c?.users || c?.user || {};
+
+        const id = Number(
+          base?.customerid ??
+            base?.clientid ??
+            base?.customer_id ??
+            base?.client_id ??
+            base?.id ??
+            c?.customerid ??
+            c?.clientid ??
+            c?.id
+        );
+
+        const nameFromBase = [base?.name, base?.lastname].filter(Boolean).join(" ").trim();
+        const nameFromUser = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
+        const altName = String(
+          base?.fullname ??
+            base?.fullName ??
+            base?.customername ??
+            base?.customerName ??
+            base?.clientname ??
+            base?.clientName ??
+            c?.fullname ??
+            c?.customername ??
+            ""
+        ).trim();
+
+        const label = nameFromBase || nameFromUser || altName || `Cliente #${id || "?"}`;
+
         return {
-          customerid: Number(c?.customerid ?? c?.clientid ?? c?.id),
+          customerid: id,
           label,
-          city: c?.customercity ?? c?.city ?? null,
-          zipcode: c?.customerzipcode ?? c?.zipcode ?? null,
-          phone: u?.phone ?? c?.phone ?? null,
-          email: u?.email ?? c?.email ?? null,
+          city: base?.customercity ?? base?.city ?? c?.customercity ?? c?.city ?? null,
+          zipcode: base?.customerzipcode ?? base?.zipcode ?? c?.customerzipcode ?? c?.zipcode ?? null,
+          phone: u?.phone ?? base?.phone ?? c?.phone ?? null,
+          email: u?.email ?? base?.email ?? c?.email ?? null,
         } as CustomerOption;
       })
       .filter((x) => Number.isFinite(x.customerid) && x.customerid > 0);
@@ -661,18 +689,36 @@ const {
     };
   }, []);
 
+  const approvedQuotes = useMemo(() => {
+    return (quotesRaw || []).filter((q) => {
+      const stateId = pickNumber(q?.state?.stateid, q?.stateid, q?.statesid, q?.state?.id);
+      if (Number.isFinite(stateId) && [3].includes(stateId)) return true;
+
+      const stateName =
+        q?.state?.name ??
+        q?.state?.statename ??
+        (typeof q?.state === "string" ? q.state : "") ??
+        q?.status ??
+        q?.stateName ??
+        q?.statename;
+
+      const normalized = normalizeText(stateName || "");
+      return normalized.includes("aprob") || normalized.includes("approv");
+    });
+  }, [quotesRaw]);
+
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
-    for (const q of quotesRaw || []) {
+    for (const q of approvedQuotes || []) {
       const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
-  }, [quotesRaw]);
+  }, [approvedQuotes]);
 
   const quoteOptions = useMemo(() => {
     const opts: Array<{ id: number; label: string }> = [];
-    for (const q of quotesRaw || []) {
+    for (const q of approvedQuotes || []) {
       const nq = normalizeQuote(q);
       const id = nq.quotesid ?? pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
@@ -696,7 +742,7 @@ const {
     }
     opts.sort((a, b) => b.id - a.id);
     return opts;
-  }, [quotesRaw, customers, serviceTypes]);
+  }, [approvedQuotes, customers, serviceTypes]);
 
   const [selectedQuotesId, setSelectedQuotesId] = useState<number | "">("");
 
@@ -1492,7 +1538,7 @@ const {
 
         if (quotesIdFromUrl) {
           raw = quoteMapById.get(quotesIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontró la cotización #${quotesIdFromUrl} en /quotes`);
+          if (!raw) throw new Error(`No se encontró la cotización aprobada #${quotesIdFromUrl} en /quotes`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
           if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
@@ -1543,7 +1589,7 @@ const {
 
     const raw = quoteMapById.get(id);
     if (!raw) {
-      const msg = `La cotización #${id} no está disponible en el listado de /quotes.`;
+      const msg = `La cotización #${id} no está disponible en el listado de cotizaciones aprobadas.`;
       setQuoteApplyError(msg);
       showError(msg);
       return;
@@ -1642,6 +1688,8 @@ const {
 
     const services = Array.from(serviceMap.values());
     const finalDescription = String(descripcion || "").trim();
+    const hasSchedule = !!(dateStart && dateEnd && timeStart && timeEnd);
+    const stateid = hasSchedule ? scheduledStateId ?? pendingStateId ?? 1 : pendingStateId ?? 1;
 
     setSaving(true);
     try {
@@ -1650,7 +1698,7 @@ const {
       const dto: CreateOrdersServiceDto = {
         description: finalDescription,
         clientid: Number(clientId),
-        stateid: pendingStateId ?? 1,
+        stateid,
         fechainicio: dateStart,
         fechafin: dateEnd,
         horainicio: timeStart,
