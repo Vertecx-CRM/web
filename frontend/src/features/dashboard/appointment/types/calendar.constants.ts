@@ -1,5 +1,5 @@
 // types/calendar.constants.ts
-import { appointmentStatePalette } from "./typeAppointment";
+import { appointmentStatePalette } from "../helpers/appointmentState.helpers";
 import type { ServiceTypeFilterKey } from "../helpers/appointment.helpers";
 
 export const CALENDAR_MESSAGES = {

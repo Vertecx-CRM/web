@@ -8,6 +8,11 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import { CalendarDays } from "lucide-react";
 
 import AppointmentDetailModal from "./components/AppointmentDetailCard";
+import AppointmentFilters from "./components/AppointmentFilters";
+import AppointmentLegend from "./components/AppointmentLegend";
+import AppointmentStats from "./components/AppointmentStats";
+import AppointmentUpcomingList from "./components/AppointmentUpcomingList";
+import { AppointmentToolbar, type AppointmentToolbarProps } from "./components/AppointmentToolbar";
 import EditRequestModal, {
   type EditRequestPayload,
 } from "@/features/dashboard/requests/components/EditRequestModal";
@@ -21,41 +26,25 @@ import { buildScheduledAt, splitDateTime } from "@/features/dashboard/requests/u
 import { showError } from "@/shared/utils/notifications";
 import Swal from "sweetalert2";
 import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
-import { useAuth } from "@/features/auth/authcontext";
 
 import type { AppointmentEvent } from "./types/typeAppointment";
-import {
-  buildAppointmentEvents,
-  getStatePalette,
-  normalizeStateKey,
-} from "./types/typeAppointment";
+import { buildAppointmentEvents } from "./types/typeAppointment";
 
 import {
   CALENDAR_MESSAGES,
-  LEGEND_ITEMS,
   SERVICE_TYPE_FILTERS,
-  STATE_LEGEND_ITEMS,
   calendarMaxTime,
   calendarMinTime,
-  upcomingFormatter,
 } from "./types/calendar.constants";
 
-import { CalendarToolbar } from "./components/CalendarToolbar";
-import { StatCard } from "./components/StatCard";
-
 import { useAppointmentsQuery } from "./hooks/useAppointmentsQuery";
-import { useResponsiveCalendarViews } from "./hooks/useResponsiveCalendarViews";
+import { useAppointmentFilters } from "./hooks/useAppointmentFilters";
+import { useAppointmentStats } from "./hooks/useAppointmentStats";
+import { useAppointmentResponsive } from "./hooks/useAppointmentResponsive";
 import { useRoleScope } from "./hooks/useRoleScope";
 
-import {
-  getEventCustomerIds,
-  getEventServiceTypeKey,
-  getEventTechnicianUserIds,
-  getEventTechnicians,
-  getOrderServiceRequestId,
-  type ServiceTypeFilterKey,
-} from "./helpers/appointment.helpers";
-
+import { getOrderServiceRequestId } from "./helpers/appointment.helpers";
+import { getStatePalette } from "./helpers/appointmentState.helpers";
 import { parseMaybeNumber, toPositiveNumber } from "./helpers/string.helpers";
 
 const locales = { es };
@@ -74,150 +63,90 @@ const tipoToBackend = (tipo?: string | null) => {
   return "MANTENIMIENTO";
 };
 
+const periodFormatter = new Intl.DateTimeFormat("es-CO", {
+  month: "long",
+  year: "numeric",
+});
+
+type AppointmentToolbarRendererProps = Omit<AppointmentToolbarProps, "isFullscreen" | "onToggleFullscreen">;
+
 export default function IndexAppointment() {
-  const { profile, user } = useAuth(); 
-  const { tokenRole, clientProfileId, technicianProfileUserId } = useRoleScope();
+  const { tokenRole, tokenRoleNormalized, clientProfileId, technicianProfileUserId } = useRoleScope();
   const { data, isLoading, isError, refetch } = useAppointmentsQuery();
   const { serviceOptions, customerOptions } = useLookups();
   const updateRequestMutation = useUpdateServiceRequest();
-  const { calendarView, setCalendarView, availableViews } = useResponsiveCalendarViews();
+  const {
+    calendarView,
+    setCalendarView,
+    availableViews,
+    handleNavigate,
+    currentDate,
+    isFullscreen,
+    toggleFullscreen,
+  } = useAppointmentResponsive();
 
   const events = useMemo(() => buildAppointmentEvents(data ?? {}), [data]);
 
-  const [editingRequest, setEditingRequest] = useState<ServiceRequestDTO | null>(null);
-
-  const [sourceFilter, setSourceFilter] = useState<"all" | "order" | "request">("all");
-  const [stateFilter, setStateFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [serviceTypeFilter, setServiceTypeFilter] = useState<ServiceTypeFilterKey | "all">("all");
-  const [technicianFilter, setTechnicianFilter] = useState<"all" | string>("all");
-  const [clientFilter, setClientFilter] = useState<"all" | string>("all");
-  const [showLegend, setShowLegend] = useState(false);
-
-  const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null);
-  const [modalEvent, setModalEvent] = useState<AppointmentEvent | null>(null);
-  const [finalizingEventId, setFinalizingEventId] = useState<number | null>(null);
-
-  const stateOptions = useMemo(() => {
-    const entries: Map<string, string> = new Map();
-    events.forEach((event) => {
-      const label = (event.stateLabel ?? "").trim();
-      if (!label) return;
-      const key = normalizeStateKey(label);
-      if (!key) return;
-      if (!entries.has(key)) entries.set(key, label);
-    });
-
-    return Array.from(entries.entries())
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [events]);
-
-  const technicianOptions = useMemo(() => {
-    const entries = new Map<number, string>();
-    events.forEach((event) => {
-      getEventTechnicians(event).forEach((tech) => {
-        const techId = Number(tech?.technicianid ?? tech?.technicianId);
-        if (!Number.isFinite(techId) || techId <= 0) return;
-        if (entries.has(techId)) return;
-
-        const parts = [tech.users?.name, tech.users?.lastname].filter(Boolean);
-        const name = parts.length ? parts.join(" ").trim() : null;
-        entries.set(techId, name ? `${name} (${techId})` : `Técnico #${techId}`);
-      });
-    });
-
-    return Array.from(entries.entries()).map(([value, label]) => ({ value, label }));
-  }, [events]);
-
-  const clientOptions = useMemo(() => {
-    const entries = new Map<string, string>();
-    events.forEach((event) => {
-      const label = event.clientLabel?.trim();
-      if (!label) return;
-      if (!entries.has(label)) entries.set(label, label);
-    });
-
-    return Array.from(entries.entries()).map(([value, label]) => ({ value, label }));
-  }, [events]);
-
-  const filteredEvents = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const techFilterId = technicianFilter === "all" ? null : Number(technicianFilter);
-
-    return events.filter((event) => {
-      // Scope por rol
-      if (clientProfileId != null) {
-        const eventCustomerIds = getEventCustomerIds(event);
-        if (!eventCustomerIds.includes(clientProfileId)) return false;
-      }
-
-      if (technicianProfileUserId != null) {
-        const techIds = getEventTechnicianUserIds(event);
-        if (!techIds.includes(technicianProfileUserId)) return false;
-      }
-
-      // filtros UI
-      if (sourceFilter !== "all" && event.source !== sourceFilter) return false;
-
-      if (stateFilter !== "all" && normalizeStateKey(event.stateLabel) !== stateFilter) {
-        return false;
-      }
-
-      if (serviceTypeFilter !== "all") {
-        const serviceKey = getEventServiceTypeKey(event);
-        if (serviceKey !== serviceTypeFilter) return false;
-      }
-
-      if (clientFilter !== "all") {
-        const label = event.clientLabel?.trim();
-        if (!label || label !== clientFilter) return false;
-      }
-
-      if (techFilterId !== null && !Number.isNaN(techFilterId)) {
-        const eventTechIds = new Set<number>();
-        getEventTechnicians(event).forEach((tech) => {
-          const id = Number(tech?.technicianid ?? tech?.technicianId);
-          if (Number.isFinite(id) && id > 0) eventTechIds.add(id);
-        });
-        if (!eventTechIds.has(techFilterId)) return false;
-      }
-
-      if (!term) return true;
-
-      const haystack = `${event.title} ${event.clientLabel} ${event.stateLabel}`.toLowerCase();
-      return haystack.includes(term);
-    });
-  }, [
+  const {
+    filteredEvents,
+    filteredCount,
+    hasActiveFilters,
+    stateOptions,
+    technicianOptions,
+    clientOptions,
+    filters,
+    handlers,
+    clearFilters,
+  } = useAppointmentFilters({
     events,
-    searchTerm,
+    clientProfileId,
+    technicianProfileUserId,
+  });
+
+  const {
     sourceFilter,
     stateFilter,
+    searchTerm,
     serviceTypeFilter,
     technicianFilter,
     clientFilter,
-    clientProfileId,
-    technicianProfileUserId,
-  ]);
+  } = filters;
 
-  const filteredCount = filteredEvents.length;
+  const {
+    setSourceFilter,
+    setStateFilter,
+    setSearchTerm,
+    setServiceTypeFilter,
+    setTechnicianFilter,
+    setClientFilter,
+  } = handlers;
 
-  const hasActiveFilters =
-    sourceFilter !== "all" ||
-    stateFilter !== "all" ||
-    serviceTypeFilter !== "all" ||
-    technicianFilter !== "all" ||
-    clientFilter !== "all" ||
-    searchTerm.trim().length > 0;
+  const stats = useAppointmentStats({
+    events,
+    filteredEvents,
+    tokenRole,
+    tokenRoleNormalized,
+    hasActiveFilters,
+  });
 
-  const clearFilters = () => {
-    setSourceFilter("all");
-    setStateFilter("all");
-    setSearchTerm("");
-    setServiceTypeFilter("all");
-    setTechnicianFilter("all");
-    setClientFilter("all");
-  };
+  const toolbarComponent = useCallback(
+    (props: AppointmentToolbarRendererProps) => (
+      <AppointmentToolbar
+        {...props}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
+    ),
+    [isFullscreen, toggleFullscreen]
+  );
+
+  const periodLabel = useMemo(() => periodFormatter.format(currentDate), [currentDate]);
+
+  const [editingRequest, setEditingRequest] = useState<ServiceRequestDTO | null>(null);
+  const [showLegend, setShowLegend] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null);
+  const [modalEvent, setModalEvent] = useState<AppointmentEvent | null>(null);
+  const [finalizingEventId, setFinalizingEventId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!filteredEvents.length) {
@@ -233,46 +162,6 @@ export default function IndexAppointment() {
     const now = Date.now();
     return filteredEvents.filter((e) => e.start.getTime() >= now).slice(0, 4);
   }, [filteredEvents]);
-
-  const statsSource = tokenRole === "Cliente" || tokenRole === "Técnico" ? filteredEvents : events;
-
-  const stats = useMemo(
-    () => [
-      {
-        label: "Citas visibles",
-        value: statsSource.length,
-        helper:
-          tokenRole === "Cliente"
-            ? hasActiveFilters
-              ? "Filtradas según los filtros"
-              : "Eventos del cliente"
-            : tokenRole === "Técnico"
-            ? hasActiveFilters
-              ? "Filtradas según los filtros"
-              : "Eventos del técnico"
-            : hasActiveFilters
-            ? "Filtradas según los filtros"
-            : "Eventos sincronizados",
-      },
-      {
-        label: "Citas próximas",
-        value: statsSource.filter((e) => e.start.getTime() >= Date.now()).length,
-        helper: "Ordenadas por fecha",
-      },
-      {
-        label: "Técnicos en agenda",
-        value: new Set(
-          statsSource.flatMap((event) =>
-            getEventTechnicians(event)
-              .map((tech) => Number(tech?.technicianid ?? tech?.technicianId))
-              .filter((id) => Number.isFinite(id) && id > 0)
-          )
-        ).size,
-        helper: "Asignaciones únicas",
-      },
-    ],
-    [statsSource, tokenRole, hasActiveFilters]
-  );
 
   const requestEditInitial = useMemo<EditRequestPayload | null>(() => {
     if (!editingRequest) return null;
@@ -456,7 +345,7 @@ export default function IndexAppointment() {
     );
   };
 
-  const calendarHeight = "h-[calc(100vh-420px)]";
+  const calendarHeight = isFullscreen ? "h-[calc(100vh-160px)]" : "h-[calc(100vh-420px)]";
 
   return (
     <>
@@ -471,6 +360,7 @@ export default function IndexAppointment() {
               <h1 className="text-2xl font-semibold text-slate-900">
                 Calendario de órdenes y servicios
               </h1>
+              <p className="text-xs text-slate-500">Mes actual: {periodLabel}</p>
             </div>
           </div>
         </div>
@@ -504,125 +394,30 @@ export default function IndexAppointment() {
           isFinalizing={Boolean(modalEvent) && finalizingEventId === modalEvent?.id}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stats.map((s) => (
-            <StatCard key={s.label} {...s} />
-          ))}
-        </div>
+        <AppointmentStats stats={stats} />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Filtros de citas</p>
-              <p className="text-xs text-slate-500">
-                Mostrando {filteredCount} de {events.length} citas.
-              </p>
-            </div>
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
-              >
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="space-y-1 text-xs font-semibold text-slate-500">
-              Tipo de evento
-              <select
-                value={sourceFilter}
-                onChange={(e) => setSourceFilter(e.target.value as any)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-              >
-                <option value="all">Todas las citas</option>
-                <option value="order">Órdenes de servicio</option>
-                <option value="request">Solicitudes de servicio</option>
-              </select>
-            </label>
-
-            <label className="space-y-1 text-xs font-semibold text-slate-500">
-              Estado
-              <select
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-              >
-                <option value="all">Todos los estados</option>
-                {stateOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-1 text-xs font-semibold text-slate-500">
-              Buscar
-              <input
-                type="search"
-                placeholder="Cliente, código o estado"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-              />
-            </label>
-          </div>
-
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="space-y-1 text-xs font-semibold text-slate-500">
-              Tipo de servicio
-              <select
-                value={serviceTypeFilter}
-                onChange={(e) => setServiceTypeFilter(e.target.value as any)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-              >
-                <option value="all">Todos los tipos</option>
-                {SERVICE_TYPE_FILTERS.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="space-y-1 text-xs font-semibold text-slate-500">
-              Técnico asignado
-              <select
-                value={technicianFilter}
-                onChange={(e) => setTechnicianFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-              >
-                <option value="all">Todos los técnicos</option>
-                {technicianOptions.map((item) => (
-                  <option key={item.value} value={String(item.value)}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {tokenRole !== "Cliente" && (
-              <label className="space-y-1 text-xs font-semibold text-slate-500">
-                Cliente
-                <select
-                  value={clientFilter}
-                  onChange={(e) => setClientFilter(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-black focus:bg-white focus:outline-none"
-                >
-                  <option value="all">Todos los clientes</option>
-                  {clientOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-        </div>
+        <AppointmentFilters
+          eventsLength={events.length}
+          filteredCount={filteredCount}
+          hasActiveFilters={hasActiveFilters}
+          showClientFilter={tokenRole !== "Cliente"}
+          stateOptions={stateOptions}
+          technicianOptions={technicianOptions}
+          clientOptions={clientOptions}
+          sourceFilter={sourceFilter}
+          stateFilter={stateFilter}
+          searchTerm={searchTerm}
+          serviceTypeFilter={serviceTypeFilter}
+          technicianFilter={technicianFilter}
+          clientFilter={clientFilter}
+          onSourceChange={setSourceFilter}
+          onStateChange={setStateFilter}
+          onSearchChange={setSearchTerm}
+          onServiceTypeChange={setServiceTypeFilter}
+          onTechnicianChange={setTechnicianFilter}
+          onClientChange={setClientFilter}
+          onClearFilters={clearFilters}
+        />
 
         <div className="rounded-3xl border bg-white p-5 shadow-sm">
           {isError && (
@@ -651,10 +446,12 @@ export default function IndexAppointment() {
                 view={calendarView}
                 views={availableViews}
                 components={{
-                  toolbar: CalendarToolbar,
+                  toolbar: toolbarComponent,
                   event: CalendarEvent,
                 }}
                 onView={(v) => setCalendarView(v)}
+                onNavigate={handleNavigate}
+                date={currentDate}
                 onSelectEvent={(e) => {
                   const evt = e as AppointmentEvent;
                   setSelectedEvent(evt);
@@ -668,41 +465,14 @@ export default function IndexAppointment() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between px-5 py-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Próximas citas</p>
-              <p className="text-xs text-slate-500">Ordenadas por fecha de inicio</p>
-            </div>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {upcomingEvents.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-slate-500">
-                No hay citas próximas registradas.
-              </p>
-            ) : (
-              upcomingEvents.map((event) => (
-                <button
-                  key={event.id}
-                  type="button"
-                  className={`w-full px-5 py-3 text-left transition hover:bg-slate-50 ${
-                    selectedEvent?.id === event.id ? "bg-slate-50" : ""
-                  }`}
-                  onClick={() => {
-                    setSelectedEvent(event);
-                    setModalEvent(event);
-                  }}
-                >
-                  <p className="text-sm font-semibold text-slate-900">{event.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {upcomingFormatter.format(event.start)} • {event.clientLabel}
-                  </p>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
+        <AppointmentUpcomingList
+          events={upcomingEvents}
+          selectedEventId={selectedEvent?.id ?? null}
+          onSelect={(event) => {
+            setSelectedEvent(event);
+            setModalEvent(event);
+          }}
+        />
 
         {editingRequest && (
           <EditRequestModal
@@ -718,76 +488,12 @@ export default function IndexAppointment() {
         )}
       </div>
 
-      {showLegend && (
-        <div
-          className="fixed bottom-20 right-4 z-50 w-72 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl"
-          role="dialog"
-          aria-label="Leyenda de eventos"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Leyenda</p>
-              <p className="text-xs text-slate-500">Colores según origen del evento</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowLegend(false)}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-900"
-            >
-              Cerrar
-            </button>
-          </div>
+      <AppointmentLegend
+        open={showLegend}
+        onClose={() => setShowLegend(false)}
+        onToggle={() => setShowLegend((prev) => !prev)}
+      />
 
-          <div className="mt-3 space-y-3">
-            {LEGEND_ITEMS.map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2"
-              >
-                <span
-                  className="h-3 w-3 flex-shrink-0 rounded-full"
-                  style={{ backgroundColor: item.color }}
-                />
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Estados</p>
-            <div className="mt-2 space-y-2">
-              {STATE_LEGEND_ITEMS.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2"
-                >
-                  <span
-                    className="h-3 w-3 flex-shrink-0 rounded-full border"
-                    style={{
-                      backgroundColor: item.palette.background,
-                      borderColor: item.palette.border,
-                    }}
-                  />
-                  <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setShowLegend((prev) => !prev)}
-        className="fixed bottom-4 right-4 z-50 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
-        aria-pressed={showLegend}
-        aria-label="Mostrar leyenda de eventos"
-      >
-        Leyenda
-      </button>
     </>
   );
 }
