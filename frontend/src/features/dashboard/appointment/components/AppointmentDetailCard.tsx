@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { routes } from "@/shared/routes";
 import type { AppointmentEvent } from "../types/typeAppointment";
-import { getStatePalette } from "../types/typeAppointment";
+import { getStatePalette, normalizeStateKey } from "../types/typeAppointment";
+import {
+  getPermissionsFromTokenCookie,
+  hasPermissionFromToken,
+} from "../helpers/authToken.helpers";
 import type { ServiceRequestDTO } from "@/features/dashboard/requests/services/servicerequests.service";
 import Modal from "../../components/Modal";
 
@@ -19,6 +23,11 @@ const detailFormatter = new Intl.DateTimeFormat("es-CO", {
   dateStyle: "long",
   timeStyle: "short",
 });
+
+const actionButtonClass =
+  "rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400";
+const dangerButtonClass =
+  "rounded-lg border px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-rose-100";
 
 const techLabel = (event: AppointmentEvent) => {
   const technicians = [
@@ -55,6 +64,24 @@ const AppointmentDetailContent = ({
   isFinalizing?: boolean;
 }) => {
   const palette = getStatePalette(event.stateLabel);
+  const normalizedStateLabel = normalizeStateKey(event.stateLabel);
+  const isFinishedLabel = normalizedStateLabel === "finished";
+  const isFinishedStateId = [event.order?.state?.stateid, event.request?.state?.stateid].some(
+    (value) => Number.isFinite(Number(value)) && Number(value) === 6
+  );
+  const shouldHideFinalizeButton = isFinishedLabel || isFinishedStateId;
+  const permissions = useMemo(() => getPermissionsFromTokenCookie(), []);
+  const hasAnyPermissions = permissions.length > 0;
+  const canUpdateAppointment = hasPermissionFromToken(permissions, "appointments", "update");
+  const canDeleteAppointment = hasPermissionFromToken(permissions, "appointments", "delete");
+  const canEditOrder = !shouldHideFinalizeButton && hasAnyPermissions && canUpdateAppointment;
+  const canReprogramOrder = canEditOrder;
+  const canCancelOrder = !shouldHideFinalizeButton && hasAnyPermissions && canDeleteAppointment;
+  const canEditRequest = !shouldHideFinalizeButton && hasAnyPermissions && canUpdateAppointment;
+  const canReprogramRequest = canEditRequest;
+  const canCancelRequest = !shouldHideFinalizeButton && hasAnyPermissions && canDeleteAppointment;
+  const canFinalizeEvent =
+    !shouldHideFinalizeButton && hasAnyPermissions && canUpdateAppointment;
 
   const total = useMemo(() => {
     if (
@@ -154,14 +181,25 @@ const AppointmentDetailContent = ({
       </div>
 
       {event.source === "order" ? (
-        <OrderActions orderId={event.order!.ordersservicesid} />
+        <OrderActions
+          orderId={event.order!.ordersservicesid}
+          canEdit={canEditOrder}
+          canReprogram={canReprogramOrder}
+          canCancel={canCancelOrder}
+        />
       ) : (
         event.request &&
         onEditRequest && (
-          <RequestActions request={event.request} onEdit={onEditRequest} />
+          <RequestActions
+            request={event.request}
+            onEdit={onEditRequest}
+            canEdit={canEditRequest}
+            canReprogram={canReprogramRequest}
+            canCancel={canCancelRequest}
+          />
         )
       )}
-      {onFinalize && (
+      {onFinalize && canFinalizeEvent && (
         <div className="flex justify-end pt-4">
           <button
             type="button"
@@ -177,43 +215,59 @@ const AppointmentDetailContent = ({
   );
 };
 
-const OrderActions = ({ orderId }: { orderId: number }) => {
+const OrderActions = ({
+  orderId,
+  canEdit = false,
+  canReprogram = false,
+  canCancel = false,
+}: {
+  orderId: number;
+  canEdit?: boolean;
+  canReprogram?: boolean;
+  canCancel?: boolean;
+}) => {
   const router = useRouter();
 
   return (
     <div className="flex flex-wrap gap-2 pt-3">
-      <button
-        onClick={() =>
-          router.push(
-            `${routes.dashboard.ordersServices}/edit?ordersservicesid=${orderId}`
-          )
-        }
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-      >
-        Editar
-      </button>
+      {canEdit && (
+        <button
+          onClick={() =>
+            router.push(
+              `${routes.dashboard.ordersServices}/edit?ordersservicesid=${orderId}`
+            )
+          }
+          className={actionButtonClass}
+        >
+          Editar
+        </button>
+      )}
       <button
         onClick={() => router.push(`${routes.dashboard.orders}/${orderId}`)}
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+        className={actionButtonClass}
       >
         Ver detalle
       </button>
-      <button
-        onClick={() =>
-          router.push(`${routes.dashboard.orders}/${orderId}?action=reprogram`)
-        }
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-      >
-        Reprogramar
-      </button>
-      <button
-        onClick={() =>
-          router.push(`${routes.dashboard.orders}/${orderId}?action=cancel`)
-        }
-        className="rounded-lg border px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
-      >
-        Anular
-      </button>
+      {canReprogram && (
+        <button
+          onClick={() =>
+            router.push(`${routes.dashboard.orders}/${orderId}?action=reprogram`)
+          }
+          className={actionButtonClass}
+        >
+          Reprogramar
+        </button>
+      )}
+      {canCancel && (
+        <button
+          onClick={() =>
+            router.push(`${routes.dashboard.orders}/${orderId}?action=cancel`)
+          }
+          className={dangerButtonClass}
+        >
+          Anular
+        </button>
+      )}
     </div>
   );
 };
@@ -221,43 +275,55 @@ const OrderActions = ({ orderId }: { orderId: number }) => {
 const RequestActions = ({
   request,
   onEdit,
+  canEdit = false,
+  canReprogram = false,
+  canCancel = false,
 }: {
   request: ServiceRequestDTO;
   onEdit: (request: ServiceRequestDTO) => void;
+  canEdit?: boolean;
+  canReprogram?: boolean;
+  canCancel?: boolean;
 }) => {
   const router = useRouter();
   const base = routes.dashboard.requestsServices;
 
   return (
     <div className="flex flex-wrap gap-2 pt-3">
-      <button
-        onClick={() => onEdit(request)}
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-      >
-        Editar
-      </button>
+      {canEdit && (
+        <button
+          onClick={() => onEdit(request)}
+          className={actionButtonClass}
+        >
+          Editar
+        </button>
+      )}
       <button
         onClick={() => router.push(`${routes.dashboard.requestsServices}/${request.serviceRequestId}`)}
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+        className={actionButtonClass}
       >
         Ver detalle
       </button>
-      <button
-        onClick={() =>
-          router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=reprogram`)
-        }
-        className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
-      >
-        Reprogramar
-      </button>
-      <button
-        onClick={() =>
-          router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=cancel`)
-        }
-        className="rounded-lg border px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
-      >
-        Anular
-      </button>
+      {canReprogram && (
+        <button
+          onClick={() =>
+            router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=reprogram`)
+          }
+          className={actionButtonClass}
+        >
+          Reprogramar
+        </button>
+      )}
+      {canCancel && (
+        <button
+          onClick={() =>
+            router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=cancel`)
+          }
+          className={dangerButtonClass}
+        >
+          Anular
+        </button>
+      )}
     </div>
   );
 };
