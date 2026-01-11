@@ -9,16 +9,16 @@ export type RequestActionsProps = {
   request: ServiceRequestDTO;
   onEdit: (request: ServiceRequestDTO) => void;
   canEdit?: boolean;
-  canReprogram?: boolean;
   canCancel?: boolean;
+  onCancel?: (request: ServiceRequestDTO) => void;
 };
 
 const RequestActions = ({
   request,
   onEdit,
   canEdit = false,
-  canReprogram = false,
   canCancel = false,
+  onCancel,
 }: RequestActionsProps) => {
   const router = useRouter();
   const base = routes.dashboard.requestsServices;
@@ -37,26 +37,17 @@ const RequestActions = ({
       >
         Ver detalle
       </button>
-      {canReprogram && (
-        <button
-          onClick={() =>
-            router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=reprogram`)
-          }
-          className={actionButtonClass}
-          type="button"
-        >
-          Reprogramar
-        </button>
-      )}
       {canCancel && (
         <button
           onClick={() =>
-            router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=cancel`)
+            onCancel
+              ? onCancel(request)
+              : router.push(`${base}?serviceRequestId=${request.serviceRequestId}&action=cancel`)
           }
           className={dangerButtonClass}
           type="button"
         >
-          Anular
+          Cancelar
         </button>
       )}
     </div>

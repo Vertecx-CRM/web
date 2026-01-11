@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Swal from "sweetalert2";
 import RequireAuth from "@/features/auth/requireauth";
 import Modal from "@/features/dashboard/components/Modal";
@@ -512,6 +512,7 @@ function toRow(o: OrderServiceDTO): Row {
 export default function OrdersServicesIndexPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -529,6 +530,7 @@ export default function OrdersServicesIndexPage() {
   const [historyTechnicians, setHistoryTechnicians] = useState<TechnicianOption[]>([]);
 
   const bodyOverflowRef = useRef<string | null>(null);
+  const cancelHandledRef = useRef(false);
   const { user, profile } = useAuth();
 
   const normalizedRole = useMemo(() => {
@@ -620,6 +622,39 @@ export default function OrdersServicesIndexPage() {
       confirmButtonColor: "#B20000",
     });
   }, [filterOrdersForAuth]);
+
+  useEffect(() => {
+    if (cancelHandledRef.current) return;
+
+    const action = searchParams.get("action");
+    const targetId = searchParams.get("orderId") ?? searchParams.get("id");
+
+    if (action !== "cancel" || !targetId) return;
+    if (loading || busy) return;
+
+    const clearParams = () => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("action");
+      params.delete("orderId");
+      params.delete("id");
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    };
+
+    const row = rows.find((r) => String(r.id) === String(targetId));
+    if (!row) {
+      cancelHandledRef.current = true;
+      showError("No se encontró la orden para cancelar.");
+      clearParams();
+      return;
+    }
+
+    cancelHandledRef.current = true;
+    void (async () => {
+      await cancelRow(row);
+      clearParams();
+    })();
+  }, [searchParams, loading, busy, rows, router, pathname]);
 
   const reloadOrders = useCallback(async () => {
     setLoading(true);

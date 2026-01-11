@@ -7,15 +7,15 @@ import { actionButtonClass, dangerButtonClass } from "./actionButtonClasses";
 export type OrderActionsProps = {
   orderId: number;
   canEdit?: boolean;
-  canReprogram?: boolean;
   canCancel?: boolean;
+  onCancel?: (orderId: number) => void;
 };
 
 const OrderActions = ({
   orderId,
   canEdit = false,
-  canReprogram = false,
   canCancel = false,
+  onCancel,
 }: OrderActionsProps) => {
   const router = useRouter();
 
@@ -39,26 +39,17 @@ const OrderActions = ({
       >
         Ver detalle
       </button>
-      {canReprogram && (
-        <button
-          onClick={() =>
-            router.push(`${routes.dashboard.orders}/${orderId}?action=reprogram`)
-          }
-          className={actionButtonClass}
-          type="button"
-        >
-          Reprogramar
-        </button>
-      )}
       {canCancel && (
         <button
           onClick={() =>
-            router.push(`${routes.dashboard.orders}/${orderId}?action=cancel`)
+            onCancel
+              ? onCancel(orderId)
+              : router.push(`${routes.dashboard.ordersServices}?orderId=${orderId}&action=cancel`)
           }
           className={dangerButtonClass}
           type="button"
         >
-          Anular
+          Cancelar
         </button>
       )}
     </div>

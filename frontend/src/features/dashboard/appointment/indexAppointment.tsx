@@ -6,6 +6,8 @@ import { format, getDay, parse, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { CalendarDays } from "lucide-react";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 import AppointmentDetailModal from "./components/AppointmentDetailCard";
 import AppointmentFilters from "./components/AppointmentFilters";
@@ -56,6 +58,46 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 });
+
+const escapeIcsText = (value: string) =>
+  value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+
+const formatIcsDate = (date: Date) =>
+  date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+
+const buildCalendarIcs = (events: AppointmentEvent[]) => {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VerteCX//Appointments//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
+
+  const stamp = formatIcsDate(new Date());
+
+  events.forEach((event) => {
+    const uid = `${event.source}-${event.id}-${event.start.getTime()}@vertecx`;
+    const summary = escapeIcsText(event.title);
+    const description = escapeIcsText(`${event.stateLabel} - ${event.clientLabel}`);
+
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${uid}`);
+    lines.push(`DTSTAMP:${stamp}`);
+    lines.push(`DTSTART:${formatIcsDate(event.start)}`);
+    lines.push(`DTEND:${formatIcsDate(event.end)}`);
+    lines.push(`SUMMARY:${summary}`);
+    lines.push(`DESCRIPTION:${description}`);
+    lines.push("END:VEVENT");
+  });
+
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+};
 
 const tipoToBackend = (tipo?: string | null) => {
   const value = tipo?.toLowerCase() ?? "";
@@ -129,15 +171,85 @@ export default function IndexAppointment() {
     hasActiveFilters,
   });
 
+  const handleDownloadCalendar = useCallback(() => {
+    if (!filteredEvents.length) {
+      showError("No hay citas para descargar.");
+      return;
+    }
+
+    const ics = buildCalendarIcs(filteredEvents);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const stamp = format(currentDate, "yyyy-MM");
+
+    anchor.href = url;
+    anchor.download = `citas-${stamp}.ics`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, [filteredEvents, currentDate]);
+
+  const handleDownloadExcel = useCallback(async () => {
+    if (!filteredEvents.length) {
+      showError("No hay citas para descargar.");
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Citas");
+
+    worksheet.columns = [
+      { header: "Origen", key: "source", width: 12 },
+      { header: "Codigo", key: "code", width: 16 },
+      { header: "Titulo", key: "title", width: 40 },
+      { header: "Estado", key: "state", width: 18 },
+      { header: "Cliente", key: "client", width: 26 },
+      { header: "Inicio", key: "start", width: 20 },
+      { header: "Fin", key: "end", width: 20 },
+    ];
+
+    filteredEvents.forEach((event) => {
+      const code = event.source === "order" ? `OS-${event.id}` : `SR-${event.id}`;
+      worksheet.addRow({
+        source: event.source === "order" ? "Orden" : "Solicitud",
+        code,
+        title: event.title,
+        state: event.stateLabel,
+        client: event.clientLabel,
+        start: format(event.start, "yyyy-MM-dd HH:mm"),
+        end: format(event.end, "yyyy-MM-dd HH:mm"),
+      });
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, `citas-${format(currentDate, "yyyy-MM")}.xlsx`);
+  }, [filteredEvents, currentDate]);
+
   const toolbarComponent = useCallback(
     (props: AppointmentToolbarRendererProps) => (
       <AppointmentToolbar
         {...props}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        onDownloadCalendar={handleDownloadCalendar}
+        onDownloadExcel={handleDownloadExcel}
+        downloadDisabled={!filteredEvents.length}
       />
     ),
-    [isFullscreen, toggleFullscreen]
+    [
+      isFullscreen,
+      toggleFullscreen,
+      handleDownloadCalendar,
+      handleDownloadExcel,
+      filteredEvents.length,
+    ]
   );
 
   const periodLabel = useMemo(() => periodFormatter.format(currentDate), [currentDate]);
@@ -237,6 +349,58 @@ export default function IndexAppointment() {
   };
 
   const handleRequestEdit = (request: ServiceRequestDTO) => setEditingRequest(request);
+
+  const handleCancelEvent = useCallback(
+    async (event: AppointmentEvent) => {
+      if (!event) return;
+
+      if (event.source === "order") {
+        const res = await Swal.fire({
+          icon: "warning",
+          title: "Cancelar orden",
+          text: `¿Deseas cancelar la orden #${event.id}?`,
+          showCancelButton: true,
+          confirmButtonText: "Sí, cancelar",
+          cancelButtonText: "Volver",
+          confirmButtonColor: "#B20000",
+        });
+        if (!res.isConfirmed) return;
+
+        try {
+          await updateOrderService(event.id, { stateid: 4 });
+          await refetch();
+          Swal.fire("Orden cancelada", `La orden #${event.id} fue cancelada correctamente.`, "success");
+        } catch (err: any) {
+          const msg = err?.response?.data?.message?.[0] || err?.response?.data?.message || err?.message;
+          Swal.fire("Error", msg || "No se pudo cancelar la orden.", "error");
+        }
+        return;
+      }
+
+      const res = await Swal.fire({
+        title: "¿Cancelar solicitud?",
+        text: `Se marcará la solicitud #${event.id} como cancelada.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, cancelar",
+        cancelButtonText: "Volver",
+        confirmButtonColor: "#d33",
+        reverseButtons: true,
+        focusCancel: true,
+      });
+      if (!res.isConfirmed) return;
+
+      try {
+        await updateServiceRequest(event.id, { stateId: 4 });
+        await refetch();
+        Swal.fire("Cancelada", "La solicitud fue cancelada.", "success");
+      } catch (err: any) {
+        const msg = err?.response?.data?.message ?? err?.message ?? "No se pudo cancelar la solicitud.";
+        Swal.fire("Error", msg, "error");
+      }
+    },
+    [refetch]
+  );
 
   const handleFinalizeEvent = useCallback(
     async (event: AppointmentEvent) => {
@@ -388,11 +552,12 @@ export default function IndexAppointment() {
         <AppointmentDetailModal
           open={!!modalEvent}
           event={modalEvent}
-          onClose={() => setModalEvent(null)}
-          onEditRequest={handleRequestEdit}
-          onFinalize={handleFinalizeEvent}
-          isFinalizing={Boolean(modalEvent) && finalizingEventId === modalEvent?.id}
-        />
+        onClose={() => setModalEvent(null)}
+        onEditRequest={handleRequestEdit}
+        onCancel={handleCancelEvent}
+        onFinalize={handleFinalizeEvent}
+        isFinalizing={Boolean(modalEvent) && finalizingEventId === modalEvent?.id}
+      />
 
         <AppointmentStats stats={stats} />
 
