@@ -11,6 +11,7 @@ export type AppointmentDetailCardProps = {
   onClose: () => void;
   onEditRequest?: (request: ServiceRequestDTO) => void;
   onFinalize?: (event: AppointmentEvent) => void;
+  onCancel?: (event: AppointmentEvent) => void;
   isFinalizing?: boolean;
 };
 
@@ -20,6 +21,7 @@ const AppointmentDetailCard = ({
   onClose,
   onEditRequest,
   onFinalize,
+  onCancel,
   isFinalizing,
 }: AppointmentDetailCardProps) => (
   <Modal isOpen={open} onClose={onClose} title="Detalle de la cita" widthClass="md:max-w-3xl">
@@ -28,6 +30,7 @@ const AppointmentDetailCard = ({
         event={event}
         onEditRequest={onEditRequest}
         onFinalize={onFinalize}
+        onCancel={onCancel}
         isFinalizing={isFinalizing}
       />
     )}

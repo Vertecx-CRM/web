@@ -14,6 +14,7 @@ export type AppointmentDetailContentProps = {
   event: AppointmentEvent;
   onEditRequest?: (request: ServiceRequestDTO) => void;
   onFinalize?: (event: AppointmentEvent) => void;
+  onCancel?: (event: AppointmentEvent) => void;
   isFinalizing?: boolean;
 };
 
@@ -21,15 +22,14 @@ const AppointmentDetailContent = ({
   event,
   onEditRequest,
   onFinalize,
+  onCancel,
   isFinalizing = false,
 }: AppointmentDetailContentProps) => {
   const palette = getStatePalette(event.stateLabel);
   const {
     canEditOrder,
-    canReprogramOrder,
     canCancelOrder,
     canEditRequest,
-    canReprogramRequest,
     canCancelRequest,
     canFinalizeEvent,
   } = useAppointmentPermissions(event);
@@ -117,8 +117,8 @@ const AppointmentDetailContent = ({
         <OrderActions
           orderId={event.order.ordersservicesid}
           canEdit={canEditOrder}
-          canReprogram={canReprogramOrder}
           canCancel={canCancelOrder}
+          onCancel={() => onCancel?.(event)}
         />
       ) : (
         event.request &&
@@ -127,8 +127,8 @@ const AppointmentDetailContent = ({
             request={event.request}
             onEdit={onEditRequest}
             canEdit={canEditRequest}
-            canReprogram={canReprogramRequest}
             canCancel={canCancelRequest}
+            onCancel={() => onCancel?.(event)}
           />
         )
       )}

@@ -7,6 +7,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Download,
+  FileDown,
 } from "lucide-react";
 
 export type AppointmentToolbarProps = {
@@ -17,6 +19,9 @@ export type AppointmentToolbarProps = {
   views?: View[];
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  onDownloadCalendar?: () => void;
+  onDownloadExcel?: () => void;
+  downloadDisabled?: boolean;
 };
 
 const viewLabels: Record<string, string> = {
@@ -34,6 +39,9 @@ export const AppointmentToolbar = ({
   views = [],
   isFullscreen,
   onToggleFullscreen,
+  onDownloadCalendar,
+  onDownloadExcel,
+  downloadDisabled = false,
 }: AppointmentToolbarProps) => {
   return (
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -80,6 +88,36 @@ export const AppointmentToolbar = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {onDownloadCalendar && (
+          <button
+            type="button"
+            onClick={onDownloadCalendar}
+            disabled={downloadDisabled}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
+              downloadDisabled
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            <Download className="h-4 w-4" />
+            Descargar
+          </button>
+        )}
+        {onDownloadExcel && (
+          <button
+            type="button"
+            onClick={onDownloadExcel}
+            disabled={downloadDisabled}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
+              downloadDisabled
+                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            <FileDown className="h-4 w-4" />
+            Excel
+          </button>
+        )}
         {views.map((viewName) => (
           <button
             key={viewName}
