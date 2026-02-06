@@ -4,6 +4,7 @@ export interface Category {
   description: string;
   status: boolean;
   icon?: File | string | null;
+  productsCount?: number;
   stateLabel?: string;
   stateSearch?: "activo" | "inactivo";
   statusSearch: string;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
@@ -206,11 +207,15 @@ function extractRequestClientIds(r: any): number[] {
 }
 
 export default function ServiceRequestsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openView, setOpenView] = useState(false);
   const [selected, setSelected] = useState<Row | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const cancelHandledRef = useRef(false);
 
   const queryClient = useQueryClient();
   const { serviceOptions, customerOptions } = useLookups();
@@ -402,6 +407,39 @@ export default function ServiceRequestsPage() {
     (updateMut as any).isPending ?? (updateMut as any).isLoading ?? false;
 
   const busy = isLoading || actionLoading || createPending || updatePending;
+
+  useEffect(() => {
+    if (cancelHandledRef.current) return;
+
+    const action = searchParams.get("action");
+    const targetId = searchParams.get("serviceRequestId") ?? searchParams.get("id");
+
+    if (action !== "cancel" || !targetId) return;
+    if (isLoading || actionLoading) return;
+
+    const clearParams = () => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("action");
+      params.delete("serviceRequestId");
+      params.delete("id");
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    };
+
+    const row = rows.find((r) => String(r.id) === String(targetId));
+    if (!row) {
+      cancelHandledRef.current = true;
+      showError("No se encontró la solicitud para cancelar.");
+      clearParams();
+      return;
+    }
+
+    cancelHandledRef.current = true;
+    void (async () => {
+      await handleCancel(row);
+      clearParams();
+    })();
+  }, [searchParams, isLoading, actionLoading, rows, router, pathname]);
 
   function optimisticPatch(id: number, patch: Partial<Row>) {
     queryClient.setQueryData<any>(["service-requests"], (old: any) => {

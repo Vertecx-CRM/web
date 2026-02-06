@@ -1,4 +1,5 @@
 "use client";
+import { useCallback } from "react";
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -22,6 +23,7 @@ function Loader() {
 export default function CategoriesPage() {
   const {
     categories,
+    categoryProductCounts,
     loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
@@ -87,13 +89,35 @@ export default function CategoriesPage() {
     },
   ];
 
-  const categoriesForTable = [...categories]
-  .sort((a, b) => a.id - b.id)
-  .map((c, index) => ({
-    ...c,
-    rowNumber: index + 1,
-    statusSearch: c.status ? "activo" : "inactivo",
+  const categoriesWithCounts = categories.map((category) => ({
+    ...category,
+    productsCount: categoryProductCounts[category.id] ?? 0,
   }));
+
+  const categoriesForTable = [...categoriesWithCounts]
+    .sort((a, b) => a.id - b.id)
+    .map((c, index) => ({
+      ...c,
+      rowNumber: index + 1,
+      statusSearch: c.status ? "activo" : "inactivo",
+    }));
+
+  const categoryActionGuard = useCallback((category: Category) => {
+    const count = category.productsCount ?? 0;
+    if (count === 0) {
+      return undefined;
+    }
+
+    const deleteTitle =
+      count === 1
+        ? "No se puede eliminar: la categoría tiene 1 producto asociado"
+        : `No se puede eliminar: la categoría tiene ${count} productos asociados`;
+
+    return {
+      disableDelete: true,
+      deleteTitle,
+    };
+  }, []);
 
 
 
@@ -159,6 +183,7 @@ export default function CategoriesPage() {
                 onView={handleView}
                 onEdit={handleEdit}
                 onDelete={handleDeleteCategory}
+                actionGuard={categoryActionGuard}
               />
             )}
           </div>

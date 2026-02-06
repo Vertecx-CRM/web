@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
 import { showSuccess, showError } from "@/shared/utils/notifications";
+import { getProducts } from "@/features/dashboard/products/api/products.api";
 import {
   getCategories,
   createCategory,
@@ -88,15 +89,38 @@ export const useCategories = () => {
     useState<EditCategoryData | null>(null);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
+  const [categoryProductCounts, setCategoryProductCounts] = useState<
+    Record<number, number>
+  >({});
 
   const hasFetchedRef = useRef(false);
+
+  const refreshCategoryProductCounts = useCallback(async () => {
+    try {
+      const products = await getProducts("all");
+      const counts: Record<number, number> = {};
+      products.forEach((product) => {
+        const categoryId = product.categoryId;
+        if (!categoryId) return;
+        counts[categoryId] = (counts[categoryId] ?? 0) + 1;
+      });
+      setCategoryProductCounts(counts);
+    } catch (error) {
+      console.error(
+        "Error al cargar productos para verificar las categorías:",
+        error,
+      );
+      setCategoryProductCounts({});
+    }
+  }, []);
 
   const refreshCategories = useCallback(async () => {
     const list = await getCategories();
     setCategories(sortCategories(list));
+    void refreshCategoryProductCounts();
     await waitForNextRender();
     return list;
-  }, []);
+  }, [refreshCategoryProductCounts]);
 
   useEffect(() => {
     const load = async () => {
@@ -237,6 +261,7 @@ export const useCategories = () => {
 
   return {
     categories,
+    categoryProductCounts,
     loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
