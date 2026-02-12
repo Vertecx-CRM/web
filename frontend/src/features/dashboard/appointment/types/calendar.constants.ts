@@ -14,6 +14,7 @@ export const CALENDAR_MESSAGES = {
   date: "Fecha",
   time: "Hora",
   event: "Evento",
+  noEventsInRange: "No hay citas en este rango.",
 };
 
 export const upcomingFormatter = new Intl.DateTimeFormat("es-CO", {
