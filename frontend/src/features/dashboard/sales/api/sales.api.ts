@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { ISale } from "../types/Sales.type";
+import { ISale } from "../types/sales.type";
 
 export const getSales = async (signal?: AbortSignal): Promise<ISale[]> => {
   const { data } = await api.get<ISale[]>("/sales", {
