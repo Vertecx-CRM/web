@@ -1,74 +1,46 @@
-// ─────────────────────────────────────────────────────
-// Cliente HTTP genérico para conectar con el backend
-// ─────────────────────────────────────────────────────
+import axios, { type AxiosRequestConfig } from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-type RequestOptions = {
-    headers?: Record<string, string>;
-};
+// Axios instance for code that expects axios-style responses (response.data, error.response, etc.)
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-async function handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-        const errorBody = await response.json().catch(() => null);
-        const message =
-            errorBody?.message ||
-            (Array.isArray(errorBody?.message)
-                ? errorBody.message.join(", ")
-                : `Error ${response.status}: ${response.statusText}`);
-        throw new Error(typeof message === "string" ? message : JSON.stringify(message));
-    }
-    return response.json() as Promise<T>;
-}
+type RequestOptions = AxiosRequestConfig;
 
+// Thin wrapper that returns data directly (for fetch-like usage).
 export const apiClient = {
-    async get<T>(path: string, options?: RequestOptions): Promise<T> {
-        const res = await fetch(`${API_BASE_URL}${path}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                ...options?.headers,
-            },
-            credentials: "include",
-        });
-        return handleResponse<T>(res);
-    },
+  async get<T>(path: string, config?: RequestOptions): Promise<T> {
+    const res = await api.get<T>(path, config);
+    return res.data;
+  },
 
-    async post<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
-        const res = await fetch(`${API_BASE_URL}${path}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...options?.headers,
-            },
-            credentials: "include",
-            body: JSON.stringify(body),
-        });
-        return handleResponse<T>(res);
-    },
+  async post<T>(
+    path: string,
+    body?: unknown,
+    config?: RequestOptions
+  ): Promise<T> {
+    const res = await api.post<T>(path, body, config);
+    return res.data;
+  },
 
-    async patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
-        const res = await fetch(`${API_BASE_URL}${path}`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                ...options?.headers,
-            },
-            credentials: "include",
-            body: JSON.stringify(body),
-        });
-        return handleResponse<T>(res);
-    },
+  async patch<T>(
+    path: string,
+    body?: unknown,
+    config?: RequestOptions
+  ): Promise<T> {
+    const res = await api.patch<T>(path, body, config);
+    return res.data;
+  },
 
-    async delete<T>(path: string, options?: RequestOptions): Promise<T> {
-        const res = await fetch(`${API_BASE_URL}${path}`, {
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-                ...options?.headers,
-            },
-            credentials: "include",
-        });
-        return handleResponse<T>(res);
-    },
+  async delete<T>(path: string, config?: RequestOptions): Promise<T> {
+    const res = await api.delete<T>(path, config);
+    return res.data;
+  },
 };
