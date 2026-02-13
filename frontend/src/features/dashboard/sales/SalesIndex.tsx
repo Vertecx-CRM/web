@@ -1,358 +1,267 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import RequireAuth from "../../auth/requireauth";
-import {
-  ActionButton,
-  Column,
-  DataTable,
-} from "@/features/dashboard/components/datatable/DataTable";
-import { ToastContainer } from "react-toastify";
-import { useSales } from "./hooks/useSales";
-import { ISale } from "./types/Sales.type";
-import { formatSaleCustomerLabel } from "./helpers/saleCustomerHelpers";
-import Swal from "sweetalert2";
-import Modal from "../components/Modal";
-import RegisterSaleForm from "./components/RegisterSale";
-import ViewSale from "./components/ViewSale";
-import { cancelSale, completeSale, getSaleById } from "./api/sales.api";
+import { useState, useEffect, useCallback } from "react";
+import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
+import { Column } from "@/features/dashboard/components/datatable/types/column.types";
+import Modal from "@/features/dashboard/components/Modal";
 import { useLoader } from "@/shared/components/loader";
-import { translateSaleStatus } from "./helpers/saleStatusHelpers";
-import { useAuth } from "@/features/auth/authcontext";
+import { showSuccess, showError } from "@/shared/utils/notifications";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import Colors from "@/shared/theme/colors";
+import { ISale } from "./types/sales.type";
+import { getSales, deleteSale, annulSale } from "./services/sales.service";
+import CreateSaleForm from "./components/CreateSaleForm";
+import SaleDetailModal from "./components/SaleDetailModal";
 
-function Loader() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-[spin_0.8s_linear_1]" />
-    </div>
-  );
-}
+type SaleRow = {
+  id: number;
+  codigo: string;
+  cliente: string;
+  fecha: string;
+  total: number;
+  estado: string;
+};
 
 export default function SalesIndex() {
-  const salesHook = useSales();
-  const { sales, loading, customers, refreshSales } = salesHook;
+  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [viewSaleId, setViewSaleId] = useState<number | null>(null);
   const { showLoader, hideLoader } = useLoader();
-  const { user, profile } = useAuth();
 
-  const [isRegisterOpen, setRegisterOpen] = useState(false);
-  const [isCompletingSale, setCompletingSale] = useState(false);
+  // ── Estado de Anulación ──
+  const [isAnnulModalOpen, setAnnulModalOpen] = useState(false);
+  const [saleToAnnul, setSaleToAnnul] = useState<SaleRow | null>(null);
+  const [annulReason, setAnnulReason] = useState("");
+  const [annulling, setAnnulling] = useState(false);
 
-  // Nuevo: modal de detalle
-  const [isDetailOpen, setDetailOpen] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<ISale | null>(null);
+  // ── Cargar ventas reales desde la API ──
+  const loadSales = useCallback(async () => {
+    try {
+      const data: ISale[] = await getSales();
+      const mapped: SaleRow[] = data.map((s) => ({
+        id: s.saleid,
+        codigo: s.salecode,
+        cliente: s.customer?.users
+          ? `${s.customer.users.name} ${s.customer.users.lastname}`
+          : `Cliente #${s.customerid}`,
+        fecha: new Date(s.saledate).toLocaleDateString("es-CO"),
+        total: s.totalamount,
+        estado: s.salestatus === "Completed" ? "Finalizada"
+          : s.salestatus === "Cancelled" ? "Anulada"
+            : s.salestatus === "Pending" ? "Pendiente"
+              : s.salestatus,
+      }));
+      setSales(mapped);
+    } catch (err) {
+      console.error(err);
+      showError("Error al cargar las ventas.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const confirmCancelSale = useCallback(
-    async (sale: ISale) => {
-      const result = await Swal.fire({
-        title: "¿Estás seguro de cancelar?",
-        text: `Anular la venta ${sale.salecode}`,
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonColor: "#b20000",
-        confirmButtonText: "Cancelar venta",
-        cancelButtonText: "Volver",
-        input: "textarea",
-        inputLabel: "Motivo de cancelación",
-        inputPlaceholder: "Describe el motivo",
-        inputAttributes: {
-          "aria-label": "Motivo de cancelación",
-        },
-        preConfirm: (value) => {
-          const reason = String(value ?? "").trim();
-          if (!reason) {
-            Swal.showValidationMessage("Debes indicar un motivo");
-            return null;
-          }
-          return reason;
-        },
-      });
+  useEffect(() => {
+    loadSales();
+  }, [loadSales]);
 
-    if (!result.isConfirmed) {
+  // ── Eliminar venta ──
+  const handleDelete = async (row: SaleRow) => {
+    if (!confirm(`¿Eliminar registro de venta "${row.codigo}"? Esto es irreversible.`)) return;
+    showLoader();
+    try {
+      await deleteSale(row.id);
+      setSales((prev) => prev.filter((s) => s.id !== row.id));
+      showSuccess(`Venta "${row.codigo}" eliminada.`);
+    } catch (err) {
+      console.error(err);
+      showError("Error al eliminar la venta.");
+    } finally {
+      hideLoader();
+    }
+  };
+
+  // ── Abrir modal de anulación ──
+  const handleOpenAnnul = (row: SaleRow) => {
+    setSaleToAnnul(row);
+    setAnnulReason("");
+    setAnnulModalOpen(true);
+  };
+
+  // ── Confirmar anulación ──
+  const handleConfirmAnnul = async () => {
+    if (!saleToAnnul) return;
+    if (!annulReason.trim()) {
+      showError("Debe ingresar un motivo para la anulación.");
       return;
     }
 
-    const observation = String(result.value ?? "").trim();
-    if (isSaleCompleted(sale)) {
-      Swal.fire(
-        "Venta completada",
-        "No puedes cancelar una venta que ya está completada.",
-        "warning"
-      );
-      return;
+    setAnnulling(true);
+    try {
+      // "Admin" is hardcoded for now as we don't have global auth context readily available in this file.
+      await annulSale(saleToAnnul.id, annulReason, "Admin");
+      showSuccess(`Venta ${saleToAnnul.codigo} anulada correctamente.`);
+      setAnnulModalOpen(false);
+      loadSales(); // Refresh
+    } catch (err) {
+      console.error(err);
+      showError("Error al anular la venta.");
+    } finally {
+      setAnnulling(false);
     }
-      showLoader();
-      try {
-        await cancelSale(sale.saleid, observation);
-        await refreshSales();
-        await Swal.fire(
-          "Venta cancelada",
-          "El estado se actualizó correctamente.",
-          "success"
-        );
-      } catch (error) {
-        console.error("No se pudo cancelar la venta:", error);
-        Swal.fire(
-          "Error",
-          error instanceof Error
-            ? error.message
-            : "No se pudo cancelar la venta",
-          "error"
-        );
-      } finally {
-        hideLoader();
-      }
+  };
+
+  // ── Columnas de la tabla ──
+  const columns: Column<SaleRow>[] = [
+    {
+      key: "id",
+      header: "#",
+      render: (row) => row.id.toString(),
     },
-    [hideLoader, refreshSales, showLoader]
-  );
-
-  const handleCompleteSale = useCallback(
-    async (sale: ISale | null) => {
-    if (!sale) return;
-    if (isSaleCancelled(sale)) {
-      Swal.fire(
-        "Venta cancelada",
-        "No puedes completar una venta que ya fue cancelada.",
-        "warning"
-      );
-      return;
-    }
-
-      const confirmation = await Swal.fire({
-        title: "¿Marcar venta como completada?",
-        text: "Esta acción actualizará la venta a estado Completado.",
-        icon: "question",
-        showCancelButton: true,
-        confirmButtonText: "Completar venta",
-        cancelButtonText: "Cancelar",
-      });
-
-      if (!confirmation.isConfirmed) {
-        return;
-      }
-
-      setCompletingSale(true);
-      showLoader();
-      try {
-        await completeSale(sale.saleid);
-        await refreshSales();
-        const updatedSale = await getSaleById(sale.saleid);
-        setSelectedSale(updatedSale);
-        Swal.fire(
-          "Venta completada",
-          "El estado se actualizó a Completado correctamente.",
-          "success"
-        );
-      } catch (error) {
-        console.error("No se pudo completar la venta:", error);
-        Swal.fire(
-          "Error",
-          error instanceof Error
-            ? error.message
-            : "No se pudo completar la venta",
-          "error"
-        );
-      } finally {
-        hideLoader();
-        setCompletingSale(false);
-      }
+    { key: "codigo", header: "Código Venta" },
+    { key: "cliente", header: "Cliente" },
+    { key: "fecha", header: "Fecha" },
+    {
+      key: "total",
+      header: "Total",
+      render: (row) => `$${row.total.toLocaleString("es-CO")}`,
     },
-    [hideLoader, refreshSales, showLoader]
-  );
+    {
+      key: "estado",
+      header: "Estado",
+      render: (row) => {
+        let bgColor = "#f3f4f6";
+        let textColor = Colors.states.inactive;
 
-  const renderSaleExtraActions = useCallback(
-    (sale: ISale) => {
-      if (isSaleCompleted(sale) || isSaleCancelled(sale)) {
-        return null;
-      }
+        if (row.estado === "Finalizada") {
+          bgColor = "#e8f5e8";
+          textColor = Colors.states.success;
+        } else if (row.estado === "Pendiente") {
+          bgColor = "#fff7ed"; // Orange-ish
+          textColor = "#c2410c";
+        } else if (row.estado === "Anulada") {
+          bgColor = "#fef2f2"; // Red-ish
+          textColor = "#ef4444";
+        }
 
-      return (
-        <ActionButton
-          icon="/icons/complete.svg"
-          title="Completar"
-          onClick={() => handleCompleteSale(sale)}
-        />
-      );
+        return (
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: bgColor, color: textColor }}
+          >
+            {row.estado}
+          </span>
+        );
+      },
     },
-    [handleCompleteSale]
-  );
+  ];
 
-  const isSaleCompleted = (sale?: ISale | null): boolean =>
-    (sale?.salestatus ?? "").toLowerCase() === "completed";
-
-  const isSaleCancelled = (sale?: ISale | null): boolean =>
-    (sale?.salestatus ?? "").toLowerCase() === "cancelled";
-
-  const columns: Column<ISale>[] = useMemo(
-    () => [
-      { key: "saleid", header: "#", render: (row) => row.saleid.toString() },
-      { key: "salecode", header: "Código Venta" },
-      {
-        key: "customerid",
-        header: "Cliente",
-        render: (row) => {
-          const customerLabel = formatSaleCustomerLabel(row, customers);
-          return (
-            <span
-              className={
-                customerLabel.isMissing ? "text-gray-400 italic" : "font-medium"
-              }
-            >
-              {customerLabel.label}
-            </span>
-          );
-        },
-      },
-      {
-        key: "saledate",
-        header: "Fecha",
-        render: (row) => new Date(row.saledate).toLocaleDateString("es-CO"),
-      },
-      {
-        key: "totalamount",
-        header: "Total",
-        render: (row) =>
-          row.totalamount.toLocaleString("es-CO", {
-            style: "currency",
-            currency: "COP",
-          }),
-      },
-      {
-        key: "salestatus",
-        header: "Estado",
-        render: (row) => {
-          const s = row.salestatus?.toLowerCase();
-          const cls =
-            s === "completed"
-              ? "text-green-600"
-              : s === "cancelled"
-              ? "text-red-600"
-              : "text-gray-600";
-          return (
-            <span className={`${cls} font-medium`}>
-              {translateSaleStatus(row.salestatus)}
-            </span>
-          );
-        },
-      },
-    ],
-    [customers]
-  );
-
-  const normalizedRoleName = (
-    profile?.rolename ?? user?.rolename ?? ""
-  ).toLowerCase();
-  const isClientUser =
-    normalizedRoleName.includes("client") ||
-    normalizedRoleName.includes("cliente");
-
-  const filteredSales = useMemo(() => {
-    if (isClientUser && user?.userid != null) {
-      return sales.filter(
-        (sale) => sale.customer?.userid === user.userid
-      );
-    }
-    return sales;
-  }, [sales, user?.userid, isClientUser]);
-
-  const sortedSales = useMemo(() => {
-    const sorted = [...filteredSales];
-    return sorted.sort((a, b) => b.saleid - a.saleid);
-  }, [filteredSales]);
-
-  const isSelectedSaleCompleted = isSaleCompleted(selectedSale);
-  const isSelectedSaleCancelled = isSaleCancelled(selectedSale);
+  // ── Loading state ──
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+        <span className="ml-3 text-gray-500">Cargando ventas...</span>
+      </div>
+    );
+  }
 
   return (
-    <RequireAuth>
-      <div className="p-6">
-        <ToastContainer position="bottom-right" />
-        <h1 className="text-xl font-semibold mb-4">Listado de Ventas</h1>
+    <div className="flex flex-col gap-4">
+      <ToastContainer position="bottom-right" />
 
-        {loading ? (
-          <Loader />
-        ) : (
-          <DataTable
-            module="sales"
-            data={sortedSales}
-            columns={columns}
-            searchableKeys={["salecode", "salestatus"]}
-            pageSize={8}
-            onCancel={confirmCancelSale}
-            onView={async (row) => {
-              try {
-                showLoader(); // ⬅ Mostrar loading
-
-                const fullSale = await getSaleById(row.saleid);
-
-                setSelectedSale(fullSale);
-                setDetailOpen(true);
-              } catch (error) {
-                Swal.fire(
-                  "Error",
-                  "No se pudo cargar el detalle de la venta",
-                  "error"
-                );
-                console.error(error);
-              } finally {
-                hideLoader(); // ⬅Ocultar loading SIEMPRE al terminar
-              }
-            }}
-            onCreate={() => setRegisterOpen(true)}
-            createButtonText="Registrar venta"
-            renderExtraActions={renderSaleExtraActions}
-            actionGuard={(row) => ({
-              disableCancel: isSaleCancelled(row) || isSaleCompleted(row),
-            })}
-          />
-        )}
-
-        {/* MODAL PARA REGISTRAR */}
-        <Modal
-          title="Registrar venta"
-          isOpen={isRegisterOpen}
-          onClose={() => setRegisterOpen(false)}
-          footer={null}
-          widthClass="md:max-w-6xl"
-        >
-          <RegisterSaleForm
-            hook={salesHook}
-            onClose={() => setRegisterOpen(false)}
-          />
-        </Modal>
-
-        {/* MODAL DETALLE DE VENTA */}
-        <Modal
-          title="Detalle de venta"
-          isOpen={isDetailOpen}
-          onClose={() => {
-            hideLoader(); // ⬅ APAGAR LOADER AL CERRAR
-            setDetailOpen(false);
-            setSelectedSale(null); // ⬅ OPCIONAL PERO LIMPIA ESTADO
-          }}
-          footer={
+      <DataTable<SaleRow>
+        data={sales}
+        columns={columns}
+        searchableKeys={["codigo", "cliente", "estado"]}
+        pageSize={10}
+        onView={(row) => setViewSaleId(row.id)}
+        onDelete={handleDelete}
+        // Custom extra action for Annul
+        renderExtraActions={(row) => (
+          row.estado === "Pendiente" ? (
             <button
-              onClick={() => {
-                hideLoader(); // ⬅ TAMBIÉN APAGAR AQUÍ
-                setDetailOpen(false);
-                setSelectedSale(null);
-              }}
-              className="px-4 py-2 bg-gray-300 rounded-lg hover:bg-gray-200"
+              onClick={() => handleOpenAnnul(row)}
+              className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60 text-red-500"
+              title="Anular Venta"
             >
-              Cerrar
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
             </button>
-          }
-        >
-          {selectedSale && (
-            <ViewSale
-              sale={selectedSale}
-              customers={customers}
-              canComplete={!isSelectedSaleCompleted && !isSelectedSaleCancelled}
-              isCompleting={isCompletingSale}
-              onComplete={() => handleCompleteSale(selectedSale)}
+          ) : null
+        )}
+        onCreate={() => setCreateModalOpen(true)}
+        createButtonText="Nueva Venta" module={"Sales"}      />
+
+      {/* Modal para crear venta */}
+      <Modal
+        title="Registrar Nueva Venta"
+        isOpen={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+      >
+        <CreateSaleForm
+          onClose={() => setCreateModalOpen(false)}
+          onSaved={() => {
+            loadSales();
+          }}
+        />
+      </Modal>
+
+      {/* Modal Detalle de Venta */}
+      <SaleDetailModal
+        saleId={viewSaleId}
+        onClose={() => setViewSaleId(null)}
+      />
+
+
+      {/* Modal para anular venta */}
+      <Modal
+        title="Anular Venta"
+        isOpen={isAnnulModalOpen}
+        onClose={() => setAnnulModalOpen(false)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            ¿Está seguro de que desea anular la venta <span className="font-bold">{saleToAnnul?.codigo}</span>?
+            Esta acción actualizará el inventario y cambiará el estado a "Anulada".
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700">
+              Motivo de anulación *
+            </label>
+            <textarea
+              rows={3}
+              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+              placeholder="Especifique la razón..."
+              value={annulReason}
+              onChange={(e) => setAnnulReason(e.target.value)}
             />
-          )}
-        </Modal>
-      </div>
-    </RequireAuth>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={() => setAnnulModalOpen(false)}
+              disabled={annulling}
+              className="px-4 py-2 rounded-md font-medium text-gray-600 bg-gray-100 hover:bg-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmAnnul}
+              disabled={annulling}
+              className="px-4 py-2 rounded-md font-medium text-white bg-red-600 hover:bg-red-700 flex items-center gap-2"
+            >
+              {annulling && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              Confirmar Anulación
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 }

@@ -74,7 +74,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     renderTail,
     mobileCardView = true,
     module,
-    actionGuard = () => undefined,
+    actionGuard,
     freeze,
   } = props;
 
@@ -379,7 +379,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
               <OptimizedTd
                 key={String(c.key)}
                 colIndex={colIndex}
-                header={c.header}
+                header={String(c.header ?? "")}
                 width={c.width}
                 className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm"
               >
@@ -528,7 +528,6 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                   onDelete={canDelete(module) ? onDelete : undefined}
                   onCancel={onCancel}
                   onCheck={onCheck}
-                  onApprove={onApprove}
                   actionGuard={actionGuard}
                   renderActions={renderActions}
                   renderExtraActions={renderExtraActions}
@@ -624,7 +623,6 @@ export const DataTable = React.memo(
       prevProps.data === nextProps.data &&
       prevProps.columns === nextProps.columns &&
       prevProps.freeze === nextProps.freeze &&
-      prevProps.disabled === nextProps.disabled &&
       prevProps.onCreate === nextProps.onCreate &&
       prevProps.onView === nextProps.onView &&
       prevProps.onCancel === nextProps.onCancel

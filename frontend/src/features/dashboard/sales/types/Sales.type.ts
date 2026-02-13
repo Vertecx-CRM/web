@@ -1,49 +1,131 @@
+// ─────────────────────────────────────────────────────
+// Tipos / Interfaces de Ventas
+// Alineados con las entidades y DTOs del backend
+// ─────────────────────────────────────────────────────
+
+// ── Producto (para el buscador de productos) ──
+export interface IProduct {
+    productid: number;
+    productname: string;
+    productdescription: string | null;
+    productcode: string | null;
+    productpriceofsale: number | null;
+    productpriceofsupplier: number;
+    productstock: number;
+    categoryid: number;
+    isactive: boolean;
+    image: string;
+    category?: {
+        id: number;
+        name: string;
+    };
+}
+
+// ── Servicio ──
+export interface IService {
+    serviceid: number;
+    name: string;
+    description: string | null;
+    image: string;
+    typeofserviceid: number;
+    typeofservicename?: string;
+    stateid: number;
+    statename?: string;
+}
+
+// ── Cliente (para el selector de cliente) ──
+export interface ICustomer {
+    customerid: number;
+    userid: number;
+    customercity: string | null;
+    customerzipcode: string | null;
+    users?: {
+        userid: number;
+        name: string;
+        lastname: string;
+        email: string;
+    };
+}
+
+// ── Detalle de venta (línea individual) ──
 export interface ISaleDetail {
-  saledetailid: number;
-  saleid: number;
-  productid: number;
-  quantity: number;
-  unitprice: number;
-  linetotal: number;
+    saledetailid: number;
+    saleid: number;
+    productid: number;
+    quantity: number;
+    unitprice: number;
+    linetotal: number;
+    discountpercent: number;
+    discountamount: number;
+    notes: string | null;
+    products?: IProduct;
 }
 
+// ── Venta completa (respuesta del backend) ──
 export interface ISale {
-  saleid: number;
-  subtotal: number;
-  taxamount: number;
-  discountamount: number;
-  totalamount: number;
-  createddate: string;
-  saledate: string;
-  customerid: number;
-  salecode: string;
-  createdby: string;
-  notes: string | null;
-  paymentmethod: string;
-  salestatus: string;
-  salesdetail: ISaleDetail[];
+    saleid: number;
+    salecode: string;
+    saledate: string;
+    customerid: number;
+    subtotal: number;
+    taxamount: number;
+    discountamount: number;
+    totalamount: number;
+    paymentmethod: string;
+    salestatus: string;
+    createdby: string | null;
+    createddate: string | null;
+    notes: string | null;
+    customer?: ICustomer;
+    salesdetail?: ISaleDetail[];
 }
 
-// dto/create-sale.dto.ts
-export class CreateSaleDetailDto {
-  productid: number; // id producto seleccionado
-  quantity: number; // cantidad
-  unitprice: number; // precio unitario
-  discountpercent?: number; // opcional, si usas descuentos por línea
-  notes?: string;
+// ── DTO para crear detalle (envío al backend) ──
+export interface ICreateSaleDetailDto {
+    productid: number;
+    quantity: number;
+    unitprice: number;
+    discountpercent?: number;
+    notes?: string;
 }
 
-export class CreateSaleDto {
-  customerid: number; // cliente seleccionado en el select
-  saledate: Date; // fecha de la venta
-  salestatus: string; // 'Pending', 'Completed', etc.
-  paymentmethod?: string; // 'Cash', 'Credit Card', etc.
-  notes?: string; // observaciones
-  createdby?: string; // usuario logueado (opcional)
+// ── DTO para crear venta (envío al backend) ──
+export interface ICreateSaleDto {
+    salecode: string;
+    saledate: string;
+    customerid: number;
+    subtotal: number;
+    totalamount: number;
+    taxamount?: number;
+    taxpercent?: number;
+    discountamount?: number;
+    paymentmethod?: string;
+    salestatus?: string;
+    createdby?: string;
+    notes?: string;
+    details: ICreateSaleDetailDto[];
+}
 
-  // Totales que ve el usuario en la tarjeta de la derecha:
-  taxpercent?: number; // ej: 19, si quieres mandarlo desde el front (opcional)
-  discountamount?: number; // descuento global (el de la tarjeta, no por línea)
+// ── Ítem del carrito (uso interno del frontend) ──
+export interface ICartItem {
+    id: string; // unique key para React
+    type: "Producto" | "Servicio";
+    productid?: number;
+    serviceid?: number;
+    name: string;
+    category: string;
+    image: string | null;
+    quantity: number;
+    unitprice: number;
+    stock: number; // 0 para servicios
+    linetotal: number;
+    discountpercent: number;
+}
 
-  details: CreateSaleDetailDto[];
+// ── Anulación ──
+export interface IAnnulSaleData {
+    saleid: number;
+    salecode: string;
+    cliente: string;
+    fecha: string;
 }
