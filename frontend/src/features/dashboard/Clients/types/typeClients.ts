@@ -1,42 +1,55 @@
-// types/typeClients.ts
-
-export interface Client {
-  id: number;
-  tipo: string; // CC, TI, PPT, etc.
-  documento: string;
-  nombre: string;
-  apellido: string; // 👈 ahora sí como propiedad string
-  telefono: string;
-  correoElectronico: string;
-  rol: "Cliente" | "Administrador" | "Empleado";
-  estado: "Activo" | "Inactivo" | string; // ← string para permitir valores iniciales como ''
-}
-
-// Tipo base para crear y editar
-export interface ClientBase {
+// =============================
+// Base para formularios
+// =============================
+export interface ClientFormBase {
   tipo: string;
   documento: string;
   nombre: string;
-  apellido: string; // 👈 agregado para que siempre esté presente
+  apellido: string;
   telefono: string;
   correoElectronico: string;
-  rol: "Cliente" | "Administrador" | "Empleado";
-  estado: "Activo" | "Inactivo" | string;
+  estado: string;
 }
 
-// Crear
-export interface CreateClientData extends ClientBase {
-  contrasena: string;
-  confirmarContrasena: string;
+// =============================
+// Crear cliente (formulario)
+// =============================
+export interface CreateClientData extends ClientFormBase {
+  rol: string;
 }
 
-
-// Editar
-export interface EditClientData extends Client {
-  contrasena: string;
-  confirmarContrasena: string;
+// =============================
+// Editar cliente (formulario)
+// =============================
+export interface EditClientData extends ClientFormBase {
+  id: number;
+  rol: string;
 }
 
+// =============================
+// Cliente completo (modelo backend)
+// =============================
+export interface Client extends ClientFormBase {
+  id: number;
+  rol: string;
+}
+
+// =============================
+// Cliente para tabla
+// =============================
+export interface ClientForTable {
+  id: number;
+  tipo: string;
+  documento: string;
+  nombreCompleto: string;
+  telefono: string;
+  correoElectronico: string;
+  estado: string;
+}
+
+// =============================
+// Errores del formulario
+// =============================
 export interface FormErrors {
   tipo: string;
   documento: string;
@@ -45,9 +58,11 @@ export interface FormErrors {
   telefono: string;
   correoElectronico: string;
   rol: string;
-  estado?: string;
 }
 
+// =============================
+// Campos tocados
+// =============================
 export interface FormTouched {
   tipo: boolean;
   documento: boolean;
@@ -56,24 +71,23 @@ export interface FormTouched {
   telefono: boolean;
   correoElectronico: boolean;
   rol: boolean;
-  estado?: boolean;
 }
 
+// =============================
+// Props del modal de creación
+// =============================
 export interface CreateClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (clientData: CreateClientData) => void;
+  onSave: (data: CreateClientData) => void;
 }
 
+// =============================
+// Props del modal de edición
+// =============================
 export interface EditClientModalProps {
-  isOpen: boolean;
-  client: EditClientData | null;
-  onClose: () => void;
-  onSave: (clientData: EditClientData) => void;
-}
-
-export interface ViewClientModalProps {
   isOpen: boolean;
   client: Client | null;
   onClose: () => void;
+  onSave: (id: number, data: EditClientData) => void;
 }

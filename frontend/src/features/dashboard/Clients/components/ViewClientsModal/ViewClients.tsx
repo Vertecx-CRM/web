@@ -97,16 +97,6 @@ export const ViewClientModal: React.FC<ViewClientModalProps> = ({
             </div>
           </div>
 
-          {/* Rol */}
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium mb-1 text-gray-600">
-              Rol
-            </label>
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-              <span className="text-gray-700">{client.rol}</span>
-            </div>
-          </div>
-
           {/* Estado */}
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium mb-1 text-gray-600">
