@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Image from "next/image";
 import RequireAuth from "@/features/auth/requireauth";
 import { createOrderService } from "../api/ordersServices.api";
 import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
@@ -9,6 +10,37 @@ import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
 import { showError, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
+import {
+  SCHEDULE_MAX,
+  SCHEDULE_MIN,
+  coerceAllowedDateOrNext,
+  coerceAllowedTime,
+  dedupeById,
+  extractFreeTextFromDescription,
+  formatCOP,
+  initials,
+  minutesToTime,
+  normalizeKey,
+  normalizeQuote,
+  normalizeText,
+  parseQuoteParam,
+  pickNumber,
+  timeToMinutes,
+  titleCase,
+  toLocalHM,
+  toLocalYMD,
+  uid,
+  unwrapList,
+  type QuoteNormalized,
+} from "./CreateOrderService.utils";
+import {
+  DESC_MAX,
+  DESC_MIN,
+  type OrderServiceFormErrors as Errors,
+  validateDescription,
+  validateField,
+  validateForm,
+} from "./CreateOrderService.validations";
 
 type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
 type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
@@ -39,44 +71,6 @@ type ServiceTypeOption = {
   label: string;
 };
 
-function toNum(v: any, fallback = 0): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizeKey(v: any): string {
-  return String(v ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function unwrapList(x: any): any[] {
-  if (Array.isArray(x)) return x;
-  if (x && typeof x === "object") {
-    if (Array.isArray((x as any).data)) return (x as any).data;
-    if (Array.isArray((x as any).items)) return (x as any).items;
-    if (Array.isArray((x as any).results)) return (x as any).results;
-    if (Array.isArray((x as any).rows)) return (x as any).rows;
-  }
-  return [];
-}
-
-function dedupeById<T = any>(arr: T[], getId?: (x: any) => any): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const x of arr || []) {
-    const rawId = getId ? getId(x) : (x as any)?.serviceid ?? (x as any)?.id ?? (x as any)?.productid;
-    const key = rawId === undefined || rawId === null ? "" : String(rawId);
-    if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    out.push(x);
-  }
-  return out;
-}
-
-
 type ServiceOption = {
   serviceid: number;
   name: string;
@@ -87,53 +81,6 @@ type ServiceOption = {
 };
 
 const IVA_PCT = 19;
-
-const DESC_MIN = 5;
-const DESC_MAX = 500;
-
-function uid() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-function formatCOP(n?: number) {
-  return n == null
-    ? "—"
-    : n.toLocaleString("es-CO", {
-        style: "currency",
-        currency: "COP",
-        maximumFractionDigits: 0,
-      });
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toLocalYMD(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function toLocalHM(d: Date) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function titleCase(s: string) {
-  const x = String(s ?? "").trim();
-  if (!x) return "";
-  return x.charAt(0).toUpperCase() + x.slice(1);
-}
-
-type Errors = Partial<{
-  quote: string;
-  clientId: string;
-  tipo: string;
-  schedule: string;
-  technicians: string;
-  viaticos: string;
-  servicios: string;
-  materiales: string;
-  description: string;
-}>;
 
 type Touched = Partial<Record<keyof Errors, boolean>>;
 
@@ -180,307 +127,6 @@ function useSidebarWidth(selector = "#app-sidebar") {
   return w;
 }
 
-function initials(name: string) {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  return (a + b).toUpperCase() || "T";
-}
-
-function normalizeText(v: string) {
-  return String(v ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function parseYMD(ymd: string) {
-  const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
-}
-
-function timeToMinutes(hm: string) {
-  const [h, m] = (hm || "").split(":").map((x) => Number(x));
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
-  return h * 60 + m;
-}
-
-function minutesToTime(mins: number) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${pad2(h)}:${pad2(m)}`;
-}
-
-const SCHEDULE_MIN = 7 * 60;
-const SCHEDULE_MAX = 17 * 60;
-
-function isAllowedDate(ymd: string) {
-  const d = parseYMD(ymd);
-  if (!d) return false;
-  const day = d.getDay();
-  return day >= 1 && day <= 6;
-}
-
-function isAllowedTime(hm: string) {
-  const mins = timeToMinutes(hm);
-  if (!Number.isFinite(mins)) return false;
-  return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
-}
-
-type QuoteLike = any;
-
-type QuoteNormalized = {
-  servicerequestid?: number;
-  serviceRequestId?: number;
-  serviceid?: number;
-  quotesid?: number;
-  clientid?: number;
-  technicianid?: number;
-  typeofserviceid?: number | null;
-  typeofservicename?: string | null;
-  fechainicio?: string;
-  fechafin?: string;
-  horainicio?: string;
-  horafin?: string;
-  viaticos?: number;
-  technicians?: number[];
-  description?: string;
-  services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-  products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
-};
-
-function asNumber(v: any) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function pickNumber(...vals: any[]) {
-  for (const v of vals) {
-    const n = asNumber(v);
-    if (n != null) return n;
-  }
-  return undefined;
-}
-
-function pickString(...vals: any[]) {
-  for (const v of vals) {
-    const s = typeof v === "string" ? v : v == null ? "" : String(v);
-    const t = s.trim();
-    if (t) return t;
-  }
-  return "";
-}
-
-function toNumArray(v: any): number[] {
-  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
-  if (typeof v === "string") {
-    return v
-      .split(",")
-      .map((x) => Number(x.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0);
-  }
-  return [];
-}
-
-function decodeBase64Url(input: string) {
-  const base = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
-  const pad = base.length % 4 === 0 ? "" : "=".repeat(4 - (base.length % 4));
-  return atob(base + pad);
-}
-
-function parseQuoteParam(raw: string): any | null {
-  const v = String(raw || "").trim();
-  if (!v) return null;
-  try {
-    if (v.startsWith("{") || v.startsWith("[")) return JSON.parse(v);
-  } catch {}
-  try {
-    const json = decodeBase64Url(v);
-    return JSON.parse(json);
-  } catch {}
-  return null;
-}
-
-function extractFreeTextFromDescription(desc: string) {
-  const s = String(desc || "").trim();
-  if (!s) return "";
-  const hasStructured =
-    /\bTipo:\s*/i.test(s) ||
-    /\bServicios:\s*/i.test(s) ||
-    /\bProductos:\s*/i.test(s) ||
-    /\bDescripción:\s*/i.test(s);
-  if (!hasStructured) return s;
-  const m = s.match(/Descripción:\s*([\s\S]*)$/i);
-  if (m && m[1]) return String(m[1]).trim();
-  return "";
-}
-
-function coerceAllowedDateOrNext(ymd: string) {
-  if (isAllowedDate(ymd)) return ymd;
-  const d = parseYMD(ymd);
-  if (!d) return toLocalYMD(new Date());
-  for (let i = 0; i < 10; i++) {
-    d.setDate(d.getDate() + 1);
-    const next = toLocalYMD(d);
-    if (isAllowedDate(next)) return next;
-  }
-  return toLocalYMD(new Date());
-}
-
-function coerceAllowedTime(hm: string, fallback: string) {
-  if (isAllowedTime(hm)) return hm;
-  return fallback;
-}
-
-function normalizeQuote(q: QuoteLike): QuoteNormalized {
-  const root = q?.quote ?? q?.quotation ?? q?.cotizacion ?? q;
-
-  const quotesid = pickNumber(root?.quotesid, root?.quotationid, root?.cotizacionid, root?.id);
-
-  const servicerequestid = pickNumber(
-    root?.servicerequestid,
-    root?.serviceRequestId,
-    root?.servicerequestId,
-    root?.service_request_id
-  );
-
-  const serviceid = pickNumber(root?.serviceid, root?.serviceId, root?.service?.serviceid, root?.service?.id);
-  const clientid = pickNumber(
-    root?.clientid,
-    root?.customerid,
-    root?.client?.clientid,
-    root?.customer?.customerid,
-    root?.client?.id,
-    root?.customer?.id
-  );
-
-  const technicianid = pickNumber(
-    root?.technicianid,
-    root?.technicianId,
-    root?.technician?.technicianid,
-    root?.technician?.id
-  );
-
-  const techs = toNumArray(root?.technicians ?? root?.technicianids ?? root?.techs ?? root?.assignedTechnicians);
-
-  const fechainicio = pickString(root?.fechainicio, root?.dateStart, root?.startdate, root?.startDate);
-  const fechafin = pickString(root?.fechafin, root?.dateEnd, root?.enddate, root?.endDate);
-  const horainicio = pickString(root?.horainicio, root?.timeStart, root?.starttime, root?.startTime);
-  const horafin = pickString(root?.horafin, root?.timeEnd, root?.endtime, root?.endTime);
-
-  const viaticos = pickNumber(root?.viaticos, root?.travelExpenses, root?.travel, root?.transport) ?? 0;
-
-  const description = pickString(root?.description, root?.notes, root?.observations);
-
-  const rawServices =
-    root?.services ??
-    root?.quotedservices ??
-    root?.servicesitems ??
-    root?.details?.services ??
-    root?.detail?.services ??
-    root?.quoteDetails?.services ??
-    [];
-  const servicesArr = Array.isArray(rawServices) ? rawServices : [];
-
-  const rawDetails = Array.isArray(root?.details)
-    ? root.details
-    : Array.isArray(root?.quoteDetails)
-      ? root.quoteDetails
-      : [];
-
-  const rawProducts =
-    root?.products ??
-    root?.materials ??
-    root?.items ??
-    root?.quotedproducts ??
-    root?.productsitems ??
-    root?.details?.products ??
-    root?.quoteDetails?.products ??
-    [];
-  const productsArr = Array.isArray(rawProducts) ? rawProducts : [];
-
-  const typeofserviceid =
-    pickNumber(
-      root?.typeofserviceid,
-      root?.typeOfServiceId,
-      root?.servicetypeid,
-      root?.serviceTypeId,
-      servicesArr?.[0]?.typeofserviceid,
-      servicesArr?.[0]?.typeOfServiceId,
-      servicesArr?.[0]?.service?.typeofserviceid,
-      servicesArr?.[0]?.service?.typeOfServiceId
-    ) ?? null;
-
-  const typeofservicename =
-    pickString(
-      root?.typeofservicename,
-      root?.servicetype,
-      root?.serviceType,
-      root?.typeName,
-      root?.type,
-      root?.service?.typeofservicename,
-      root?.service?.typeName,
-      servicesArr?.[0]?.typeofservicename,
-      servicesArr?.[0]?.service?.typeofservicename,
-      servicesArr?.[0]?.service?.typeName
-    ) || null;
-
-  const mergedProducts = [...productsArr, ...rawDetails];
-
-  const services = servicesArr
-    .map((s: any) => {
-      const serviceid = pickNumber(s?.serviceid, s?.id, s?.service?.serviceid, s?.service?.id);
-      const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
-      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.valor) ?? 0;
-      if (!serviceid) return null;
-      return {
-        serviceid,
-        cantidad: Math.max(1, Math.round(cantidad)),
-        unitprice: Math.max(0, Math.round(unitprice)),
-      };
-    })
-    .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-
-  const products = mergedProducts
-    .map((p: any) => {
-      const productid = pickNumber(p?.productid, p?.id, p?.product?.productid, p?.product?.id);
-      const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
-      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.valor, p?.subtotal);
-      if (!productid) return null;
-      return {
-        productid,
-        cantidad: Math.max(1, Math.round(cantidad)),
-        unitprice: unitprice == null ? undefined : Math.max(0, Math.round(unitprice)),
-      };
-    })
-    .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
-
-  return {
-    quotesid,
-    clientid,
-    typeofserviceid,
-    fechainicio,
-    fechafin,
-    horainicio,
-    horafin,
-    viaticos,
-    technicianid,
-    servicerequestid: servicerequestid ?? undefined,
-    serviceRequestId: servicerequestid ?? undefined,
-    serviceid: serviceid ?? undefined,
-    typeofservicename,
-    technicians: techs,
-    description,
-    services,
-    products,
-  };
-}
-
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -489,6 +135,10 @@ export default function OrderCreatePage() {
   const returnTo = searchParams.get("returnTo") || "/dashboard/orders-services";
 
   const quotesIdParam =
+    searchParams.get("saleId") ||
+    searchParams.get("salesId") ||
+    searchParams.get("ventaId") ||
+    searchParams.get("ventaid") ||
     searchParams.get("quotesId") ||
     searchParams.get("quotationId") ||
     searchParams.get("cotizacionId") ||
@@ -496,6 +146,9 @@ export default function OrderCreatePage() {
     searchParams.get("quotesid");
 
   const quoteDataParam =
+    searchParams.get("saleData") ||
+    searchParams.get("saleJson") ||
+    searchParams.get("venta") ||
     searchParams.get("quoteData") ||
     searchParams.get("quoteJson") ||
     searchParams.get("cotizacion") ||
@@ -588,7 +241,7 @@ const {
       .map((t: any) => {
         const u = t?.users || t?.user || t?.Users || {};
         const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        const label = name || `Tecnico #${t?.technicianid ?? t?.id ?? "?"}`;
         return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
       })
       .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
@@ -664,17 +317,19 @@ const {
       setQuotesLoading(true);
       setQuotesError(null);
       try {
-        const { data } = await api.get("quotes");
+        const { data } = await api.get("sales");
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
           ? data.data
+          : Array.isArray(data?.sales)
+          ? data.sales
           : Array.isArray(data?.quotes)
           ? data.quotes
           : [];
         if (!cancelled) setQuotesRaw(list);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando cotizaciones.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando ventas.";
         if (!cancelled) {
           setQuotesError(String(msg));
           setQuotesRaw([]);
@@ -691,26 +346,24 @@ const {
 
   const approvedQuotes = useMemo(() => {
     return (quotesRaw || []).filter((q) => {
-      const stateId = pickNumber(q?.state?.stateid, q?.stateid, q?.statesid, q?.state?.id);
-      if (Number.isFinite(stateId) && [3].includes(stateId)) return true;
-
-      const stateName =
+      const statusRaw =
+        q?.salestatus ??
+        q?.status ??
         q?.state?.name ??
         q?.state?.statename ??
-        (typeof q?.state === "string" ? q.state : "") ??
-        q?.status ??
         q?.stateName ??
-        q?.statename;
-
-      const normalized = normalizeText(stateName || "");
-      return normalized.includes("aprob") || normalized.includes("approv");
+        q?.statename ??
+        (typeof q?.state === "string" ? q.state : "");
+      const normalized = normalizeText(statusRaw || "");
+      if (!normalized) return true;
+      return !normalized.includes("cancel") && !normalized.includes("anulad");
     });
   }, [quotesRaw]);
 
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
     for (const q of approvedQuotes || []) {
-      const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id = pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
@@ -720,25 +373,34 @@ const {
     const opts: Array<{ id: number; label: string }> = [];
     for (const q of approvedQuotes || []) {
       const nq = normalizeQuote(q);
-      const id = nq.quotesid ?? pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id =
+        nq.saleid ??
+        nq.quotesid ??
+        pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
 
       const clientLabel =
         (nq.clientid && customers.find((c) => c.customerid === nq.clientid)?.label) ||
         (nq.clientid ? `Cliente #${nq.clientid}` : "Sin cliente");
 
+      const saleCode = String(q?.salecode ?? "").trim();
+      const statusLabel = String(q?.salestatus ?? q?.status ?? "").trim();
+      const total = pickNumber(q?.totalamount, q?.total, q?.grandtotal);
+
       const typeLabel =
         (nq.typeofserviceid && serviceTypes.find((t) => t.typeofserviceid === nq.typeofserviceid)?.label) || "";
 
-      const parts = [`#${id}`, clientLabel];
+      const parts = [saleCode ? `${saleCode} (#${id})` : `#${id}`, clientLabel];
       if (typeLabel) parts.push(typeLabel);
+      if (statusLabel) parts.push(statusLabel);
+      if (Number.isFinite(total)) parts.push(formatCOP(Number(total)));
 
       const hasServices = Array.isArray(nq.services) && nq.services.length > 0;
       const hasProducts = Array.isArray(nq.products) && nq.products.length > 0;
-      const extra = [hasServices ? "con servicios" : "", hasProducts ? "con productos" : ""].filter(Boolean).join(" · ");
+      const extra = [hasServices ? "con servicios" : "", hasProducts ? "con productos" : ""].filter(Boolean).join(" - ");
       if (extra) parts.push(extra);
 
-      opts.push({ id, label: parts.join(" — ") });
+      opts.push({ id, label: parts.join(" - ") });
     }
     opts.sort((a, b) => b.id - a.id);
     return opts;
@@ -749,6 +411,8 @@ const {
   const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
   const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
   const [quoteApplyError, setQuoteApplyError] = useState<string | null>(null);
+  const saleToServiceRequestCacheRef = useRef<Map<number, number | null>>(new Map());
+  const quotesForLinkingRef = useRef<any[] | null>(null);
 
   const [clientId, setClientId] = useState<number | "">("");
   const selectedCustomer = useMemo(() => customers.find((c) => c.customerid === clientId), [customers, clientId]);
@@ -801,6 +465,7 @@ const {
 
   const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
   const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
+  const [materialOpenId, setMaterialOpenId] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -988,7 +653,7 @@ const {
       const isImg = f.type.startsWith("image/");
       const okSize = f.size <= MAX_SIZE;
       if (isImg && okSize) accepteds.push(f);
-      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
+      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (mas de 5MB)" : ""}`);
     });
 
     const totalCount = accepteds.length + files.length;
@@ -996,10 +661,10 @@ const {
     if (totalCount > MAX_FILES) {
       const allowed = Math.max(0, MAX_FILES - files.length);
       if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
-      showWarning(`Máximo ${MAX_FILES} imágenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
+      showWarning(`Maximo ${MAX_FILES} imagenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
     } else {
       dedupeAppend(accepteds);
-      if (rejected.length) showWarning("Algunas imágenes fueron rechazadas (tipo/tamaño).");
+      if (rejected.length) showWarning("Algunas imagenes fueron rechazadas (tipo/tamano).");
     }
 
     e.currentTarget.value = "";
@@ -1073,14 +738,52 @@ const {
     return productsCatalog.filter((p) => !materialesSelectedNames.has(p.productname));
   }, [productsCatalog, materialesSelectedNames]);
 
-  function precioMaterialPorNombre(nombre: string) {
-    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  function findProductByName(nombre: string) {
+    const q = normalizeText(nombre);
+    if (!q) return null;
+    return productsCatalog.find((x) => normalizeText(x.productname) === q) || null;
   }
 
-  function materialOptionsForRow(currentName: string) {
+  function isProductAlreadyAdded(rowId: string, productName: string) {
+    const nameNorm = normalizeText(productName);
+    if (!nameNorm) return false;
+    return materiales.some((m) => m.id !== rowId && normalizeText(String(m.nombre || "")) === nameNorm);
+  }
+
+  function materialOptionsForRow(currentName: string, query = "") {
     const used = new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean));
     if (currentName) used.delete(currentName);
-    return productsCatalog.filter((p) => !used.has(p.productname));
+    const base = productsCatalog.filter((p) => !used.has(p.productname));
+    const q = normalizeText(query);
+    // If the input currently matches an existing product exactly, show full list.
+    // This keeps the dropdown useful after selecting an item.
+    if (q && findProductByName(query)) return base.slice(0, 15);
+    if (!q) return base.slice(0, 15);
+    const scored = base
+      .map((p) => {
+        const label = normalizeText(p.productname);
+        let score = 0;
+        if (label.startsWith(q)) score += 2;
+        if (label.includes(q)) score += 1;
+        return { p, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.p.productname.localeCompare(b.p.productname));
+    return scored.slice(0, 15).map((x) => x.p);
+  }
+
+  function selectMaterialForRow(rowId: string, product: ProductOption) {
+    if (isProductAlreadyAdded(rowId, product.productname)) {
+      showWarning(`El producto "${product.productname}" ya esta agregado.`);
+      return;
+    }
+    patchItem<MaterialLineItem>(
+      rowId,
+      { nombre: product.productname, precio: product.productpriceofsale },
+      setMateriales
+    );
+    setErrors((prev) => ({ ...prev, materiales: undefined }));
+    setMaterialOpenId(null);
   }
 
   function addMaterialRow() {
@@ -1096,187 +799,59 @@ const {
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
 
-  useEffect(() => {
-    if (!(submitAttempted || touched.servicios)) return;
-    const msg = validateField("servicios");
-    setErrors((p) => ({ ...p, servicios: msg }));
-  }, [servicios, servicesCatalog, submitAttempted, touched.servicios]);
-
-  useEffect(() => {
-    if (!(submitAttempted || touched.materiales)) return;
-    const msg = validateField("materiales");
-    setErrors((p) => ({ ...p, materiales: msg }));
-  }, [materiales, productsCatalog, submitAttempted, touched.materiales]);
-
-  function validateScheduleOnly(): string | undefined {
-    if (!dateStart || !timeStart || !dateEnd || !timeEnd) return "Completa fecha y hora de inicio y fin.";
-    if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) return "Solo se permite agendar de lunes a sábado.";
-    if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) return "Horario permitido: 07:00–17:00.";
-
-    const sDate = parseYMD(dateStart);
-    const eDate = parseYMD(dateEnd);
-    if (!sDate || !eDate) return "Fecha inválida.";
-
-    const s = new Date(sDate);
-    const e = new Date(eDate);
-    const sMin = timeToMinutes(timeStart);
-    const eMin = timeToMinutes(timeEnd);
-    if (!Number.isFinite(sMin) || !Number.isFinite(eMin)) return "Hora inválida.";
-    s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
-    e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
-
-    if (!(e.getTime() > s.getTime())) return "La fecha/hora fin debe ser mayor que la de inicio.";
-    if (timeStart === "17:00") return "La hora de inicio no puede ser 17:00.";
-    return undefined;
-  }
-
-  function validateForm(): Errors {
-    const errs: Errors = {};
-
-    if (!clientId) errs.clientId = "Selecciona un cliente.";
-
-    if (!servicios.length && !tipoId) errs.tipo = "Selecciona el tipo de servicio.";
-
-    const sch = validateScheduleOnly();
-    if (sch) errs.schedule = sch;
-
-    if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
-
-    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
-    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
-    const desc = String(descripcion || "").trim();
-    if (!desc) errs.description = "La descripción es obligatoria.";
-    else if (desc.length < DESC_MIN) errs.description = `La descripción debe tener al menos ${DESC_MIN} caracteres.`;
-    else if (desc.length > DESC_MAX) errs.description = `La descripción no puede superar ${DESC_MAX} caracteres.`;
-
-
-    if (servicios.length === 0) {
-      errs.servicios = "Debes añadir al menos un servicio.";
-    } else {
-      const invalidSvc = servicios.some((s) => {
-        if (!s.tipoId) return true;
-        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
-      });
-      if (invalidSvc) errs.servicios = "Hay servicios inválidos. Vuelve a seleccionarlos.";
-
-      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-      if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
-
-      const dupByType = (() => {
-        const map = new Map<number, Set<string>>();
-        for (const s of servicios) {
-          const name = String(s.nombre || "").trim();
-          if (!name) continue;
-          const set = map.get(s.tipoId) ?? new Set<string>();
-          if (set.has(name)) return true;
-          set.add(name);
-          map.set(s.tipoId, set);
-        }
-        return false;
-      })();
-      if (dupByType)
-        errs.servicios =
-          (errs.servicios ? errs.servicios + " " : "") + "No puedes repetir el mismo servicio dentro del mismo tipo.";
-    }
-
-    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
-    if (materiales.length === 0)
-      errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
-
-    const dupMat =
-      materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
-    if (dupMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "No puedes repetir el mismo producto.";
-
-    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-      errs.materiales =
-        (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
-    }
-
-    const badQty = materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1);
-    if (badQty) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades (mínimo 1).";
-
-    return errs;
-  }
-
-  function validateField(key: keyof Errors): string | undefined {
-    if (key === "clientId") {
-      if (!clientId) return "Selecciona un cliente.";
-      return undefined;
-    }
-    if (key === "tipo") {
-      if (servicios.length > 0) return undefined;
-      if (!tipoId) return "Selecciona el tipo de servicio.";
-      return undefined;
-    }
-    if (key === "schedule") return validateScheduleOnly();
-    if (key === "technicians") {
-      if (!selectedTechnicians.length) return "Selecciona al menos un técnico.";
-      return undefined;
-    }
-    if (key === "viaticos") {
-      if (!Number.isFinite(viaticosValue)) return "Viáticos debe ser un número válido.";
-      if (Number.isFinite(viaticosValue) && viaticosValue < 0) return "Viáticos no puede ser negativo.";
-      return undefined;
-    }
-    if (key === "servicios") {
-      if (servicios.length === 0) return "Debes añadir al menos un servicio.";
-      const invalidSvc = servicios.some((s) => {
-        if (!s.tipoId) return true;
-        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
-      });
-      if (invalidSvc) return "Hay servicios inválidos. Vuelve a seleccionarlos.";
-      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-      if (badPriceSvc) return "Corrige precios de servicios.";
-      const dupByType = (() => {
-        const map = new Map<number, Set<string>>();
-        for (const s of servicios) {
-          const name = String(s.nombre || "").trim();
-          if (!name) continue;
-          const set = map.get(s.tipoId) ?? new Set<string>();
-          if (set.has(name)) return true;
-          set.add(name);
-          map.set(s.tipoId, set);
-        }
-        return false;
-      })();
-      if (dupByType) return "No puedes repetir el mismo servicio dentro del mismo tipo.";
-      return undefined;
-    }
-    if (key === "materiales") {
-      if (!productsCatalog.length) return "No hay productos cargados desde la BD.";
-      if (materiales.length === 0) return "Debes añadir al menos un producto (material).";
-      const dupMat =
-        materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
-      if (dupMat) return "No puedes repetir el mismo producto.";
-      if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre)))
-        return "Hay productos inválidos. Vuelve a seleccionarlos.";
-      if (materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1))
-        return "Corrige cantidades (mínimo 1).";
-      return undefined;
-    }
-    return undefined;
-  }
+  const validationContext = useMemo(
+    () => ({
+      clientId,
+      tipoId,
+      dateStart,
+      timeStart,
+      dateEnd,
+      timeEnd,
+      selectedTechnicians,
+      viaticosValue,
+      descripcion,
+      servicios,
+      servicesCatalog,
+      materiales,
+      productsCatalog,
+    }),
+    [
+      clientId,
+      tipoId,
+      dateStart,
+      timeStart,
+      dateEnd,
+      timeEnd,
+      selectedTechnicians,
+      viaticosValue,
+      descripcion,
+      servicios,
+      servicesCatalog,
+      materiales,
+      productsCatalog,
+    ]
+  );
 
   function runBlurValidation(key: keyof Errors) {
     setTouched((t) => ({ ...t, [key]: true }));
-    const msg = validateField(key);
+    const msg = validateField(key, validationContext);
     setErrors((p) => ({ ...p, [key]: msg }));
   }
 
   useEffect(() => {
     if (!(submitAttempted || touched.tipo)) return;
-    setErrors((p) => ({ ...p, tipo: validateField("tipo") }));
-  }, [submitAttempted, touched.tipo, tipoId, servicios.length]);
+    setErrors((p) => ({ ...p, tipo: validateField("tipo", validationContext) }));
+  }, [submitAttempted, touched.tipo, tipoId, servicios.length, validationContext]);
 
   useEffect(() => {
     if (!(submitAttempted || touched.servicios)) return;
-    setErrors((p) => ({ ...p, servicios: validateField("servicios") }));
-  }, [submitAttempted, touched.servicios, servicios, servicesCatalog]);
+    setErrors((p) => ({ ...p, servicios: validateField("servicios", validationContext) }));
+  }, [submitAttempted, touched.servicios, servicios, servicesCatalog, validationContext]);
 
   useEffect(() => {
     if (!(submitAttempted || touched.materiales)) return;
-    setErrors((p) => ({ ...p, materiales: validateField("materiales") }));
-  }, [submitAttempted, touched.materiales, materiales, productsCatalog]);
+    setErrors((p) => ({ ...p, materiales: validateField("materiales", validationContext) }));
+  }, [submitAttempted, touched.materiales, materiales, productsCatalog, validationContext]);
 
   function focusFirstError(er: Errors) {
     const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "description", "materiales", "servicios"] as const;
@@ -1412,7 +987,7 @@ const {
 
     skipClearOnTipoChangeRef.current = true;
     setTipoId(typeId);
-    // Si la cotización viene asociada a una solicitud, precarga el servicio de esa solicitud
+    // Si la venta/cotizacion viene asociada a una solicitud, precarga el servicio de esa solicitud
     if (nq?.serviceRequestId) {
       api
         .get<any>(`/service-requests/${nq.serviceRequestId}`)
@@ -1516,6 +1091,148 @@ const {
     setCustomerOpen(false);
   }
 
+  function getServiceRequestIdFromQuoteLike(q: any): number | null {
+    if (!q) return null;
+    return (
+      pickNumber(
+        q?.serviceRequest?.serviceRequestId,
+        q?.serviceRequest?.id,
+        q?.serviceRequestId,
+        q?.servicerequestid,
+        q?.servicerequestId
+      ) ?? null
+    );
+  }
+
+  function getQuoteIdFromSaleLike(sale: any): number | null {
+    if (!sale) return null;
+    const direct =
+      pickNumber(
+        sale?.quoteid,
+        sale?.quoteId,
+        sale?.quotesid,
+        sale?.quotationid,
+        sale?.cotizacionid,
+        sale?.quote?.quotesid,
+        sale?.quote?.quoteid,
+        sale?.quotation?.quotesid
+      ) ?? null;
+    if (direct) return direct;
+
+    const notes = String(sale?.notes ?? sale?.observation ?? "").trim();
+    if (!notes) return null;
+    const m =
+      notes.match(/(?:quote|cotizacion)\s*#?\s*(\d+)/i) ||
+      notes.match(/\bquoteid\b\s*[:=]\s*(\d+)/i) ||
+      notes.match(/\bquotesid\b\s*[:=]\s*(\d+)/i);
+    if (!m?.[1]) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function productsSignatureFromNormalized(products: Array<{ productid: number; cantidad: number }> = []) {
+    const normalized = products
+      .map((p) => ({
+        productid: Number(p.productid),
+        cantidad: Math.max(1, Math.round(Number(p.cantidad || 1))),
+      }))
+      .filter((p) => Number.isFinite(p.productid) && p.productid > 0)
+      .sort((a, b) => a.productid - b.productid || a.cantidad - b.cantidad);
+    return normalized.map((p) => `${p.productid}:${p.cantidad}`).join("|");
+  }
+
+  function productsSignatureFromQuoteLike(quote: any) {
+    const details = Array.isArray(quote?.details) ? quote.details : [];
+    const items = details
+      .map((d: any) => ({
+        productid: Number(d?.productid),
+        cantidad: Math.max(1, Math.round(Number(d?.quantity ?? d?.cantidad ?? 1))),
+      }))
+      .filter((p: any) => Number.isFinite(p.productid) && p.productid > 0);
+    return productsSignatureFromNormalized(items as any);
+  }
+
+  async function getQuotesForLinking(): Promise<any[]> {
+    if (quotesForLinkingRef.current) return quotesForLinkingRef.current;
+    const { data } = await api.get("quotes");
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.quotes)
+      ? data.quotes
+      : [];
+    quotesForLinkingRef.current = list;
+    return list;
+  }
+
+  async function resolveServiceRequestIdFromSale(rawSale: any, nq: QuoteNormalized): Promise<number | null> {
+    const current = pickNumber(
+      nq?.serviceRequestId,
+      nq?.servicerequestid,
+      rawSale?.serviceRequest?.serviceRequestId,
+      rawSale?.serviceRequest?.id,
+      rawSale?.serviceRequestId,
+      rawSale?.servicerequestid
+    );
+    if (current) return current;
+
+    const saleId = pickNumber(rawSale?.saleid, rawSale?.salesid, rawSale?.id);
+    if (saleId && saleToServiceRequestCacheRef.current.has(saleId)) {
+      return saleToServiceRequestCacheRef.current.get(saleId) ?? null;
+    }
+
+    const quoteId = getQuoteIdFromSaleLike(rawSale);
+    if (quoteId) {
+      try {
+        const { data } = await api.get(`quotes/${quoteId}`);
+        const sr = getServiceRequestIdFromQuoteLike(data);
+        if (saleId) saleToServiceRequestCacheRef.current.set(saleId, sr ?? null);
+        if (sr) return sr;
+      } catch {}
+    }
+
+    try {
+      const quotes = await getQuotesForLinking();
+      if (!quotes.length) {
+        if (saleId) saleToServiceRequestCacheRef.current.set(saleId, null);
+        return null;
+      }
+
+      const saleClientId = pickNumber(rawSale?.customerid, rawSale?.clientid, nq?.clientid);
+      const saleTotal = pickNumber(rawSale?.totalamount, rawSale?.total, rawSale?.grandtotal);
+      const saleProductsSig = productsSignatureFromNormalized((nq?.products || []) as any);
+
+      let best: any = null;
+      let bestScore = -1;
+
+      for (const q of quotes) {
+        let score = 0;
+        const qClientId = pickNumber(q?.customerid, q?.clientid, q?.customer?.customerid, q?.client?.clientid);
+        if (saleClientId && qClientId && saleClientId === qClientId) score += 3;
+
+        const qTotal = pickNumber(q?.total, q?.totalamount, q?.grandtotal);
+        if (saleTotal != null && qTotal != null && Math.abs(Number(saleTotal) - Number(qTotal)) <= 1) score += 3;
+
+        const qProductsSig = productsSignatureFromQuoteLike(q);
+        if (saleProductsSig && qProductsSig && saleProductsSig === qProductsSig) score += 4;
+
+        if (score > bestScore) {
+          best = q;
+          bestScore = score;
+        }
+      }
+
+      const matched = bestScore >= 5 ? best : null;
+      const sr = getServiceRequestIdFromQuoteLike(matched);
+      if (saleId) saleToServiceRequestCacheRef.current.set(saleId, sr ?? null);
+      return sr ?? null;
+    } catch {
+      if (saleId) saleToServiceRequestCacheRef.current.set(saleId, null);
+      return null;
+    }
+  }
+
   useEffect(() => {
     if (lookupsLoading) return;
     if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
@@ -1538,19 +1255,24 @@ const {
 
         if (quotesIdFromUrl) {
           raw = quoteMapById.get(quotesIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontró la cotización aprobada #${quotesIdFromUrl} en /quotes`);
+          if (!raw) throw new Error(`No se encontro la venta #${quotesIdFromUrl} en /sales`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
-          if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
+          if (!raw) throw new Error("No se pudo leer la venta desde la URL.");
         }
 
         const nq = normalizeQuote(raw);
+        const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        if (srId) {
+          nq.serviceRequestId = srId;
+          nq.servicerequestid = srId;
+        }
         if (cancelled) return;
 
         applyNormalizedQuote(nq, keyFromUrl);
         if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando cotización.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando venta.";
         setQuoteApplyError(String(msg));
         showError(String(msg));
       } finally {
@@ -1589,24 +1311,38 @@ const {
 
     const raw = quoteMapById.get(id);
     if (!raw) {
-      const msg = `La cotización #${id} no está disponible en el listado de cotizaciones aprobadas.`;
+      const msg = `La venta #${id} no esta disponible en el listado de ventas.`;
       setQuoteApplyError(msg);
       showError(msg);
       return;
     }
 
-    setQuoteApplyError(null);
-    setQuoteLoadingApply(true);
-    try {
-      const nq = normalizeQuote(raw);
-      applyNormalizedQuote(nq, key);
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || "Error aplicando cotización.";
-      setQuoteApplyError(String(msg));
-      showError(String(msg));
-    } finally {
-      setQuoteLoadingApply(false);
+    let cancelled = false;
+    async function run() {
+      setQuoteApplyError(null);
+      setQuoteLoadingApply(true);
+      try {
+        const nq = normalizeQuote(raw);
+        const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        if (srId) {
+          nq.serviceRequestId = srId;
+          nq.servicerequestid = srId;
+        }
+        if (cancelled) return;
+        applyNormalizedQuote(nq, key);
+      } catch (e: any) {
+        if (cancelled) return;
+        const msg = e?.response?.data?.message || e?.message || "Error aplicando venta.";
+        setQuoteApplyError(String(msg));
+        showError(String(msg));
+      } finally {
+        if (!cancelled) setQuoteLoadingApply(false);
+      }
     }
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [
     selectedQuotesId,
     lookupsLoading,
@@ -1638,7 +1374,7 @@ const {
       servicios: true,
     });
 
-    const er = validateForm();
+    const er = validateForm(validationContext);
     setErrors(er);
     if (Object.keys(er).length > 0) {
       showWarning("Revisa los campos marcados en rojo.");
@@ -1653,7 +1389,7 @@ const {
       if (!rec) {
         const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
         setErrors(next);
-        showError(next.materiales || "Producto inválido.");
+        showError(next.materiales || "Producto invalido.");
         focusFirstError(next);
         return;
       }
@@ -1675,7 +1411,7 @@ const {
           servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo con el que fue agregado.`,
         };
         setErrors(next);
-        showError(next.servicios || "Servicio inválido.");
+        showError(next.servicios || "Servicio invalido.");
         focusFirstError(next);
         return;
       }
@@ -1807,22 +1543,22 @@ setNavigating(true);
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold text-gray-900 truncate">Crear orden de servicio</h1>
-                <p className="text-xs text-gray-500 mt-1">Completa el cliente, programación y detalles del servicio.</p>
+                <p className="text-xs text-gray-500 mt-1">Completa el cliente, programacion y detalles del servicio.</p>
               </div>
             </div>
 
             <section className="mb-4 rounded-xl border bg-white shadow-sm" id="field-quote">
               <header className="border-b px-4 py-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800">Cotización (opcional)</div>
+                <div className="text-sm font-semibold text-gray-800">Venta (opcional)</div>
                 <div className="text-xs text-gray-500">
-                  {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "—"}
+                  {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "-"}
                 </div>
               </header>
 
               <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-9">
                   <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-select">
-                    Seleccionar cotización para precargar el formulario
+                    Seleccionar venta para precargar el formulario
                   </label>
                   <div className="relative">
                     <select
@@ -1840,10 +1576,10 @@ setNavigating(true);
                     >
                       <option value="">
                         {quotesLoading
-                          ? "Cargando cotizaciones..."
+                          ? "Cargando ventas..."
                           : quoteOptions.length
-                          ? "Elige una cotización"
-                          : "No hay cotizaciones"}
+                          ? "Elige una venta"
+                          : "No hay ventas"}
                       </option>
                       {quoteOptions.map((q) => (
                         <option key={q.id} value={String(q.id)}>
@@ -1851,15 +1587,16 @@ setNavigating(true);
                         </option>
                       ))}
                     </select>
-                    <span className={chevron}>▾</span>
+                    <span className={chevron} aria-hidden="true">v</span>
                   </div>
                   {quotesError && <p className={errorText}>{quotesError}</p>}
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
-                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando cotización al formulario...</div>}
-                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Cotización aplicada al formulario.</div>}
+                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando venta al formulario...</div>}
+                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Venta aplicada al formulario.</div>}
                 </div>
 
-                <div className="md:col-span-3 flex items-end gap-2">
+                <div className="md:col-span-3">
+                  <label className="block text-xs mb-1 opacity-0 select-none">Accion</label>
                   <button
                     type="button"
                     onClick={resetPrefill}
@@ -1892,9 +1629,9 @@ setNavigating(true);
             <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
               <div className="space-y-6">
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2.5 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Cliente</div>
-                    <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "—"}</div>
+                    <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "-"}</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 gap-3" id="field-clientId">
@@ -1911,9 +1648,9 @@ setNavigating(true);
                               <div className="text-sm font-semibold text-gray-900 truncate">{selectedCustomer.label}</div>
                               <div className="text-xs text-gray-600 truncate">
                                 {`Cliente #${selectedCustomer.customerid}`}
-                                {selectedCustomer.phone || selectedCustomer.email ? ` · ${selectedCustomer.phone || selectedCustomer.email}` : ""}
+                                {selectedCustomer.phone || selectedCustomer.email ? ` - ${selectedCustomer.phone || selectedCustomer.email}` : ""}
                                 {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).length
-                                  ? ` · ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ")}`
+                                  ? ` - ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" * ")}`
                                   : ""}
                               </div>
                             </div>
@@ -2012,9 +1749,9 @@ setNavigating(true);
                 </section>
 
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-800">Programación</div>
-                    <div className="text-xs text-gray-500">Lun–Sáb · 07:00–17:00</div>
+                  <header className="border-b px-3 py-2 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Programacion</div>
+                    <div className="text-xs text-gray-500">Lun-Sab - 07:00-17:00</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
@@ -2092,7 +1829,7 @@ setNavigating(true);
 
                 <section className="rounded-xl border bg-white shadow-sm" id="field-technicians">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-800">Técnicos</div>
+                    <div className="text-sm font-semibold text-gray-800">Tecnicos</div>
                     <div className="flex items-center gap-2">
                       <div className="text-xs text-gray-500">
                         Seleccionados: <span className="font-semibold text-gray-900">{selectedTechnicians.length}</span>
@@ -2111,7 +1848,7 @@ setNavigating(true);
                   <div className="p-4 grid grid-cols-1 gap-3">
                     <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("technicians") ? errorRing : ""}`}>
                       {selectedTechniciansFull.length === 0 ? (
-                        <div className="text-xs text-gray-500">No has seleccionado técnicos.</div>
+                        <div className="text-xs text-gray-500">No has seleccionado tecnicos.</div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {selectedTechniciansFull.map((t) => (
@@ -2123,17 +1860,17 @@ setNavigating(true);
                                 {initials(t.label)}
                               </span>
                               <span className="max-w-[220px] truncate">
-                                #{t.technicianid} — {t.label}
+                                #{t.technicianid} - {t.label}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => removeTechnician(t.technicianid)}
                                 className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
-                                aria-label="Quitar técnico"
+                                aria-label="Quitar tecnico"
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ✕
+                                ?
                               </button>
                             </span>
                           ))}
@@ -2143,7 +1880,7 @@ setNavigating(true);
 
                     <div ref={techBoxRef} className="relative">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-tech-search">
-                        Buscar y agregar técnico
+                        Buscar y agregar tecnico
                       </label>
                       <input
                         id="field-tech-search"
@@ -2185,7 +1922,7 @@ setNavigating(true);
                         <div id="tech-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                           {techOptions.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
-                              {selectedTechnicians.length === technicians.length ? "Ya seleccionaste todos los técnicos." : "No hay coincidencias."}
+                              {selectedTechnicians.length === technicians.length ? "Ya seleccionaste todos los tecnicos." : "No hay coincidencias."}
                             </div>
                           ) : (
                             <ul className="max-h-60 overflow-auto">
@@ -2205,7 +1942,7 @@ setNavigating(true);
                                     </span>
                                     <span className="min-w-0 flex-1">
                                       <span className="block truncate font-medium">{t.label}</span>
-                                      <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
+                                      <span className="block text-xs text-gray-500">Tecnico #{t.technicianid}</span>
                                     </span>
                                     <span className="text-xs text-gray-400">Agregar</span>
                                   </button>
@@ -2233,7 +1970,7 @@ setNavigating(true);
                 >
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
-                    <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
+                    <div className="text-xs text-gray-500">Tipo, servicios, descripcion e imagenes</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -2288,7 +2025,7 @@ setNavigating(true);
                           className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
                           disabled={!tipoId || lookupsLoading || saving || navigating || serviceOptionsForRow(tipoId, "").length === 0}
                         >
-                          Añadir servicio
+                          Anadir servicio
                         </button>
                       </div>
 
@@ -2362,7 +2099,13 @@ setNavigating(true);
                                       aria-label="Quitar servicio"
                                       title="Quitar"
                                     >
-                                      ✕
+                                      <Image
+                                        src="/icons/delete.svg"
+                                        alt="Quitar servicio"
+                                        width={16}
+                                        height={16}
+                                        className="mx-auto h-4 w-4 opacity-80"
+                                      />
                                     </button>
                                   </td>
                                 </tr>
@@ -2372,7 +2115,7 @@ setNavigating(true);
                             {servicios.length === 0 && (
                               <tr>
                                 <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
-                                  {tipoId ? "Aún no has añadido servicios." : "Selecciona primero el tipo de servicio."}
+                                  {tipoId ? "Aun no has anadido servicios." : "Selecciona primero el tipo de servicio."}
                                 </td>
                               </tr>
                             )}
@@ -2385,7 +2128,7 @@ setNavigating(true);
 
                     <div className="md:col-span-12" id="field-description">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
-                        Descripción
+                        Descripcion
                       </label>
                       <textarea
                         id="field-desc"
@@ -2393,22 +2136,10 @@ setNavigating(true);
                         onChange={(e) => {
                           const v = e.target.value;
                           setDescripcion(v);
-                          const t = String(v || "").trim();
-                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
-                          else if (t.length < DESC_MIN)
-                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
-                          else if (t.length > DESC_MAX)
-                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
-                          else setErrors((p) => ({ ...p, description: undefined }));
+                          setErrors((p) => ({ ...p, description: validateDescription(v) }));
                         }}
                         onBlur={() => {
-                          const t = String(descripcion || "").trim();
-                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
-                          else if (t.length < DESC_MIN)
-                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
-                          else if (t.length > DESC_MAX)
-                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
-                          else setErrors((p) => ({ ...p, description: undefined }));
+                          setErrors((p) => ({ ...p, description: validateDescription(descripcion) }));
                         }}
                         rows={3}
                         className={`w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200 ${
@@ -2419,7 +2150,7 @@ setNavigating(true);
                       />
                       {errors.description && <p className={errorText}>{errors.description}</p>}
                       <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-                        <span>{`Mínimo ${DESC_MIN} / Máximo ${DESC_MAX}`}</span>
+                        <span>{`Opcional / Maximo ${DESC_MAX}`}</span>
                         <span className={String(descripcion || "").trim().length > DESC_MAX ? "text-red-600" : ""}>
                           {String(descripcion || "").trim().length}/{DESC_MAX}
                         </span>
@@ -2428,15 +2159,15 @@ setNavigating(true);
 
                     <div className="md:col-span-12" id="field-files">
                       <div className="flex items-center justify-between gap-2">
-                        <label className="block text-xs text-gray-700">Imágenes del servicio</label>
+                        <label className="block text-xs text-gray-700">Imagenes del servicio</label>
                         <button
                           type="button"
                           onClick={() => fileRef.current?.click()}
                           className="h-8 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
-                          title="Subir imágenes"
+                          title="Subir imagenes"
                           disabled={lookupsLoading || saving || navigating}
                         >
-                          Subir imágenes
+                          Subir imagenes
                         </button>
                         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                       </div>
@@ -2445,7 +2176,7 @@ setNavigating(true);
 
                       <div className="mt-3 flex flex-wrap gap-2">
                         {files.length === 0 ? (
-                          <div className="text-xs text-gray-500">No hay imágenes aún.</div>
+                          <div className="text-xs text-gray-500">No hay imagenes aun.</div>
                         ) : (
                           files.map((f, idx) => (
                             <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white">
@@ -2458,7 +2189,7 @@ setNavigating(true);
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ✕
+                                ?
                               </button>
                             </div>
                           ))
@@ -2479,7 +2210,7 @@ setNavigating(true);
                     runBlurValidation("materiales");
                   }}
                 >
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
                       <div className="text-xs text-gray-500">Agrega los materiales consumidos. Puedes ajustar la cantidad.</div>
@@ -2487,107 +2218,157 @@ setNavigating(true);
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
 
-                  <div className="p-4">
-                    <div className={`rounded-lg border overflow-hidden bg-white ${showFieldError("materiales") ? errorRing : ""}`}>
-                      <table className="w-full text-xs md:text-sm">
-                        <thead className="bg-gray-50">
-                          <tr className="text-gray-700">
-                            <th className="px-3 py-2 text-left">Producto</th>
-                            <th className="px-3 py-2 text-center w-24">Cantidad</th>
-                            <th className="px-3 py-2 text-right w-32">Precio</th>
-                            <th className="px-3 py-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {materiales.map((m) => (
-                            <tr key={m.id} className="border-t">
-                              <td className="px-3 py-2">
-                                <select
+                  <div className="p-3">
+                    <div className={`rounded-lg border bg-white p-2.5 space-y-2 ${showFieldError("materiales") ? errorRing : ""}`}>
+                      {materiales.length === 0 ? (
+                        <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
+                          Aun no has anadido productos.
+                        </div>
+                      ) : (
+                        materiales.map((m) => {
+                          const rowMaterialOptions = materialOptionsForRow(m.nombre, m.nombre);
+                          return (
+                            <div key={m.id} className="rounded-md border bg-gray-50 p-2 space-y-1.5">
+                              <label className="block text-[10px] text-gray-600">Producto</label>
+                              <div
+                                className="relative"
+                                onBlurCapture={(e) => {
+                                  const next = e.relatedTarget as Node | null;
+                                  if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+                                  const match = findProductByName(m.nombre);
+                                  if (match && isProductAlreadyAdded(m.id, match.productname)) {
+                                    showWarning(`El producto "${match.productname}" ya esta agregado.`);
+                                    patchItem<MaterialLineItem>(m.id, { nombre: "", precio: 0 }, setMateriales);
+                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                    runBlurValidation("materiales");
+                                    return;
+                                  }
+                                  patchItem<MaterialLineItem>(
+                                    m.id,
+                                    {
+                                      nombre: match?.productname ?? String(m.nombre || "").trim(),
+                                      precio: match?.productpriceofsale ?? 0,
+                                    },
+                                    setMateriales
+                                  );
+                                  setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                  runBlurValidation("materiales");
+                                }}
+                              >
+                                <input
+                                  type="text"
                                   value={m.nombre}
+                                  onFocus={() => setMaterialOpenId(m.id)}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { nombre: n, precio: precioMaterialPorNombre(n) },
-                                      setMateriales
-                                    );
+                                    patchItem<MaterialLineItem>(m.id, { nombre: n }, setMateriales);
+                                    setMaterialOpenId(m.id);
                                     if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  onBlur={() => runBlurValidation("materiales")}
-                                  className="w-full h-9 rounded-md border px-2"
+                                  className="w-full h-9 rounded-md border bg-white px-2.5 pr-8 text-xs"
+                                  placeholder="Buscar producto por nombre"
+                                  disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
+                                  className="absolute inset-y-0 right-0 px-2 text-gray-500"
+                                  title="Mostrar productos"
+                                  aria-label="Mostrar productos"
                                   disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
                                 >
-                                  {materialOptionsForRow(m.nombre).map((opt) => (
-                                    <option key={opt.productid} value={opt.productname}>
-                                      {opt.productname}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
+                                  v
+                                </button>
 
-                              <td className="px-3 py-2 text-center">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  step={1}
-                                  value={m.cantidad}
-                                  onChange={(e) => {
-                                    const n = Number(e.target.value || 1);
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
-                                      setMateriales
-                                    );
-                                    if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  onBlur={() => runBlurValidation("materiales")}
-                                  className="h-9 w-20 rounded-md border px-2 text-center"
-                                  disabled={lookupsLoading || saving || navigating}
-                                />
-                              </td>
+                                {materialOpenId === m.id && (
+                                  <div className="absolute left-0 right-0 z-30 mt-1 max-h-44 overflow-auto rounded-md border bg-white shadow-lg">
+                                    {rowMaterialOptions.length === 0 ? (
+                                      <div className="px-3 py-2 text-xs text-gray-500">No hay productos disponibles.</div>
+                                    ) : (
+                                      rowMaterialOptions.map((opt) => (
+                                        <button
+                                          key={opt.productid}
+                                          type="button"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => selectMaterialForRow(m.id, opt)}
+                                          className="w-full border-b border-gray-100 px-2.5 py-1.5 text-left last:border-b-0 hover:bg-gray-50"
+                                        >
+                                          <span className="block truncate text-xs text-gray-900">{opt.productname}</span>
+                                          <span className="block text-[11px] text-gray-500">{formatCOP(opt.productpriceofsale)}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
 
-                              <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+                              <div className="flex items-end gap-1.5">
+                                <div className="w-20 shrink-0">
+                                  <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={m.cantidad}
+                                    onChange={(e) => {
+                                      const n = Number(e.target.value || 1);
+                                      patchItem<MaterialLineItem>(
+                                        m.id,
+                                        { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
+                                        setMateriales
+                                      );
+                                      if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    }}
+                                    onBlur={() => runBlurValidation("materiales")}
+                                    className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
+                                    disabled={lookupsLoading || saving || navigating}
+                                  />
+                                </div>
 
-                              <td className="px-3 py-2 text-right">
+                                <div className="flex-1 min-w-0">
+                                  <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
+                                  <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
+                                    {formatCOP(m.precio)}
+                                  </div>
+                                </div>
+
                                 <button
                                   type="button"
                                   onClick={() => {
                                     removeItem<MaterialLineItem>(m.id, setMateriales);
                                     setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
-                                  className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                  className="h-9 w-9 shrink-0 rounded-md border bg-white hover:bg-gray-100"
                                   disabled={lookupsLoading || saving || navigating}
                                   aria-label="Quitar producto"
                                   title="Quitar"
                                 >
-                                  ✕
+                                  <Image
+                                    src="/icons/delete.svg"
+                                    alt="Quitar producto"
+                                    width={16}
+                                    height={16}
+                                    className="mx-auto h-4 w-4 opacity-80"
+                                  />
                                 </button>
-                              </td>
-                            </tr>
-                          ))}
-
-                          {materiales.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
-                                Aún no has añadido productos.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
 
                     {showFieldError("materiales") && errors.materiales && <p className={errorText}>{errors.materiales}</p>}
 
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <button
                         type="button"
                         onClick={addMaterialRow}
-                        className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
                         disabled={!availableProducts.length || lookupsLoading || saving || navigating}
                         title={!availableProducts.length ? "Ya agregaste todos los productos disponibles." : undefined}
                       >
-                        Añadir producto
+                        {!availableProducts.length ? "No hay mas productos disponibles" : "Anadir producto"}
                       </button>
                     </div>
                   </div>
@@ -2596,7 +2377,7 @@ setNavigating(true);
                 <section className="rounded-xl border bg-white shadow-sm" id="field-viaticos">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">Viáticos</div>
+                      <div className="text-sm font-semibold text-gray-800">Viaticos</div>
                       <div className="text-xs text-gray-500">Afecta base e IVA.</div>
                     </div>
                   </header>
@@ -2622,7 +2403,7 @@ setNavigating(true);
                     />
                     {showFieldError("viaticos") && errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
                     <div className="pt-3 border-t text-sm flex justify-between">
-                      <span className="text-gray-600">Total viáticos</span>
+                      <span className="text-gray-600">Total viaticos</span>
                       <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
                   </div>
@@ -2631,7 +2412,7 @@ setNavigating(true);
                 <section className="rounded-xl border bg-white shadow-sm">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Totales</div>
-                    <div className="text-xs text-gray-500">Estimación</div>
+                    <div className="text-xs text-gray-500">Estimacion</div>
                   </header>
 
                   <div className="p-4 space-y-3 text-sm">
@@ -2645,7 +2426,7 @@ setNavigating(true);
                           {serviciosMiniLista.map((s) => (
                             <li key={s.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
-                                {s.nombre} × {s.cantidad}
+                                {s.nombre} x {s.cantidad}
                               </span>
                               <span>{formatCOP(s.total)}</span>
                             </li>
@@ -2664,7 +2445,7 @@ setNavigating(true);
                           {materialesMiniLista.map((m) => (
                             <li key={m.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
-                                {m.nombre} × {m.cantidad}
+                                {m.nombre} x {m.cantidad}
                               </span>
                               <span>{formatCOP(m.total)}</span>
                             </li>
@@ -2674,7 +2455,7 @@ setNavigating(true);
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Viáticos</span>
+                      <span className="text-gray-600">Viaticos</span>
                       <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
 
@@ -2699,3 +2480,7 @@ setNavigating(true);
     </RequireAuth>
   );
 }
+
+
+
+

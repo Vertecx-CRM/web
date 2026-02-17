@@ -23,7 +23,16 @@ type ServiceApi = {
 type CustomerApi = {
   customerid?: number;
   id?: number;
-  users?: { name?: string | null; lastname?: string | null } | null;
+  documentnumber?: string | null;
+  documentNumber?: string | null;
+  document_number?: string | null;
+  users?: {
+    name?: string | null;
+    lastname?: string | null;
+    documentnumber?: string | null;
+    documentNumber?: string | null;
+    document_number?: string | null;
+  } | null;
 };
 
 function unwrap<T>(payload: any): T {
@@ -104,7 +113,17 @@ export async function getCustomerOptions(): Promise<Option[]> {
       if (!Number.isFinite(id) || id <= 0) return null;
       const u = c.users ?? {};
       const label = [u.name, u.lastname].filter(Boolean).join(" ").trim() || `Cliente #${id}`;
-      return { id, label } as Option;
+      const rawDoc =
+        u.documentnumber ??
+        u.documentNumber ??
+        u.document_number ??
+        c.documentnumber ??
+        c.documentNumber ??
+        c.document_number ??
+        null;
+      const documentnumber = rawDoc != null ? String(rawDoc).trim() : null;
+      const searchText = [label, documentnumber].filter(Boolean).join(" ");
+      return { id, label, documentnumber, searchText } as Option;
     })
     .filter(Boolean) as Option[];
 }

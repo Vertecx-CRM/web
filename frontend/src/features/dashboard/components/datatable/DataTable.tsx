@@ -21,6 +21,7 @@ import { usePermissions } from "@/features/auth/hooks/usePermissions";
 
 const ROW_HEIGHT = 60;
 const VISIBLE_ROWS = 10;
+const ACTIONS_COL_WIDTH = "230px";
 
 function Th({
   children,
@@ -76,6 +77,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     module,
     actionGuard,
     freeze,
+    disableInternalScroll = false,
   } = props;
 
   const { canView, canCreate, canUpdate, canDelete } = usePermissions();
@@ -322,8 +324,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const startIndex = Math.floor(scrollTop / ROW_HEIGHT);
 
   const visibleRows = useMemo(() => {
+    if (disableInternalScroll) return current;
     return current.slice(startIndex, startIndex + VISIBLE_ROWS);
-  }, [current, startIndex]);
+  }, [current, startIndex, disableInternalScroll]);
 
   const resolveRowKey = useCallback((row: T, idxFallback: number) => {
     const anyRow = row as any;
@@ -361,7 +364,9 @@ const DataTableComponent = <T extends { [key: string]: any }>(
   const Row = useMemo(() => {
     const RowComponent = React.memo(
       ({ row, index }: { row: T; index: number }) => {
-        const currentStartIndex = Math.floor(scrollTop / ROW_HEIGHT);
+        const currentStartIndex = disableInternalScroll
+          ? 0
+          : Math.floor(scrollTop / ROW_HEIGHT);
         const isDesktop =
           typeof window !== "undefined" ? window.innerWidth >= 768 : true;
         const colsToRender = isDesktop ? columns : visibleColumns;
@@ -369,11 +374,15 @@ const DataTableComponent = <T extends { [key: string]: any }>(
         return (
           <tr
             className="hover:bg-gray-50 text-center table-row transition-all duration-300 ease-in-out"
-            style={{
-              top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
-              width: "100%",
-              height: `${ROW_HEIGHT}px`,
-            }}
+            style={
+              disableInternalScroll
+                ? { width: "100%", height: `${ROW_HEIGHT}px` }
+                : {
+                    top: `${(currentStartIndex + index) * ROW_HEIGHT}px`,
+                    width: "100%",
+                    height: `${ROW_HEIGHT}px`,
+                  }
+            }
           >
             {colsToRender.map((c, colIndex) => (
               <OptimizedTd
@@ -390,7 +399,11 @@ const DataTableComponent = <T extends { [key: string]: any }>(
             ))}
 
             {showActionsColumn && (
-              <OptimizedTd header="Acciones">
+              <OptimizedTd
+                header="Acciones"
+                width={ACTIONS_COL_WIDTH}
+                className="min-w-[230px] whitespace-nowrap"
+              >
                 {renderActions ? (
                   renderActions(row)
                 ) : (
@@ -444,6 +457,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
     module,
     scrollTop,
     showActionsColumn,
+    disableInternalScroll,
   ]);
 
   return (
@@ -517,7 +531,11 @@ const DataTableComponent = <T extends { [key: string]: any }>(
       >
         {mobileCardView && (
           <div className="md:hidden">
-            <div className="p-3 space-y-3 max-h-[600px] overflow-y-auto">
+            <div
+              className={`p-3 space-y-3 ${
+                disableInternalScroll ? "" : "max-h-[600px] overflow-y-auto"
+              }`}
+            >
               {current.map((row, idx) => (
                 <MobileCard
                   key={resolveRowKey(row, idx)}
@@ -551,11 +569,11 @@ const DataTableComponent = <T extends { [key: string]: any }>(
           style={tableStyle}
         >
           <div
-            className="max-h-[600px] overflow-y-auto"
-            onScroll={handleScroll}
+            className={disableInternalScroll ? "" : "max-h-[600px] overflow-y-auto"}
+            onScroll={disableInternalScroll ? undefined : handleScroll}
             style={freeze ? { overflowY: "hidden" } : {}}
           >
-            <table className="min-w-full text-sm table-fixed border-collapse">
+            <table className="min-w-full w-full text-sm table-fixed border-collapse">
               <thead
                 className="bg-gray-50 text-gray-700 sticky top-0 z-10"
                 style={{ backgroundColor: Colors.table.header }}
@@ -566,7 +584,7 @@ const DataTableComponent = <T extends { [key: string]: any }>(
                       {c.header}
                     </Th>
                   ))}
-                  {showActionsColumn && <Th>Acciones</Th>}
+                  {showActionsColumn && <Th width={ACTIONS_COL_WIDTH}>Acciones</Th>}
                   {renderTail && (
                     <Th className="text-center">{tailHeader ?? "Imprimir"}</Th>
                   )}
@@ -575,14 +593,21 @@ const DataTableComponent = <T extends { [key: string]: any }>(
 
               <tbody
                 className="divide divide-[#E6E6E6]"
-                style={{
-                  position: "relative",
-                  height: `${current.length * ROW_HEIGHT}px`,
-                }}
+                style={
+                  disableInternalScroll
+                    ? undefined
+                    : {
+                        position: "relative",
+                        height: `${current.length * ROW_HEIGHT}px`,
+                      }
+                }
               >
                 {visibleRows.map((row, index) => (
                   <Row
-                    key={resolveRowKey(row, startIndex + index)}
+                    key={resolveRowKey(
+                      row,
+                      disableInternalScroll ? index : startIndex + index
+                    )}
                     row={row}
                     index={index}
                   />

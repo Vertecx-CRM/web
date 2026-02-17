@@ -30,4 +30,5 @@ export type DataTableProps<T> = {
   renderTail?: (row: T) => React.ReactNode;
   mobileCardView?: boolean;
   freeze?: boolean;
+  disableInternalScroll?: boolean;
 };

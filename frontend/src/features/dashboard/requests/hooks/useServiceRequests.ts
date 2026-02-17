@@ -21,7 +21,12 @@ export function useServiceRequests() {
     queryKey: serviceRequestKeys.list(),
     queryFn: async () => {
       const res = await listServiceRequests();
-      return Array.isArray(res) ? res : [];
+      const requests = Array.isArray(res) ? res : [];
+      return [...requests].sort((a, b) => {
+        const idA = Number(a.serviceRequestId ?? a.servicerequestid ?? a.id ?? 0);
+        const idB = Number(b.serviceRequestId ?? b.servicerequestid ?? b.id ?? 0);
+        return idB - idA;
+      });
     },
   });
 }
