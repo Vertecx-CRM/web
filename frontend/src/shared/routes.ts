@@ -39,6 +39,10 @@ interface IRoutes {
     profile: string;
     orders: string;
   };
+
+  quotes:{
+    register: string
+  }
   notFound: string;
 }
 export const routes: IRoutes = {
@@ -81,6 +85,9 @@ export const routes: IRoutes = {
     profile: "/dashboard/profile",
     newClient: undefined,
     newService: undefined
+  },
+  quotes: {
+    register: "/quotes/register"
   },
   notFound: "/404",
 };

@@ -6,6 +6,7 @@ import { showError, showSuccess } from "@/shared/utils/notifications";
 import { QuoteCreatePayload, QuoteDetailPayload } from "../types/Quote.type";
 import { api } from "@/shared/utils/apiClient";
 import { getServicesRequestsForQuote } from "../api/quotes.api";
+import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
 
 /* ================================
  * TIPOS
@@ -41,6 +42,7 @@ type ServiceRequestFromApi = {
 type ProductFromApi = {
   productid: number;
   productname: string;
+  productdescription: string | null;
   productpriceofsale: number;
   productstock: number;
   isactive: boolean;
@@ -99,6 +101,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
    * ================================ */
   const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
     productid: null,
+    name: "",
     description: "",
     quantity: 1,
     unitprice: 0,
@@ -153,7 +156,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
    * ================================ */
   const handleServiceRequestChange = (serviceRequestId: number) => {
     const selected = serviceRequests.find(
-      (req) => req.serviceRequestId === serviceRequestId
+      (req) => req.serviceRequestId === serviceRequestId,
     );
 
     if (!selected) {
@@ -182,7 +185,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     return products.filter(
       (p) =>
         p.productname.toLowerCase().includes(q) ||
-        p.productid.toString().includes(q)
+        p.productid.toString().includes(q),
     );
   }, [productSearch, products]);
 
@@ -191,7 +194,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
    * ================================ */
   const subtotal = useMemo(
     () => form.details.reduce((a, d) => a + d.subtotal, 0),
-    [form.details]
+    [form.details],
   );
   const tax = Math.round(subtotal * 0.19);
   const total = subtotal + tax;
@@ -206,6 +209,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     setPendingBackorderProduct(null);
     setDetailForm({
       productid: null,
+      name: "",
       description: "",
       quantity: 1,
       unitprice: 0,
@@ -217,13 +221,14 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
   const applyProductSelection = (
     product: ProductFromApi,
-    isBackorder: boolean
+    isBackorder: boolean,
   ) => {
     const unitprice = Number(product.productpriceofsale);
 
     setDetailForm({
       productid: product.productid,
-      description: product.productname,
+      name: product.productname,
+      description: product.productdescription ?? "",
       quantity: 1,
       unitprice,
       subtotal: unitprice,
@@ -291,12 +296,12 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     setForm((prev) => {
       const updatedDetails = [...prev.details];
       const normalizedDescription = normalizeDescription(
-        detailPayload.description
+        detailPayload.description,
       );
 
       if (detailPayload.productid !== null) {
         const existingIndex = updatedDetails.findIndex(
-          (d) => d.productid === detailPayload.productid
+          (d) => d.productid === detailPayload.productid,
         );
         if (existingIndex >= 0) {
           const existing = updatedDetails[existingIndex];
@@ -317,7 +322,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         const existingIndex = updatedDetails.findIndex(
           (d) =>
             d.productid === null &&
-            normalizeDescription(d.description) === normalizedDescription
+            normalizeDescription(d.description) === normalizedDescription,
         );
         if (existingIndex >= 0) {
           const existing = updatedDetails[existingIndex];
@@ -344,6 +349,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     // Resetear formulario de detalle
     setDetailForm({
       productid: null,
+      name: "",
       description: "",
       quantity: 1,
       unitprice: 0,
@@ -361,6 +367,47 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       details: prev.details.filter((_, i) => i !== index),
     }));
   };
+
+  const updateDetailQuantity = (index: number, newQty: number) => {
+    setForm((prev) => {
+      const updated = [...prev.details];
+      const current = updated[index];
+      if (!current) return prev;
+
+      let qty = Math.max(1, Number(newQty) || 1);
+
+      const prod = products.find((p) => p.productid === current.productid);
+      if (prod && current.productid !== null && !current.isBackorder) {
+        qty = Math.min(qty, prod.productstock);
+      }
+
+      updated[index] = {
+        ...current,
+        quantity: qty,
+        subtotal: qty * current.unitprice,
+      };
+
+      return { ...prev, details: updated };
+    });
+  };
+
+ const changeDetailQuantityBy = (index: number, delta: number) => {
+  setForm((prev) => {
+    const updated = [...prev.details];
+    const current = updated[index];
+    if (!current) return prev;
+
+    const qty = Math.max(1, current.quantity + delta);
+
+    updated[index] = {
+      ...current,
+      quantity: qty,
+      subtotal: qty * current.unitprice,
+    };
+
+    return { ...prev, details: updated };
+  });
+};
 
   /* ================================
    * HANDLER PARA ENVIAR FORMULARIO
@@ -405,6 +452,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       setSelectedServiceRequest(null);
       setDetailForm({
         productid: null,
+        name: "",
         description: "",
         quantity: 1,
         unitprice: 0,
@@ -433,7 +481,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       {/* SOLICITUD DE SERVICIO */}
       <div>
         <label className="block mb-1 font-medium">
-          Solicitud de servicio *
+          Solicitud de servicio
         </label>
         <select
           value={form.serviceRequestId}
@@ -647,9 +695,12 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                           </span>
                         )}
                       </div>
-                    <div className="font-medium">
-                      ${Number(p.productpriceofsale ?? 0).toLocaleString("es-CO")}
-                    </div>
+                      <div className="font-medium">
+                        $
+                        {Number(p.productpriceofsale ?? 0).toLocaleString(
+                          "es-CO",
+                        )}
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500">
                       ID: {p.productid} | Estado:{" "}
@@ -693,14 +744,27 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         {/* FORMULARIO DE DETALLE */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="block mb-1 font-medium">Descripción *</label>
+            <label className="block mb-1 font-medium">Nombre *</label>
             <input
               type="text"
               placeholder="Nombre del producto"
+              value={detailForm.name}
+              onChange={(e) =>
+                setDetailForm({ ...detailForm, name: e.target.value })
+              }
+              readOnly={!isManualProduct}
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block mb-1 font-medium">Descripción *</label>
+            <AutoGrowTextarea
+              placeholder="Descripción del producto"
               value={detailForm.description}
               onChange={(e) =>
                 setDetailForm({ ...detailForm, description: e.target.value })
               }
+              readOnly={!isManualProduct}
               className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -787,19 +851,48 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                     className="border rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="font-medium text-gray-800">
-                        {d.description}
-                      </div>
+                      <div className="font-medium text-gray-800">{d.name}</div>
                       <button
                         type="button"
                         onClick={() => handleRemoveDetail(i)}
-                        className="text-red-500 hover:text-red-700 text-sm focus:outline-none"
+                        className="cursor-ponter text-red-500 hover:text-red-700 text-sm focus:outline-none"
                       >
                         Eliminar
                       </button>
                     </div>
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                      <div>Cantidad: {d.quantity}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Cantidad:</span>
+
+                        <button
+                          type="button"
+                          onClick={() => changeDetailQuantityBy(i, -1)}
+                          className="w-8 h-8 rounded border bg-white hover:bg-gray-50"
+                          aria-label="Disminuir cantidad"
+                        >
+                          -
+                        </button>
+
+                        <input
+                          type="number"
+                          min={1}
+                          value={d.quantity}
+                          onChange={(e) =>
+                            updateDetailQuantity(i, Number(e.target.value))
+                          }
+                          className="w-16 border rounded px-2 py-1 text-center"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => changeDetailQuantityBy(i, +1)}
+                          className="w-8 h-8 rounded border bg-white hover:bg-gray-50"
+                          aria-label="Aumentar cantidad"
+                        >
+                          +
+                        </button>
+                      </div>
+
                       <div>
                         Precio unitario: ${d.unitprice.toLocaleString("es-CO")}
                       </div>
@@ -864,7 +957,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       <button
         type="submit"
         style={{ backgroundColor: Colors.buttons.primary }}
-        className="w-full text-white px-4 py-3 rounded font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        className="cursor-pointer w-full text-white px-4 py-3 rounded font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
         disabled={!form.serviceRequestId || form.details.length === 0}
       >
         Guardar Cotización
