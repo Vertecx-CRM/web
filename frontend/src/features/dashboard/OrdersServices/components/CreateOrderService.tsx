@@ -1383,14 +1383,21 @@ const {
       return;
     }
 
+    const findProductRecord = (name: string) => {
+      const normalizedName = normalizeText(name);
+      if (!normalizedName) return null;
+      return productsCatalog.find((p) => normalizeText(p.productname) === normalizedName) || null;
+    };
+
     const productQtyById = new Map<number, number>();
     for (const m of materiales) {
-      const rec = productsCatalog.find((p) => p.productname === m.nombre);
+      const rec = findProductRecord(m.nombre);
       if (!rec) {
         const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
         setErrors(next);
         showError(next.materiales || "Producto invalido.");
         focusFirstError(next);
+        submitLockRef.current = false;
         return;
       }
       const qty = Math.max(1, Math.round(Number(m.cantidad || 1)));
@@ -1404,7 +1411,11 @@ const {
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
-      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId) || null;
+      const serviceName = normalizeText(s.nombre);
+      const rec =
+        servicesCatalog.find(
+          (x) => normalizeText(x.name) === serviceName && x.typeofserviceid === s.tipoId
+        ) || null;
       if (!rec) {
         const next = {
           ...er,
@@ -1413,6 +1424,7 @@ const {
         setErrors(next);
         showError(next.servicios || "Servicio invalido.");
         focusFirstError(next);
+        submitLockRef.current = false;
         return;
       }
       const unitprice = Math.max(0, Math.round(Number(s.precio || 0)));
@@ -1465,6 +1477,7 @@ setNavigating(true);
       if (returnTo === pathname) {
         setNavigating(false);
         setSaving(false);
+        submitLockRef.current = false;
         router.refresh();
         return;
       }
@@ -1870,7 +1883,13 @@ setNavigating(true);
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ?
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar tecnico"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </span>
                           ))}
@@ -2189,7 +2208,13 @@ setNavigating(true);
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ?
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar imagen"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </div>
                           ))
