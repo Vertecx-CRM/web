@@ -10,7 +10,7 @@ import React, {
   useState,
 } from "react";
 import Cookies from "js-cookie";
-import { api, setAccessToken } from "@/lib/api";
+import { api, clearTokens, setAccessToken, setRefreshToken, setTokens } from "@/lib/api";
 import { AuthUser } from "@/features/auth/types/AuthUser";
 import { RegisterPayload } from "@/features/auth/types/RegisterPayload";
 import {
@@ -48,10 +48,6 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-function cookieOptions() {
-  return { path: "/", sameSite: "lax" as const };
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -116,12 +112,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const token = Cookies.get("token");
-      if (!token) {
+      const refresh = Cookies.get("refresh");
+
+      if (token) setAccessToken(token);
+      if (refresh) setRefreshToken(refresh);
+
+      if (!token && !refresh) {
         setReady(true);
         return;
       }
 
-      setAccessToken(token);
       const me = await loadUser();
       if (me) await loadProfile((me as any)?.userid);
 
@@ -145,9 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!access || !refresh)
           return { ok: false, message: "Credenciales inválidas" };
 
-        setAccessToken(access);
-        Cookies.set("token", access, cookieOptions());
-        Cookies.set("refresh", refresh, cookieOptions());
+        setTokens({ access_token: access, refresh_token: refresh });
 
         const me = await loadUser();
         if (me) await loadProfile((me as any)?.userid);
@@ -181,9 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    Cookies.remove("token", { path: "/" });
-    Cookies.remove("refresh", { path: "/" });
-    setAccessToken(null);
+    clearTokens();
     setUser(null);
     setProfile(null);
     setLastAuthAction("logout");

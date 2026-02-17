@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosHeaders, InternalAxiosRequestConfig } from "axios";
+import Cookies from "js-cookie";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/";
 
@@ -10,24 +11,45 @@ export const api = axios.create({
 
 type TokensResponse = { access_token: string; refresh_token: string };
 
+const ACCESS_COOKIE_KEY = "token";
+const REFRESH_COOKIE_KEY = "refresh";
+
+function cookieOptions() {
+  return { path: "/", sameSite: "lax" as const };
+}
+
 let accessToken: string | null =
-  typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
+  typeof window !== "undefined"
+    ? localStorage.getItem("accessToken") ?? Cookies.get(ACCESS_COOKIE_KEY) ?? null
+    : null;
 
 let refreshTokenValue: string | null =
-  typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+  typeof window !== "undefined"
+    ? localStorage.getItem("refreshToken") ?? Cookies.get(REFRESH_COOKIE_KEY) ?? null
+    : null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
   if (typeof window === "undefined") return;
-  if (token) localStorage.setItem("accessToken", token);
-  else localStorage.removeItem("accessToken");
+  if (token) {
+    localStorage.setItem("accessToken", token);
+    Cookies.set(ACCESS_COOKIE_KEY, token, cookieOptions());
+  } else {
+    localStorage.removeItem("accessToken");
+    Cookies.remove(ACCESS_COOKIE_KEY, { path: "/" });
+  }
 }
 
 export function setRefreshToken(token: string | null) {
   refreshTokenValue = token;
   if (typeof window === "undefined") return;
-  if (token) localStorage.setItem("refreshToken", token);
-  else localStorage.removeItem("refreshToken");
+  if (token) {
+    localStorage.setItem("refreshToken", token);
+    Cookies.set(REFRESH_COOKIE_KEY, token, cookieOptions());
+  } else {
+    localStorage.removeItem("refreshToken");
+    Cookies.remove(REFRESH_COOKIE_KEY, { path: "/" });
+  }
 }
 
 export function setTokens(tokens: { access_token: string; refresh_token: string }) {

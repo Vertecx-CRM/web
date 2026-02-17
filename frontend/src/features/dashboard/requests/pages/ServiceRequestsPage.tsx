@@ -206,6 +206,49 @@ function extractRequestClientIds(r: any): number[] {
   );
 }
 
+function useDesktopQuery() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const fn = () => setIsDesktop(mq.matches);
+    fn();
+    mq.addEventListener?.("change", fn);
+    return () => mq.removeEventListener?.("change", fn);
+  }, []);
+  return isDesktop;
+}
+
+function useSidebarWidth(selector = "#app-sidebar") {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = document.querySelector(selector) as HTMLElement | null;
+    if (!el) return;
+    const update = () => setW(el.offsetWidth || 0);
+    update();
+    let ro: ResizeObserver | null = null;
+    if ("ResizeObserver" in window) {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    }
+    const mo = new MutationObserver(update);
+    mo.observe(el, { attributes: true, attributeFilter: ["class", "style"] });
+    window.addEventListener("resize", update);
+    return () => {
+      if (ro) {
+        try {
+          ro.disconnect();
+        } catch {}
+        ro = null;
+      }
+      mo.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [selector]);
+  return w;
+}
+
 export default function ServiceRequestsPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -221,6 +264,8 @@ export default function ServiceRequestsPage() {
   const { serviceOptions, customerOptions } = useLookups();
   const { pendingStateId, scheduledStateId } = useRequestStates();
   const { user, profile } = useAuth();
+  const isDesktop = useDesktopQuery();
+  const sidebarW = useSidebarWidth("#app-sidebar");
 
   const { data, isLoading, error } = useServiceRequests();
   const createMut = useCreateServiceRequest();
@@ -767,7 +812,8 @@ export default function ServiceRequestsPage() {
 
   return (
     <RequireAuth>
-      <main className="flex-1 flex flex-col bg-gray-100 relative">
+      <div className="relative" style={{ paddingLeft: isDesktop ? sidebarW : 0 }}>
+        <main className="min-h-[100dvh] bg-gray-100 relative">
         <ToastContainer position="bottom-right" />
         {busy && <Loader />}
 
@@ -781,6 +827,7 @@ export default function ServiceRequestsPage() {
             data={rows}
             columns={columns}
             pageSize={5}
+            disableInternalScroll
             searchableKeys={["id", "cliente", "servicio", "tipo", "estado"]}
             actionGuard={(row) => {
               const estado = String(row?.estado ?? "").toLowerCase().trim();
@@ -943,6 +990,7 @@ export default function ServiceRequestsPage() {
           />
         )}
       </main>
+      </div>
     </RequireAuth>
   );
 }
