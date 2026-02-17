@@ -67,14 +67,7 @@ type WarrantyInfo = {
   notifiedClient?: boolean;
 };
 
-type Estado =
-  | "Aprobada"
-  | "Anulada"
-  | "Pendiente"
-  | "Agendada"
-  | "Garantia"
-  | "GarantiaReportada"
-  | "Finalizado";
+type Estado = string;
 
 type TechnicianOption = { technicianid: number; label: string };
 type OrderFile = { label?: string; url: string };
@@ -92,6 +85,7 @@ type Row = {
   horafin?: string;
 
   estado: Estado;
+  estadoKey?: Estado;
   monto?: number;
   viaticos?: number;
 
@@ -115,8 +109,8 @@ function Loader() {
   );
 }
 
-function sortRowsByIdAsc(arr: Row[]) {
-  return [...arr].sort((a, b) => a.id - b.id);
+function sortRowsByIdDesc(arr: Row[]) {
+  return [...arr].sort((a, b) => b.id - a.id);
 }
 
 function formatCOP(n?: number) {
@@ -128,8 +122,8 @@ function formatCOP(n?: number) {
   });
 }
 
-function EstadoText({ v }: { v: Estado }) {
-  const STYLE: Record<Estado, string> = {
+function EstadoText({ v, colorKey }: { v: Estado; colorKey?: string }) {
+  const STYLE: Record<string, string> = {
     Aprobada: "text-green-700",
     Pendiente: "text-yellow-700",
     Agendada: "text-sky-700",
@@ -139,10 +133,12 @@ function EstadoText({ v }: { v: Estado }) {
     Finalizado: "text-emerald-700",
   };
 
-  const label = v === "GarantiaReportada" ? "Garantía (reportada)" : v;
+  const key = colorKey ?? v;
+  const label = key === "GarantiaReportada" ? "Garantía (reportada)" : v;
+  const colorClass = STYLE[key] ?? "text-slate-700";
 
   return (
-    <span className={`text-sm font-semibold ${STYLE[v]}`} title={label}>
+    <span className={`text-sm font-semibold ${colorClass}`} title={label}>
       {label}
     </span>
   );
@@ -190,8 +186,23 @@ function formatTimeES(input?: string | null) {
 }
 
 function mapEstadoFromBackend(name?: string | null): Estado {
-  const n = (name || "").toLowerCase();
-  if (n.includes("final") || n.includes("complet")) return "Finalizado";
+  const label = String(name ?? "").trim();
+  if (label) return label;
+
+  const n = label.toLowerCase();
+  if (n.includes("final") || n.includes("complet") || n.includes("finish")) return "Finalizado";
+  if (n.includes("anul") || n.includes("revoke") || n.includes("cancel")) return "Anulada";
+  if (n.includes("aprob") || n.includes("approved")) return "Aprobada";
+  if (n.includes("agend")) return "Agendada";
+  if (n.includes("pend")) return "Pendiente";
+  if (n.includes("garan") && (n.includes("report") || n.includes("rep"))) return "GarantiaReportada";
+  if (n.includes("garan")) return "Garantia";
+  return "Pendiente";
+}
+
+function mapEstadoKey(name?: string | null): Estado {
+  const n = String(name ?? "").trim().toLowerCase();
+  if (n.includes("final") || n.includes("complet") || n.includes("finish")) return "Finalizado";
   if (n.includes("anul") || n.includes("revoke") || n.includes("cancel")) return "Anulada";
   if (n.includes("aprob") || n.includes("approved")) return "Aprobada";
   if (n.includes("agend")) return "Agendada";
@@ -480,9 +491,13 @@ function toRow(o: OrderServiceDTO): Row {
 
   const garantia = resolveWarrantyFromBackend(anyO);
 
-  let estado = mapEstadoFromBackend(anyO?.state?.name);
-  if (garantia && estado !== "GarantiaReportada" && estado !== "Garantia") {
-    estado = garantia.details ? "GarantiaReportada" : "Garantia";
+  const rawEstadoName = anyO?.state?.name;
+  let estado = mapEstadoFromBackend(rawEstadoName);
+  let estadoKey = mapEstadoKey(rawEstadoName);
+
+  if (garantia && estadoKey !== "GarantiaReportada" && estadoKey !== "Garantia") {
+    estadoKey = garantia.details ? "GarantiaReportada" : "Garantia";
+    if (!estado) estado = estadoKey;
   }
 
   return {
@@ -496,6 +511,7 @@ function toRow(o: OrderServiceDTO): Row {
     horainicio: horainicio ? String(horainicio) : undefined,
     horafin: horafin ? String(horafin) : undefined,
     estado,
+    estadoKey,
     monto: total,
     viaticos,
     descripcion: anyO?.description || "",
@@ -662,7 +678,7 @@ export default function OrdersServicesIndexPage() {
       const data = await fetchOrdersServices();
       const filtered = filterOrdersForAuth(Array.isArray(data) ? data : []);
       const mapped = filtered.map(toRow);
-      setRows(sortRowsByIdAsc(mapped));
+      setRows(sortRowsByIdDesc(mapped));
     } catch {
       setRows([]);
       Swal.fire({
@@ -684,7 +700,7 @@ export default function OrdersServicesIndexPage() {
         const filtered = filterOrdersForAuth(Array.isArray(data) ? data : []);
         const mapped = filtered.map(toRow);
         if (!mounted) return;
-        setRows(sortRowsByIdAsc(mapped));
+        setRows(sortRowsByIdDesc(mapped));
       } catch {
         if (!mounted) return;
         setRows([]);
@@ -739,7 +755,8 @@ export default function OrdersServicesIndexPage() {
 
   const cancelRow = useCallback(
     async (row: Row) => {
-      if (row.estado === "Anulada") return;
+      const estadoKey = row.estadoKey ?? row.estado;
+      if (estadoKey === "Anulada") return;
 
       const res = await Swal.fire({
         icon: "warning",
@@ -861,6 +878,7 @@ export default function OrdersServicesIndexPage() {
 
   const printRow = useCallback((row: Row) => {
     const IVA_PCT = 19;
+    const estadoKey = row.estadoKey ?? row.estado;
 
     const servicios = row.servicios ?? [];
     const materiales = row.materiales ?? [];
@@ -916,7 +934,7 @@ export default function OrdersServicesIndexPage() {
 <div class="label" style="margin-bottom:6px">Garantía</div>
 <div class="grid">
   <div class="item"><div class="label">Estado</div><div class="val">${
-    row.estado === "GarantiaReportada" ? "Garantía (reportada)" : "Garantía"
+    estadoKey === "GarantiaReportada" ? "Garantía (reportada)" : "Garantía"
   }</div></div>
   <div class="item"><div class="label">Motivo</div><div class="val">${escapeHtml(row.garantia.label)}</div></div>
   <div class="item"><div class="label">Reportado por</div><div class="val">${escapeHtml(row.garantia.reportedBy)}</div></div>
@@ -998,7 +1016,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
 
   <div class="grid">
     <div class="item"><div class="label">Estado</div><div class="val">${escapeHtml(
-      row.estado === "GarantiaReportada" ? "Garantía (reportada)" : row.estado
+      estadoKey === "GarantiaReportada" ? "Garantía (reportada)" : row.estado
     )}</div></div>
 
     <div class="item"><div class="label">Tipo</div><div class="val">${escapeHtml(row.tipo)}</div></div>
@@ -1138,13 +1156,14 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
       { header: "Monto (COP)", key: "monto", width: 16, style: { numFmt: '"$" #,##0' } },
     ];
 
-    sortRowsByIdAsc(rows).forEach((r) => {
+    sortRowsByIdDesc(rows).forEach((r) => {
+      const estadoKey = r.estadoKey ?? r.estado;
       ws.addRow({
         id: r.id,
         cliente: r.cliente,
         tipo: r.tipo,
         fechaProgramada: r.fechaProgramada,
-        estado: r.estado === "GarantiaReportada" ? "Garantía (reportada)" : r.estado,
+        estado: estadoKey === "GarantiaReportada" ? "Garantía (reportada)" : r.estado,
         viaticos: r.viaticos ?? 0,
         monto: r.monto ?? 0,
       });
@@ -1163,7 +1182,8 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
   }, [rows, loading]);
 
   const actionGuard = useCallback((r: Row) => {
-    if (r.estado === "Anulada") {
+    const estadoKey = r.estadoKey ?? r.estado;
+    if (estadoKey === "Anulada") {
       return {
         disableEdit: true,
         disableDelete: true,
@@ -1186,7 +1206,8 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
         key: "estado",
         header: "Estado",
         render: (r) => {
-          if (r.estado === "GarantiaReportada") {
+          const estadoKey = r.estadoKey ?? r.estado;
+          if (estadoKey === "GarantiaReportada") {
             const fecha = r.garantia?.reportedAtISO
               ? new Date(r.garantia.reportedAtISO).toLocaleDateString("es-CO")
               : "";
@@ -1196,19 +1217,19 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
             return (
               <span className="inline-flex items-center gap-2" title={title}>
                 <img src={ICONS.report} className="h-4 w-4" alt="" />
-                <EstadoText v={r.estado} />
+                <EstadoText v={r.estado} colorKey={estadoKey} />
               </span>
             );
           }
-          if (r.estado === "Garantia") {
+          if (estadoKey === "Garantia") {
             return (
               <span className="inline-flex items-center gap-2" title="Garantía sin reporte">
                 <img src={ICONS.report} className="h-4 w-4" alt="" />
-                <EstadoText v={r.estado} />
+                <EstadoText v={r.estado} colorKey={estadoKey} />
               </span>
             );
           }
-          return <EstadoText v={r.estado} />;
+          return <EstadoText v={r.estado} colorKey={estadoKey} />;
         },
       },
       { key: "monto", header: "Monto", render: (r) => <b>{formatCOP(r.monto)}</b> },
@@ -1216,20 +1237,21 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     []
   );
 
-  const extraActions = useCallback(
-    (r: Row) => {
-      const disableWarranty = r.estado === "Anulada";
-      const disableHistory = r.estado === "Anulada";
+const extraActions = useCallback(
+  (r: Row) => {
+    const estadoKey = r.estadoKey ?? r.estado;
+    const disableWarranty = estadoKey === "Anulada";
+    const disableHistory = estadoKey === "Anulada";
 
       const baseBtn =
         "p-1 rounded-full transition-all duration-300 hover:scale-110 hover:bg-red-300/60 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-transparent";
 
-      const warrantyTitle =
-        r.estado === "Garantia" || r.estado === "GarantiaReportada"
-          ? r.estado === "Garantia"
-            ? "Completar reporte de garantía"
-            : "Editar reporte de garantía"
-          : "Marcar garantía (sin reporte)";
+    const warrantyTitle =
+      estadoKey === "Garantia" || estadoKey === "GarantiaReportada"
+        ? estadoKey === "Garantia"
+          ? "Completar reporte de garantía"
+          : "Editar reporte de garantía"
+        : "Marcar garantía (sin reporte)";
 
       return (
         <>
@@ -1249,7 +1271,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
             title={disableWarranty ? "No disponible en una orden anulada" : warrantyTitle}
             onClick={() => {
               if (disableWarranty) return;
-              if (r.estado === "Garantia" || r.estado === "GarantiaReportada") openReport(r);
+              if (estadoKey === "Garantia" || estadoKey === "GarantiaReportada") openReport(r);
               else markWarranty(r);
             }}
             disabled={disableWarranty}
@@ -1284,10 +1306,10 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
     <RequireAuth>
       {loading || busy ? <Loader /> : null}
 
-      <div className="min-h-screen flex">
+      <div className="flex">
         <div className="flex-1 flex flex-col">
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-6 pt-6 overflow-hidden">
+          <main className="flex-1 flex flex-col">
+            <div className="px-6 pt-6 pb-6">
               <DataTable<Row>
                 module={MODULE_KEY}
                 data={Array.isArray(rows) ? rows : []}
@@ -1304,6 +1326,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvet
                 actionGuard={actionGuard}
                 renderExtraActions={extraActions}
                 mobileCardView
+                disableInternalScroll
               />
             </div>
           </main>

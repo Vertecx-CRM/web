@@ -59,6 +59,12 @@ type ServiceOption = {
   statename?: string | null;
 };
 
+type OrderStateOption = {
+  stateid: number;
+  name: string;
+  label: string;
+};
+
 const IVA_PCT = 19;
 
 const DESC_MIN = 5;
@@ -356,6 +362,7 @@ const {
     products: productsRaw,
     services: servicesRaw,
     serviceTypes: serviceTypesRaw,
+    states: statesRaw,
     pendingStateId,
     scheduledStateId,
   } = useOrdersServicesLookups();
@@ -436,6 +443,16 @@ const {
       })
       .filter((x) => Number.isFinite(x.typeofserviceid) && x.typeofserviceid > 0);
   }, [serviceTypesRaw]);
+
+  const orderStates = useMemo<OrderStateOption[]>(() => {
+    return (statesRaw || [])
+      .map((s: any) => {
+        const stateid = Number(s?.stateid ?? s?.id);
+        const name = String(s?.name ?? s?.state ?? s?.label ?? s?.statename ?? "").trim();
+        return { stateid, name, label: titleCase(name) || `Estado #${stateid}` } as OrderStateOption;
+      })
+      .filter((x) => Number.isFinite(x.stateid) && x.stateid > 0);
+  }, [statesRaw]);
 
   const servicesCatalog = useMemo<ServiceOption[]>(() => {
     return (servicesRaw || [])
@@ -554,6 +571,7 @@ const {
   }
 
   const [tipoId, setTipoId] = useState<number | null>(null);
+  const [orderStateId, setOrderStateId] = useState<number | null>(null);
 
   const [descripcion, setDescripcion] = useState("");
 
@@ -682,6 +700,12 @@ const {
     serviceTypes.forEach((t) => m.set(t.typeofserviceid, t.label || t.name || `Tipo #${t.typeofserviceid}`));
     return m;
   }, [serviceTypes]);
+
+  const stateOptionsForSelect = useMemo(() => {
+    if (orderStateId == null) return orderStates;
+    if (orderStates.some((s) => s.stateid === orderStateId)) return orderStates;
+    return [{ stateid: orderStateId, name: "", label: `Estado #${orderStateId}` }, ...orderStates];
+  }, [orderStates, orderStateId]);
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
@@ -1008,6 +1032,7 @@ const {
     const candidateType = n.typeofserviceid ?? inferredTypeFromServices;
     const typeId = candidateType && serviceTypes.some((t) => t.typeofserviceid === candidateType) ? candidateType : null;
     setTipoId(typeId);
+    setOrderStateId(n.stateid ?? pendingStateId ?? null);
 
     const techIds = (n.technicians || []).filter((id) => technicians.some((t) => t.technicianid === id));
     setSelectedTechnicians(techIds);
@@ -1068,7 +1093,7 @@ const {
 
     setErrors({});
     appliedOrderRef.current = true;
-  }, [lookupsLoading, orderNormalized, customers, technicians, productsCatalog, serviceTypes, servicesCatalog]);
+  }, [lookupsLoading, orderNormalized, customers, technicians, productsCatalog, serviceTypes, servicesCatalog, pendingStateId]);
 
   // -------- Validación en tiempo real (sin auto-ajustes “silenciosos”) --------
   useEffect(() => {
@@ -1152,7 +1177,8 @@ const {
       scheduledStateId != null &&
       (orderNormalized?.stateid == null ||
         (pendingStateId != null && orderNormalized?.stateid === pendingStateId));
-    const stateid = shouldUseScheduled ? scheduledStateId : orderNormalized?.stateid ?? pendingStateId ?? 1;
+    const autoStateid = shouldUseScheduled ? scheduledStateId : orderNormalized?.stateid ?? pendingStateId ?? 1;
+    const stateid = orderStateId ?? autoStateid;
 
     setSaving(true);
     try {
@@ -1505,7 +1531,38 @@ const {
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-4">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-order-state">
+                        Estado
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="field-order-state"
+                          value={orderStateId ?? ""}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setOrderStateId(Number.isFinite(v) && v > 0 ? v : null);
+                          }}
+                          className={selectBase}
+                          disabled={lookupsLoading || stateOptionsForSelect.length === 0}
+                        >
+                          {stateOptionsForSelect.map((s) => (
+                            <option key={s.stateid} value={s.stateid}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                        <svg className={chevron} width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                          <path
+                            fillRule="evenodd"
+                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.513a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateStart">
                         Fecha inicio
                       </label>
@@ -1518,7 +1575,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-2">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeStart">
                         Hora inicio
                       </label>
@@ -1533,7 +1590,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-2">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateEnd">
                         Fecha fin
                       </label>
@@ -1546,7 +1603,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-2">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeEnd">
                         Hora fin
                       </label>

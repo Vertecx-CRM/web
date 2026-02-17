@@ -902,6 +902,8 @@ export default function ServiceRequestsPage() {
                   ? buildScheduledAt(partsStart.date, partsEnd.time, null)
                   : null,
               stateId: Number(selected.stateId ?? 0) || undefined,
+              estado: Number(selected.stateId ?? 0) ? String(selected.stateId) : undefined,
+              estadoLabel: selected.estado ?? "",
               technicians: selected.technicians ?? [],
             };
 

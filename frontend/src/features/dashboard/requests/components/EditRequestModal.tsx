@@ -1,13 +1,14 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import type { Option } from "@/features/dashboard/requests/types/option.types";
 import { showError, showInfo, showWarning } from "@/shared/utils/notifications";
 import {
   getServiceOptions,
   getCustomerOptions,
 } from "@/features/dashboard/requests/services/lookups.service";
+import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 import { api } from "@/lib/api";
 
 export type EditRequestPayload = {
@@ -19,6 +20,8 @@ export type EditRequestPayload = {
   scheduledAt: string | null;
   scheduledEndAt: string | null;
   estado?: string;
+  stateId?: number;
+  estadoLabel?: string;
   technicians: number[];
 };
 
@@ -235,7 +238,10 @@ export default function EditRequestModal({
   const [horaProgramada, setHoraProgramada] = useState<string | null>(null);
   const [horaFinal, setHoraFinal] = useState<string | null>(null);
 
-  const [estado] = useState<string | undefined>((initial as any)?.estado);
+  const [estado, setEstado] = useState<string>(
+    String((initial as any)?.estado ?? (initial as any)?.stateId ?? "").trim()
+  );
+  const { stateOptions, isLoading: statesLoading } = useRequestStates();
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -279,7 +285,7 @@ export default function EditRequestModal({
       .map((t: any) => {
         const u = t?.users || t?.user || t?.Users || {};
         const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        const label = name || `TÃ©cnico #${t?.technicianid ?? t?.id ?? "?"}`;
         return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
       })
       .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
@@ -287,11 +293,21 @@ export default function EditRequestModal({
 
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
   const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+  const selectedClient = useMemo(
+    () => finalClientes.find((c) => Number(c.id) === Number(cliente)) ?? null,
+    [finalClientes, cliente]
+  );
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
+
+  const [clientQuery, setClientQuery] = useState("");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientActiveIndex, setClientActiveIndex] = useState(0);
+  const clientBoxRef = useRef<HTMLDivElement>(null);
+  const clientInputRef = useRef<HTMLInputElement>(null);
 
   const [techQuery, setTechQuery] = useState("");
   const [techOpen, setTechOpen] = useState(false);
@@ -311,14 +327,14 @@ export default function EditRequestModal({
 
   function validateDireccion(v: string) {
     const dir = (v ?? "").trim();
-    if (dir.length < 3) return "Mínimo 3 caracteres.";
-    if (dir.length > 255) return "Máximo 255 caracteres.";
+    if (dir.length < 3) return "MÃ­nimo 3 caracteres.";
+    if (dir.length > 255) return "MÃ¡ximo 255 caracteres.";
     return null;
   }
 
   function validateDescripcion(v: string) {
     const d = (v ?? "").trim();
-    return d.length >= 3 ? null : "Mínimo 3 caracteres.";
+    return d.length >= 3 ? null : "MÃ­nimo 3 caracteres.";
   }
 
   function validateServicio(v: string) {
@@ -332,15 +348,15 @@ export default function EditRequestModal({
   function validateDateRequired(date: string | null) {
     if (!date) return "Selecciona la fecha.";
     const d = parseYMD(date);
-    if (!d) return "Fecha inválida.";
+    if (!d) return "Fecha invÃ¡lida.";
     if (isPastDateLocal(date)) return "No puedes seleccionar una fecha pasada.";
-    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sábado).";
+    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sÃ¡bado).";
     return null;
   }
 
   function validateStartTimeRequired(date: string | null, start: string | null) {
     if (!start) return "Selecciona la hora inicial.";
-    if (!isAllowedTime(start)) return "Horario permitido: 07:00–17:00.";
+    if (!isAllowedTime(start)) return "Horario permitido: 07:00â€“17:00.";
     if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, start)) {
       return "La hora inicial no puede estar en el pasado.";
@@ -350,7 +366,7 @@ export default function EditRequestModal({
 
   function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
     if (!end) return "Selecciona la hora final.";
-    if (!isAllowedTime(end)) return "Horario permitido: 07:00–17:00.";
+    if (!isAllowedTime(end)) return "Horario permitido: 07:00â€“17:00.";
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
       return "La hora final no puede estar en el pasado.";
     }
@@ -378,7 +394,7 @@ export default function EditRequestModal({
     e.horaProgramada = needsTime ? validateStartTimeRequired(programada, horaProgramada) : null;
     e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
 
-    e.technicians = selectedTechnicians.length ? null : "Selecciona al menos un técnico.";
+    e.technicians = selectedTechnicians.length ? null : "Selecciona al menos un tÃ©cnico.";
 
     return e;
   }, [
@@ -415,6 +431,43 @@ export default function EditRequestModal({
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
   }, [technicians, techQuery, selectedTechSet]);
+
+  const clientOptions = useMemo(() => {
+    const q = normalizeText(clientQuery);
+    const list = finalClientes || [];
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((c) => {
+        const label = normalizeText(c.label);
+        const document = normalizeText(String(c.documentnumber ?? ""));
+        const searchText = normalizeText(c.searchText ?? "");
+        let score = 0;
+        if (document && document.startsWith(q)) score += 4;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        if (searchText.includes(q)) score += 1;
+        return { c, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.c.label.localeCompare(b.c.label));
+    return scored.slice(0, 10).map((x) => x.c);
+  }, [finalClientes, clientQuery]);
+
+  function pickClient(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    markTouched("cliente");
+    setCliente(String(id));
+    setClientQuery("");
+    setClientOpen(false);
+  }
+
+  function clearClient() {
+    markTouched("cliente");
+    setCliente("");
+    setClientQuery("");
+    setClientOpen(false);
+    clientInputRef.current?.focus();
+  }
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
@@ -548,7 +601,7 @@ export default function EditRequestModal({
           : [];
         if (!cancelled) setTechniciansRaw(list);
       } catch (e: any) {
-        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando técnicos.";
+        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando tÃ©cnicos.";
         if (!cancelled) {
           setTechError(String(msg));
           setTechniciansRaw([]);
@@ -602,6 +655,9 @@ export default function EditRequestModal({
       initTechs.map((x: any) => Number(x)).filter((x: number) => Number.isFinite(x) && x > 0)
     );
 
+    setClientQuery("");
+    setClientOpen(false);
+    setClientActiveIndex(0);
     setTechQuery("");
     setTechOpen(false);
     setTechActiveIndex(0);
@@ -611,6 +667,7 @@ export default function EditRequestModal({
 
     setSaving(false);
     setTechError(null);
+    setEstado(String(init?.estado ?? init?.stateId ?? "").trim());
 
     setHasAppliedInitialType(false);
   }, [isOpen, initial]);
@@ -660,6 +717,29 @@ export default function EditRequestModal({
   }, [isOpen, hasAppliedInitialType, serviceTypeId, filteredServicios, servicio]);
 
   useEffect(() => {
+    setClientActiveIndex(0);
+  }, [clientQuery, clientOpen]);
+
+  useEffect(() => {
+    if (!clientOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!clientBoxRef.current) return;
+      if (!clientBoxRef.current.contains(t)) setClientOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [clientOpen]);
+
+  useEffect(() => {
+    if (!cliente) return;
+    if (!finalClientes.some((c) => Number(c.id) === Number(cliente))) {
+      setCliente("");
+      markTouched("cliente");
+    }
+  }, [finalClientes, cliente]);
+
+  useEffect(() => {
     setTechActiveIndex(0);
   }, [techQuery, techOpen]);
 
@@ -696,7 +776,7 @@ export default function EditRequestModal({
     }
 
     if (!isAllowedDate(v)) {
-      showWarning("No se puede agendar los domingos. Solo lunes a sábado.");
+      showWarning("No se puede agendar los domingos. Solo lunes a sÃ¡bado.");
       return;
     }
 
@@ -716,7 +796,7 @@ export default function EditRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00–17:00.");
+      showWarning("Horario permitido: 07:00â€“17:00.");
       return;
     }
 
@@ -750,7 +830,7 @@ export default function EditRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00–17:00.");
+      showWarning("Horario permitido: 07:00â€“17:00.");
       return;
     }
 
@@ -778,7 +858,7 @@ export default function EditRequestModal({
     }
 
     if (techLoading) {
-      showInfo("Espera a que carguen los técnicos.");
+      showInfo("Espera a que carguen los tÃ©cnicos.");
       return;
     }
 
@@ -798,7 +878,7 @@ export default function EditRequestModal({
     const scheduledEndAtISO = combineDateTimeLocal(programada, horaFinal);
 
     if (!scheduledAtISO || !scheduledEndAtISO) {
-      showError("Fecha u horas inválidas.");
+      showError("Fecha u horas invÃ¡lidas.");
       return;
     }
 
@@ -810,7 +890,9 @@ export default function EditRequestModal({
       direccion: String(direccion ?? "").trim().slice(0, 255),
       scheduledAt: scheduledAtISO,
       scheduledEndAt: scheduledEndAtISO,
-      estado,
+      estado: estado || undefined,
+      stateId: estado ? Number(estado) : undefined,
+      estadoLabel: stateOptions.find((s) => String(s.id) === String(estado))?.label,
       technicians: selectedTechnicians,
     };
 
@@ -856,7 +938,7 @@ export default function EditRequestModal({
                 : serviceTypesLoading
                 ? "Cargando tipos..."
                 : techLoading
-                ? "Cargando técnicos..."
+                ? "Cargando tÃ©cnicos..."
                 : undefined
             }
           >
@@ -865,8 +947,8 @@ export default function EditRequestModal({
         </div>
       }
     >
-      <div className="grid gap-3">
-        <div>
+      <div className="grid gap-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-1 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
             <span className="text-[11px] text-gray-500">
@@ -920,7 +1002,11 @@ export default function EditRequestModal({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Datos basicos
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
             <div className="relative">
@@ -953,7 +1039,7 @@ export default function EditRequestModal({
                 ))}
               </select>
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▾
+                v
               </span>
             </div>
             {shouldShowError("servicio") && errors.servicio && (
@@ -963,46 +1049,137 @@ export default function EditRequestModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
-            <div className="relative">
-              <select
-                value={cliente || ""}
-                onChange={(e) => {
-                  markTouched("cliente");
-                  setCliente(e.target.value);
-                }}
-                onBlur={() => markTouched("cliente")}
-                disabled={saving || loadingLookups}
-                className={[
-                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("cliente") && errors.cliente ? "border-red-500" : "border-gray-300",
-                ].join(" ")}
-              >
-                <option value="">
-                  {loadingLookups
-                    ? "Cargando clientes..."
-                    : finalClientes.length
-                    ? "Selecciona el cliente"
-                    : "No hay clientes"}
-                </option>
-                {finalClientes.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▾
-              </span>
+            <div
+              ref={clientBoxRef}
+              className={[
+                "rounded-lg border bg-gray-50 p-2",
+                shouldShowError("cliente") && errors.cliente ? "border-red-500" : "border-gray-300",
+              ].join(" ")}
+            >
+              {selectedClient ? (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white p-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
+                      {initials(selectedClient.label)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">{selectedClient.label}</p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        Cliente #{selectedClient.id}
+                        {selectedClient.documentnumber ? ` - Doc ${selectedClient.documentnumber}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearClient}
+                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    disabled={saving || loadingLookups}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="relative">
+                <input
+                  ref={clientInputRef}
+                  value={clientQuery}
+                  onChange={(e) => {
+                    setClientQuery(e.target.value);
+                    setClientOpen(true);
+                    markTouched("cliente");
+                  }}
+                  onFocus={() => {
+                    setClientOpen(true);
+                    markTouched("cliente");
+                  }}
+                  onBlur={() => markTouched("cliente")}
+                  onKeyDown={(e) => {
+                    if (!clientOpen) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setClientActiveIndex((i) => Math.max(i - 1, 0));
+                    } else if (e.key === "Enter") {
+                      if (clientOptions[clientActiveIndex]) {
+                        e.preventDefault();
+                        pickClient(clientOptions[clientActiveIndex].id);
+                      }
+                    } else if (e.key === "Escape") {
+                      setClientOpen(false);
+                    }
+                  }}
+                  placeholder={
+                    loadingLookups
+                      ? "Cargando clientes..."
+                      : finalClientes.length
+                      ? "Buscar por nombre o documento"
+                      : "No hay clientes"
+                  }
+                  disabled={saving || loadingLookups || finalClientes.length === 0}
+                  className="w-full rounded-lg border border-gray-300 bg-white h-10 px-3 text-sm focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+                  aria-expanded={clientOpen}
+                  aria-controls="client-suggest-edit"
+                  aria-autocomplete="list"
+                />
+
+                {clientOpen && !loadingLookups && !saving && (
+                  <div
+                    id="client-suggest-edit"
+                    className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+                  >
+                    {clientOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                    ) : (
+                      <ul className="max-h-56 overflow-auto">
+                        {clientOptions.map((c, idx) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onMouseDown={(ev) => ev.preventDefault()}
+                              onClick={() => pickClient(c.id)}
+                              onMouseEnter={() => setClientActiveIndex(idx)}
+                              className={[
+                                "w-full px-3 py-2 text-left text-sm flex items-center gap-2",
+                                idx === clientActiveIndex ? "bg-gray-100" : "bg-white",
+                              ].join(" ")}
+                            >
+                              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
+                                {initials(c.label)}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium text-gray-900">{c.label}</span>
+                                <span className="block truncate text-[11px] text-gray-500">
+                                  Cliente #{c.id}
+                                  {c.documentnumber ? ` - Doc ${c.documentnumber}` : ""}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             {shouldShowError("cliente") && errors.cliente && (
               <p className="mt-1 text-xs text-red-600">{errors.cliente}</p>
             )}
           </div>
         </div>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Programacion y estado
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-4">
+            <label className="mb-1 block text-xs font-medium text-gray-900">DirecciÃ³n</label>
             <input
               value={direccion}
               onChange={(e) => {
@@ -1081,11 +1258,36 @@ export default function EditRequestModal({
               <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
             )}
           </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Estado</label>
+            <div className="relative">
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                disabled={saving || statesLoading}
+                className="w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60 border-gray-300"
+              >
+                <option value="">{statesLoading ? "Cargando estados..." : "Selecciona estado"}</option>
+                {stateOptions.map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                v
+              </span>
+            </div>
+          </div>
+        </div>
         </div>
 
-        <div>
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-1 flex items-center justify-between">
-            <label className="block text-xs font-medium text-gray-900">Técnicos</label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Tecnicos
+            </label>
             <button
               type="button"
               onClick={clearTechnicians}
@@ -1105,7 +1307,7 @@ export default function EditRequestModal({
             ].join(" ")}
           >
             {selectedTechniciansFull.length === 0 ? (
-              <div className="text-xs text-gray-500 px-1 py-1">No has seleccionado técnicos.</div>
+              <div className="text-xs text-gray-500 px-1 py-1">No has seleccionado tÃ©cnicos.</div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {selectedTechniciansFull.map((t) => (
@@ -1117,7 +1319,7 @@ export default function EditRequestModal({
                       {initials(t.label)}
                     </span>
                     <span className="max-w-[220px] truncate">
-                      #{t.technicianid} — {t.label}
+                      #{t.technicianid} â€” {t.label}
                     </span>
                     <button
                       type="button"
@@ -1125,7 +1327,7 @@ export default function EditRequestModal({
                       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                       disabled={saving || techLoading}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </span>
                 ))}
@@ -1159,7 +1361,7 @@ export default function EditRequestModal({
                   setTechOpen(false);
                 }
               }}
-              placeholder={techLoading ? "Cargando técnicos..." : "Buscar por nombre o ID..."}
+              placeholder={techLoading ? "Cargando tÃ©cnicos..." : "Buscar por nombre o ID..."}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                 shouldShowError("technicians") && errors.technicians
@@ -1175,7 +1377,7 @@ export default function EditRequestModal({
                 {techOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">
                     {selectedTechnicians.length === technicians.length
-                      ? "Ya seleccionaste todos los técnicos."
+                      ? "Ya seleccionaste todos los tÃ©cnicos."
                       : "No hay coincidencias."}
                   </div>
                 ) : (
@@ -1197,7 +1399,7 @@ export default function EditRequestModal({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-medium">{t.label}</span>
-                            <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
+                            <span className="block text-xs text-gray-500">TÃ©cnico #{t.technicianid}</span>
                           </span>
                           <span className="text-xs text-gray-400">Agregar</span>
                         </button>
@@ -1215,8 +1417,11 @@ export default function EditRequestModal({
           )}
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Descripcion
+          </h4>
+          <label className="mb-1 block text-xs font-medium text-gray-900">DescripciÃ³n</label>
           <textarea
             value={descripcion}
             onChange={(e) => {
@@ -1239,3 +1444,4 @@ export default function EditRequestModal({
     </Modal>
   );
 }
+

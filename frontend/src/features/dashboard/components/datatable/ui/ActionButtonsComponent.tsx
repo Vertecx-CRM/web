@@ -139,7 +139,7 @@ export function ActionButtonsComponent({
   }
 
   return (
-    <div className="text-center gap-2 text-gray-600 flex justify-center">
+    <div className="text-center gap-1.5 text-gray-600 flex flex-nowrap justify-center min-w-max">
       {onView && (
         <ActionButton
           icon="/icons/Eye.svg"

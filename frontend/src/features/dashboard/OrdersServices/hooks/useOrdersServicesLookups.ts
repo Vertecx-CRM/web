@@ -55,6 +55,7 @@ export function useOrdersServicesLookups() {
   const [products, setProducts] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [serviceTypes, setServiceTypes] = useState<any[]>([]);
+  const [states, setStates] = useState<any[]>([]);
   const [pendingStateId, setPendingStateId] = useState<number | null>(null);
   const [scheduledStateId, setScheduledStateId] = useState<number | null>(null);
 
@@ -121,9 +122,11 @@ export function useOrdersServicesLookups() {
 
     const statesRes = reqs[5];
     if (statesRes.status === "fulfilled") {
+      setStates(asList(statesRes.value.data));
       setPendingStateId(findPendingStateId(statesRes.value.data));
       setScheduledStateId(findScheduledStateId(statesRes.value.data));
     } else {
+      setStates([]);
       setPendingStateId(null);
       setScheduledStateId(null);
     }
@@ -165,6 +168,7 @@ export function useOrdersServicesLookups() {
     products,
     services,
     serviceTypes,
+    states,
     pendingStateId,
     scheduledStateId,
     refresh,
