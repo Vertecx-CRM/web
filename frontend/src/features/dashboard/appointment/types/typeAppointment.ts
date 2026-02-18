@@ -1,5 +1,6 @@
 import type { OrderServiceDTO } from "../../OrdersServices/types/ordersServices.types";
 import type { ServiceRequestDTO } from "@/features/dashboard/requests/services/servicerequests.service";
+import { getStateLabel } from "../helpers/appointmentState.helpers";
 
 type BaseAppointmentEvent = {
   id: number;
@@ -106,7 +107,7 @@ export function buildAppointmentEvents(payload: {
       if (!start || !end) return null;
       const clientLabel = buildClientLabel(order.client);
       const title = buildTitle(order, clientLabel);
-      const stateLabel = order.state?.name?.trim() || "Sin estado";
+      const stateLabel = getStateLabel(order.state?.name) || "Sin estado";
       return {
         id: order.ordersservicesid,
         order,
@@ -128,7 +129,7 @@ export function buildAppointmentEvents(payload: {
       if (!start || !end) return null;
       const clientLabel = buildRequestClientLabel(request);
       const title = buildRequestTitle(request, clientLabel);
-      const stateLabel = request.state?.name?.trim() || "Sin estado";
+      const stateLabel = getStateLabel(request.state?.name) || "Sin estado";
       return {
         id: request.serviceRequestId,
         request,

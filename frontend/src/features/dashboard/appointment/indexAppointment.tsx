@@ -25,7 +25,7 @@ import {
 } from "@/features/dashboard/requests/services/servicerequests.service";
 import { useUpdateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
 import { buildScheduledAt, splitDateTime } from "@/features/dashboard/requests/utils/schedule";
-import { showError } from "@/shared/utils/notifications";
+import { showError, showSuccess } from "@/shared/utils/notifications";
 import Swal from "sweetalert2";
 import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
 
@@ -455,7 +455,7 @@ export default function IndexAppointment() {
 
         await refetch();
 
-        Swal.fire("Finalizado", `Se ${verb} ${targets.join(" y ")} como ${suffix}`, "success");
+        showSuccess(`Se ${verb} ${targets.join(" y ")} como ${suffix}.`);
       } catch (err: any) {
         console.error("Error al finalizar cita:", err);
         Swal.fire(
@@ -492,12 +492,12 @@ export default function IndexAppointment() {
   const CalendarEvent = ({ event }: { event: AppointmentEvent }) => {
     const palette = getStatePalette(event.stateLabel);
     const isOrder = event.source === "order";
-    const textColor = isOrder ? "#ffffff" : palette.text;
+    const textColor = isOrder ? "#ffffff" : "#111827";
 
     return (
       <div className="flex flex-col gap-1 truncate">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: palette.border }} />
+          <span className="h-2 w-2 flex-none rounded-full border" style={{ backgroundColor: palette.background, borderColor: palette.border }} />
           <span className="truncate text-[11px] font-semibold" style={{ color: textColor }}>
             {event.title}
           </span>
@@ -662,3 +662,4 @@ export default function IndexAppointment() {
     </>
   );
 }
+
