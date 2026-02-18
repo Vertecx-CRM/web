@@ -40,7 +40,7 @@ export const LEGEND_ITEMS = [
 ];
 
 export const STATE_LEGEND_ITEMS = [
-  { label: "Anulada", palette: appointmentStatePalette.anulada },
+  { label: "Pendiente", palette: appointmentStatePalette.pendiente },
   { label: "Garantía", palette: appointmentStatePalette.garantia },
   { label: "Garantía reportada", palette: appointmentStatePalette.garantiareportada },
   { label: "Finalizado", palette: appointmentStatePalette.finalizado },
