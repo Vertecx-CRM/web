@@ -10,6 +10,7 @@ import {
   getEventTechnicians,
 } from "../helpers/appointment.helpers";
 import { normalizeStateKey } from "../helpers/appointmentState.helpers";
+import { STATE_LEGEND_ITEMS } from "../types/calendar.constants";
 
 export type AppointmentFilterOption = {
   value: string;
@@ -44,6 +45,12 @@ export const useAppointmentFilters = ({
       const key = normalizeStateKey(label);
       if (!key) return;
       if (!entries.has(key)) entries.set(key, label);
+    });
+
+    STATE_LEGEND_ITEMS.forEach((item) => {
+      const key = normalizeStateKey(item.label);
+      if (!key) return;
+      if (!entries.has(key)) entries.set(key, item.label);
     });
 
     return Array.from(entries.entries())

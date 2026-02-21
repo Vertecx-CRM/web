@@ -18,6 +18,23 @@ type CategoryProductsResponse = {
   value: number | string | null;
 };
 
+const normalizeStateKey = (value: string) =>
+  value
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+
+const translateDashboardState = (value: string) => {
+  const key = normalizeStateKey(value);
+  if (key === "cancel") return "Cancelados";
+  if (key === "finished" || key === "finish") return "Finalizados";
+  if (key === "inprocess" || key === "in-process") return "En-proceso";
+  if (key === "pendient") return "pendintes";
+  return value;
+};
+
 function Loader() {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
@@ -91,11 +108,23 @@ export const IndexDashboard = () => {
         );
 
         // ÓRDENES
-        setOrdersState(await dashboardApi.getOrdersByState(selectedYear));
+        const rawOrdersState = await dashboardApi.getOrdersByState(selectedYear);
+        setOrdersState(
+          (rawOrdersState ?? []).map((item: any) => ({
+            ...item,
+            state: typeof item?.state === "string" ? translateDashboardState(item.state) : item?.state,
+          }))
+        );
         setTotalOrders((await dashboardApi.getTotalOrders(selectedYear)).total);
 
         // SOLICITUDES
-        setServiceRequestsState(await dashboardApi.getServiceRequestsByState(selectedYear));
+        const rawServiceRequestsState = await dashboardApi.getServiceRequestsByState(selectedYear);
+        setServiceRequestsState(
+          (rawServiceRequestsState ?? []).map((item: any) => ({
+            ...item,
+            state: typeof item?.state === "string" ? translateDashboardState(item.state) : item?.state,
+          }))
+        );
         setTotalServiceRequests((await dashboardApi.getTotalServiceRequests(selectedYear)).total);
 
         // CLIENTES
