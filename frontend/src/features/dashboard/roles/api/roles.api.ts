@@ -6,6 +6,15 @@ export type RoleRow = {
   state: "Activo" | "Inactivo";
 };
 
+type RolesListResponse = {
+  success: boolean;
+  data: Array<{
+    roleid: number;
+    name: string;
+    status: string; 
+  }>;
+};
+
 type RoleConfigResponse = {
   roleconfigurationid: number;
   role: { id: number; name: string; status: string };
@@ -27,23 +36,14 @@ const toBackendStatus = (
 };
 
 export const getRoles = async (): Promise<RoleRow[]> => {
-  const { data } = await api.get<RoleConfigResponse[]>("/roles");
-  const map = new Map<number, RoleRow>();
+  const { data } = await api.get<RolesListResponse>("/roles/list");
+  const rows = Array.isArray(data?.data) ? data.data : [];
 
-  for (const rc of data) {
-    const r = rc.role;
-    if (!r?.id) continue;
-    const idNum = Number(r.id);
-    if (!Number.isFinite(idNum)) continue;
-    if (!map.has(r.id)) {
-      map.set(r.id, {
-        id: idNum,
-        name: r.name,
-        state: toUiStatus(r.status),
-      });
-    }
-  }
-  return Array.from(map.values());
+  return rows.map((r) => ({
+    id: Number(r.roleid),
+    name: r.name,
+    state: toUiStatus(r.status),
+  }));
 };
 
 export const getRoleDetail = async (id: number) => {
@@ -83,7 +83,10 @@ export const createRole = async (payload: CreateRolePayload) => {
 
 export type UpdateMatrixItem = { permissionid: number; privilegeids: number[] };
 
-export const updateRoleMatrix = async (roleid: number, items: UpdateMatrixItem[]) => {
+export const updateRoleMatrix = async (
+  roleid: number,
+  items: UpdateMatrixItem[]
+) => {
   const { data } = await api.put(`/roles/${roleid}/configurations`, { items });
   return data;
 };
@@ -92,7 +95,6 @@ export const patchRoleMeta = async (
   roleid: number,
   payload: { name?: string; status?: "Activo" | "Inactivo" }
 ) => {
-
   const role: any = { roleid };
 
   if (payload.name !== undefined) role.name = payload.name;
@@ -101,9 +103,11 @@ export const patchRoleMeta = async (
     role.status = toBackendStatus(payload.status);
   }
 
-  const res = await api.patch(`/roles/configurations`, { role }, {
-    validateStatus: (status) => status < 500,
-  });
+  const res = await api.patch(
+    `/roles/configurations`,
+    { role },
+    { validateStatus: (status) => status < 500 }
+  );
 
   if (res.status >= 400) {
     const error: any = new Error(
