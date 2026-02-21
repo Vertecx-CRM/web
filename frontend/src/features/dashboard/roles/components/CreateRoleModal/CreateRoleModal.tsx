@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Colors from "@/shared/theme/colors";
 import { showWarning } from "@/shared/utils/notifications";
 import { Role } from "../../types/typeRoles";
+import { ALL_MODULE_PERMISSIONS } from "../../constants/roleMatrix.constants";
 
 interface CreateRoleModalProps {
   open: boolean;
@@ -28,28 +29,7 @@ export default function CreateRoleModal({
     {}
   );
 
-  /** ÚNICO CAMBIO NECESARIO → Se agregó "Ventas" */
-  const allModulePermissions: Record<string, string[]> = {
-    Roles: ["Editar", "Crear", "Eliminar", "Ver"],
-    Usuarios: ["Editar", "Crear", "Eliminar", "Ver"],
-    "Categoría de Productos": ["Editar", "Crear", "Eliminar", "Ver"],
-    Productos: ["Editar", "Crear", "Eliminar", "Ver"],
-    Proveedores: ["Editar", "Crear", "Eliminar", "Ver"],
-    "Órdenes de Compra": ["Editar", "Crear", "Eliminar", "Ver"],
-    Compras: ["Editar", "Crear", "Eliminar", "Ver"],
-    Servicios: ["Editar", "Crear", "Eliminar", "Ver"],
-    Técnicos: ["Editar", "Crear", "Eliminar", "Ver"],
-    "Horarios de los técnicos": ["Editar", "Crear", "Eliminar", "Ver"],
-    Clientes: ["Editar", "Crear", "Eliminar", "Ver"],
-    "Solicitud de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
-    Citas: ["Editar", "Crear", "Eliminar", "Ver"],
-    "Cotización de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
-    "Orden de Servicio": ["Editar", "Crear", "Eliminar", "Ver"],
-
-    Ventas: ["Crear", "Ver", "Desactivar"],
-
-    Dashboard: ["Ver"],
-  };
+  const allModulePermissions: Record<string, string[]> = ALL_MODULE_PERMISSIONS;
 
   useEffect(() => {
     if (open) {
