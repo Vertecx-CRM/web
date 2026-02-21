@@ -22,7 +22,6 @@ type ProductRowForXlsx = {
 
 interface ProductsTableProps {
   products: Product[];
-  status: "active" | "inactive" | "all";
   onView: (product: Product) => void;
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
@@ -87,7 +86,6 @@ const Trunc: React.FC<{
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
-  status,
   onView,
   onEdit,
   onDelete,
@@ -98,14 +96,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
     );
 
-    const base =
-      status === "active"
-        ? sortedProducts.filter((p) => isActiveState(p.state))
-        : status === "inactive"
-        ? sortedProducts.filter((p) => isInactiveState(p.state))
-        : sortedProducts;
-
-    return base.map((p, index) => {
+    return sortedProducts.map((p, index) => {
       const stateSearch: "activo" | "inactivo" = isActiveState(p.state)
         ? "activo"
         : "inactivo";
@@ -138,7 +129,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         fullSearch: `${fullSearchText} ${fullSearchNums}`.trim(),
       };
     });
-  }, [products, status]);
+  }, [products]);
 
   const columns: Column<ProductForTable>[] = [
     {
@@ -249,10 +240,10 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         ]}
         onView={(p) => onView(p)}
         onEdit={(p) => onEdit(p)}
-        onDelete={status === "inactive" ? undefined : (p) => onDelete(p)}
+        onDelete={(p) => onDelete(p)}
         onCreate={onCreate}
         actionGuard={(row) =>
-          status === "all" && isInactiveState(row.state)
+          isInactiveState(row.state)
             ? {
                 disableDelete: true,
                 deleteTitle: "No se puede eliminar un producto inactivo",

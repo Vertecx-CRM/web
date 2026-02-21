@@ -20,7 +20,6 @@ export interface Product {
   state: ProductState;
 }
 
-// Crear producto DESDE PRODUCTOS: sin precios (los pone Compras)
 export type CreateProductData = {
   name: string;
   description?: string | null;
@@ -30,7 +29,6 @@ export type CreateProductData = {
   image: File;
 };
 
-// Editar producto DESDE PRODUCTOS: tampoco toca precios
 export type EditProductData = {
   id: number;
   name: string;
