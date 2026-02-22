@@ -21,6 +21,8 @@ type SaleRow = {
   fecha: string;
   total: number;
   estado: string;
+  // Nuevo campo para representar el estado de pago en la tabla (frontend-only)
+  estadoPago?: "Abonado" | "Pagado" | string;
 };
 
 export default function SalesIndex() {
@@ -155,6 +157,29 @@ export default function SalesIndex() {
         );
       },
     },
+    {
+      key: "estadoPago",
+      header: "Estado Pago",
+      render: (row) => {
+        // Como no hay campo persistente en backend, leer de localStorage por codigo
+        let value = undefined as string | undefined;
+        try {
+          value = localStorage.getItem(`sale_payment_${row.codigo}`) || undefined;
+        } catch (e) {
+          value = undefined;
+        }
+
+        const label = value || "Abonado";
+        const isPagado = label === "Pagado";
+        const bg = isPagado ? "#e6ffed" : "#eef2ff"; // verde claro vs azul claro
+        const color = isPagado ? "#16a34a" : "#2563eb";
+        return (
+          <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: bg, color }}>
+            {label}
+          </span>
+        );
+      },
+    },
   ];
 
   // ── Loading state ──
@@ -171,45 +196,48 @@ export default function SalesIndex() {
     <div className="flex flex-col gap-4">
       <ToastContainer position="bottom-right" />
 
-      <DataTable<SaleRow>
-        data={sales}
-        columns={columns}
-        searchableKeys={["codigo", "cliente", "estado"]}
-        pageSize={10}
-        onView={(row) => setViewSaleId(row.id)}
-        onDelete={handleDelete}
-        // Custom extra action for Annul
-        renderExtraActions={(row) => (
-          row.estado === "Pendiente" ? (
-            <button
-              onClick={() => handleOpenAnnul(row)}
-              className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60 text-red-500"
-              title="Anular Venta"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="15" y1="9" x2="9" y2="15"></line>
-                <line x1="9" y1="9" x2="15" y2="15"></line>
-              </svg>
-            </button>
-          ) : null
-        )}
-        onCreate={() => setCreateModalOpen(true)}
-        createButtonText="Nueva Venta" module={"Sales"}      />
+      {/* Si está creando una venta, mostrar el formulario como vista completa */}
+      {isCreateModalOpen ? (
+        <div className="w-full">
+          <CreateSaleForm
+            onClose={() => setCreateModalOpen(false)}
+            onSaved={() => {
+              loadSales();
+            }}
+          />
+        </div>
+      ) : (
+        // Vista por defecto: tabla de ventas
+        <>
+          <DataTable<SaleRow>
+            data={sales}
+            columns={columns}
+            searchableKeys={["codigo", "cliente", "estado"]}
+            pageSize={10}
+            onView={(row) => setViewSaleId(row.id)}
+            onDelete={handleDelete}
+            renderExtraActions={(row) => (
+              row.estado === "Pendiente" ? (
+                <button
+                  onClick={() => handleOpenAnnul(row)}
+                  className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60 text-red-500"
+                  title="Anular Venta"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                  </svg>
+                </button>
+              ) : null
+            )}
+            onCreate={() => setCreateModalOpen(true)}
+            createButtonText="Nueva Venta" module={"Sales"}
+          />
+        </>
+      )}
 
-      {/* Modal para crear venta */}
-      <Modal
-        title="Registrar Nueva Venta"
-        isOpen={isCreateModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-      >
-        <CreateSaleForm
-          onClose={() => setCreateModalOpen(false)}
-          onSaved={() => {
-            loadSales();
-          }}
-        />
-      </Modal>
+      {/* Mantener modal de detalle y modal de anulación como estaban */}
 
       {/* Modal Detalle de Venta */}
       <SaleDetailModal
@@ -224,26 +252,53 @@ export default function SalesIndex() {
         isOpen={isAnnulModalOpen}
         onClose={() => setAnnulModalOpen(false)}
       >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            ¿Está seguro de que desea anular la venta <span className="font-bold">{saleToAnnul?.codigo}</span>?
-            Esta acción actualizará el inventario y cambiará el estado a "Anulada".
-          </p>
+        <div className="bg-white p-4 rounded-md">
+          {/* Información superior en dos columnas */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <div className="text-xs text-gray-500">Código Venta</div>
+              <div className="font-medium text-gray-800">{saleToAnnul?.codigo || '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">Cliente</div>
+              <div className="font-medium text-gray-800">{saleToAnnul?.cliente || '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">Fecha Venta</div>
+              <div className="font-medium text-gray-800">{new Date().toLocaleDateString('es-CO') /* fallback visual */}</div>
+            </div>
+          </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">
-              Motivo de anulación *
-            </label>
+          <hr className="mb-4" />
+
+          {/* Motivo de anulación */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2 text-gray-700">Motivo de anulación</label>
             <textarea
-              rows={3}
-              className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+              rows={6}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
               placeholder="Especifique la razón..."
               value={annulReason}
               onChange={(e) => setAnnulReason(e.target.value)}
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          {/* Usuario y fecha de anulación */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center mb-4">
+            <div>
+              <div className="text-xs text-gray-500">Usuario que anula</div>
+              <div className="font-medium text-gray-800">Automatico</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">Fecha Anulación</div>
+              <div className="font-medium text-gray-800">{new Date().toLocaleDateString('es-CO')}</div>
+            </div>
+          </div>
+
+          <hr />
+
+          {/* Botones */}
+          <div className="mt-4 flex items-center justify-end gap-3">
             <button
               onClick={() => setAnnulModalOpen(false)}
               disabled={annulling}
@@ -254,10 +309,10 @@ export default function SalesIndex() {
             <button
               onClick={handleConfirmAnnul}
               disabled={annulling}
-              className="px-4 py-2 rounded-md font-medium text-white bg-red-600 hover:bg-red-700 flex items-center gap-2"
+              className="px-4 py-2 rounded-md font-medium text-white bg-black hover:opacity-90 flex items-center gap-2"
             >
               {annulling && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              Confirmar Anulación
+              Anular Venta
             </button>
           </div>
         </div>

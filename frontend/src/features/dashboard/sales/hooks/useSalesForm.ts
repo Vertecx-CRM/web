@@ -30,15 +30,25 @@ export const useSalesForm = (onSuccess?: () => void) => {
     // ── Form States ──
     const [selectedCustomerId, setSelectedCustomerId] = useState<number | "">("");
     const [paymentMethod, setPaymentMethod] = useState("Cash");
+    // Nuevo campo: Estado Pago (solo frontend)
+    const [paymentStatus, setPaymentStatus] = useState<"Abonado" | "Pagado">("Abonado");
+    // Nuevo campo: Estado Venta local (por defecto Pending). Puede ser modificado en edición.
+    const [saleStatus, setSaleStatus] = useState<"Pending" | "Completed" | "Cancelled">("Pending");
+    // Estados adicionales usados por los modales/formularios
+    const [productSearch, setProductSearch] = useState<string>("");
+    const [selectedProductId, setSelectedProductId] = useState<number | "">("");
+    const [quantity, setQuantity] = useState<number>(1);
+    // Impuesto por defecto (se expone para la UI)
+    const TAX_PERCENT = 19;
     const [notes, setNotes] = useState("");
     const [cart, setCart] = useState<ICartItem[]>([]);
 
-    // Selection states (for external control if needed)
-    const [selectedProductId, setSelectedProductId] = useState<number | "">("");
-    const [quantity, setQuantity] = useState(1);
-    const [productSearch, setProductSearch] = useState("");
-
-    const TAX_PERCENT = 19;
+    // Si el estado de venta cambia a Completed, forzar estado de pago a 'Pagado'
+    useEffect(() => {
+        if (saleStatus === "Completed" && paymentStatus !== "Pagado") {
+            setPaymentStatus("Pagado");
+        }
+    }, [saleStatus, paymentStatus]);
 
     // ── Load Initial Data ──
 
@@ -259,27 +269,39 @@ export const useSalesForm = (onSuccess?: () => void) => {
                 discountamount: discountTotal,
                 totalamount: totalAmount,
                 paymentmethod: paymentMethod,
-                salestatus: "Pending",
+                salestatus: saleStatus,
                 notes,
                 details: cart.map((item) => ({
-                    // Send productid if exists. If service, we send 0 or valid ID?
-                    // Backend requires validation. 
-                    // Assuming we send only valid products for now or backend accepts services somehow.
-                    // For now, mapping same as before.
-                    productid: item.productid || 0,
-                    quantity: item.quantity,
-                    unitprice: item.unitprice,
-                    discountpercent: item.discountpercent,
-                    notes: item.type === "Servicio" ? "Servicio" : undefined
-                })),
-            };
+                     // Send productid if exists. If service, we send 0 or valid ID?
+                     // Backend requires validation. 
+                     // Assuming we send only valid products for now or backend accepts services somehow.
+                     // For ahora, mapping same as before.
+                     productid: item.productid || 0,
+                     quantity: item.quantity,
+                     unitprice: item.unitprice,
+                     discountpercent: item.discountpercent,
+                     notes: item.type === "Servicio" ? "Servicio" : undefined
+                 })),
+             };
 
-            // Filter invalid items if backend is strict
-            // saleDto.details = saleDto.details.filter(d => d.productid > 0);
+             // Filter invalid items if backend is strict
+             // saleDto.details = saleDto.details.filter(d => d.productid > 0);
 
-            await createSale(saleDto);
-            showSuccess("Venta registrada exitosamente");
-            if (onSuccess) onSuccess();
+            // Si backend requiere coherencia: si salestatus es Completed, forzar paymentStatus a Pagado
+            if (saleDto.salestatus === "Completed" && paymentStatus !== "Pagado") {
+                setPaymentStatus("Pagado");
+            }
+
+            const created = await createSale(saleDto);
+             // Persistir estado de pago en localStorage usando salecode como clave
+             try {
+                 const key = `sale_payment_${saleDto.salecode}`;
+                 localStorage.setItem(key, paymentStatus);
+             } catch (e) {
+                 // ignore
+             }
+             showSuccess("Venta registrada exitosamente");
+             if (onSuccess) onSuccess();
         } catch (err: any) {
             console.error(err);
             const msg = err.response?.data?.message || err.message || "Error al guardar la venta";
@@ -288,17 +310,19 @@ export const useSalesForm = (onSuccess?: () => void) => {
             setSubmitting(false);
         }
     }, [
-        selectedCustomerId,
-        cart,
-        subtotal,
-        totalAmount,
-        taxAmount,
-        discountTotal,
-        paymentMethod,
-        notes,
-        generateSaleCode,
-        onSuccess,
-    ]);
+         selectedCustomerId,
+         cart,
+         subtotal,
+         totalAmount,
+         taxAmount,
+         discountTotal,
+         paymentMethod,
+         notes,
+         generateSaleCode,
+         paymentStatus,
+         saleStatus,
+         onSuccess,
+     ]);
 
     return {
         products,
@@ -318,8 +342,12 @@ export const useSalesForm = (onSuccess?: () => void) => {
         productSearch,
         setProductSearch,
 
+        saleStatus,
+        setSaleStatus,
         paymentMethod,
         setPaymentMethod,
+        paymentStatus,
+        setPaymentStatus,
         notes,
         setNotes,
 

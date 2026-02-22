@@ -11,6 +11,7 @@ type ModalProps = {
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  hideHeader?: boolean;
   widthClass?: string; // ej: "md:max-w-5xl"
 };
 
@@ -20,6 +21,7 @@ export default function Modal({
   onClose,
   children,
   footer,
+  hideHeader = false,
   widthClass = "md:max-w-lg", //  por defecto, igual a antes
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -55,18 +57,20 @@ export default function Modal({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
           >
-            {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
-                {title}
-              </h2>
-              <button
-                onClick={onClose}
-                className="cursor-pointer text-gray-500 hover:text-black"
-              >
-                <X size={20} />
-              </button>
-            </div>
+            {/* Header (ocultable para modales con encabezado personalizado) */}
+            {!hideHeader && (
+              <div className="flex justify-between items-center p-4 border-b">
+                <h2 className="text-base sm:text-lg font-semibold truncate pr-2">
+                  {title}
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="cursor-pointer text-gray-500 hover:text-black"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            )}
 
             {/* Content con scroll si se desborda */}
             <div className="p-4 overflow-y-auto flex-1">{children}</div>
