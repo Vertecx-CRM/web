@@ -59,6 +59,14 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+function Loader() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="h-16 w-16 animate-spin rounded-full border-4 border-red-600 border-t-transparent" />
+    </div>
+  );
+}
+
 const escapeIcsText = (value: string) =>
   value
     .replace(/\\/g, "\\\\")
@@ -592,9 +600,7 @@ export default function IndexAppointment() {
           )}
 
           {isLoading ? (
-            <div className="flex h-96 items-center justify-center text-sm text-slate-500">
-              Cargando citas…
-            </div>
+            <Loader />
           ) : (
             <div
               className={`relative ${calendarHeight} min-h-[420px] max-h-[75vh] overflow-hidden ${
