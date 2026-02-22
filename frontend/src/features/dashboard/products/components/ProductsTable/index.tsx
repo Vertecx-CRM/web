@@ -247,9 +247,9 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         actionGuard={(row) =>
           isInactiveState(row.state)
             ? {
-                disableDelete: true,
-                deleteTitle: "No se puede eliminar un producto inactivo",
-              }
+              disableDelete: true,
+              deleteTitle: "No se puede eliminar un producto inactivo",
+            }
             : {}
         }
         searchPlaceholder="Buscar productos..."
@@ -261,7 +261,18 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 id="download-excel-btn"
                 data={xlsxRows as unknown as Record<string, unknown>[]}
                 fileName="reporte_productos.xlsx"
-                headers={["ID", "Nombre", "Categoría", "Cat. proveedor", "Precio venta", "Stock", "Estado"]}
+                headers={[
+                  "ID",
+                  "Nombre",
+                  "Descripción",
+                  "Categoría",
+                  "Cat. proveedor",
+                  "Código",
+                  "Precio proveedor",
+                  "Precio venta",
+                  "Stock",
+                  "Estado",
+                ]}
               />
             </div>
 
