@@ -10,6 +10,10 @@ import {
 } from "@/features/dashboard/requests/services/lookups.service";
 import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 import { api } from "@/lib/api";
+import {
+  buildWindowFromLocalSchedule,
+  getBusyTechnicianIdsForWindow,
+} from "@/features/dashboard/shared/technicianAvailability";
 
 export type EditRequestPayload = {
   serviceId: number;
@@ -49,6 +53,7 @@ type Props = {
   onClose: () => void;
   onSave: (data: EditRequestPayload) => void | Promise<void>;
   title?: string;
+  requestId?: number | null;
   servicios?: ServiceOption[] | null;
   clientes?: Option[] | null;
   initial?:
@@ -222,6 +227,7 @@ export default function EditRequestModal({
   onClose,
   onSave,
   title = "Editar Solicitud",
+  requestId = null,
   servicios,
   clientes,
   initial = null,
@@ -279,6 +285,8 @@ export default function EditRequestModal({
   const [techniciansRaw, setTechniciansRaw] = useState<any[]>([]);
   const [techLoading, setTechLoading] = useState(false);
   const [techError, setTechError] = useState<string | null>(null);
+  const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
+  const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
   const technicians = useMemo<TechnicianOption[]>(() => {
     return (techniciansRaw || [])
@@ -302,6 +310,29 @@ export default function EditRequestModal({
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
+
+  const selectedWindow = useMemo(
+    () => buildWindowFromLocalSchedule(programada, horaProgramada, programada, horaFinal),
+    [programada, horaProgramada, horaFinal]
+  );
+
+  const busyTechnicianIds = useMemo(
+    () =>
+      getBusyTechnicianIdsForWindow(scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, {
+        excludeRequestId: requestId,
+      }),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, requestId]
+  );
+
+  const availableTechnicians = useMemo(
+    () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
+    [technicians, busyTechnicianIds]
+  );
+
+  const selectedBusyTechnicianIds = useMemo(
+    () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
+    [selectedTechnicians, busyTechnicianIds]
+  );
 
   const [clientQuery, setClientQuery] = useState("");
   const [clientOpen, setClientOpen] = useState(false);
@@ -394,7 +425,13 @@ export default function EditRequestModal({
     e.horaProgramada = needsTime ? validateStartTimeRequired(programada, horaProgramada) : null;
     e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
 
-    e.technicians = selectedTechnicians.length ? null : "Selecciona al menos un tÃ©cnico.";
+    if (!selectedTechnicians.length) {
+      e.technicians = "Selecciona al menos un tÃ©cnico.";
+    } else if (selectedBusyTechnicianIds.length > 0) {
+      e.technicians = "Hay tÃ©cnicos seleccionados que ya estÃ¡n ocupados en ese horario.";
+    } else {
+      e.technicians = null;
+    }
 
     return e;
   }, [
@@ -407,6 +444,7 @@ export default function EditRequestModal({
     horaProgramada,
     horaFinal,
     selectedTechnicians,
+    selectedBusyTechnicianIds,
   ]);
 
   function isValidNow() {
@@ -415,7 +453,7 @@ export default function EditRequestModal({
 
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -430,7 +468,7 @@ export default function EditRequestModal({
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
-  }, [technicians, techQuery, selectedTechSet]);
+  }, [availableTechnicians, techQuery, selectedTechSet]);
 
   const clientOptions = useMemo(() => {
     const q = normalizeText(clientQuery);
@@ -471,6 +509,10 @@ export default function EditRequestModal({
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
+    if (busyTechnicianIds.has(id)) {
+      showWarning("Este técnico ya está ocupado en el horario seleccionado.");
+      return;
+    }
     markTouched("technicians");
     setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setTechQuery("");
@@ -577,6 +619,37 @@ export default function EditRequestModal({
 
     run();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    async function run() {
+      const [ordersRes, requestsRes] = await Promise.allSettled([
+        api.get("orders-services"),
+        api.get("service-requests"),
+      ]);
+
+      if (cancelled) return;
+
+      const ordersData =
+        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+          ? (ordersRes.value as any).data
+          : [];
+      const requestsData =
+        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+          ? (requestsRes.value as any).data
+          : [];
+
+      setScheduledOrdersRaw(ordersData);
+      setScheduledRequestsRaw(requestsData);
+    }
+
+    run();
     return () => {
       cancelled = true;
     };
@@ -863,6 +936,11 @@ export default function EditRequestModal({
     }
 
     if (!isValidNow()) return;
+
+    if (selectedBusyTechnicianIds.length > 0) {
+      showError("Hay tÃ©cnicos ocupados en ese horario. Ajusta horario o tÃ©cnicos.");
+      return;
+    }
 
     if (!selectedType) {
       showError("Selecciona un tipo de servicio.");
@@ -1376,7 +1454,7 @@ export default function EditRequestModal({
               <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                 {techOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">
-                    {selectedTechnicians.length === technicians.length
+                    {selectedTechnicians.length === availableTechnicians.length
                       ? "Ya seleccionaste todos los tÃ©cnicos."
                       : "No hay coincidencias."}
                   </div>
