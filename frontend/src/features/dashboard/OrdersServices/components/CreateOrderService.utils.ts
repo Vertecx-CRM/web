@@ -16,6 +16,7 @@ export type QuoteNormalized = {
   horainicio?: string;
   horafin?: string;
   viaticos?: number;
+  direccion?: string;
   technicians?: number[];
   description?: string;
   services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
@@ -265,6 +266,18 @@ export function normalizeQuote(q: QuoteLike): QuoteNormalized {
   const horafin = pickString(root?.horafin, root?.timeEnd, root?.endtime, root?.endTime);
 
   const viaticos = pickNumber(root?.viaticos, root?.travelExpenses, root?.travel, root?.transport) ?? 0;
+  const direccion = pickString(
+    root?.direccion,
+    root?.address,
+    root?.serviceaddress,
+    root?.serviceAddress,
+    root?.location,
+    root?.ubicacion,
+    root?.serviceRequest?.direccion,
+    root?.serviceRequest?.address,
+    root?.request?.direccion,
+    root?.request?.address
+  );
 
   const description = pickString(root?.description, root?.notes, root?.observations);
 
@@ -369,6 +382,7 @@ export function normalizeQuote(q: QuoteLike): QuoteNormalized {
     horainicio,
     horafin,
     viaticos,
+    direccion,
     technicianid,
     servicerequestid: servicerequestid ?? undefined,
     serviceRequestId: servicerequestid ?? undefined,

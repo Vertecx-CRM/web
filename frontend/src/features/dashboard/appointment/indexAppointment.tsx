@@ -27,7 +27,11 @@ import { useUpdateServiceRequest } from "@/features/dashboard/requests/hooks/use
 import { buildScheduledAt, splitDateTime } from "@/features/dashboard/requests/utils/schedule";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import Swal from "sweetalert2";
-import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
+import {
+  addOrderServiceWorklog,
+  fetchOrderServiceHistory,
+  updateOrderService,
+} from "@/features/dashboard/OrdersServices/api/ordersServices.api";
 
 import type { AppointmentEvent } from "./types/typeAppointment";
 import { buildAppointmentEvents } from "./types/typeAppointment";
@@ -119,6 +123,7 @@ const periodFormatter = new Intl.DateTimeFormat("es-CO", {
 });
 
 type AppointmentToolbarRendererProps = Omit<AppointmentToolbarProps, "isFullscreen" | "onToggleFullscreen">;
+const TECH_COMPLETE_CONFIRM_TAG = "[TECH_COMPLETE_CONFIRM]";
 
 export default function IndexAppointment() {
   const { tokenRole, tokenRoleNormalized, clientProfileId, technicianProfileUserId } = useRoleScope();
@@ -134,6 +139,45 @@ export default function IndexAppointment() {
     isFullscreen,
     toggleFullscreen,
   } = useAppointmentResponsive();
+
+  const resolveTechnicianIdFromOrder = useCallback(
+    (event: AppointmentEvent): number | null => {
+      if (event.source !== "order") return null;
+      const technicians = Array.isArray(event.order?.technicians) ? event.order.technicians : [];
+      if (!technicians.length) return null;
+
+      const matchedByUser = technicians.find(
+        (t: any) => Number(t?.users?.userid ?? 0) > 0 && Number(t.users.userid) === technicianProfileUserId
+      );
+      const candidate = matchedByUser ?? technicians[0];
+      const id = Number((candidate as any)?.technicianid ?? 0);
+      return Number.isFinite(id) && id > 0 ? id : null;
+    },
+    [technicianProfileUserId]
+  );
+
+  const registerTechnicianCompletion = useCallback(
+    async (event: AppointmentEvent, orderId: number) => {
+      const technicianId = resolveTechnicianIdFromOrder(event);
+      if (!technicianId) {
+        throw new Error("No se pudo identificar el técnico asignado para confirmar la orden.");
+      }
+
+      const history = await fetchOrderServiceHistory(orderId);
+      const alreadyConfirmed = Array.isArray(history)
+        ? history.some((item: any) => String(item?.message ?? "").includes(TECH_COMPLETE_CONFIRM_TAG))
+        : false;
+      if (alreadyConfirmed) return;
+
+      await addOrderServiceWorklog(orderId, {
+        technicianid: technicianId,
+        title: "Confirmación técnica de finalización",
+        note: `${TECH_COMPLETE_CONFIRM_TAG} Técnico confirmó orden lista para validación del cliente.`,
+        progresspercent: 100,
+      });
+    },
+    [resolveTechnicianIdFromOrder]
+  );
 
   const events = useMemo(() => buildAppointmentEvents(data ?? {}), [data]);
 
@@ -432,12 +476,17 @@ export default function IndexAppointment() {
         orderId ? "orden de servicio" : null,
       ].filter(Boolean) as string[];
 
-      const verb = targets.length > 1 ? "marcarán" : "marcará";
+      const isTechnician = tokenRoleNormalized === "tecnico";
+      const technicianWillConfirmOrder = isTechnician && !!orderId;
+      const verb = targets.length > 1 ? "marcaran" : "marcara";
       const suffix = targets.length > 1 ? "finalizados" : "finalizado";
+      const orderText = technicianWillConfirmOrder
+        ? "La orden quedara pendiente por confirmacion del cliente."
+        : `Se ${verb} ${targets.join(" y ")} como ${suffix}.`;
 
       const confirm = await Swal.fire({
-        title: "¿Finalizar cita?",
-        text: `Se ${verb} ${targets.join(" y ")} como ${suffix}`,
+        title: "Finalizar cita?",
+        text: orderText,
         icon: "question",
         showCancelButton: true,
         confirmButtonText: "Finalizar",
@@ -456,14 +505,21 @@ export default function IndexAppointment() {
         }
 
         if (orderId) {
-          promises.push(updateOrderService(orderId, { stateid: 6 }));
+          if (technicianWillConfirmOrder) {
+            promises.push(registerTechnicianCompletion(event, orderId));
+          } else {
+            promises.push(updateOrderService(orderId, { stateid: 6 }));
+          }
         }
 
         if (promises.length) await Promise.all(promises);
 
         await refetch();
 
-        showSuccess(`Se ${verb} ${targets.join(" y ")} como ${suffix}.`);
+        const successText = technicianWillConfirmOrder
+          ? "Se registro la confirmacion del tecnico. Falta la confirmacion del cliente para finalizar la orden."
+          : `Se ${verb} ${targets.join(" y ")} como ${suffix}.`;
+        showSuccess(successText);
       } catch (err: any) {
         console.error("Error al finalizar cita:", err);
         Swal.fire(
@@ -475,7 +531,7 @@ export default function IndexAppointment() {
         setFinalizingEventId(null);
       }
     },
-    [refetch]
+    [refetch, registerTechnicianCompletion, tokenRoleNormalized]
   );
 
   const eventStyleGetter = (event: AppointmentEvent) => {

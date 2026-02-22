@@ -32,7 +32,6 @@ export default function DashboardLayout({
   const noScrollRoutes = [
     routes.dashboard.users,
     routes.dashboard.clients,
-    routes.dashboard.orders,
     routes.dashboard.products,
     routes.dashboard.productsCategories,
     routes.dashboard.purchases,

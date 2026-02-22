@@ -30,10 +30,12 @@ import { showError, showSuccess } from "@/shared/utils/notifications";
 import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButton";
 import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 import { useAuth } from "@/features/auth/authcontext";
+import { usePermissions } from "@/features/auth/hooks/usePermissions";
 
 const ICONS = {
   print: "/icons/printer.svg",
 };
+const MODULE_KEY = "servicesrequest";
 
 type Row = {
   id: number | string;
@@ -264,6 +266,7 @@ export default function ServiceRequestsPage() {
   const { serviceOptions, customerOptions } = useLookups();
   const { pendingStateId, scheduledStateId } = useRequestStates();
   const { user, profile } = useAuth();
+  const { has, canView, canCreate, canUpdate, canDelete } = usePermissions();
   const isDesktop = useDesktopQuery();
   const sidebarW = useSidebarWidth("#app-sidebar");
 
@@ -452,6 +455,12 @@ export default function ServiceRequestsPage() {
     (updateMut as any).isPending ?? (updateMut as any).isLoading ?? false;
 
   const busy = isLoading || actionLoading || createPending || updatePending;
+  const canViewRequests = canView(MODULE_KEY);
+  const canCreateRequests = canCreate(MODULE_KEY);
+  const canUpdateRequests = canUpdate(MODULE_KEY);
+  const canCancelRequests = canDelete(MODULE_KEY) || has(MODULE_KEY, "deactivate");
+  const canPrintRequests = canViewRequests || has(MODULE_KEY, "print");
+  const canExportRequests = canViewRequests || has(MODULE_KEY, "export");
 
   useEffect(() => {
     if (cancelHandledRef.current) return;
@@ -471,6 +480,13 @@ export default function ServiceRequestsPage() {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
 
+    if (!canCancelRequests) {
+      cancelHandledRef.current = true;
+      showError("No tienes permisos para cancelar solicitudes.");
+      clearParams();
+      return;
+    }
+
     const row = rows.find((r) => String(r.id) === String(targetId));
     if (!row) {
       cancelHandledRef.current = true;
@@ -484,7 +500,7 @@ export default function ServiceRequestsPage() {
       await handleCancel(row);
       clearParams();
     })();
-  }, [searchParams, isLoading, actionLoading, rows, router, pathname]);
+  }, [searchParams, isLoading, actionLoading, rows, router, pathname, canCancelRequests]);
 
   function optimisticPatch(id: number, patch: Partial<Row>) {
     queryClient.setQueryData<any>(["service-requests"], (old: any) => {
@@ -700,6 +716,11 @@ export default function ServiceRequestsPage() {
   }
 
   async function handleCancel(row: Row) {
+    if (!canCancelRequests) {
+      showError("No tienes permisos para cancelar solicitudes.");
+      return;
+    }
+
     const res = await Swal.fire({
       title: "¿Cancelar solicitud?",
       text: `Se marcará la solicitud #${row.id} como cancelada.`,
@@ -823,7 +844,7 @@ export default function ServiceRequestsPage() {
           </div>
         ) : (
           <DataTable<Row>
-            module="servicesRequests"
+            module={MODULE_KEY}
             data={rows}
             columns={columns}
             pageSize={5}
@@ -842,7 +863,8 @@ export default function ServiceRequestsPage() {
               };
             }}
             rightActions={
-              <>
+              canExportRequests ? (
+                <>
                 <div className="hidden md:block">
                   <DownloadXLSXButton
                     id="download-excel-btn"
@@ -891,30 +913,43 @@ export default function ServiceRequestsPage() {
                     />
                   </svg>
                 </button>
-              </>
+                </>
+              ) : null
             }
-            onCreate={() => setOpenCreate(true)}
+            onCreate={canCreateRequests ? () => setOpenCreate(true) : undefined}
             createButtonText="Crear Solicitud"
-            onView={(r) => {
-              setSelected(r);
-              setOpenView(true);
-            }}
-            onEdit={(r) => {
-              setSelected(r);
-              setOpenEdit(true);
-            }}
-            onCancel={handleCancel}
-            tailHeader="Imprimir"
-            renderTail={(row) => (
-              <button
-                key={`print-${row.id}`}
-                className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
-                title="Imprimir"
-                onClick={() => printRequest(row)}
-              >
-                <img src={ICONS.print} className="h-4 w-4 mx-auto" />
-              </button>
-            )}
+            onView={
+              canViewRequests
+                ? (r) => {
+                    setSelected(r);
+                    setOpenView(true);
+                  }
+                : undefined
+            }
+            onEdit={
+              canUpdateRequests
+                ? (r) => {
+                    setSelected(r);
+                    setOpenEdit(true);
+                  }
+                : undefined
+            }
+            onCancel={canCancelRequests ? handleCancel : undefined}
+            tailHeader={canPrintRequests ? "Imprimir" : undefined}
+            renderTail={
+              canPrintRequests
+                ? (row) => (
+                    <button
+                      key={`print-${row.id}`}
+                      className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60"
+                      title="Imprimir"
+                      onClick={() => printRequest(row)}
+                    >
+                      <img src={ICONS.print} className="h-4 w-4 mx-auto" />
+                    </button>
+                  )
+                : undefined
+            }
           />
         )}
 
@@ -959,6 +994,7 @@ export default function ServiceRequestsPage() {
                 key={`edit-${selected.id}`}
                 isOpen={openEdit}
                 onClose={() => setOpenEdit(false)}
+                requestId={Number(selected.id)}
                 initial={initialAny as any}
                 servicios={serviceOptions as any}
                 clientes={customerOptions as any}
