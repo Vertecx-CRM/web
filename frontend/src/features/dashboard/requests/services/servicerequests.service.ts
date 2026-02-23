@@ -76,6 +76,47 @@ export type CreateServiceRequestInput = {
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
+const IN_PROCESS_STATE_ID = 7;
+
+function getServiceRequestId(row: ServiceRequestDTO): number | null {
+  const rawId = row.serviceRequestId ?? row.servicerequestid ?? row.id;
+  const idNum = Number(rawId);
+  return Number.isFinite(idNum) && idNum > 0 ? idNum : null;
+}
+
+function parseRequestStartAt(row: ServiceRequestDTO): Date | null {
+  const scheduled = row.scheduledAt ?? row.scheduledat;
+  if (!scheduled) return null;
+  const parsed = new Date(scheduled);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getRequestStateId(row: ServiceRequestDTO): number {
+  const raw = row.stateId ?? row.stateid ?? row.state?.stateid;
+  const idNum = Number(raw ?? 0);
+  return Number.isFinite(idNum) ? idNum : 0;
+}
+
+function isFinalRequestState(row: ServiceRequestDTO): boolean {
+  const stateId = getRequestStateId(row);
+  if (stateId === 4 || stateId === 6 || stateId === IN_PROCESS_STATE_ID) return true;
+
+  const stateName = String(row.state?.name ?? "").toLowerCase();
+  return (
+    stateName.includes("cancel") ||
+    stateName.includes("anul") ||
+    stateName.includes("final") ||
+    stateName.includes("complet") ||
+    stateName.includes("proceso")
+  );
+}
+
+function shouldAutoMoveRequestToInProcess(row: ServiceRequestDTO, now = new Date()): boolean {
+  if (isFinalRequestState(row)) return false;
+  const startsAt = parseRequestStartAt(row);
+  if (!startsAt) return false;
+  return startsAt.getTime() <= now.getTime();
+}
 
 function unwrap<T>(payload: any): T {
   if (payload && typeof payload === "object" && "data" in payload) return (payload as any).data as T;
@@ -116,12 +157,36 @@ async function readAxiosErrorBody(e: AxiosError<any>) {
 
 export async function listServiceRequests(): Promise<ServiceRequestDTO[]> {
   const res = await api.get<any>("/service-requests");
-  return unwrapList<ServiceRequestDTO>(res.data);
+  const rows = unwrapList<ServiceRequestDTO>(res.data);
+  const dueRows = rows.filter((row) => shouldAutoMoveRequestToInProcess(row));
+  if (!dueRows.length) return rows;
+
+  const updates = await Promise.allSettled(
+    dueRows.map((row) => {
+      const id = getServiceRequestId(row);
+      if (!id) return Promise.resolve(null);
+      return updateServiceRequest(id, { stateId: IN_PROCESS_STATE_ID });
+    })
+  );
+
+  const updatedById = new Map<number, ServiceRequestDTO>();
+  updates.forEach((resUpdate) => {
+    if (resUpdate.status !== "fulfilled" || !resUpdate.value) return;
+    const updatedId = getServiceRequestId(resUpdate.value);
+    if (updatedId) updatedById.set(updatedId, resUpdate.value);
+  });
+
+  return rows.map((row) => {
+    const id = getServiceRequestId(row);
+    return id ? updatedById.get(id) ?? row : row;
+  });
 }
 
 export async function getServiceRequest(id: number): Promise<ServiceRequestDTO> {
   const res = await api.get<any>(`/service-requests/${id}`);
-  return unwrap<ServiceRequestDTO>(res.data);
+  const row = unwrap<ServiceRequestDTO>(res.data);
+  if (!shouldAutoMoveRequestToInProcess(row)) return row;
+  return updateServiceRequest(id, { stateId: IN_PROCESS_STATE_ID });
 }
 
 export async function createServiceRequest(

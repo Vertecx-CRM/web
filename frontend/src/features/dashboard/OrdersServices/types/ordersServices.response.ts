@@ -73,6 +73,7 @@ export type OS_History = {
 export type OrderServiceDTO = {
   ordersservicesid: number;
   description: string;
+  direccion?: string | null;
   total: number;
   files: string[];
   fechainicio: string;

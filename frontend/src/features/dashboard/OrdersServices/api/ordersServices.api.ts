@@ -13,6 +13,43 @@ import type {
 } from "../types/ordersServices.types";
 
 const BASE = "orders-services";
+const IN_PROCESS_STATE_ID = 7;
+
+function parseOrderStartAt(order: OrderServiceDTO): Date | null {
+  const datePart = String(order.fechainicio ?? "").trim();
+  const timeRaw = String(order.horainicio ?? "").trim();
+  if (!datePart || !timeRaw) return null;
+
+  const timeParts = timeRaw.split(":");
+  if (timeParts.length < 2) return null;
+  const hh = timeParts[0]?.padStart(2, "0") ?? "00";
+  const mm = timeParts[1]?.padStart(2, "0") ?? "00";
+  const ss = (timeParts[2] ?? "00").padStart(2, "0");
+
+  const parsed = new Date(`${datePart}T${hh}:${mm}:${ss}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isFinalOrderState(order: OrderServiceDTO): boolean {
+  const stateId = Number(order.state?.stateid ?? 0);
+  if (stateId === 4 || stateId === 6 || stateId === IN_PROCESS_STATE_ID) return true;
+
+  const stateName = String(order.state?.name ?? "").toLowerCase();
+  return (
+    stateName.includes("cancel") ||
+    stateName.includes("anul") ||
+    stateName.includes("final") ||
+    stateName.includes("complet") ||
+    stateName.includes("proceso")
+  );
+}
+
+function shouldAutoMoveToInProcess(order: OrderServiceDTO, now = new Date()): boolean {
+  if (isFinalOrderState(order)) return false;
+  const startsAt = parseOrderStartAt(order);
+  if (!startsAt) return false;
+  return startsAt.getTime() <= now.getTime();
+}
 
 export async function createOrderService(
   dto: CreateOrdersServiceDto
@@ -27,12 +64,29 @@ export async function createOrderService(
 
 export async function fetchOrdersServices(): Promise<OrderServiceDTO[]> {
   const { data } = await api.get<OrderServiceDTO[]>(BASE);
-  return data;
+  const dueOrders = data.filter((order) => shouldAutoMoveToInProcess(order));
+  if (!dueOrders.length) return data;
+
+  const updates = await Promise.allSettled(
+    dueOrders.map((order) =>
+      updateOrderService(order.ordersservicesid, { stateid: IN_PROCESS_STATE_ID })
+    )
+  );
+
+  const updatedById = new Map<number, OrderServiceDTO>();
+  updates.forEach((res) => {
+    if (res.status === "fulfilled") {
+      updatedById.set(res.value.ordersservicesid, res.value);
+    }
+  });
+
+  return data.map((order) => updatedById.get(order.ordersservicesid) ?? order);
 }
 
 export async function fetchOrderServiceById(id: number): Promise<OrderServiceDTO> {
   const { data } = await api.get<OrderServiceDTO>(`${BASE}/${id}`);
-  return data;
+  if (!shouldAutoMoveToInProcess(data)) return data;
+  return updateOrderService(id, { stateid: IN_PROCESS_STATE_ID });
 }
 
 export async function fetchOrderServiceHistory(
