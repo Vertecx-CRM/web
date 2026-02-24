@@ -3,7 +3,6 @@ import axios, { type AxiosRequestConfig } from "axios";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-// Axios instance for code that expects axios-style responses (response.data, error.response, etc.)
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -14,7 +13,6 @@ export const api = axios.create({
 
 type RequestOptions = AxiosRequestConfig;
 
-// Thin wrapper that returns data directly (for fetch-like usage).
 export const apiClient = {
   async get<T>(path: string, config?: RequestOptions): Promise<T> {
     const res = await api.get<T>(path, config);
