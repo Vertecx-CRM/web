@@ -9,7 +9,6 @@ export const initialClients: Client[] = [
     nombre: "Joao Estid Ortiz Cuello",
     telefono: "3008239274",
     correoElectronico: "joaoestid@gmail.com",
-    rol: "Cliente",
     estado: "Inactivo",
     apellido: ""
   },
@@ -20,7 +19,6 @@ export const initialClients: Client[] = [
     nombre: "Samuel Cordoba",
     telefono: "3113369669",
     correoElectronico: "sami69@gmail.com",
-    rol: "Cliente",
     estado: "Activo",
     apellido: ""
   },
@@ -31,7 +29,6 @@ export const initialClients: Client[] = [
     nombre: "Daniel Alvarez",
     telefono: "3016242087",
     correoElectronico: "negrito88@gmail.com",
-    rol: "Cliente",
     estado: "Inactivo",
     apellido: ""
   }

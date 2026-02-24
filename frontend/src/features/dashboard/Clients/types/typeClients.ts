@@ -14,24 +14,24 @@ export interface ClientFormBase {
 // =============================
 // Crear cliente (formulario)
 // =============================
-export interface CreateClientData extends ClientFormBase {
-  rol: string;
-}
+export interface CreateClientData extends ClientFormBase {}
 
 // =============================
 // Editar cliente (formulario)
+// Incluye id porque el formulario de edición
+// ya trabaja con el objeto completo
 // =============================
 export interface EditClientData extends ClientFormBase {
   id: number;
-  rol: string;
+  userId?: number; // referencia al user en el módulo users, útil para edición
 }
 
 // =============================
-// Cliente completo (modelo backend)
+// Cliente completo (modelo frontend normalizado)
 // =============================
 export interface Client extends ClientFormBase {
   id: number;
-  rol: string;
+  userId?: number; // referencia al user en el módulo users
 }
 
 // =============================
@@ -41,7 +41,8 @@ export interface ClientForTable {
   id: number;
   tipo: string;
   documento: string;
-  nombreCompleto: string;
+  nombre: string;
+  apellido: string;
   telefono: string;
   correoElectronico: string;
   estado: string;
@@ -57,7 +58,6 @@ export interface FormErrors {
   apellido: string;
   telefono: string;
   correoElectronico: string;
-  rol: string;
 }
 
 // =============================
@@ -70,7 +70,6 @@ export interface FormTouched {
   apellido: boolean;
   telefono: boolean;
   correoElectronico: boolean;
-  rol: boolean;
 }
 
 // =============================
@@ -89,5 +88,14 @@ export interface EditClientModalProps {
   isOpen: boolean;
   client: Client | null;
   onClose: () => void;
-  onSave: (id: number, data: EditClientData) => void;
+  onSave: (data: EditClientData) => void;
+}
+
+// =============================
+// Props del modal de visualización
+// =============================
+export interface ViewClientModalProps {
+  isOpen: boolean;
+  client: Client | null;
+  onClose: () => void;
 }

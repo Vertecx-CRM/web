@@ -18,8 +18,6 @@ export type ClientFromApi = {
   telefono: string;
   correo: string;
 
-  rol: "Cliente" | "Administrador" | "Empleado";
-
   estado: boolean;         // true = activo, false = inactivo
 
   // opcional
@@ -37,18 +35,31 @@ const normalizeString = (v: unknown): string => {
 // MAPPER → Transformar API → UI
 
 const toUiClient = (c: ClientFromApi): Client => {
+  // si backend devuelve fullName preferirlo
+  const rawFull = (c as any).fullName ?? (c as any).full_name ?? null;
+  let nombre = normalizeString(c.nombre);
+  let apellido = c.apellido ? c.apellido.trim() : "";
+
+  if (rawFull && typeof rawFull === 'string') {
+    const parts = rawFull.trim().split(/\s+/);
+    nombre = parts.shift() ?? nombre;
+    apellido = parts.join(' ');
+  } else if (!apellido && nombre.includes(' ')) {
+    const parts = nombre.split(/\s+/);
+    nombre = parts.shift() ?? nombre;
+    apellido = parts.join(' ');
+  }
+
   return {
     id: c.id,
 
     tipo: normalizeString(c.tipo),
     documento: normalizeString(c.documento),
-    nombre: normalizeString(c.nombre),
-    apellido: c.apellido ? c.apellido.trim() : "",
+    nombre,
+    apellido,
 
     telefono: normalizeString(c.telefono),
     correoElectronico: normalizeString(c.correo),
-
-    rol: c.rol,
 
     estado: c.estado ? "Activo" : "Inactivo",
   };
@@ -59,16 +70,10 @@ const toUiClient = (c: ClientFromApi): Client => {
 export type CreateClientPayload = {
   tipo: string;
   documento: string;
-  nombre: string;
-  apellido?: string | null;
-
+  fullName?: string;
   telefono: string;
   correo: string;
-
-  rol: "Cliente" | "Administrador" | "Empleado";
-
   estado?: boolean; // true/false
-  contrasena: string;
 };
 
 export type UpdateClientPayload = Partial<CreateClientPayload>;
@@ -78,34 +83,34 @@ export type UpdateClientPayload = Partial<CreateClientPayload>;
 export const getClients = async (
   status: StatusQuery = "active"
 ): Promise<Client[]> => {
-  const { data } = await api.get<ClientFromApi[]>("/clients", {
+  const { data } = await api.get<ClientFromApi[]>("/customers", {
     params: { status },
   });
   return data.map(toUiClient);
 };
 
 export const getClientById = async (id: number): Promise<Client> => {
-  const { data } = await api.get<ClientFromApi>(`/clients/${id}`);
+  const { data } = await api.get<ClientFromApi>(`/customers/${id}`);
   return toUiClient(data);
 };
 
 export const createClient = async (
   payload: CreateClientPayload
-): Promise<unknown> => {
-  const { data } = await api.post(`/clients`, payload);
-  return data;
+): Promise<Client> => {
+  const { data } = await api.post(`/customers`, payload);
+  return toUiClient(data as ClientFromApi);
 };
 
 export const updateClient = async (
   id: number,
   payload: UpdateClientPayload
-): Promise<unknown> => {
-  const { data } = await api.patch(`/clients/${id}`, payload);
-  return data;
+): Promise<Client> => {
+  const { data } = await api.patch(`/customers/${id}`, payload);
+  return toUiClient(data as ClientFromApi);
 };
 
 export const deleteClient = async (id: number): Promise<unknown> => {
-  const { data } = await api.delete(`/clients/${id}`);
+  const { data } = await api.delete(`/customers/${id}`);
   return data;
 };
 
@@ -120,7 +125,7 @@ export const getClientDeletionInfo = async (
   id: number
 ): Promise<ClientDeletionInfo> => {
   const { data } = await api.get<ClientDeletionInfo>(
-    `/clients/${id}/deletion-info`
+    `/customers/${id}/deletion-info`
   );
 
   return {

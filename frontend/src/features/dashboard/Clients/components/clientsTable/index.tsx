@@ -23,10 +23,13 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
     { key: "id", header: "Id" },
     { key: "tipo", header: "Tipo" },
     { key: "documento", header: "Documento" },
-    { key: "nombre", header: "Nombre" },
+    {
+      key: "nombre",
+      header: "Nombre completo",
+      render: (client: Client) => `${client.nombre}${client.apellido ? ' ' + client.apellido : ''}`
+    },
     { key: "telefono", header: "Teléfono" },
     { key: "correoElectronico", header: "Correo electrónico" },
-    { key: "rol", header: "Rol" },
     {
       key: "estado",
       header: "Estado",
@@ -59,7 +62,6 @@ export const ClientsTable: React.FC<ClientsTableProps> = ({
         "nombre",
         "telefono",
         "correoElectronico",
-        "rol",
         "estado",
       ]}
       onView={onView}

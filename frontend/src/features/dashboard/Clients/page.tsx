@@ -30,10 +30,13 @@ export default function Clients() {
     { key: "id", header: "Id" },
     { key: "tipo", header: "Tipo" },
     { key: "documento", header: "Documento" },
-    { key: "nombre", header: "Nombre" },
+    {
+      key: "nombre",
+      header: "Nombre completo",
+      render: (row: Client) => `${row.nombre}${row.apellido ? ' ' + row.apellido : ''}`
+    },
     { key: "telefono", header: "Teléfono" },
     { key: "correoElectronico", header: "Correo electrónico" },
-    { key: "rol", header: "Rol" },
     {
       key: "estado",
       header: "Estado",
@@ -110,7 +113,6 @@ export default function Clients() {
               "nombre",
               "telefono",
               "correoElectronico",
-              "rol",
               "estado",
             ]}
             onCreate={() => setIsCreateModalOpen(true)}
@@ -136,6 +138,5 @@ export default function Clients() {
     "documento",
     "correoElectronico",
     "telefono",
-    "rol",
     "estado"
   ];
