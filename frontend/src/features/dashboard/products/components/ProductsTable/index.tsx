@@ -22,7 +22,6 @@ type ProductRowForXlsx = {
 
 interface ProductsTableProps {
   products: Product[];
-  status: "active" | "inactive" | "all";
   onView: (product: Product) => void;
   onEdit: (product: Product) => void;
   onDelete: (product: Product) => void;
@@ -87,7 +86,6 @@ const Trunc: React.FC<{
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
-  status,
   onView,
   onEdit,
   onDelete,
@@ -95,17 +93,12 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 }) => {
   const productsForTable: ProductForTable[] = useMemo(() => {
     const sortedProducts = [...products].sort(
-      (a, b) => Number(a.id ?? 0) - Number(b.id ?? 0)
+      (a, b) => Number(b.id ?? 0) - Number(a.id ?? 0)
     );
 
-    const base =
-      status === "active"
-        ? sortedProducts.filter((p) => isActiveState(p.state))
-        : status === "inactive"
-        ? sortedProducts.filter((p) => isInactiveState(p.state))
-        : sortedProducts;
+    const total = sortedProducts.length; // <-- ÚNICO EXTRA
 
-    return base.map((p, index) => {
+    return sortedProducts.map((p, index) => {
       const stateSearch: "activo" | "inactivo" = isActiveState(p.state)
         ? "activo"
         : "inactivo";
@@ -133,12 +126,12 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       return {
         ...p,
-        rowNumber: index + 1,
+        rowNumber: total - index, // <-- ÚNICO CAMBIO (antes era index + 1)
         stateSearch,
         fullSearch: `${fullSearchText} ${fullSearchNums}`.trim(),
       };
     });
-  }, [products, status]);
+  }, [products]);
 
   const columns: Column<ProductForTable>[] = [
     {
@@ -249,14 +242,14 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
         ]}
         onView={(p) => onView(p)}
         onEdit={(p) => onEdit(p)}
-        onDelete={status === "inactive" ? undefined : (p) => onDelete(p)}
+        onDelete={(p) => onDelete(p)}
         onCreate={onCreate}
         actionGuard={(row) =>
-          status === "all" && isInactiveState(row.state)
+          isInactiveState(row.state)
             ? {
-                disableDelete: true,
-                deleteTitle: "No se puede eliminar un producto inactivo",
-              }
+              disableDelete: true,
+              deleteTitle: "No se puede eliminar un producto inactivo",
+            }
             : {}
         }
         searchPlaceholder="Buscar productos..."
@@ -268,7 +261,18 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 id="download-excel-btn"
                 data={xlsxRows as unknown as Record<string, unknown>[]}
                 fileName="reporte_productos.xlsx"
-                headers={["ID", "Nombre", "Categoría", "Cat. proveedor", "Precio venta", "Stock", "Estado"]}
+                headers={[
+                  "ID",
+                  "Nombre",
+                  "Descripción",
+                  "Categoría",
+                  "Cat. proveedor",
+                  "Código",
+                  "Precio proveedor",
+                  "Precio venta",
+                  "Stock",
+                  "Estado",
+                ]}
               />
             </div>
 

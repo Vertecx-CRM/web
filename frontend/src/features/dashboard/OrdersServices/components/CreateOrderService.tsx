@@ -8,7 +8,7 @@ import { createOrderService } from "../api/ordersServices.api";
 import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
-import { showError, showWarning } from "@/shared/utils/notifications";
+import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
 import {
   SCHEDULE_MAX,
@@ -35,12 +35,15 @@ import {
 } from "./CreateOrderService.utils";
 import {
   DESC_MAX,
-  DESC_MIN,
   type OrderServiceFormErrors as Errors,
   validateDescription,
   validateField,
   validateForm,
 } from "./CreateOrderService.validations";
+import {
+  buildWindowFromLocalSchedule,
+  getBusyTechnicianIdsForWindow,
+} from "@/features/dashboard/shared/technicianAvailability";
 
 type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
 type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
@@ -83,6 +86,40 @@ type ServiceOption = {
 const IVA_PCT = 19;
 
 type Touched = Partial<Record<keyof Errors, boolean>>;
+
+type CreateClientField =
+  | "name"
+  | "lastname"
+  | "email"
+  | "phone"
+  | "documentnumber"
+  | "typeid"
+  | "customercity"
+  | "customerzipcode";
+
+type CreateClientForm = {
+  name: string;
+  lastname: string;
+  email: string;
+  phone: string;
+  documentnumber: string;
+  typeid: string;
+  customercity: string;
+  customerzipcode: string;
+};
+
+type CreateClientErrors = Partial<Record<CreateClientField, string>>;
+
+const EMPTY_CREATE_CLIENT_FORM: CreateClientForm = {
+  name: "",
+  lastname: "",
+  email: "",
+  phone: "",
+  documentnumber: "",
+  typeid: "",
+  customercity: "",
+  customerzipcode: "",
+};
 
 function useDesktopQuery() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -189,6 +226,7 @@ const {
     serviceTypes: serviceTypesRaw,
     pendingStateId,
     scheduledStateId,
+    refresh: refreshLookups,
   } = useOrdersServicesLookups();
 
   const customers = useMemo<CustomerOption[]>(() => {
@@ -389,9 +427,11 @@ const {
 
       const typeLabel =
         (nq.typeofserviceid && serviceTypes.find((t) => t.typeofserviceid === nq.typeofserviceid)?.label) || "";
+      const addressLabel = String(nq.direccion || "").trim();
 
       const parts = [saleCode ? `${saleCode} (#${id})` : `#${id}`, clientLabel];
       if (typeLabel) parts.push(typeLabel);
+      if (addressLabel) parts.push(`Dir: ${addressLabel}`);
       if (statusLabel) parts.push(statusLabel);
       if (Number.isFinite(total)) parts.push(formatCOP(Number(total)));
 
@@ -407,6 +447,11 @@ const {
   }, [approvedQuotes, customers, serviceTypes]);
 
   const [selectedQuotesId, setSelectedQuotesId] = useState<number | "">("");
+  const [quoteQuery, setQuoteQuery] = useState("");
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteActiveIndex, setQuoteActiveIndex] = useState(0);
+  const quoteBoxRef = useRef<HTMLDivElement>(null);
+  const quoteInputRef = useRef<HTMLInputElement>(null);
 
   const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
   const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
@@ -416,6 +461,15 @@ const {
 
   const [clientId, setClientId] = useState<number | "">("");
   const selectedCustomer = useMemo(() => customers.find((c) => c.customerid === clientId), [customers, clientId]);
+  const [createClientInlineEnabled, setCreateClientInlineEnabled] = useState(false);
+  const [clientIdBeforeInlineCreate, setClientIdBeforeInlineCreate] = useState<number | "">("");
+  const clientLockedByQuote = !!quoteAppliedKey && !!clientId && !createClientInlineEnabled;
+  const [createClientLoading, setCreateClientLoading] = useState(false);
+  const [createClientBootstrapping, setCreateClientBootstrapping] = useState(false);
+  const [createClientRoleId, setCreateClientRoleId] = useState<number | null>(null);
+  const [createClientDocTypes, setCreateClientDocTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [createClientForm, setCreateClientForm] = useState<CreateClientForm>(EMPTY_CREATE_CLIENT_FORM);
+  const [createClientErrors, setCreateClientErrors] = useState<CreateClientErrors>({});
 
   const [tipoId, setTipoId] = useState<number | null>(null);
   const tipoSeleccionado = useMemo(
@@ -424,6 +478,7 @@ const {
   );
 
   const [descripcion, setDescripcion] = useState("");
+  const [direccion, setDireccion] = useState("");
 
   const [viaticosInput, setViaticosInput] = useState<string>("0");
   const viaticosValue = useMemo(() => {
@@ -462,6 +517,8 @@ const {
   const [techActiveIndex, setTechActiveIndex] = useState(0);
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
+  const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
+  const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
   const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
   const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
@@ -486,8 +543,6 @@ const {
 
   const inputBase =
     "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200";
-  const selectBase = `${inputBase} appearance-none pr-8`;
-  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400";
   const errorText = "mt-1 text-xs text-red-600";
   const errorRing = "border-red-500 ring-1 ring-red-500";
 
@@ -524,6 +579,34 @@ const {
     showError(quotesError);
   }, [quotesError]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const [ordersRes, requestsRes] = await Promise.allSettled([
+        api.get("orders-services"),
+        api.get("service-requests"),
+      ]);
+      if (cancelled) return;
+
+      const ordersData =
+        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+          ? (ordersRes.value as any).data
+          : [];
+      const requestsData =
+        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+          ? (requestsRes.value as any).data
+          : [];
+
+      setScheduledOrdersRaw(ordersData);
+      setScheduledRequestsRaw(requestsData);
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const skipClearOnTipoChangeRef = useRef(false);
 
   useEffect(() => {
@@ -550,9 +633,34 @@ const {
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
 
+  const selectedWindow = useMemo(
+    () => buildWindowFromLocalSchedule(dateStart, timeStart, dateEnd, timeEnd),
+    [dateStart, timeStart, dateEnd, timeEnd]
+  );
+
+  const busyTechnicianIds = useMemo(
+    () =>
+      getBusyTechnicianIdsForWindow(
+        scheduledOrdersRaw,
+        scheduledRequestsRaw,
+        selectedWindow
+      ),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow]
+  );
+
+  const availableTechnicians = useMemo(
+    () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
+    [technicians, busyTechnicianIds]
+  );
+
+  const selectedBusyTechnicianIds = useMemo(
+    () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
+    [selectedTechnicians, busyTechnicianIds]
+  );
+
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -567,7 +675,7 @@ const {
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
-  }, [technicians, techQuery, selectedTechSet]);
+  }, [availableTechnicians, techQuery, selectedTechSet]);
 
   useEffect(() => {
     setTechActiveIndex(0);
@@ -575,6 +683,10 @@ const {
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
+    if (busyTechnicianIds.has(id)) {
+      showWarning("Ese tecnico ya esta ocupado en el horario seleccionado.");
+      return;
+    }
     setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setErrors((p) => ({ ...p, technicians: undefined }));
     setTechQuery("");
@@ -809,6 +921,7 @@ const {
       timeEnd,
       selectedTechnicians,
       viaticosValue,
+      direccion,
       descripcion,
       servicios,
       servicesCatalog,
@@ -824,6 +937,7 @@ const {
       timeEnd,
       selectedTechnicians,
       viaticosValue,
+      direccion,
       descripcion,
       servicios,
       servicesCatalog,
@@ -853,8 +967,21 @@ const {
     setErrors((p) => ({ ...p, materiales: validateField("materiales", validationContext) }));
   }, [submitAttempted, touched.materiales, materiales, productsCatalog, validationContext]);
 
+  useEffect(() => {
+    if (!(submitAttempted || touched.technicians)) return;
+    if (!selectedTechnicians.length) {
+      setErrors((p) => ({ ...p, technicians: "Selecciona al menos un tecnico." }));
+      return;
+    }
+    if (selectedBusyTechnicianIds.length > 0) {
+      setErrors((p) => ({ ...p, technicians: "Hay tecnicos ocupados en ese horario." }));
+      return;
+    }
+    setErrors((p) => ({ ...p, technicians: undefined }));
+  }, [submitAttempted, touched.technicians, selectedTechnicians, selectedBusyTechnicianIds]);
+
   function focusFirstError(er: Errors) {
-    const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "description", "materiales", "servicios"] as const;
+    const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "direccion", "description", "materiales", "servicios"] as const;
     const key = order.find((k) => (er as any)[k]);
     if (!key) return;
     const el = document.getElementById(`field-${key}`);
@@ -888,6 +1015,63 @@ const {
   const [customerActiveIndex, setCustomerActiveIndex] = useState(0);
   const customerBoxRef = useRef<HTMLDivElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!quoteOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!quoteBoxRef.current) return;
+      if (!quoteBoxRef.current.contains(t)) setQuoteOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [quoteOpen]);
+
+  const selectedQuoteOption = useMemo(() => {
+    if (!selectedQuotesId) return null;
+    return quoteOptions.find((q) => q.id === Number(selectedQuotesId)) || null;
+  }, [quoteOptions, selectedQuotesId]);
+
+  const quoteSearchOptions = useMemo(() => {
+    const q = normalizeText(quoteQuery);
+    if (!q) return quoteOptions.slice(0, 10);
+    const scored = quoteOptions
+      .map((opt) => {
+        const label = normalizeText(opt.label);
+        const idStr = String(opt.id);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { opt, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.opt.id - a.opt.id);
+    return scored.slice(0, 10).map((x) => x.opt);
+  }, [quoteOptions, quoteQuery]);
+
+  useEffect(() => {
+    setQuoteActiveIndex(0);
+  }, [quoteQuery, quoteOpen]);
+
+  function pickQuote(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setSelectedQuotesId(id as any);
+    setErrors((p) => ({ ...p, quote: undefined }));
+    setTouched((t) => ({ ...t, quote: true }));
+    setQuoteQuery("");
+    setQuoteOpen(false);
+    setQuoteApplyError(null);
+  }
+
+  function clearQuoteSelection() {
+    setSelectedQuotesId("");
+    setQuoteQuery("");
+    setQuoteOpen(false);
+    setQuoteApplyError(null);
+    setQuoteAppliedKey(null);
+    quoteInputRef.current?.focus();
+  }
 
   useEffect(() => {
     if (!customerOpen) return;
@@ -937,14 +1121,152 @@ const {
     customerInputRef.current?.focus();
   }
 
+  function resetCreateClientForm() {
+    setCreateClientForm(EMPTY_CREATE_CLIENT_FORM);
+    setCreateClientErrors({});
+  }
+
+  function validateCreateClientForm(form: CreateClientForm) {
+    const next: CreateClientErrors = {};
+    const name = String(form.name || "").trim();
+    const lastname = String(form.lastname || "").trim();
+    const email = String(form.email || "").trim();
+    const phone = String(form.phone || "").trim();
+    const documentnumber = String(form.documentnumber || "").trim();
+    const typeid = Number(form.typeid);
+    const city = String(form.customercity || "").trim();
+    const zipcode = String(form.customerzipcode || "").trim();
+
+    if (name.length < 2) next.name = "El nombre es obligatorio (minimo 2 caracteres).";
+    if (lastname.length > 0 && lastname.length < 2) next.lastname = "El apellido debe tener minimo 2 caracteres.";
+    if (!email) next.email = "El correo es obligatorio.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = "Correo invalido.";
+    if (!/^\d{7,15}$/.test(phone)) next.phone = "Telefono invalido (7 a 15 digitos).";
+    if (!documentnumber) next.documentnumber = "El numero de documento es obligatorio.";
+    if (!Number.isFinite(typeid) || typeid <= 0) next.typeid = "Selecciona el tipo de documento.";
+    if (city && city.length > 120) next.customercity = "La ciudad no puede superar 120 caracteres.";
+    if (zipcode && zipcode.length > 20) next.customerzipcode = "El codigo postal no puede superar 20 caracteres.";
+
+    return next;
+  }
+
+  async function ensureCreateClientLookups() {
+    if (createClientRoleId && createClientDocTypes.length) return;
+    setCreateClientBootstrapping(true);
+    try {
+      const [rolesRes, docsRes] = await Promise.all([
+        api.get("/roles/list"),
+        api.get("/typeofdocuments"),
+      ]);
+
+      const roles = unwrapList((rolesRes as any)?.data);
+      const clienteRole = roles.find((r: any) => normalizeText(r?.name ?? r?.role?.name) === "cliente");
+      const roleId = Number(clienteRole?.roleid ?? clienteRole?.id ?? clienteRole?.role?.roleid ?? clienteRole?.role?.id);
+
+      const docsRaw = unwrapList((docsRes as any)?.data);
+      const docs = (docsRaw || [])
+        .map((d: any) => ({
+          id: Number(d?.typeofdocumentid ?? d?.id),
+          name: String(d?.name ?? d?.nombre ?? d?.label ?? "").trim(),
+        }))
+        .filter((d) => Number.isFinite(d.id) && d.id > 0 && d.name);
+
+      setCreateClientRoleId(Number.isFinite(roleId) && roleId > 0 ? roleId : null);
+      setCreateClientDocTypes(docs);
+      if (!createClientForm.typeid && docs.length) {
+        setCreateClientForm((prev) => ({ ...prev, typeid: String(docs[0].id) }));
+      }
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || "No se pudieron cargar roles y tipos de documento.");
+    } finally {
+      setCreateClientBootstrapping(false);
+    }
+  }
+
+  async function createClientFromInlineForm() {
+    if (!createClientRoleId) {
+      await ensureCreateClientLookups();
+    }
+    if (!createClientRoleId) {
+      throw new Error("No se encontro el rol Cliente para crear el usuario.");
+    }
+
+    setCreateClientLoading(true);
+    try {
+      const payload = {
+        name: String(createClientForm.name || "").trim(),
+        lastname: String(createClientForm.lastname || "").trim() || null,
+        email: String(createClientForm.email || "").trim(),
+        phone: String(createClientForm.phone || "").trim(),
+        documentnumber: String(createClientForm.documentnumber || "").trim(),
+        typeid: Number(createClientForm.typeid),
+        stateid: 1,
+        roleid: createClientRoleId,
+        customercity: String(createClientForm.customercity || "").trim() || null,
+        customerzipcode: String(createClientForm.customerzipcode || "").trim() || null,
+      };
+
+      const userRes: any = await api.post("/users", payload);
+      const newUserId = pickNumber(
+        userRes?.data?.userid,
+        userRes?.data?.id,
+        userRes?.data?.data?.userid,
+        userRes?.data?.data?.id
+      );
+
+      let createdCustomerId = 0;
+      if (newUserId) {
+        try {
+          const customerByUserRes: any = await api.get(`/customers/user/${newUserId}`, {
+            params: { includeRelations: true },
+          });
+          const byUser = customerByUserRes?.data;
+          createdCustomerId = Number(byUser?.customerid ?? byUser?.id ?? 0);
+        } catch {}
+      }
+
+      if (!createdCustomerId) {
+        const customerListRes: any = await api.get("/customers", { params: { includeRelations: true } });
+        const list = unwrapList(customerListRes?.data);
+        const emailNeedle = normalizeText(payload.email);
+        const docNeedle = normalizeText(payload.documentnumber);
+
+        const found = (list || []).find((c: any) => {
+          const base = c?.customer || c?.client || c;
+          const u = base?.users || base?.user || c?.users || c?.user || {};
+          const mail = normalizeText(u?.email ?? base?.email ?? c?.email ?? "");
+          const doc = normalizeText(u?.documentnumber ?? base?.documentnumber ?? c?.documentnumber ?? "");
+          return (emailNeedle && mail === emailNeedle) || (docNeedle && doc === docNeedle);
+        });
+
+        createdCustomerId = Number(found?.customerid ?? found?.id ?? 0);
+      }
+
+      await refreshLookups();
+
+      if (!(Number.isFinite(createdCustomerId) && createdCustomerId > 0)) {
+        throw new Error("Se creo el usuario, pero no se pudo obtener el cliente asociado.");
+      }
+
+      pickCustomer(createdCustomerId);
+      showSuccess("Cliente creado y asociado a la orden.");
+      return createdCustomerId;
+    } finally {
+      setCreateClientLoading(false);
+    }
+  }
+
   function resetPrefill() {
     setSubmitAttempted(false);
     setQuoteApplyError(null);
     setSelectedQuotesId("");
     setClientId("");
+    setCreateClientInlineEnabled(false);
+    resetCreateClientForm();
     skipClearOnTipoChangeRef.current = true;
     setTipoId(null);
     setDescripcion("");
+    setDireccion("");
     setSelectedTechnicians([]);
     setServicios([]);
     setMateriales([]);
@@ -961,6 +1283,8 @@ const {
     setErrors({});
     setTouched({});
     setQuoteAppliedKey(null);
+    setQuoteQuery("");
+    setQuoteOpen(false);
     setCustomerQuery("");
     setCustomerOpen(false);
   }
@@ -1052,6 +1376,7 @@ const {
 
     const freeText = extractFreeTextFromDescription(nq.description || "");
     setDescripcion(freeText);
+    setDireccion(String(nq.direccion || "").trim());
 
     const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(nq.services) && nq.services.length) {
@@ -1370,15 +1695,48 @@ const {
       schedule: true,
       technicians: true,
       viaticos: true,
+      direccion: true,
       materiales: true,
       servicios: true,
     });
 
-    const er = validateForm(validationContext);
+    const shouldCreateInlineClient = createClientInlineEnabled && !clientId;
+    const erRaw = validateForm(validationContext);
+    if (selectedBusyTechnicianIds.length > 0) {
+      erRaw.technicians = "Hay tecnicos ocupados en ese horario.";
+    }
+    const er = shouldCreateInlineClient
+      ? (Object.fromEntries(Object.entries(erRaw).filter(([k]) => k !== "clientId")) as Errors)
+      : erRaw;
     setErrors(er);
     if (Object.keys(er).length > 0) {
       showWarning("Revisa los campos marcados en rojo.");
       focusFirstError(er);
+      submitLockRef.current = false;
+      return;
+    }
+
+    let finalClientId = Number(clientId);
+    if (shouldCreateInlineClient) {
+      const inlineErrs = validateCreateClientForm(createClientForm);
+      setCreateClientErrors(inlineErrs);
+      if (Object.keys(inlineErrs).length) {
+        showWarning("Completa correctamente los datos del cliente nuevo.");
+        submitLockRef.current = false;
+        return;
+      }
+
+      try {
+        finalClientId = await createClientFromInlineForm();
+      } catch (e: any) {
+        showError(e?.response?.data?.message || e?.message || "No se pudo crear el cliente.");
+        submitLockRef.current = false;
+        return;
+      }
+    }
+
+    if (!Number.isFinite(finalClientId) || finalClientId <= 0) {
+      showError("Selecciona un cliente valido.");
       submitLockRef.current = false;
       return;
     }
@@ -1445,7 +1803,8 @@ const {
 
       const dto: CreateOrdersServiceDto = {
         description: finalDescription,
-        clientid: Number(clientId),
+        direccion: String(direccion || "").trim(),
+        clientid: finalClientId,
         stateid,
         fechainicio: dateStart,
         fechafin: dateEnd,
@@ -1570,37 +1929,90 @@ setNavigating(true);
 
               <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-9">
-                  <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-select">
-                    Seleccionar venta para precargar el formulario
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="field-quote-select"
-                      value={selectedQuotesId === "" ? "" : String(selectedQuotesId)}
+                  {selectedQuoteOption && (
+                    <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border bg-gray-50 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{selectedQuoteOption.label}</div>
+                        <div className="text-xs text-gray-500">{`Venta #${selectedQuoteOption.id}`}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearQuoteSelection}
+                        className="h-8 px-2.5 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                        disabled={quotesLoading || lookupsLoading || saving || navigating}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  )}
+
+                  <div ref={quoteBoxRef} className="relative">
+                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-search">
+                      Buscar y seleccionar venta para precargar
+                    </label>
+                    <input
+                      id="field-quote-search"
+                      ref={quoteInputRef}
+                      value={quoteQuery}
                       onChange={(e) => {
-                        const v = e.target.value ? Number(e.target.value) : "";
-                        setSelectedQuotesId((Number.isFinite(v) && v > 0 ? v : "") as any);
-                        setErrors((p) => ({ ...p, quote: undefined }));
-                        setTouched((t) => ({ ...t, quote: true }));
+                        setQuoteQuery(e.target.value);
+                        setQuoteOpen(true);
+                        if (errors.quote) setErrors((p) => ({ ...p, quote: undefined }));
                       }}
-                      className={`${selectBase} ${showFieldError("quote") ? errorRing : ""}`}
+                      onFocus={() => setQuoteOpen(true)}
+                      onBlur={() => runBlurValidation("quote")}
+                      onKeyDown={(e) => {
+                        if (!quoteOpen) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setQuoteActiveIndex((i) => Math.min(i + 1, Math.max(0, quoteSearchOptions.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setQuoteActiveIndex((i) => Math.max(i - 1, 0));
+                        } else if (e.key === "Enter") {
+                          if (quoteSearchOptions[quoteActiveIndex]) {
+                            e.preventDefault();
+                            pickQuote(quoteSearchOptions[quoteActiveIndex].id);
+                          }
+                        } else if (e.key === "Escape") {
+                          setQuoteOpen(false);
+                        }
+                      }}
+                      placeholder={
+                        quotesLoading ? "Cargando ventas..." : quoteOptions.length ? "Codigo, cliente o #ID..." : "No hay ventas"
+                      }
+                      className={`${inputBase} ${showFieldError("quote") ? errorRing : ""}`}
                       disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0 || saving || navigating}
                       aria-invalid={showFieldError("quote")}
-                    >
-                      <option value="">
-                        {quotesLoading
-                          ? "Cargando ventas..."
-                          : quoteOptions.length
-                          ? "Elige una venta"
-                          : "No hay ventas"}
-                      </option>
-                      {quoteOptions.map((q) => (
-                        <option key={q.id} value={String(q.id)}>
-                          {q.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className={chevron} aria-hidden="true">v</span>
+                      aria-expanded={quoteOpen}
+                      aria-controls="quote-suggest"
+                      aria-autocomplete="list"
+                    />
+
+                    {quoteOpen && !quotesLoading && !lookupsLoading && !(saving || navigating) && (
+                      <div id="quote-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                        {quoteSearchOptions.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                        ) : (
+                          <ul className="max-h-60 overflow-auto">
+                            {quoteSearchOptions.map((q, idx) => (
+                              <li key={q.id}>
+                                <button
+                                  type="button"
+                                  onMouseDown={(ev) => ev.preventDefault()}
+                                  onClick={() => pickQuote(q.id)}
+                                  onMouseEnter={() => setQuoteActiveIndex(idx)}
+                                  className={`w-full px-3 py-2 text-left text-sm ${idx === quoteActiveIndex ? "bg-gray-100" : "bg-white"}`}
+                                >
+                                  <span className="block truncate font-medium">{q.label}</span>
+                                  <span className="block text-xs text-gray-500">{`Venta #${q.id}`}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {quotesError && <p className={errorText}>{quotesError}</p>}
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
@@ -1644,12 +2056,53 @@ setNavigating(true);
                 <section className="rounded-xl border bg-white shadow-sm">
                   <header className="border-b px-3 py-2.5 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Cliente</div>
-                    <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "-"}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "-"}</div>
+                      {!clientLockedByQuote && (
+                        <label className="inline-flex items-center gap-1.5 text-xs text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={createClientInlineEnabled}
+                            onChange={async (e) => {
+                              if (clientLockedByQuote) return;
+                              const checked = e.target.checked;
+                              setCreateClientInlineEnabled(checked);
+                              if (checked) {
+                                setClientIdBeforeInlineCreate(clientId);
+                                clearCustomer();
+                                setErrors((p) => ({ ...p, clientId: undefined }));
+                                await ensureCreateClientLookups();
+                              } else {
+                                resetCreateClientForm();
+                                const previousId = Number(clientIdBeforeInlineCreate);
+                                if (
+                                  !clientId &&
+                                  Number.isFinite(previousId) &&
+                                  previousId > 0 &&
+                                  customers.some((c) => c.customerid === previousId)
+                                ) {
+                                  setClientId(previousId as any);
+                                  setErrors((p) => ({ ...p, clientId: undefined }));
+                                }
+                                setClientIdBeforeInlineCreate("");
+                              }
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 accent-red-700"
+                            disabled={saving || navigating || lookupsLoading || createClientLoading || clientLockedByQuote}
+                          />
+                          Crear cliente
+                        </label>
+                      )}
+                    </div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 gap-3" id="field-clientId">
                     <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("clientId") ? errorRing : ""}`}>
-                      {!selectedCustomer ? (
+                      {createClientInlineEnabled ? (
+                        <div className="text-xs text-gray-500">
+                          Se creara un cliente nuevo al guardar la orden.
+                        </div>
+                      ) : !selectedCustomer ? (
                         <div className="text-xs text-gray-500">No has seleccionado cliente.</div>
                       ) : (
                         <div className="flex items-center justify-between gap-3">
@@ -1671,11 +2124,14 @@ setNavigating(true);
 
                           <button
                             type="button"
-                            onClick={clearCustomer}
+                            onClick={() => {
+                              if (clientLockedByQuote) return;
+                              clearCustomer();
+                            }}
                             className="h-9 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
                             aria-label="Quitar cliente"
                             title="Quitar"
-                            disabled={lookupsLoading || saving || navigating}
+                            disabled={lookupsLoading || saving || navigating || clientLockedByQuote}
                           >
                             Quitar
                           </button>
@@ -1683,79 +2139,232 @@ setNavigating(true);
                       )}
                     </div>
 
-                    <div ref={customerBoxRef} className="relative">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-customer-search">
-                        Buscar y seleccionar cliente
-                      </label>
-                      <input
-                        id="field-customer-search"
-                        ref={customerInputRef}
-                        value={customerQuery}
-                        onChange={(e) => {
-                          setCustomerQuery(e.target.value);
-                          setCustomerOpen(true);
-                          if (errors.clientId) setErrors((p) => ({ ...p, clientId: undefined }));
-                        }}
-                        onFocus={() => setCustomerOpen(true)}
-                        onBlur={() => runBlurValidation("clientId")}
-                        onKeyDown={(e) => {
-                          if (!customerOpen) return;
-                          if (e.key === "ArrowDown") {
-                            e.preventDefault();
-                            setCustomerActiveIndex((i) => Math.min(i + 1, Math.max(0, customerOptions.length - 1)));
-                          } else if (e.key === "ArrowUp") {
-                            e.preventDefault();
-                            setCustomerActiveIndex((i) => Math.max(i - 1, 0));
-                          } else if (e.key === "Enter") {
-                            if (customerOptions[customerActiveIndex]) {
+                    {!createClientInlineEnabled && !clientLockedByQuote && (
+                      <div ref={customerBoxRef} className="relative">
+                        <label className="block text-xs text-gray-700 mb-1" htmlFor="field-customer-search">
+                          Buscar y seleccionar cliente
+                        </label>
+                        <input
+                          id="field-customer-search"
+                          ref={customerInputRef}
+                          value={customerQuery}
+                          onChange={(e) => {
+                            setCustomerQuery(e.target.value);
+                            setCustomerOpen(true);
+                            if (errors.clientId) setErrors((p) => ({ ...p, clientId: undefined }));
+                          }}
+                          onFocus={() => setCustomerOpen(true)}
+                          onBlur={() => runBlurValidation("clientId")}
+                          onKeyDown={(e) => {
+                            if (!customerOpen) return;
+                            if (e.key === "ArrowDown") {
                               e.preventDefault();
-                              pickCustomer(customerOptions[customerActiveIndex].customerid);
+                              setCustomerActiveIndex((i) => Math.min(i + 1, Math.max(0, customerOptions.length - 1)));
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setCustomerActiveIndex((i) => Math.max(i - 1, 0));
+                            } else if (e.key === "Enter") {
+                              if (customerOptions[customerActiveIndex]) {
+                                e.preventDefault();
+                                pickCustomer(customerOptions[customerActiveIndex].customerid);
+                              }
+                            } else if (e.key === "Escape") {
+                              setCustomerOpen(false);
                             }
-                          } else if (e.key === "Escape") {
-                            setCustomerOpen(false);
-                          }
-                        }}
-                        placeholder="Nombre, apellido o ID..."
-                        className={`${inputBase} ${showFieldError("clientId") ? errorRing : ""}`}
-                        disabled={lookupsLoading || saving || navigating}
-                        aria-expanded={customerOpen}
-                        aria-controls="customer-suggest"
-                        aria-autocomplete="list"
-                      />
+                          }}
+                          placeholder="Nombre, apellido o ID..."
+                          className={`${inputBase} ${showFieldError("clientId") ? errorRing : ""}`}
+                          disabled={lookupsLoading || saving || navigating || createClientLoading || clientLockedByQuote}
+                          aria-expanded={customerOpen}
+                          aria-controls="customer-suggest"
+                          aria-autocomplete="list"
+                        />
 
-                      {customerOpen && !lookupsLoading && !(saving || navigating) && (
-                        <div id="customer-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
-                          {customerOptions.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
-                          ) : (
-                            <ul className="max-h-60 overflow-auto">
-                              {customerOptions.map((c, idx) => (
-                                <li key={c.customerid}>
-                                  <button
-                                    type="button"
-                                    onMouseDown={(ev) => ev.preventDefault()}
-                                    onClick={() => pickCustomer(c.customerid)}
-                                    onMouseEnter={() => setCustomerActiveIndex(idx)}
-                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                                      idx === customerActiveIndex ? "bg-gray-100" : "bg-white"
-                                    }`}
-                                  >
-                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
-                                      {initials(c.label)}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate font-medium">{c.label}</span>
-                                      <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
-                                    </span>
-                                    <span className="text-xs text-gray-400">Seleccionar</span>
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        {customerOpen && !lookupsLoading && !(saving || navigating) && (
+                          <div id="customer-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                            {customerOptions.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                            ) : (
+                              <ul className="max-h-60 overflow-auto">
+                                {customerOptions.map((c, idx) => (
+                                  <li key={c.customerid}>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(ev) => ev.preventDefault()}
+                                      onClick={() => pickCustomer(c.customerid)}
+                                      onMouseEnter={() => setCustomerActiveIndex(idx)}
+                                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                        idx === customerActiveIndex ? "bg-gray-100" : "bg-white"
+                                      }`}
+                                    >
+                                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                        {initials(c.label)}
+                                      </span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-medium">{c.label}</span>
+                                        <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
+                                      </span>
+                                      <span className="text-xs text-gray-400">Seleccionar</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {clientLockedByQuote && (
+                      <p className="text-xs text-gray-500">Cliente bloqueado por la venta seleccionada. Quita la venta para cambiarlo.</p>
+                    )}
+
+                    {createClientInlineEnabled && (
+                      <>
+                        {createClientBootstrapping ? (
+                          <div className="text-xs text-gray-500">Cargando tipos de documento...</div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-lg border bg-gray-50 p-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Nombre</label>
+                              <input
+                                value={createClientForm.name}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, name: value }));
+                                  if (createClientErrors.name) setCreateClientErrors((prev) => ({ ...prev, name: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.name ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Nombres"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.name && <p className="mt-1 text-xs text-red-600">{createClientErrors.name}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Apellido</label>
+                              <input
+                                value={createClientForm.lastname}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, lastname: value }));
+                                  if (createClientErrors.lastname) setCreateClientErrors((prev) => ({ ...prev, lastname: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.lastname ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Apellidos"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.lastname && <p className="mt-1 text-xs text-red-600">{createClientErrors.lastname}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Correo</label>
+                              <input
+                                type="email"
+                                value={createClientForm.email}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, email: value }));
+                                  if (createClientErrors.email) setCreateClientErrors((prev) => ({ ...prev, email: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.email ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="correo@dominio.com"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.email && <p className="mt-1 text-xs text-red-600">{createClientErrors.email}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Telefono</label>
+                              <input
+                                value={createClientForm.phone}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^\d]/g, "");
+                                  setCreateClientForm((prev) => ({ ...prev, phone: value }));
+                                  if (createClientErrors.phone) setCreateClientErrors((prev) => ({ ...prev, phone: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.phone ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Solo numeros"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.phone && <p className="mt-1 text-xs text-red-600">{createClientErrors.phone}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Tipo de documento</label>
+                              <select
+                                value={createClientForm.typeid}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, typeid: value }));
+                                  if (createClientErrors.typeid) setCreateClientErrors((prev) => ({ ...prev, typeid: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.typeid ? "border-red-500" : "border-gray-300"}`}
+                                disabled={createClientLoading || saving || navigating}
+                              >
+                                <option value="">Selecciona...</option>
+                                {createClientDocTypes.map((d) => (
+                                  <option key={d.id} value={String(d.id)}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {createClientErrors.typeid && <p className="mt-1 text-xs text-red-600">{createClientErrors.typeid}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Numero de documento</label>
+                              <input
+                                value={createClientForm.documentnumber}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^\d]/g, "");
+                                  setCreateClientForm((prev) => ({ ...prev, documentnumber: value }));
+                                  if (createClientErrors.documentnumber) setCreateClientErrors((prev) => ({ ...prev, documentnumber: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.documentnumber ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Solo numeros"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.documentnumber && <p className="mt-1 text-xs text-red-600">{createClientErrors.documentnumber}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Ciudad</label>
+                              <input
+                                value={createClientForm.customercity}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, customercity: value }));
+                                  if (createClientErrors.customercity) setCreateClientErrors((prev) => ({ ...prev, customercity: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.customercity ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Ciudad (opcional)"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.customercity && <p className="mt-1 text-xs text-red-600">{createClientErrors.customercity}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Codigo postal</label>
+                              <input
+                                value={createClientForm.customerzipcode}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, customerzipcode: value }));
+                                  if (createClientErrors.customerzipcode) setCreateClientErrors((prev) => ({ ...prev, customerzipcode: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.customerzipcode ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Opcional"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.customerzipcode && (
+                                <p className="mt-1 text-xs text-red-600">{createClientErrors.customerzipcode}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
 
                     {showFieldError("clientId") && errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                   </div>
@@ -1941,7 +2550,7 @@ setNavigating(true);
                         <div id="tech-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                           {techOptions.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
-                              {selectedTechnicians.length === technicians.length ? "Ya seleccionaste todos los tecnicos." : "No hay coincidencias."}
+                              {selectedTechnicians.length === availableTechnicians.length ? "Ya seleccionaste todos los tecnicos." : "No hay coincidencias."}
                             </div>
                           ) : (
                             <ul className="max-h-60 overflow-auto">
@@ -2143,6 +2752,26 @@ setNavigating(true);
                       </div>
 
                       {showFieldError("servicios") && errors.servicios && <p className={errorText}>{errors.servicios}</p>}
+                    </div>
+
+                    <div className="md:col-span-12" id="field-direccion">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-direccion">
+                        Direccion del servicio
+                      </label>
+                      <input
+                        id="field-direccion"
+                        type="text"
+                        value={direccion}
+                        onChange={(e) => {
+                          setDireccion(e.target.value);
+                          if (errors.direccion) setErrors((p) => ({ ...p, direccion: undefined }));
+                        }}
+                        onBlur={() => runBlurValidation("direccion")}
+                        className={`${inputBase} ${showFieldError("direccion") ? errorRing : ""}`}
+                        placeholder="Ej: Calle 123 #45-67, Barrio..."
+                        disabled={saving || navigating}
+                      />
+                      {showFieldError("direccion") && errors.direccion && <p className={errorText}>{errors.direccion}</p>}
                     </div>
 
                     <div className="md:col-span-12" id="field-description">
@@ -2505,7 +3134,3 @@ setNavigating(true);
     </RequireAuth>
   );
 }
-
-
-
-

@@ -2,11 +2,16 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import RequireAuth from "@/features/auth/requireauth";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
 import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
+import {
+  buildWindowFromLocalSchedule,
+  getBusyTechnicianIdsForWindow,
+} from "@/features/dashboard/shared/technicianAvailability";
 import type { UpdateOrdersServiceDto } from "../types/ordersServices.types";
 
 type ServiceLineItem = {
@@ -108,6 +113,7 @@ type Errors = Partial<{
   schedule: string;
   technicians: string;
   viaticos: string;
+  direccion: string;
   servicios: string;
   materiales: string;
   description: string;
@@ -257,6 +263,7 @@ type OrderNormalized = {
   horafin?: string;
   viaticos?: number;
   technicians?: number[];
+  direccion?: string;
   description?: string;
   services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
   products?: Array<{ productid: number; cantidad: number }>;
@@ -279,6 +286,7 @@ function normalizeOrder(order: any): OrderNormalized {
   const horainicio = pickString(root?.horainicio);
   const horafin = pickString(root?.horafin);
   const viaticos = pickNumber(root?.viaticos) ?? 0;
+  const direccion = pickString(root?.direccion);
   const description = pickString(root?.description);
   const files = Array.isArray(root?.files) ? root.files.map((x: any) => String(x || "")).filter(Boolean) : [];
   const stateid = pickNumber(root?.state?.stateid, root?.stateid);
@@ -331,6 +339,7 @@ function normalizeOrder(order: any): OrderNormalized {
     horafin,
     viaticos,
     technicians,
+    direccion,
     description,
     services,
     products,
@@ -574,6 +583,7 @@ const {
   const [orderStateId, setOrderStateId] = useState<number | null>(null);
 
   const [descripcion, setDescripcion] = useState("");
+  const [direccion, setDireccion] = useState("");
 
   const [viaticosInput, setViaticosInput] = useState<string>("0");
   const viaticosValue = useMemo(() => {
@@ -612,9 +622,12 @@ const {
   const [techActiveIndex, setTechActiveIndex] = useState(0);
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
+  const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
+  const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
   const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
   const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
+  const [materialOpenId, setMaterialOpenId] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -656,6 +669,33 @@ const {
     shownLookupErr.current = lookupsError;
     showError(lookupsError);
   }, [lookupsError]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const [ordersRes, requestsRes] = await Promise.allSettled([
+        api.get("orders-services"),
+        api.get("service-requests"),
+      ]);
+      if (cancelled) return;
+
+      const ordersData =
+        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+          ? (ordersRes.value as any).data
+          : [];
+      const requestsData =
+        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+          ? (requestsRes.value as any).data
+          : [];
+
+      setScheduledOrdersRaw(ordersData);
+      setScheduledRequestsRaw(requestsData);
+    }
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!techOpen) return;
@@ -712,9 +752,32 @@ const {
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
 
+  const selectedWindow = useMemo(
+    () => buildWindowFromLocalSchedule(dateStart, timeStart, dateEnd, timeEnd),
+    [dateStart, timeStart, dateEnd, timeEnd]
+  );
+
+  const busyTechnicianIds = useMemo(
+    () =>
+      getBusyTechnicianIdsForWindow(scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, {
+        excludeOrderId: orderId,
+      }),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, orderId]
+  );
+
+  const availableTechnicians = useMemo(
+    () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
+    [technicians, busyTechnicianIds]
+  );
+
+  const selectedBusyTechnicianIds = useMemo(
+    () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
+    [selectedTechnicians, busyTechnicianIds]
+  );
+
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -729,7 +792,7 @@ const {
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
-  }, [technicians, techQuery, selectedTechSet]);
+  }, [availableTechnicians, techQuery, selectedTechSet]);
 
   useEffect(() => {
     setTechActiveIndex(0);
@@ -737,6 +800,10 @@ const {
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
+    if (busyTechnicianIds.has(id)) {
+      showWarning("Ese técnico ya está ocupado en el horario seleccionado.");
+      return;
+    }
     setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setErrors((p) => ({ ...p, technicians: undefined }));
     setTechQuery("");
@@ -941,9 +1008,16 @@ const {
     }
 
     if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
+    else if (selectedBusyTechnicianIds.length > 0)
+      errs.technicians = "Hay técnicos ocupados en ese horario.";
 
-    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
-    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
+    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viaticos debe ser un numero valido.";
+    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viaticos no puede ser negativo.";
+
+    const dir = String(direccion || "").trim();
+    if (!dir) errs.direccion = "La direccion es obligatoria.";
+    else if (dir.length < 3) errs.direccion = "La direccion debe tener al menos 3 caracteres.";
+    else if (dir.length > 255) errs.direccion = "La direccion no puede superar 255 caracteres.";
 
     const desc = String(descripcion || "").trim();
     if (!desc) errs.description = "La descripción es obligatoria.";
@@ -982,7 +1056,7 @@ const {
   }
 
   function focusFirstError(er: Errors) {
-    const order = ["clientId", "tipo", "schedule", "technicians", "viaticos", "description", "materiales", "servicios"] as const;
+    const order = ["clientId", "tipo", "schedule", "technicians", "viaticos", "direccion", "description", "materiales", "servicios"] as const;
     const key = order.find((k) => (er as any)[k]);
     if (!key) return;
     const el = document.getElementById(`field-${key}`);
@@ -1061,6 +1135,7 @@ const {
     setTimeEnd(baseTe);
 
     // Importante: NO extraer ni reconstruir. Se deja tal cual viene (texto libre del usuario).
+    setDireccion(n.direccion || "");
     setDescripcion(n.description || "");
 
     const svcItems: ServiceLineItem[] = [];
@@ -1101,8 +1176,13 @@ const {
   }, [clientId]);
 
   useEffect(() => {
-    if (selectedTechnicians.length) setErrors((p) => ({ ...p, technicians: undefined }));
-  }, [selectedTechnicians]);
+    if (!selectedTechnicians.length) return;
+    if (selectedBusyTechnicianIds.length > 0) {
+      setErrors((p) => ({ ...p, technicians: "Hay técnicos ocupados en ese horario." }));
+      return;
+    }
+    setErrors((p) => ({ ...p, technicians: undefined }));
+  }, [selectedTechnicians, selectedBusyTechnicianIds]);
 
   useEffect(() => {
     if (materiales.length) setErrors((p) => ({ ...p, materiales: undefined }));
@@ -1117,6 +1197,11 @@ const {
     if (!t) return;
     if (t.length >= DESC_MIN && t.length <= DESC_MAX) setErrors((p) => ({ ...p, description: undefined }));
   }, [descripcion]);
+
+  useEffect(() => {
+    const t = String(direccion || "").trim();
+    if (t.length >= 3 && t.length <= 255) setErrors((p) => ({ ...p, direccion: undefined }));
+  }, [direccion]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1189,6 +1274,7 @@ const {
 
       const updateDto: UpdateOrdersServiceDto = {
         description: finalDescription,
+        direccion: String(direccion || "").trim(),
         clientid: Number(clientId),
         stateid,
         fechainicio: dateStart,
@@ -1394,144 +1480,133 @@ const {
             <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
               <div className="space-y-6">
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2.5 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Cliente</div>
                     <div className="text-xs text-gray-500">
-                      {customers.length ? `${customers.length} disponibles` : "—"}
+                      {customers.length ? `${customers.length} disponibles` : "-"}
                     </div>
                   </header>
 
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-                    <div className="md:col-span-12" id="field-clientId">
-                      <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
-                        Buscar y seleccionar cliente
-                      </label>
-
-                      {selectedCustomer ? (
-                        <div className={`rounded-lg border bg-gray-50 p-3 ${errors.clientId ? errorRing : ""}`}>
-                          <div className="flex items-start justify-between gap-3">
+                  <div className="p-4 grid grid-cols-1 gap-3" id="field-clientId">
+                    <div className={`rounded-lg border bg-gray-50 p-3 ${errors.clientId ? errorRing : ""}`}>
+                      {!selectedCustomer ? (
+                        <div className="text-xs text-gray-500">No has seleccionado cliente.</div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-xs font-semibold">
+                              {initials(selectedCustomer.label)}
+                            </span>
                             <div className="min-w-0">
-                              <div className="text-xs text-gray-500">Cliente seleccionado</div>
-                              <div className="mt-1 font-medium text-gray-900 truncate">
-                                #{selectedCustomer.customerid} — {selectedCustomer.label}
-                              </div>
-                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-gray-700">
-                                <div className="bg-white rounded-lg border p-2">
-                                  <div className="font-medium text-gray-900">Contacto</div>
-                                  <div className="mt-1">{selectedCustomer.phone || selectedCustomer.email || "—"}</div>
-                                </div>
-                                <div className="bg-white rounded-lg border p-2">
-                                  <div className="font-medium text-gray-900">Ubicación</div>
-                                  <div className="mt-1">
-                                    {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ") || "—"}
-                                  </div>
-                                </div>
-                                <div className="bg-white rounded-lg border p-2">
-                                  <div className="font-medium text-gray-900">Acción</div>
-                                  <div className="mt-1">
-                                    <button
-                                      type="button"
-                                      onClick={clearClient}
-                                      className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50"
-                                      disabled={lookupsLoading}
-                                    >
-                                      Cambiar cliente
-                                    </button>
-                                  </div>
-                                </div>
+                              <div className="text-sm font-semibold text-gray-900 truncate">{selectedCustomer.label}</div>
+                              <div className="text-xs text-gray-600 truncate">
+                                {`Cliente #${selectedCustomer.customerid}`}
+                                {selectedCustomer.phone || selectedCustomer.email ? ` - ${selectedCustomer.phone || selectedCustomer.email}` : ""}
+                                {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).length
+                                  ? ` - ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" * ")}`
+                                  : ""}
                               </div>
                             </div>
                           </div>
-                          {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
-                        </div>
-                      ) : (
-                        <div ref={clientBoxRef} className="relative">
-                          <input
-                            id="field-clientId-input"
-                            ref={clientInputRef}
-                            value={clientQuery}
-                            onChange={(e) => {
-                              setClientQuery(e.target.value);
-                              setClientOpen(true);
-                              setErrors((p) => ({ ...p, clientId: undefined }));
-                            }}
-                            onFocus={() => setClientOpen(true)}
-                            onKeyDown={(e) => {
-                              if (!clientOpen) return;
-                              if (e.key === "ArrowDown") {
-                                e.preventDefault();
-                                setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
-                              } else if (e.key === "ArrowUp") {
-                                e.preventDefault();
-                                setClientActiveIndex((i) => Math.max(i - 1, 0));
-                              } else if (e.key === "Enter") {
-                                if (clientOptions[clientActiveIndex]) {
-                                  e.preventDefault();
-                                  pickClient(clientOptions[clientActiveIndex].customerid);
-                                }
-                              } else if (e.key === "Escape") {
-                                setClientOpen(false);
-                              }
-                            }}
-                            placeholder={lookupsLoading ? "Cargando..." : "Nombre, apellido o ID..."}
-                            className={`${inputBase} ${errors.clientId ? errorRing : ""}`}
+                          <button
+                            type="button"
+                            onClick={clearClient}
+                            className="h-9 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                            aria-label="Quitar cliente"
+                            title="Quitar"
                             disabled={lookupsLoading}
-                            aria-expanded={clientOpen}
-                            aria-controls="client-suggest"
-                            aria-autocomplete="list"
-                          />
-
-                          {clientOpen && !lookupsLoading && (
-                            <div
-                              id="client-suggest"
-                              className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm"
-                            >
-                              {clientOptions.length === 0 ? (
-                                <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
-                              ) : (
-                                <ul className="max-h-60 overflow-auto">
-                                  {clientOptions.map((c, idx) => (
-                                    <li key={c.customerid}>
-                                      <button
-                                        type="button"
-                                        onMouseDown={(ev) => ev.preventDefault()}
-                                        onClick={() => pickClient(c.customerid)}
-                                        onMouseEnter={() => setClientActiveIndex(idx)}
-                                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                                          idx === clientActiveIndex ? "bg-gray-100" : "bg-white"
-                                        }`}
-                                      >
-                                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
-                                          {initials(c.label)}
-                                        </span>
-                                        <span className="min-w-0 flex-1">
-                                          <span className="block truncate font-medium">{c.label}</span>
-                                          <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
-                                        </span>
-                                        <span className="text-xs text-gray-400">Seleccionar</span>
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          )}
-
-                          {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
+                          >
+                            Quitar
+                          </button>
                         </div>
                       )}
                     </div>
+
+                    <div ref={clientBoxRef} className="relative">
+                      <label htmlFor="field-clientId-input" className="block text-xs text-gray-700 mb-1">
+                        Buscar y seleccionar cliente
+                      </label>
+                      <input
+                        id="field-clientId-input"
+                        ref={clientInputRef}
+                        value={clientQuery}
+                        onChange={(e) => {
+                          setClientQuery(e.target.value);
+                          setClientOpen(true);
+                          setErrors((p) => ({ ...p, clientId: undefined }));
+                        }}
+                        onFocus={() => setClientOpen(true)}
+                        onKeyDown={(e) => {
+                          if (!clientOpen) return;
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
+                          } else if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setClientActiveIndex((i) => Math.max(i - 1, 0));
+                          } else if (e.key === "Enter") {
+                            if (clientOptions[clientActiveIndex]) {
+                              e.preventDefault();
+                              pickClient(clientOptions[clientActiveIndex].customerid);
+                            }
+                          } else if (e.key === "Escape") {
+                            setClientOpen(false);
+                          }
+                        }}
+                        placeholder={lookupsLoading ? "Cargando..." : "Nombre, apellido o ID..."}
+                        className={`${inputBase} ${errors.clientId ? errorRing : ""}`}
+                        disabled={lookupsLoading}
+                        aria-expanded={clientOpen}
+                        aria-controls="client-suggest"
+                        aria-autocomplete="list"
+                      />
+
+                      {clientOpen && !lookupsLoading && (
+                        <div id="client-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                          {clientOptions.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                          ) : (
+                            <ul className="max-h-60 overflow-auto">
+                              {clientOptions.map((c, idx) => (
+                                <li key={c.customerid}>
+                                  <button
+                                    type="button"
+                                    onMouseDown={(ev) => ev.preventDefault()}
+                                    onClick={() => pickClient(c.customerid)}
+                                    onMouseEnter={() => setClientActiveIndex(idx)}
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                      idx === clientActiveIndex ? "bg-gray-100" : "bg-white"
+                                    }`}
+                                  >
+                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                      {initials(c.label)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">{c.label}</span>
+                                      <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
+                                    </span>
+                                    <span className="text-xs text-gray-400">Seleccionar</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                   </div>
                 </section>
 
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Programación</div>
                     <div className="text-xs text-gray-500">Lun–Sáb · 07:00–17:00</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
-                    <div className="md:col-span-4">
+                    <div className="md:col-span-3">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-order-state">
                         Estado
                       </label>
@@ -1562,7 +1637,7 @@ const {
                       </div>
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-3">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateStart">
                         Fecha inicio
                       </label>
@@ -1575,7 +1650,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-3">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeStart">
                         Hora inicio
                       </label>
@@ -1590,7 +1665,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-3">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-dateEnd">
                         Fecha fin
                       </label>
@@ -1603,7 +1678,7 @@ const {
                       />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-3">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-timeEnd">
                         Hora fin
                       </label>
@@ -1669,7 +1744,13 @@ const {
                                 title="Quitar"
                                 disabled={lookupsLoading}
                               >
-                                ✕
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar tecnico"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </span>
                           ))}
@@ -1722,7 +1803,7 @@ const {
                         >
                           {techOptions.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
-                              {selectedTechnicians.length === technicians.length
+                              {selectedTechnicians.length === availableTechnicians.length
                                 ? "Ya seleccionaste todos los técnicos."
                                 : "No hay coincidencias."}
                             </div>
@@ -1918,7 +1999,13 @@ const {
                                       aria-label="Quitar servicio"
                                       title="Quitar"
                                     >
-                                      ✕
+                                      <Image
+                                        src="/icons/delete.svg"
+                                        alt="Quitar servicio"
+                                        width={16}
+                                        height={16}
+                                        className="mx-auto h-4 w-4 opacity-80"
+                                      />
                                     </button>
                                   </td>
                                 </tr>
@@ -1937,6 +2024,33 @@ const {
                       </div>
 
                       {errors.servicios && <p className={errorText}>{errors.servicios}</p>}
+                    </div>
+
+                    <div className="md:col-span-12" id="field-direccion">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-direccion-input">
+                        Direccion del servicio
+                      </label>
+                      <input
+                        id="field-direccion-input"
+                        type="text"
+                        value={direccion}
+                        onChange={(e) => {
+                          setDireccion(e.target.value);
+                          if (errors.direccion) setErrors((p) => ({ ...p, direccion: undefined }));
+                        }}
+                        onBlur={() => {
+                          const t = String(direccion || "").trim();
+                          if (!t) setErrors((p) => ({ ...p, direccion: "La direccion es obligatoria." }));
+                          else if (t.length < 3)
+                            setErrors((p) => ({ ...p, direccion: "La direccion debe tener al menos 3 caracteres." }));
+                          else if (t.length > 255)
+                            setErrors((p) => ({ ...p, direccion: "La direccion no puede superar 255 caracteres." }));
+                          else setErrors((p) => ({ ...p, direccion: undefined }));
+                        }}
+                        className={`${inputBase} ${errors.direccion ? errorRing : ""}`}
+                        placeholder="Ej: Calle 123 #45-67, Barrio..."
+                      />
+                      {errors.direccion && <p className={errorText}>{errors.direccion}</p>}
                     </div>
 
                     <div className="md:col-span-12" id="field-description">
@@ -2029,7 +2143,13 @@ const {
                                   className="absolute right-1 top-1 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 shadow-sm ring-1 ring-red-200 hover:bg-white"
                                   title="Eliminar imagen"
                                 >
-                                  X
+                                  <Image
+                                    src="/icons/delete.svg"
+                                    alt="Eliminar imagen"
+                                    width={12}
+                                    height={12}
+                                    className="h-3 w-3 opacity-80"
+                                  />
                                 </button>
                               </div>
                             ))}
@@ -2055,7 +2175,13 @@ const {
                                 title="Quitar"
                                 disabled={lookupsLoading}
                               >
-                                ✕
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar imagen"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </div>
                           ))
@@ -2075,115 +2201,132 @@ const {
                     </div>
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
-
                   <div className="p-4">
-                    <div className={`rounded-lg border overflow-hidden bg-white ${errors.materiales ? errorRing : ""}`}>
-                      <table className="w-full text-xs md:text-sm">
-                        <thead className="bg-gray-50">
-                          <tr className="text-gray-700">
-                            <th className="px-3 py-2 text-left">Producto</th>
-                            <th className="px-3 py-2 text-right w-20">Cant.</th>
-                            <th className="px-3 py-2 text-right w-32">Precio</th>
-                            <th className="px-3 py-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {materiales.map((m) => {
-                            const opts = availableProducts(m.nombre);
-                            const fallbackCurrent =
-                              !opts.some((o) => o.productname === m.nombre) && m.nombre
-                                ? [{ productid: -1, productname: m.nombre, productpriceofsale: m.precio } as any, ...opts]
-                                : opts;
+                    <div className={`space-y-2 rounded-lg border bg-white p-2.5 ${errors.materiales ? errorRing : ""}`}>
+                      {materiales.length === 0 ? (
+                        <div className="px-2 py-3 text-xs text-gray-500">Aún no has añadido productos.</div>
+                      ) : (
+                        materiales.map((m) => {
+                          const opts = availableProducts(m.nombre);
+                          const fallbackCurrent =
+                            !opts.some((o) => o.productname === m.nombre) && m.nombre
+                              ? [{ productid: -1, productname: m.nombre, productpriceofsale: m.precio } as any, ...opts]
+                              : opts;
 
-                            return (
-                              <tr key={m.id} className="border-t">
-                                <td className="px-3 py-2">
-                                  <select
-                                    value={m.nombre}
-                                    onChange={(e) => {
-                                      const n = e.target.value;
-                                      patchItem<MaterialLineItem>(
-                                        m.id,
-                                        { nombre: n, precio: precioMaterialPorNombre(n) },
-                                        setMateriales
-                                      );
-                                      setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                    }}
-                                    className="w-full h-9 rounded-md border px-2"
-                                    disabled={!productsCatalog.length || lookupsLoading}
-                                  >
-                                    {fallbackCurrent.map((opt) => (
-                                      <option key={`${m.id}-${opt.productid}-${opt.productname}`} value={opt.productname}>
-                                        {opt.productname}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
+                          return (
+                            <div key={m.id} className="rounded-md border bg-gray-50 p-2.5">
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <div className="text-[11px] text-gray-600">Producto</div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    removeItem<MaterialLineItem>(m.id, setMateriales);
+                                    setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                  }}
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-white hover:bg-gray-100"
+                                  disabled={lookupsLoading}
+                                  aria-label="Quitar producto"
+                                  title="Quitar"
+                                >
+                                  <Image
+                                    src="/icons/delete.svg"
+                                    alt="Quitar producto"
+                                    width={12}
+                                    height={12}
+                                    className="h-3 w-3 opacity-80"
+                                  />
+                                </button>
+                              </div>
 
-                                <td className="px-3 py-2 text-right">
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
+                                  className="flex h-9 w-full items-center justify-between rounded-md border bg-white px-2.5 text-xs"
+                                  disabled={!productsCatalog.length || lookupsLoading}
+                                  title={m.nombre || "Seleccionar producto"}
+                                >
+                                  <span className="truncate pr-2">{m.nombre || "Seleccionar producto"}</span>
+                                  <span className="text-[10px] text-gray-400">{materialOpenId === m.id ? "^" : "v"}</span>
+                                </button>
+
+                                {materialOpenId === m.id && (
+                                  <div className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-auto rounded-md border bg-white shadow-sm">
+                                    {fallbackCurrent.length === 0 ? (
+                                      <div className="px-3 py-2 text-[11px] text-gray-500">No hay más productos disponibles.</div>
+                                    ) : (
+                                      fallbackCurrent.map((opt) => (
+                                        <button
+                                          key={`${m.id}-${opt.productid}-${opt.productname}`}
+                                          type="button"
+                                          onClick={() => {
+                                            patchItem<MaterialLineItem>(
+                                              m.id,
+                                              { nombre: opt.productname, precio: precioMaterialPorNombre(opt.productname) },
+                                              setMateriales
+                                            );
+                                            setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                            setMaterialOpenId(null);
+                                          }}
+                                          className="block w-full border-b px-3 py-2 text-left text-xs last:border-b-0 hover:bg-gray-50"
+                                        >
+                                          <span className="block truncate font-medium">{opt.productname}</span>
+                                          <span className="block text-[11px] text-gray-500">{formatCOP(opt.productpriceofsale)}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-2 flex items-end gap-1.5">
+                                <div className="w-20 shrink-0">
+                                  <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
                                   <input
                                     type="number"
                                     min={1}
+                                    step={1}
                                     value={m.cantidad}
                                     onChange={(e) => {
+                                      const n = Number(e.target.value || 1);
                                       patchItem<MaterialLineItem>(
                                         m.id,
-                                        { cantidad: Math.max(1, Number(e.target.value || 1)) },
+                                        { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
                                         setMateriales
                                       );
                                       setErrors((prev) => ({ ...prev, materiales: undefined }));
                                     }}
-                                    className="h-9 w-20 rounded-md border px-2 text-right"
+                                    className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
                                     disabled={lookupsLoading}
                                   />
-                                </td>
+                                </div>
 
-                                <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
-
-                                <td className="px-3 py-2 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      removeItem<MaterialLineItem>(m.id, setMateriales);
-                                      setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                    }}
-                                    className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                    disabled={lookupsLoading}
-                                    aria-label="Quitar producto"
-                                    title="Quitar"
-                                  >
-                                    ✕
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-
-                          {materiales.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
-                                Aún no has añadido productos.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                                <div className="flex-1 min-w-0">
+                                  <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
+                                  <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
+                                    {formatCOP(m.precio)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
 
                     {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
 
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <button
                         type="button"
                         onClick={addMaterialRow}
-                        className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
                         disabled={!productsCatalog.length || lookupsLoading || availableProducts().length === 0}
+                        title={availableProducts().length === 0 ? "Ya agregaste todos los productos disponibles." : undefined}
                       >
-                        Añadir producto
+                        {availableProducts().length === 0 ? "No hay más productos disponibles" : "Añadir producto"}
                       </button>
-                      <div className="mt-1 text-[11px] text-gray-500">
-                        Los productos que ya agregaste se ocultan de la lista para evitar duplicados.
-                      </div>
                     </div>
                   </div>
                 </section>
@@ -2293,3 +2436,8 @@ const {
     </RequireAuth>
   );
 }
+
+
+
+
+

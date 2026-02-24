@@ -16,14 +16,13 @@ export default function ProductsIndex() {
     products,
     loading,
 
-    status,
-    setStatus,
-
     isCreateModalOpen,
     setIsCreateModalOpen,
+
     isEditModalOpen,
     editingProduct,
     setEditingProduct,
+
     handleCreateProduct,
     handleEditProduct,
     handleDelete,
@@ -65,54 +64,7 @@ export default function ProductsIndex() {
               onClose={() => setViewingProduct(null)}
             />
 
-            <div className="-mt-6 mb-5">
-              <div className="inline-flex rounded-xl border border-gray-200 bg-gray-100 p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setStatus("active")}
-                  className={[
-                    "h-9 w-24 rounded-lg text-sm font-medium transition",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400",
-                    status === "active"
-                      ? "bg-white text-gray-900 shadow border border-gray-200"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  Activo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setStatus("inactive")}
-                  className={[
-                    "h-9 w-24 rounded-lg text-sm font-medium transition",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400",
-                    status === "inactive"
-                      ? "bg-white text-gray-900 shadow border border-gray-200"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  Inactivo
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setStatus("all")}
-                  className={[
-                    "h-9 w-24 rounded-lg text-sm font-medium transition",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400",
-                    status === "all"
-                      ? "bg-white text-gray-900 shadow border border-gray-200"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  Todos
-                </button>
-              </div>
-            </div>
-
             <ProductsTable
-              status={status}
               products={products}
               onView={(p) => setViewingProduct(p)}
               onEdit={(p) => setEditingProduct(p)}

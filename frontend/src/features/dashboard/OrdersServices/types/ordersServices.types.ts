@@ -73,6 +73,7 @@ export type OrdersServiceWarrantyDTO =
 export type OrderServiceDTO = {
   ordersservicesid: number;
   description: string;
+  direccion?: string | null;
   client?: CustomerDTO | null;
   state?: { stateid: number; name: string } | null;
   fechainicio?: string | null;
@@ -103,6 +104,7 @@ export type CreateOrderServiceLineDto = {
 
 export type CreateOrdersServiceDto = {
   description: string;
+  direccion: string;
   clientid: number;
   stateid: number;
   fechainicio: string;
@@ -118,6 +120,7 @@ export type CreateOrdersServiceDto = {
 
 export type UpdateOrdersServiceDto = {
   description?: string;
+  direccion?: string;
   clientid?: number;
   stateid?: number;
   fechainicio?: string;

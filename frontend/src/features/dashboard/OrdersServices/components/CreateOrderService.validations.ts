@@ -1,9 +1,4 @@
-import {
-  isAllowedDate,
-  isAllowedTime,
-  parseYMD,
-  timeToMinutes,
-} from "./CreateOrderService.utils";
+import { isAllowedDate, isAllowedTime, parseYMD, timeToMinutes } from "./CreateOrderService.utils";
 
 export const DESC_MIN = 5;
 export const DESC_MAX = 500;
@@ -11,6 +6,7 @@ export const DESC_MAX = 500;
 export type OrderServiceFormErrors = Partial<{
   quote: string;
   clientId: string;
+  direccion: string;
   tipo: string;
   schedule: string;
   technicians: string;
@@ -34,6 +30,7 @@ type ValidationContext = {
   timeEnd: string;
   selectedTechnicians: number[];
   viaticosValue: number;
+  direccion: string;
   descripcion: string;
   servicios: ServiceLineItemInput[];
   servicesCatalog: ServiceOptionInput[];
@@ -44,7 +41,15 @@ type ValidationContext = {
 export function validateDescription(description: string): string | undefined {
   const text = String(description || "").trim();
   if (!text) return undefined;
-  if (text.length > DESC_MAX) return `La descripción no puede superar ${DESC_MAX} caracteres.`;
+  if (text.length > DESC_MAX) return `La descripcion no puede superar ${DESC_MAX} caracteres.`;
+  return undefined;
+}
+
+function validateDireccion(direccion: string): string | undefined {
+  const text = String(direccion || "").trim();
+  if (!text) return "La direccion es obligatoria.";
+  if (text.length < 3) return "La direccion debe tener al menos 3 caracteres.";
+  if (text.length > 255) return "La direccion no puede superar 255 caracteres.";
   return undefined;
 }
 
@@ -52,18 +57,18 @@ function validateScheduleOnly(ctx: Pick<ValidationContext, "dateStart" | "timeSt
   const { dateStart, timeStart, dateEnd, timeEnd } = ctx;
 
   if (!dateStart || !timeStart || !dateEnd || !timeEnd) return "Completa fecha y hora de inicio y fin.";
-  if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) return "Solo se permite agendar de lunes a sábado.";
-  if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) return "Horario permitido: 07:00–17:00.";
+  if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) return "Solo se permite agendar de lunes a sabado.";
+  if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) return "Horario permitido: 07:00-17:00.";
 
   const sDate = parseYMD(dateStart);
   const eDate = parseYMD(dateEnd);
-  if (!sDate || !eDate) return "Fecha inválida.";
+  if (!sDate || !eDate) return "Fecha invalida.";
 
   const s = new Date(sDate);
   const e = new Date(eDate);
   const sMin = timeToMinutes(timeStart);
   const eMin = timeToMinutes(timeEnd);
-  if (!Number.isFinite(sMin) || !Number.isFinite(eMin)) return "Hora inválida.";
+  if (!Number.isFinite(sMin) || !Number.isFinite(eMin)) return "Hora invalida.";
 
   s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
   e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
@@ -81,13 +86,13 @@ function collectServiceErrors(
 ): string | undefined {
   const errors: string[] = [];
 
-  if (servicios.length === 0) return "Debes añadir al menos un servicio.";
+  if (servicios.length === 0) return "Debes anadir al menos un servicio.";
 
   const invalidSvc = servicios.some((s) => {
     if (!s.tipoId) return true;
     return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
   });
-  if (invalidSvc) errors.push("Hay servicios inválidos. Vuelve a seleccionarlos.");
+  if (invalidSvc) errors.push("Hay servicios invalidos. Vuelve a seleccionarlos.");
 
   const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
   if (badPriceSvc) errors.push("Corrige precios de servicios.");
@@ -118,18 +123,18 @@ function collectMaterialErrors(
   const errors: string[] = [];
 
   if (!productsCatalog.length) errors.push("No hay productos cargados desde la BD.");
-  if (!materiales.length) errors.push("Debes añadir al menos un producto (material).");
+  if (!materiales.length) errors.push("Debes anadir al menos un producto (material).");
 
   const dupMat =
     materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
   if (dupMat) errors.push("No puedes repetir el mismo producto.");
 
   if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-    errors.push("Hay productos inválidos. Vuelve a seleccionarlos.");
+    errors.push("Hay productos invalidos. Vuelve a seleccionarlos.");
   }
 
   if (materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1)) {
-    errors.push("Corrige cantidades (mínimo 1).");
+    errors.push("Corrige cantidades (minimo 1).");
   }
 
   if (!errors.length) return undefined;
@@ -147,14 +152,16 @@ export function validateField(key: keyof OrderServiceFormErrors, ctx: Validation
   if (key === "schedule") return validateScheduleOnly(ctx);
 
   if (key === "technicians") {
-    return !ctx.selectedTechnicians.length ? "Selecciona al menos un técnico." : undefined;
+    return !ctx.selectedTechnicians.length ? "Selecciona al menos un tecnico." : undefined;
   }
 
   if (key === "viaticos") {
-    if (!Number.isFinite(ctx.viaticosValue)) return "Viáticos debe ser un número válido.";
-    if (ctx.viaticosValue < 0) return "Viáticos no puede ser negativo.";
+    if (!Number.isFinite(ctx.viaticosValue)) return "Viaticos debe ser un numero valido.";
+    if (ctx.viaticosValue < 0) return "Viaticos no puede ser negativo.";
     return undefined;
   }
+
+  if (key === "direccion") return validateDireccion(ctx.direccion);
 
   if (key === "description") return validateDescription(ctx.descripcion);
 
@@ -178,10 +185,13 @@ export function validateForm(ctx: ValidationContext): OrderServiceFormErrors {
   const scheduleError = validateScheduleOnly(ctx);
   if (scheduleError) errs.schedule = scheduleError;
 
-  if (!ctx.selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
+  if (!ctx.selectedTechnicians.length) errs.technicians = "Selecciona al menos un tecnico.";
 
-  if (!Number.isFinite(ctx.viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
-  if (Number.isFinite(ctx.viaticosValue) && ctx.viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
+  if (!Number.isFinite(ctx.viaticosValue)) errs.viaticos = "Viaticos debe ser un numero valido.";
+  if (Number.isFinite(ctx.viaticosValue) && ctx.viaticosValue < 0) errs.viaticos = "Viaticos no puede ser negativo.";
+
+  const direccionError = validateDireccion(ctx.direccion);
+  if (direccionError) errs.direccion = direccionError;
 
   const descriptionError = validateDescription(ctx.descripcion);
   if (descriptionError) errs.description = descriptionError;
@@ -194,4 +204,3 @@ export function validateForm(ctx: ValidationContext): OrderServiceFormErrors {
 
   return errs;
 }
-

@@ -12,7 +12,7 @@ export const useAppointmentPermissions = (event?: AppointmentEvent | null) => {
   const permissions = useMemo(() => getPermissionsFromTokenCookie(), []);
   const hasAnyPermissions = permissions.length > 0;
   const canUpdateAppointment = hasPermissionFromToken(permissions, "appointments", "update");
-  const canDeleteAppointment = hasPermissionFromToken(permissions, "appointments", "delete");
+  const canDeactivateAppointment = hasPermissionFromToken(permissions, "appointments", "deactivate");
 
   const normalizedState =
     event && typeof event.stateLabel === "string" ? normalizeStateKey(event.stateLabel) : "";
@@ -34,7 +34,7 @@ export const useAppointmentPermissions = (event?: AppointmentEvent | null) => {
     Boolean(event && event.source === "order") &&
     !shouldHideFinalizeButton &&
     hasAnyPermissions &&
-    canDeleteAppointment;
+    canDeactivateAppointment;
 
   const canEditRequest =
     Boolean(event && event.source === "request") &&
@@ -46,9 +46,10 @@ export const useAppointmentPermissions = (event?: AppointmentEvent | null) => {
     Boolean(event && event.source === "request") &&
     !shouldHideFinalizeButton &&
     hasAnyPermissions &&
-    canDeleteAppointment;
+    canDeactivateAppointment;
 
-  const canFinalizeEvent = Boolean(event) && !shouldHideFinalizeButton && hasAnyPermissions && canUpdateAppointment;
+  const canFinalizeEvent =
+    Boolean(event) && !shouldHideFinalizeButton && hasAnyPermissions && canDeactivateAppointment;
 
   return {
     canEditOrder,

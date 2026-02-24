@@ -17,9 +17,7 @@ import {
 } from "../api/products.api";
 
 type ApiErrorShape = {
-  response?: {
-    data?: { message?: string };
-  };
+  response?: { data?: { message?: string } };
   message?: string;
 };
 
@@ -30,8 +28,6 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 
 export const useProducts = () => {
   const [products, setProducts] = useState<Product[]>([]);
-  const [status, setStatusState] = useState<StatusQuery>("active");
-
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
@@ -58,13 +54,12 @@ export const useProducts = () => {
   );
 
   const refreshProducts = useCallback(
-    async (nextStatus?: StatusQuery) => {
-      const s = nextStatus ?? status;
-      const list = await getProducts(s);
+    async (nextStatus: StatusQuery = "all") => {
+      const list = await getProducts(nextStatus);
       await applyProductsResponse(list);
       return 200 as const;
     },
-    [applyProductsResponse, status]
+    [applyProductsResponse]
   );
 
   const hasFetchedRef = useRef(false);
@@ -73,9 +68,8 @@ export const useProducts = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const code = await refreshProducts("active");
+        const code = await refreshProducts("all");
         if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
-        setStatusState("active");
       } catch (error: unknown) {
         console.error("Error al cargar productos:", error);
         showWarning("Error al cargar productos desde el servidor");
@@ -89,25 +83,6 @@ export const useProducts = () => {
       load();
     }
   }, [refreshProducts]);
-
-  const setStatus = useCallback(
-    async (next: StatusQuery) => {
-      setLoading(true);
-      try {
-        setStatusState(next);
-        const code = await refreshProducts(next);
-        if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
-        await waitForRender();
-      } catch (error: unknown) {
-        const msg = getErrorMessage(error, "No se pudo aplicar el filtro de productos.");
-        console.error(error);
-        showWarning(msg);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [refreshProducts, waitForRender]
-  );
 
   const requireImageUrl = async (image: File | string | null | undefined) => {
     if (!image) throw new Error("Debe agregar una imagen para el producto.");
@@ -146,7 +121,7 @@ export const useProducts = () => {
         isactive: true,
       });
 
-      const code = await refreshProducts();
+      const code = await refreshProducts("all");
       if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
 
       showSuccess("Producto creado exitosamente");
@@ -192,7 +167,7 @@ export const useProducts = () => {
 
       await updateProduct(id, body);
 
-      const code = await refreshProducts();
+      const code = await refreshProducts("all");
       if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
 
       showSuccess("Producto actualizado exitosamente");
@@ -237,7 +212,7 @@ export const useProducts = () => {
           try {
             await deleteProduct(product.id);
 
-            const code = await refreshProducts();
+            const code = await refreshProducts("all");
             if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
             await waitForRender();
 
@@ -251,8 +226,7 @@ export const useProducts = () => {
 
     if (info?.canDelete === false) {
       const reason =
-        info.reason?.trim() ||
-        "Está asociado a compras/órdenes/ventas u otros registros.";
+        info.reason?.trim() || "Está asociado a compras/órdenes/ventas u otros registros.";
       const isAlreadyInactive = product.state === "Inactivo";
 
       if (isAlreadyInactive || info.canDeactivate === false) {
@@ -293,7 +267,7 @@ export const useProducts = () => {
           try {
             await updateProduct(product.id, { isactive: false });
 
-            const code = await refreshProducts();
+            const code = await refreshProducts("all");
             if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
             await waitForRender();
 
@@ -323,7 +297,7 @@ export const useProducts = () => {
         try {
           await deleteProduct(product.id);
 
-          const code = await refreshProducts();
+          const code = await refreshProducts("all");
           if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
           await waitForRender();
 
@@ -338,9 +312,6 @@ export const useProducts = () => {
   return {
     products,
     loading,
-
-    status,
-    setStatus,
 
     isCreateModalOpen,
     setIsCreateModalOpen,
