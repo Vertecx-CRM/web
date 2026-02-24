@@ -12,6 +12,8 @@ import { useCart } from "../../contexts/CartContext";
 import type { Product } from "../hooks/useProducts";
 import { getLandingProductById } from "../api/products.api";
 
+import { showSuccess, showError } from "@/shared/utils/notifications";
+
 const DEFAULT_IMG = "/assets/imgs/default-product.png";
 
 export default function ProductDetailPage() {
@@ -19,7 +21,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const id = (params as any)?.id as string;
 
-  const { addToCart } = useCart();
+  const { addToCart, cart } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -64,6 +66,18 @@ export default function ProductDetailPage() {
   }, [product]);
 
   const stock = Number(product?.stock ?? 0);
+
+  // ✅ Cantidad actual de este producto que ya está en el carrito
+  const qtyInCart = useMemo(() => {
+    if (!product) return 0;
+    const existing = cart.find((p) => String(p.id) === String(product.id));
+    return existing?.quantity ?? 0;
+  }, [cart, product]);
+
+  // ✅ Disponible "para agregar" según el carrito actual (no cambia estado del producto)
+  const remaining = Math.max(0, stock - qtyInCart);
+
+  // ❗ Mantener estado real del inventario (BD), como pediste
   const inStock = stock > 0;
 
   const activeImage = allImages[activeIdx] || product?.image || DEFAULT_IMG;
@@ -71,14 +85,27 @@ export default function ProductDetailPage() {
   const clampQty = (next: number) => {
     if (!inStock) return 1;
 
-    const max = Math.max(1, stock || 1);
+    // ✅ No dejar seleccionar más de lo que queda disponible considerando carrito
+    const max = Math.max(1, remaining || 1);
     const safe = Number.isFinite(next) ? next : 1;
     return Math.min(Math.max(1, safe), max);
   };
 
   const handleAddToCart = () => {
     if (!product?.price || product.price <= 0) return;
-    if (!inStock) return;
+
+    if (!inStock) {
+      showError("Producto agotado.", { toastId: `out-${product.id}` });
+      return;
+    }
+
+    // ✅ Validación: lo que ya hay en carrito + lo que quiere agregar NO puede superar el stock real
+    if (qtyInCart + qty > stock) {
+      showError(`No puedes agregar más. Stock disponible: ${stock}`, {
+        toastId: `stock-limit-${product.id}`,
+      });
+      return;
+    }
 
     for (let i = 0; i < qty; i++) {
       addToCart({
@@ -89,6 +116,8 @@ export default function ProductDetailPage() {
         stock,
       });
     }
+
+    showSuccess("Producto agregado al carrito", { toastId: `add-${product.id}` });
   };
 
   return (
@@ -150,9 +179,7 @@ export default function ProductDetailPage() {
                     }}
                   >
                     {!activeImage && (
-                      <span className="text-gray-400 text-sm">
-                        Sin imagen
-                      </span>
+                      <span className="text-gray-400 text-sm">Sin imagen</span>
                     )}
                   </div>
 
@@ -242,7 +269,9 @@ export default function ProductDetailPage() {
                       <input
                         className="w-12 text-center text-sm font-semibold text-gray-800 bg-transparent outline-none"
                         value={qty}
-                        onChange={(e) => setQty(clampQty(Number(e.target.value || 1)))}
+                        onChange={(e) =>
+                          setQty(clampQty(Number(e.target.value || 1)))
+                        }
                         inputMode="numeric"
                         disabled={!inStock}
                         aria-label="Cantidad"
@@ -252,7 +281,7 @@ export default function ProductDetailPage() {
                         type="button"
                         className="w-8 h-8 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed"
                         onClick={() => setQty((q) => clampQty(q + 1))}
-                        disabled={!inStock}
+                        disabled={!inStock || qty >= remaining} // ✅ se bloquea por límite real
                         aria-label="Aumentar"
                       >
                         +
@@ -264,7 +293,7 @@ export default function ProductDetailPage() {
                       whileHover={inStock ? { scale: 1.03 } : {}}
                       whileTap={inStock ? { scale: 0.97 } : {}}
                       onClick={handleAddToCart}
-                      disabled={!inStock}
+                      disabled={!inStock} // ✅ solo stock real 0 lo deshabilita
                       type="button"
                     >
                       <FaShoppingCart />
