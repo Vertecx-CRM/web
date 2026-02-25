@@ -1,30 +1,37 @@
 "use client";
+
+import React, { useState } from "react";
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { DataTable, } from "../components/datatable/DataTable";
+
+import { DataTable } from "../components/datatable/DataTable";
 import EditClientModal from "./components/EditClientsModal/EditClients";
 import ViewClientModal from "./components/ViewClientsModal/ViewClients";
 import CreateClientModal from "./components/CreateClientsModal/CreateClients";
-import { useClients } from "../Clients/hooks/useClients";
+
+import { useClients } from "./hooks/useClients";
 import { Client, EditClientData } from "./types/typeClients";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 
-export default function Clients() {
+export default function ClientsPage() {
   const {
     clients,
-    isCreateModalOpen,
-    setIsCreateModalOpen,
-    editingClient,
-    viewingClient,
+    loading,
     handleCreateClient,
     handleEditClient,
     handleDeleteClient,
-    handleView,
-    handleEdit,
-    handleDelete,
-    closeModals,
   } = useClients();
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [viewingClient, setViewingClient] = useState<Client | null>(null);
+
+  const closeModals = () => {
+    setIsCreateModalOpen(false);
+    setEditingClient(null);
+    setViewingClient(null);
+  };
 
   const columns: Column<Client>[] = [
     { key: "id", header: "Id" },
@@ -33,10 +40,13 @@ export default function Clients() {
     {
       key: "nombre",
       header: "Nombre completo",
-      render: (row: Client) => `${row.nombre}${row.apellido ? ' ' + row.apellido : ''}`
+      render: (row: Client) =>
+        `${row.nombre}${row.apellido ? " " + row.apellido : ""}`,
     },
     { key: "telefono", header: "Teléfono" },
     { key: "correoElectronico", header: "Correo electrónico" },
+    { key: "ciudad", header: "Ciudad" },
+    { key: "codigoPostal", header: "Código Postal" },
     {
       key: "estado",
       header: "Estado",
@@ -44,7 +54,8 @@ export default function Clients() {
         <span
           className="rounded-full px-2 py-0.5 text-xs font-medium"
           style={{
-            backgroundColor: row.estado === "Activo" ? "#e8f5e8" : "#f5e8e8",
+            backgroundColor:
+              row.estado === "Activo" ? "#e8f5e8" : "#f5e8e8",
             color:
               row.estado === "Activo"
                 ? Colors.states.success
@@ -62,39 +73,31 @@ export default function Clients() {
       <ToastContainer
         position="bottom-right"
         autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
         theme="light"
       />
 
-      {/* Main Content */}
-
-      {/* Content */}
       <main className="p-6">
-        <div className=" rounded-lg shadow-sm">
-          {/* Modales */}
+        <div className="rounded-lg shadow-sm">
+
+          {/* CREATE MODAL */}
           <CreateClientModal
             isOpen={isCreateModalOpen}
-            onClose={() => setIsCreateModalOpen(false)}
+            onClose={closeModals}
             onSave={handleCreateClient}
           />
 
+          {/* EDIT MODAL */}
           <EditClientModal
             isOpen={!!editingClient}
             client={editingClient}
             onClose={closeModals}
-            onSave={(clientData: EditClientData) => {
-              if (editingClient) {
-                handleEditClient(editingClient.id, clientData);
-              }
+            onSave={async (clientData: EditClientData) => {
+              await handleEditClient(clientData);
+              closeModals();
             }}
           />
 
+          {/* VIEW MODAL */}
           <ViewClientModal
             isOpen={!!viewingClient}
             client={viewingClient}
@@ -102,41 +105,29 @@ export default function Clients() {
           />
 
           <DataTable<Client>
-            module="costumers"
+            module="customers"
             data={clients}
             columns={columns}
             pageSize={10}
             searchableKeys={[
-              "id",
-              "tipo",
-              "documento",
               "nombre",
-              "telefono",
+              "apellido",
+              "documento",
               "correoElectronico",
+              "telefono",
               "estado",
+              "ciudad",
+              "codigoPostal",
             ]}
             onCreate={() => setIsCreateModalOpen(true)}
             createButtonText="Crear Cliente"
             searchPlaceholder="Buscar clientes..."
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
+            onView={(client) => setViewingClient(client)}
+            onEdit={(client) => setEditingClient(client)}
+            onDelete={(client) => handleDeleteClient(client.id)}
           />
         </div>
       </main>
     </div>
   );
 }
-
-
-  // ============================
-  // SEARCHABLE KEYS
-  // ============================
-  const searchableKeys: (keyof Client)[] = [
-    "nombre",
-    "apellido",
-    "documento",
-    "correoElectronico",
-    "telefono",
-    "estado"
-  ];

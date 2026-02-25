@@ -1,14 +1,27 @@
-//  IMPORTS 
+// ================================
+// IMPORTS
+// ================================
+
 import { Dispatch, SetStateAction } from "react";
-import { ClientFormBase, FormErrors, FormTouched } from "../types/typeClients";
+import {
+  CreateClientData,
+  ClientFormErrors,
+  ClientFormTouched,
+} from "../types/typeClients";
 import { showWarning } from "@/shared/utils/notifications";
 
-//  REGEX 
+// ================================
+// REGEX
+// ================================
+
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const numericRegex = /^[0-9]+$/;
 const alphaRegex = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s]+$/;
 
-// Definir todas las claves usadas en validación
+// ================================
+// CAMPOS VALIDABLES
+// ================================
+
 type FieldKey =
   | "nombre"
   | "apellido"
@@ -16,97 +29,145 @@ type FieldKey =
   | "telefono"
   | "correoElectronico"
   | "tipo"
-  | "estado";
+  | "estado"
+  | "ciudad"
+  | "codigoPostal";
 
-// REGLAS DE VALIDACIÓN 
-export const fieldValidators: Record<FieldKey, (value: string) => string> = {
-  nombre: (v: string) => {
-    if (!v.trim()) return "El nombre es obligatorio";
-    if (!alphaRegex.test(v)) return "El nombre solo puede contener letras y espacios";
-    if (v.length < 2) return "El nombre debe tener mínimo 2 caracteres";
+// ================================
+// VALIDADORES INDIVIDUALES
+// ================================
+
+export const fieldValidators: Record<
+  FieldKey,
+  (value: string | number) => string
+> = {
+  nombre: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El nombre es obligatorio";
+    if (!alphaRegex.test(value))
+      return "El nombre solo puede contener letras y espacios";
+    if (value.length < 2)
+      return "El nombre debe tener mínimo 2 caracteres";
     return "";
   },
 
-  apellido: (v: string) => {
-    if (!v.trim()) return "El apellido es obligatorio";
-    if (!alphaRegex.test(v)) return "El apellido solo puede contener letras y espacios";
+  apellido: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El apellido es obligatorio";
+    if (!alphaRegex.test(value))
+      return "El apellido solo puede contener letras y espacios";
     return "";
   },
 
-  documento: (v: string) => {
-    if (!v.trim()) return "El documento es obligatorio";
-    if (!numericRegex.test(v)) return "El documento debe contener solo números";
-    if (v.length < 6 || v.length > 15) return "El documento debe tener entre 6 y 15 dígitos";
+  documento: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El documento es obligatorio";
+    if (!numericRegex.test(value))
+      return "El documento debe contener solo números";
+    if (value.length < 6 || value.length > 15)
+      return "El documento debe tener entre 6 y 15 dígitos";
     return "";
   },
 
-  telefono: (v: string) => {
-    if (!v.trim()) return "El teléfono es obligatorio";
-    if (!numericRegex.test(v)) return "El teléfono debe contener solo números";
-    if (v.length < 7 || v.length > 10) return "El teléfono debe ser un número válido (7-10 dígitos)";
+  telefono: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El teléfono es obligatorio";
+    if (!numericRegex.test(value))
+      return "El teléfono debe contener solo números";
+    if (value.length < 7 || value.length > 10)
+      return "El teléfono debe ser un número válido (7-10 dígitos)";
     return "";
   },
 
-  correoElectronico: (v: string) => {
-    if (!v.trim()) return "El correo es obligatorio";
-    if (!emailRegex.test(v)) return "El formato del correo es inválido";
+  correoElectronico: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El correo es obligatorio";
+    if (!emailRegex.test(value))
+      return "El formato del correo es inválido";
     return "";
   },
 
-  tipo: (v: string) => {
-    if (!v.trim()) return "El tipo de documento es obligatorio";
+  tipo: (v) => {
+    if (!v || Number(v) === 0)
+      return "El tipo de documento es obligatorio";
     return "";
   },
 
-  estado: (v: string) => {
-    if (!v.trim()) return "El estado es obligatorio";
-    if (!["Activo", "Inactivo"].includes(v)) return "El estado debe ser Activo o Inactivo";
+  estado: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El estado es obligatorio";
+    if (!["Activo", "Inactivo"].includes(value))
+      return "El estado debe ser Activo o Inactivo";
+    return "";
+  },
+
+  ciudad: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "La ciudad es obligatoria";
+    if (!alphaRegex.test(value))
+      return "La ciudad solo puede contener letras";
+    return "";
+  },
+
+  codigoPostal: (v) => {
+    const value = String(v);
+    if (!value.trim()) return "El código postal es obligatorio";
+    if (!numericRegex.test(value))
+      return "El código postal debe contener solo números";
     return "";
   },
 };
 
-// VALIDACIÓN GENERAL
-export const validateAllFields = (data: Partial<ClientFormBase>): FormErrors => {
-  const errors: FormErrors = {
-    tipo: fieldValidators.tipo(data.tipo ?? ""),
-    documento: fieldValidators.documento(data.documento ?? ""),
+// ================================
+// VALIDACIÓN COMPLETA
+// ================================
+
+export const validateAllFields = (
+  data: Partial<CreateClientData>
+): ClientFormErrors => {
+  return {
     nombre: fieldValidators.nombre(data.nombre ?? ""),
     apellido: fieldValidators.apellido(data.apellido ?? ""),
+    tipo: fieldValidators.tipo(data.tipo ?? 0),
+    documento: fieldValidators.documento(data.documento ?? ""),
     telefono: fieldValidators.telefono(data.telefono ?? ""),
-    correoElectronico: fieldValidators.correoElectronico(data.correoElectronico ?? ""),
+    correoElectronico: fieldValidators.correoElectronico(
+      data.correoElectronico ?? ""
+    ),
+    estado: fieldValidators.estado(data.estado ?? ""),
+    ciudad: fieldValidators.ciudad(data.ciudad ?? ""),
+    codigoPostal: fieldValidators.codigoPostal(
+      data.codigoPostal ?? ""
+    ),
   };
-
-  // estado puede venir como booleano o string
-  const estadoStr = typeof (data as any).estado === 'boolean' ? ((data as any).estado ? 'Activo' : 'Inactivo') : (data as any).estado ?? '';
-  (errors as any).estado = fieldValidators.estado(estadoStr);
-
-  return errors;
 };
 
-// VALIDACIÓN GLOBAL CON NOTIFICACIONES
+// ================================
+// VALIDACIÓN CON NOTIFICACIÓN GLOBAL
+// ================================
+
 export const validateFormWithNotification = (
-  data: Partial<ClientFormBase>,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
+  data: Partial<CreateClientData>,
+  setErrors: Dispatch<SetStateAction<ClientFormErrors>>,
+  setTouched: Dispatch<SetStateAction<ClientFormTouched>>
 ): boolean => {
   const errors = validateAllFields(data);
 
   setErrors(errors);
 
-  // marcar todos como tocados
   setTouched({
-    tipo: true,
-    documento: true,
     nombre: true,
     apellido: true,
+    tipo: true,
+    documento: true,
     telefono: true,
     correoElectronico: true,
-  } as FormTouched);
+    estado: true,
+    ciudad: true,
+    codigoPostal: true,
+  });
 
-  // marcar estado si existe
-  (setTouched as any)((prev: any) => ({ ...prev, estado: true }));
-
-  const firstError = Object.values(errors).find((x) => x !== "");
+  const firstError = Object.values(errors).find((x) => x);
 
   if (firstError) {
     showWarning(firstError);
@@ -116,12 +177,15 @@ export const validateFormWithNotification = (
   return true;
 };
 
-// VALIDACIÓN DE UN SOLO CAMPO (REUTILIZABLE)
+// ================================
+// VALIDACIÓN DE UN SOLO CAMPO
+// ================================
+
 export const validateSingleField = <K extends FieldKey>(
   field: K,
-  value: string,
-  setErrors: Dispatch<SetStateAction<FormErrors>>,
-  setTouched: Dispatch<SetStateAction<FormTouched>>
+  value: string | number,
+  setErrors: Dispatch<SetStateAction<ClientFormErrors>>,
+  setTouched: Dispatch<SetStateAction<ClientFormTouched>>
 ) => {
   const validator = fieldValidators[field];
   const error = validator(value);
