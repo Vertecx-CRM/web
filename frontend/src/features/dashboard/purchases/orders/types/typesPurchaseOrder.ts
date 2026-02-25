@@ -35,7 +35,8 @@ export interface purchaseOrder {
 /* ============================= */
 
 export interface createPurchaseOrderData {
-  proveedor: string;
+  proveedor: string; // Nombre
+  proveedorId: number; // ID para la DB
   fecha: string;
   descripcion?: string;
   items: PurchaseOrderItem[];
@@ -89,6 +90,7 @@ export interface PurchaseOrdersTableProps {
   purchaseOrders: purchaseOrder[];
   onView: (purchaseOrder: purchaseOrder) => void;
   onCreate: () => void;
+  rightActions?: ReactNode;
 }
 
 /* ============================= */
@@ -98,4 +100,6 @@ export interface PurchaseOrdersTableProps {
 export interface purchaseOrderForTable
   extends Omit<purchaseOrder, "id"> {
   id: number;
+  /** Campo auxiliar de texto plano para búsqueda en DataTable */
+  searchQuery?: string;
 }

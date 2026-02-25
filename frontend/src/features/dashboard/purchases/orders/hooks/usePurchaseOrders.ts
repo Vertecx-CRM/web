@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createPurchaseOrderData,
   createPurchaseOrderModalProps,
@@ -7,53 +7,78 @@ import {
   purchaseOrder,
   PurchaseOrderItem
 } from "../types/typesPurchaseOrder";
-import { showSuccess, showWarning } from "@/shared/utils/notifications";
+import { showSuccess, showError, showWarning } from "@/shared/utils/notifications";
 import {
   validateField,
   validateFormWithNotification
 } from "../Validations/UserValidations";
-import { initialPurchaseOrders } from "../mocks/mockPurchaseOrders";
+import {
+  getPurchaseOrdersFromAPI,
+  createPurchaseOrderInDB,
+  generateOrderNumber,
+} from "../services/suppliersOrderService";
 
 /* ============================= */
-/* Hook PRINCIPAL ORDENES */
+/* Hook PRINCIPAL ORDENES        */
 /* ============================= */
 
 export const usePurchaseOrders = () => {
-  const [purchaseOrders, setPurchaseOrders] =
-    useState<purchaseOrder[]>(initialPurchaseOrders);
+  const [purchaseOrders, setPurchaseOrders] = useState<purchaseOrder[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewingPurchaseOrder, setViewingPurchaseOrder] =
     useState<purchaseOrder | null>(null);
 
-  const handleCreatePurchaseOrder = (
-    purchaseOrderData: createPurchaseOrderData
-  ) => {
-    const maxId =
-      purchaseOrders.length > 0
-        ? Math.max(...purchaseOrders.map((po) => po.id))
-        : 0;
+  // ── Cargar órdenes desde el backend ────────────────────────────────────────
+  const loadPurchaseOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getPurchaseOrdersFromAPI();
+      console.log("Purchase orders loaded in hook:", data.length);
+      setPurchaseOrders(data);
+    } catch (error) {
+      console.error("Hook load error:", error);
+      showError("Error al cargar las órdenes de compra.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const total = purchaseOrderData.items.reduce(
+  useEffect(() => {
+    loadPurchaseOrders();
+  }, [loadPurchaseOrders]);
+
+  // ── Crear orden en el backend ──────────────────────────────────────────────
+  const handleCreatePurchaseOrder = async (
+    purchaseOrderData: createPurchaseOrderData & { proveedorId?: number }
+  ) => {
+    const subtotal = purchaseOrderData.items.reduce(
       (acc, item) => acc + item.cantidad * item.precioUnitario,
       0
     );
+    const iva = subtotal * 0.19;
+    const total = subtotal + iva;
 
-    const newPurchaseOrder: purchaseOrder = {
-      id: maxId + 1,
-      numeroOrden: `OC-${Date.now()}`,
-      proveedor: purchaseOrderData.proveedor,
-      fecha: purchaseOrderData.fecha,
-      estado: "Pendiente",
-      descripcion: purchaseOrderData.descripcion,
-      items: purchaseOrderData.items,
-      total
-    };
+    try {
+      await createPurchaseOrderInDB({
+        numeroOrden: generateOrderNumber(),
+        proveedorId: purchaseOrderData.proveedorId ?? 0,
+        fecha: purchaseOrderData.fecha,
+        items: purchaseOrderData.items,
+        total,
+        subtotal,
+        iva,
+        descripcion: purchaseOrderData.descripcion,
+      });
 
-    setPurchaseOrders((prev) => [...prev, newPurchaseOrder]);
-    setIsCreateModalOpen(false);
-
-    showSuccess("Orden de compra creada exitosamente!");
+      showSuccess("Orden de compra guardada exitosamente.");
+      setIsCreateModalOpen(false);
+      // Recargar lista
+      await loadPurchaseOrders();
+    } catch {
+      showError("Error al guardar la orden de compra.");
+    }
   };
 
   const handleView = (purchaseOrder: purchaseOrder) => {
@@ -67,14 +92,16 @@ export const usePurchaseOrders = () => {
 
   return {
     purchaseOrders,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     viewingPurchaseOrder,
     handleCreatePurchaseOrder,
     handleView,
-    closeModals
+    closeModals,
   };
 };
+
 
 /* ============================= */
 /* Hook CREAR ORDEN DE COMPRA */
@@ -89,6 +116,7 @@ export const useCreatePurchaseOrderForm = ({
 }: createPurchaseOrderModalProps) => {
   const [formData, setFormData] = useState<createPurchaseOrderData>({
     proveedor: "",
+    proveedorId: 0,
     fecha: "",
     descripcion: "",
     items: [{ producto: "", cantidad: 1, precioUnitario: 0 }]
@@ -140,6 +168,16 @@ export const useCreatePurchaseOrderForm = ({
 
     const error = validateField(field, value, formData, false);
     setErrors((prev) => ({ ...prev, [field]: error }));
+  };
+
+  const handleSupplierChange = (name: string, id: number) => {
+    const newFormData = { ...formData, proveedor: name, proveedorId: id };
+    setFormData(newFormData);
+
+    if (touched.proveedor) {
+      const error = validateField("proveedor", name, newFormData, false);
+      setErrors((prev) => ({ ...prev, proveedor: error }));
+    }
   };
 
   /* ============================= */
@@ -217,8 +255,7 @@ export const useCreatePurchaseOrderForm = ({
     const headerValid = validateFormWithNotification(
       formData,
       setErrors,
-      setTouched,
-      false
+      setTouched
     );
 
     const itemsValid = validateItems();
@@ -256,6 +293,7 @@ export const useCreatePurchaseOrderForm = ({
     if (isOpen) {
       setFormData({
         proveedor: "",
+        proveedorId: 0,
         fecha: "",
         descripcion: "",
         items: [{ producto: "", cantidad: 1, precioUnitario: 0 }]
@@ -277,6 +315,13 @@ export const useCreatePurchaseOrderForm = ({
     }
   }, [isOpen]);
 
+  /** Reemplaza todos los items directamente (útil para cargar productos del proveedor) */
+  const setItems = useCallback(
+    (items: PurchaseOrderItem[]) =>
+      setFormData((prev) => ({ ...prev, items })),
+    []
+  );
+
   return {
     formData,
     errors,
@@ -284,11 +329,13 @@ export const useCreatePurchaseOrderForm = ({
     isSubmitting,
     calculatedTotal,
     handleInputChange,
+    handleSupplierChange,
+    handleBlur,
     handleAddItem,
     handleRemoveItem,
     handleItemChange,
-    handleBlur,
     handleSubmit,
-    validateForm: validateFormWithNotifications
+    setItems,
   };
 };
+
