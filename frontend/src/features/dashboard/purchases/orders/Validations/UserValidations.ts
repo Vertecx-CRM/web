@@ -9,7 +9,10 @@ import {
 
 export const validateField = (
   fieldName: keyof formErrors,
-  value: string | undefined | null
+  value: string | undefined | null,
+  // extra params ignored for API compatibility
+  _formData?: unknown,
+  _isEditing?: boolean
 ): string => {
   let error = "";
   const stringValue = value ? String(value) : "";
@@ -18,8 +21,6 @@ export const validateField = (
     case "proveedor":
       if (!stringValue.trim()) {
         error = "El proveedor es obligatorio";
-      } else if (stringValue.length < 2) {
-        error = "El proveedor debe tener al menos 2 caracteres";
       }
       break;
 

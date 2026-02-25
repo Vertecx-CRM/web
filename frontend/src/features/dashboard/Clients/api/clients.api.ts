@@ -19,10 +19,10 @@ export type CustomerFromApi = {
     phone: string;
     image?: string | null;
     typeofdocuments?: { id: number; name: string };
-    states?: { id: number; name: string };
+    states?: { stateid?: number; id?: number; name: string };
     roles?: { id: number; name: string };
   };
-  sales: [];
+  sales: { salestatus: string }[];
 };
 
 // ================================
@@ -33,7 +33,10 @@ export type ClientUI = {
   id: number;
   nombre: string;
   apellido: string;
+  /** Nombre del tipo de documento (CC, TI…) */
   tipo: string;
+  /** ID numérico del tipo de documento (para pre-seleccionar en edit) */
+  tipoId: number;
   documento: string;
   telefono: string;
   correoElectronico: string;
@@ -51,6 +54,7 @@ export const toUiClient = (c: CustomerFromApi): ClientUI => ({
   nombre: c.users?.name ?? "",
   apellido: c.users?.lastname ?? "",
   tipo: c.users?.typeofdocuments?.name ?? "",
+  tipoId: c.users?.typeofdocuments?.id ?? 0,
   documento: c.users?.documentnumber ?? "",
   telefono: c.users?.phone ?? "",
   correoElectronico: c.users?.email ?? "",
@@ -64,8 +68,14 @@ export const toUiClient = (c: CustomerFromApi): ClientUI => ({
 // ================================
 
 export async function getClients(): Promise<ClientUI[]> {
-  const { data } = await api.get<CustomerFromApi[]>("/customers");
-  return data.map(toUiClient);
+  // El backend devuelve el array directamente (sin envoltorio)
+  const response = await api.get<CustomerFromApi[]>("/customers");
+  // axios pone la respuesta en response.data — pero nosotros llamamos api.get que ya extrae .data
+  // Si el backend envuelve en {data:[...]}, necesitamos acc ese campo extra:
+  const list = Array.isArray(response)
+    ? response
+    : (response as unknown as { data: CustomerFromApi[] }).data ?? [];
+  return list.map(toUiClient);
 }
 
 // ================================

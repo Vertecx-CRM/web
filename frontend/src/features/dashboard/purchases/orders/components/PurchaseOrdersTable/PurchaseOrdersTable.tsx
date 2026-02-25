@@ -11,14 +11,19 @@ import Colors from "@/shared/theme/colors";
 export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
   purchaseOrders,
   onView,
-  onCreate
+  onCreate,
+  rightActions,
 }) => {
 
   // Convertir órdenes de compra para la tabla asegurando que tengan ID
+  // searchQuery: campo auxiliar de texto plano para que el DataTable busque correctamente
+  // (el campo numeroOrden tiene timestamps que el DataTable trata como números)
   const purchaseOrdersForTable: purchaseOrderForTable[] =
     purchaseOrders.map((order, index) => ({
       ...order,
-      id: order.id || index + 1
+      id: order.id || index + 1,
+      // Campo de búsqueda extra — cadena de texto plano sin números sueltos
+      searchQuery: `${order.numeroOrden ?? ""} ${order.proveedor ?? ""} ${order.estado ?? ""} ${order.fecha ?? ""}`.toLowerCase(),
     }));
 
   const columns: Column<purchaseOrderForTable>[] = [
@@ -32,7 +37,8 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
       render: (order) =>
         `$${order.total.toLocaleString("es-CO")}`
     },
-    { key: "items", 
+    {
+      key: "items",
       header: "Productos",
       render: (order) => order.items.length
     },
@@ -40,12 +46,12 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
       key: "estado",
       header: "Estado",
       render: (order) => (
-         <span
-            className="rounded-full px-2 py-0.5 text-xs font-medium"
-            style={{ color: Colors.states.warning }}
-         >
-            {order.estado}
-           </span>
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-medium"
+          style={{ color: Colors.states.warning }}
+        >
+          {order.estado}
+        </span>
       )
     }
   ];
@@ -55,7 +61,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
   };
 
   const renderActions = (row: purchaseOrderForTable) => (
-    <div className="flex items-center gap-3 text-gray-600">
+    <div className="flex items-center justify-center gap-3 text-gray-600">
 
       {/* View Button - Única acción permitida */}
       <button
@@ -87,19 +93,16 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
     </div>
   );
 
+
   return (
     <DataTable<purchaseOrderForTable>
       data={purchaseOrdersForTable}
       columns={columns}
       pageSize={10}
-      searchableKeys={[
-        "numeroOrden",
-        "proveedor",
-        "estado",
-        "fecha"
-      ]}
+      searchableKeys={["searchQuery"]}
       renderActions={renderActions}
       onCreate={onCreate}
+      rightActions={rightActions}
       searchPlaceholder="Buscar por número de orden, proveedor, estado o fecha…"
       createButtonText="Crear Orden"
       module={"purchaseOrders"}

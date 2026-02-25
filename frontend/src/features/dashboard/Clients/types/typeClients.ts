@@ -6,7 +6,8 @@ export interface Client {
   id: number;
   nombre: string;
   apellido: string;
-  tipo: string; // En la tabla es string (CC, TI, CE...)
+  tipo: string; // nombre del tipo (CC, TI, CE...)
+  tipoId: number; // ID numérico para pre-seleccionar en el select
   documento: string;
   telefono: string;
   correoElectronico: string;
