@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-import { ISale, ISaleDetail } from "../types/sales.types";
+import { ISale, ISaleDetail } from "../types/Sales.type";
 import { getSaleById } from "../services/sales.service";
-import { Loader } from "@/shared/components/loader";
-import Colors from "@/shared/theme/colors";
 
 interface SaleDetailModalProps {
     saleId: number | null;
@@ -75,9 +73,7 @@ export default function SaleDetailModal({ saleId, onClose }: SaleDetailModalProp
                                 <h2 className="text-lg font-bold text-gray-800">Detalle de Venta</h2>
                             </div>
                         </div>
-                        <div>
-                            <button onClick={onClose} className="text-gray-500 hover:text-black text-2xl">&times;</button>
-                        </div>
+                        
                     </div>
 
                     {/* Header Info (dos columnas) */}
@@ -121,19 +117,7 @@ export default function SaleDetailModal({ saleId, onClose }: SaleDetailModalProp
                             <p>
                                 <span className="font-medium">Creado por:</span> {sale.createdby || "Sistema"}
                             </p>
-                            {/* Agregar Estado Pago debajo de Estado Venta */}
-                            <p className="mt-2">
-                                <span className="font-medium">Estado Pago:</span>{" "}
-                                <span
-                                    className={`px-2 py-0.5 rounded-full text-xs font-bold ${(() => {
-                                        const ps = (typeof window !== 'undefined') ? localStorage.getItem(`sale_payment_${sale.salecode}`) : null;
-                                        if (ps === 'Pagado') return 'bg-green-100 text-green-700';
-                                        return 'bg-orange-100 text-orange-700';
-                                    })()}`}
-                                >
-                                    {(typeof window !== 'undefined' ? localStorage.getItem(`sale_payment_${sale.salecode}`) : null) || 'Abonado'}
-                                </span>
-                            </p>
+                        
                         </div>
                     </div>
 

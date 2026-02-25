@@ -157,29 +157,7 @@ export default function SalesIndex() {
         );
       },
     },
-    {
-      key: "estadoPago",
-      header: "Estado Pago",
-      render: (row) => {
-        // Como no hay campo persistente en backend, leer de localStorage por codigo
-        let value = undefined as string | undefined;
-        try {
-          value = localStorage.getItem(`sale_payment_${row.codigo}`) || undefined;
-        } catch (e) {
-          value = undefined;
-        }
-
-        const label = value || "Abonado";
-        const isPagado = label === "Pagado";
-        const bg = isPagado ? "#e6ffed" : "#eef2ff"; // verde claro vs azul claro
-        const color = isPagado ? "#16a34a" : "#2563eb";
-        return (
-          <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: bg, color }}>
-            {label}
-          </span>
-        );
-      },
-    },
+    
   ];
 
   // ── Loading state ──

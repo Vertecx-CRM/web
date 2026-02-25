@@ -229,29 +229,11 @@ export default function CreateSaleForm({ onClose, onSaved }: CreateSaleFormProps
                                     onChange={(e) => setSaleStatus(e.target.value as any)}
                                 >
                                     <option value="Pending">Pendiente</option>
-                                    <option value="Completed">Finalizada</option>
-                                    <option value="Cancelled">Anulada</option>
+                                
                                 </select>
                             </div>
 
-                            {/* Estado Pago (solo frontend) */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1 text-gray-700">
-                                    Estado Pago
-                                </label>
-                                <select
-                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={paymentStatus}
-                                    onChange={(e) => setPaymentStatus(e.target.value as any)}
-                                    disabled={saleStatus === "Completed"}
-                                >
-                                    <option value="Abonado">Abonado</option>
-                                    <option value="Pagado">Pagado</option>
-                                </select>
-                                {saleStatus === "Completed" && (
-                                    <div className="text-xs text-gray-500 mt-1">Estado Pago forzado a "Pagado" al finalizar la venta</div>
-                                )}
-                            </div>
+                            
                         </div>
                     </div>
 
@@ -402,7 +384,7 @@ export default function CreateSaleForm({ onClose, onSaved }: CreateSaleFormProps
                             <div className="h-px bg-gray-200 my-4" />
 
                             <div className="flex justify-between text-lg font-bold">
-                                <span style={{ color: Colors.texts.primary }}>Total Cotizado</span>
+                                <span style={{ color: Colors.texts.primary }}>Total </span>
                                 <span style={{ color: Colors.texts.primary }}>
                                     ${totalAmount.toLocaleString("es-CO")}
                                 </span>
@@ -445,16 +427,7 @@ export default function CreateSaleForm({ onClose, onSaved }: CreateSaleFormProps
                                 onChange={(e) => setProductSearch(e.target.value)}
                                 autoFocus
                             />
-                            <button
-                                onClick={() => {
-                                    setIsProductModalOpen(false);
-                                    setIsNewProductModalOpen(true);
-                                }}
-                                className="px-3 py-2 bg-green-600 text-white rounded-lg whitespace-nowrap hover:bg-green-700 text-sm font-medium"
-                                title="Crear nuevo producto si no existe"
-                            >
-                                + Crear Nuevo
-                            </button>
+                            
                         </div>
 
                         <div className="max-h-60 overflow-y-auto border rounded-lg">
