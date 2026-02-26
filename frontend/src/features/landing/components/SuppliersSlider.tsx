@@ -66,12 +66,9 @@ const SuppliersSlider = () => {
   }, [isTransitioning]);
 
   return (
-    <section className="py-12 relative h-80">
+    <section className="py-12 relative h-80 mb-40">
       {/* Título */}
-      <h2
-        className="text-center text-3xl md:text-5xl font-bold mb-8"
-        style={{ color: "#B20000" }}
-      >
+      <h2 className="text-center text-red-600 text-3xl md:text-5xl font-bold mb-8">
         Nuestros Proveedores
       </h2>
 
