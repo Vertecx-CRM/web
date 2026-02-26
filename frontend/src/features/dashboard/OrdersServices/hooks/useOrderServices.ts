@@ -14,6 +14,7 @@ export const orderServiceHistoryKeys = {
 export interface OrderServiceDTO {
   ordersservicesid: number;
   description: string;
+  direccion?: string | null;
   total: number;
   client?: {
     customerid: number;

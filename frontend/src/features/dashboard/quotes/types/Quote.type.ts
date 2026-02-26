@@ -76,6 +76,7 @@ export interface IQuote {
 
 export type QuoteDetailPayload = {
   productid: number | null;
+  name: string;
   description: string;
   quantity: number;
   unitprice: number;

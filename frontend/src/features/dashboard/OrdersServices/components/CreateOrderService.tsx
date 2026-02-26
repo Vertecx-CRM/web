@@ -1,14 +1,49 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Image from "next/image";
 import RequireAuth from "@/features/auth/requireauth";
 import { createOrderService } from "../api/ordersServices.api";
 import type { CreateOrdersServiceDto } from "../types/ordersServices.types";
 import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
-import { showError, showWarning } from "@/shared/utils/notifications";
+import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
+import {
+  SCHEDULE_MAX,
+  SCHEDULE_MIN,
+  coerceAllowedDateOrNext,
+  coerceAllowedTime,
+  dedupeById,
+  extractFreeTextFromDescription,
+  formatCOP,
+  initials,
+  minutesToTime,
+  normalizeKey,
+  normalizeQuote,
+  normalizeText,
+  parseQuoteParam,
+  pickNumber,
+  timeToMinutes,
+  titleCase,
+  toLocalHM,
+  toLocalYMD,
+  uid,
+  unwrapList,
+  type QuoteNormalized,
+} from "./CreateOrderService.utils";
+import {
+  DESC_MAX,
+  type OrderServiceFormErrors as Errors,
+  validateDescription,
+  validateField,
+  validateForm,
+} from "./CreateOrderService.validations";
+import {
+  buildWindowFromLocalSchedule,
+  getBusyTechnicianIdsForWindow,
+} from "@/features/dashboard/shared/technicianAvailability";
 
 type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
 type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
@@ -39,44 +74,6 @@ type ServiceTypeOption = {
   label: string;
 };
 
-function toNum(v: any, fallback = 0): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizeKey(v: any): string {
-  return String(v ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function unwrapList(x: any): any[] {
-  if (Array.isArray(x)) return x;
-  if (x && typeof x === "object") {
-    if (Array.isArray((x as any).data)) return (x as any).data;
-    if (Array.isArray((x as any).items)) return (x as any).items;
-    if (Array.isArray((x as any).results)) return (x as any).results;
-    if (Array.isArray((x as any).rows)) return (x as any).rows;
-  }
-  return [];
-}
-
-function dedupeById<T = any>(arr: T[], getId?: (x: any) => any): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const x of arr || []) {
-    const rawId = getId ? getId(x) : (x as any)?.serviceid ?? (x as any)?.id ?? (x as any)?.productid;
-    const key = rawId === undefined || rawId === null ? "" : String(rawId);
-    if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    out.push(x);
-  }
-  return out;
-}
-
-
 type ServiceOption = {
   serviceid: number;
   name: string;
@@ -88,54 +85,41 @@ type ServiceOption = {
 
 const IVA_PCT = 19;
 
-const DESC_MIN = 5;
-const DESC_MAX = 500;
-
-function uid() {
-  return Math.random().toString(36).slice(2, 9);
-}
-
-function formatCOP(n?: number) {
-  return n == null
-    ? "—"
-    : n.toLocaleString("es-CO", {
-        style: "currency",
-        currency: "COP",
-        maximumFractionDigits: 0,
-      });
-}
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toLocalYMD(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function toLocalHM(d: Date) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function titleCase(s: string) {
-  const x = String(s ?? "").trim();
-  if (!x) return "";
-  return x.charAt(0).toUpperCase() + x.slice(1);
-}
-
-type Errors = Partial<{
-  quote: string;
-  clientId: string;
-  tipo: string;
-  schedule: string;
-  technicians: string;
-  viaticos: string;
-  servicios: string;
-  materiales: string;
-  description: string;
-}>;
-
 type Touched = Partial<Record<keyof Errors, boolean>>;
+
+type CreateClientField =
+  | "name"
+  | "lastname"
+  | "email"
+  | "phone"
+  | "documentnumber"
+  | "typeid"
+  | "customercity"
+  | "customerzipcode";
+
+type CreateClientForm = {
+  name: string;
+  lastname: string;
+  email: string;
+  phone: string;
+  documentnumber: string;
+  typeid: string;
+  customercity: string;
+  customerzipcode: string;
+};
+
+type CreateClientErrors = Partial<Record<CreateClientField, string>>;
+
+const EMPTY_CREATE_CLIENT_FORM: CreateClientForm = {
+  name: "",
+  lastname: "",
+  email: "",
+  phone: "",
+  documentnumber: "",
+  typeid: "",
+  customercity: "",
+  customerzipcode: "",
+};
 
 function useDesktopQuery() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -180,307 +164,6 @@ function useSidebarWidth(selector = "#app-sidebar") {
   return w;
 }
 
-function initials(name: string) {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  return (a + b).toUpperCase() || "T";
-}
-
-function normalizeText(v: string) {
-  return String(v ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function parseYMD(ymd: string) {
-  const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
-}
-
-function timeToMinutes(hm: string) {
-  const [h, m] = (hm || "").split(":").map((x) => Number(x));
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return NaN;
-  return h * 60 + m;
-}
-
-function minutesToTime(mins: number) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${pad2(h)}:${pad2(m)}`;
-}
-
-const SCHEDULE_MIN = 7 * 60;
-const SCHEDULE_MAX = 17 * 60;
-
-function isAllowedDate(ymd: string) {
-  const d = parseYMD(ymd);
-  if (!d) return false;
-  const day = d.getDay();
-  return day >= 1 && day <= 6;
-}
-
-function isAllowedTime(hm: string) {
-  const mins = timeToMinutes(hm);
-  if (!Number.isFinite(mins)) return false;
-  return mins >= SCHEDULE_MIN && mins <= SCHEDULE_MAX;
-}
-
-type QuoteLike = any;
-
-type QuoteNormalized = {
-  servicerequestid?: number;
-  serviceRequestId?: number;
-  serviceid?: number;
-  quotesid?: number;
-  clientid?: number;
-  technicianid?: number;
-  typeofserviceid?: number | null;
-  typeofservicename?: string | null;
-  fechainicio?: string;
-  fechafin?: string;
-  horainicio?: string;
-  horafin?: string;
-  viaticos?: number;
-  technicians?: number[];
-  description?: string;
-  services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-  products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
-};
-
-function asNumber(v: any) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function pickNumber(...vals: any[]) {
-  for (const v of vals) {
-    const n = asNumber(v);
-    if (n != null) return n;
-  }
-  return undefined;
-}
-
-function pickString(...vals: any[]) {
-  for (const v of vals) {
-    const s = typeof v === "string" ? v : v == null ? "" : String(v);
-    const t = s.trim();
-    if (t) return t;
-  }
-  return "";
-}
-
-function toNumArray(v: any): number[] {
-  if (Array.isArray(v)) return v.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
-  if (typeof v === "string") {
-    return v
-      .split(",")
-      .map((x) => Number(x.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0);
-  }
-  return [];
-}
-
-function decodeBase64Url(input: string) {
-  const base = String(input || "").replace(/-/g, "+").replace(/_/g, "/");
-  const pad = base.length % 4 === 0 ? "" : "=".repeat(4 - (base.length % 4));
-  return atob(base + pad);
-}
-
-function parseQuoteParam(raw: string): any | null {
-  const v = String(raw || "").trim();
-  if (!v) return null;
-  try {
-    if (v.startsWith("{") || v.startsWith("[")) return JSON.parse(v);
-  } catch {}
-  try {
-    const json = decodeBase64Url(v);
-    return JSON.parse(json);
-  } catch {}
-  return null;
-}
-
-function extractFreeTextFromDescription(desc: string) {
-  const s = String(desc || "").trim();
-  if (!s) return "";
-  const hasStructured =
-    /\bTipo:\s*/i.test(s) ||
-    /\bServicios:\s*/i.test(s) ||
-    /\bProductos:\s*/i.test(s) ||
-    /\bDescripción:\s*/i.test(s);
-  if (!hasStructured) return s;
-  const m = s.match(/Descripción:\s*([\s\S]*)$/i);
-  if (m && m[1]) return String(m[1]).trim();
-  return "";
-}
-
-function coerceAllowedDateOrNext(ymd: string) {
-  if (isAllowedDate(ymd)) return ymd;
-  const d = parseYMD(ymd);
-  if (!d) return toLocalYMD(new Date());
-  for (let i = 0; i < 10; i++) {
-    d.setDate(d.getDate() + 1);
-    const next = toLocalYMD(d);
-    if (isAllowedDate(next)) return next;
-  }
-  return toLocalYMD(new Date());
-}
-
-function coerceAllowedTime(hm: string, fallback: string) {
-  if (isAllowedTime(hm)) return hm;
-  return fallback;
-}
-
-function normalizeQuote(q: QuoteLike): QuoteNormalized {
-  const root = q?.quote ?? q?.quotation ?? q?.cotizacion ?? q;
-
-  const quotesid = pickNumber(root?.quotesid, root?.quotationid, root?.cotizacionid, root?.id);
-
-  const servicerequestid = pickNumber(
-    root?.servicerequestid,
-    root?.serviceRequestId,
-    root?.servicerequestId,
-    root?.service_request_id
-  );
-
-  const serviceid = pickNumber(root?.serviceid, root?.serviceId, root?.service?.serviceid, root?.service?.id);
-  const clientid = pickNumber(
-    root?.clientid,
-    root?.customerid,
-    root?.client?.clientid,
-    root?.customer?.customerid,
-    root?.client?.id,
-    root?.customer?.id
-  );
-
-  const technicianid = pickNumber(
-    root?.technicianid,
-    root?.technicianId,
-    root?.technician?.technicianid,
-    root?.technician?.id
-  );
-
-  const techs = toNumArray(root?.technicians ?? root?.technicianids ?? root?.techs ?? root?.assignedTechnicians);
-
-  const fechainicio = pickString(root?.fechainicio, root?.dateStart, root?.startdate, root?.startDate);
-  const fechafin = pickString(root?.fechafin, root?.dateEnd, root?.enddate, root?.endDate);
-  const horainicio = pickString(root?.horainicio, root?.timeStart, root?.starttime, root?.startTime);
-  const horafin = pickString(root?.horafin, root?.timeEnd, root?.endtime, root?.endTime);
-
-  const viaticos = pickNumber(root?.viaticos, root?.travelExpenses, root?.travel, root?.transport) ?? 0;
-
-  const description = pickString(root?.description, root?.notes, root?.observations);
-
-  const rawServices =
-    root?.services ??
-    root?.quotedservices ??
-    root?.servicesitems ??
-    root?.details?.services ??
-    root?.detail?.services ??
-    root?.quoteDetails?.services ??
-    [];
-  const servicesArr = Array.isArray(rawServices) ? rawServices : [];
-
-  const rawDetails = Array.isArray(root?.details)
-    ? root.details
-    : Array.isArray(root?.quoteDetails)
-      ? root.quoteDetails
-      : [];
-
-  const rawProducts =
-    root?.products ??
-    root?.materials ??
-    root?.items ??
-    root?.quotedproducts ??
-    root?.productsitems ??
-    root?.details?.products ??
-    root?.quoteDetails?.products ??
-    [];
-  const productsArr = Array.isArray(rawProducts) ? rawProducts : [];
-
-  const typeofserviceid =
-    pickNumber(
-      root?.typeofserviceid,
-      root?.typeOfServiceId,
-      root?.servicetypeid,
-      root?.serviceTypeId,
-      servicesArr?.[0]?.typeofserviceid,
-      servicesArr?.[0]?.typeOfServiceId,
-      servicesArr?.[0]?.service?.typeofserviceid,
-      servicesArr?.[0]?.service?.typeOfServiceId
-    ) ?? null;
-
-  const typeofservicename =
-    pickString(
-      root?.typeofservicename,
-      root?.servicetype,
-      root?.serviceType,
-      root?.typeName,
-      root?.type,
-      root?.service?.typeofservicename,
-      root?.service?.typeName,
-      servicesArr?.[0]?.typeofservicename,
-      servicesArr?.[0]?.service?.typeofservicename,
-      servicesArr?.[0]?.service?.typeName
-    ) || null;
-
-  const mergedProducts = [...productsArr, ...rawDetails];
-
-  const services = servicesArr
-    .map((s: any) => {
-      const serviceid = pickNumber(s?.serviceid, s?.id, s?.service?.serviceid, s?.service?.id);
-      const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
-      const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.valor) ?? 0;
-      if (!serviceid) return null;
-      return {
-        serviceid,
-        cantidad: Math.max(1, Math.round(cantidad)),
-        unitprice: Math.max(0, Math.round(unitprice)),
-      };
-    })
-    .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-
-  const products = mergedProducts
-    .map((p: any) => {
-      const productid = pickNumber(p?.productid, p?.id, p?.product?.productid, p?.product?.id);
-      const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
-      const unitprice = pickNumber(p?.unitprice, p?.price, p?.unitPrice, p?.valor, p?.subtotal);
-      if (!productid) return null;
-      return {
-        productid,
-        cantidad: Math.max(1, Math.round(cantidad)),
-        unitprice: unitprice == null ? undefined : Math.max(0, Math.round(unitprice)),
-      };
-    })
-    .filter(Boolean) as Array<{ productid: number; cantidad: number; unitprice?: number }>;
-
-  return {
-    quotesid,
-    clientid,
-    typeofserviceid,
-    fechainicio,
-    fechafin,
-    horainicio,
-    horafin,
-    viaticos,
-    technicianid,
-    servicerequestid: servicerequestid ?? undefined,
-    serviceRequestId: servicerequestid ?? undefined,
-    serviceid: serviceid ?? undefined,
-    typeofservicename,
-    technicians: techs,
-    description,
-    services,
-    products,
-  };
-}
-
 export default function OrderCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -489,6 +172,10 @@ export default function OrderCreatePage() {
   const returnTo = searchParams.get("returnTo") || "/dashboard/orders-services";
 
   const quotesIdParam =
+    searchParams.get("saleId") ||
+    searchParams.get("salesId") ||
+    searchParams.get("ventaId") ||
+    searchParams.get("ventaid") ||
     searchParams.get("quotesId") ||
     searchParams.get("quotationId") ||
     searchParams.get("cotizacionId") ||
@@ -496,6 +183,9 @@ export default function OrderCreatePage() {
     searchParams.get("quotesid");
 
   const quoteDataParam =
+    searchParams.get("saleData") ||
+    searchParams.get("saleJson") ||
+    searchParams.get("venta") ||
     searchParams.get("quoteData") ||
     searchParams.get("quoteJson") ||
     searchParams.get("cotizacion") ||
@@ -536,6 +226,7 @@ const {
     serviceTypes: serviceTypesRaw,
     pendingStateId,
     scheduledStateId,
+    refresh: refreshLookups,
   } = useOrdersServicesLookups();
 
   const customers = useMemo<CustomerOption[]>(() => {
@@ -588,7 +279,7 @@ const {
       .map((t: any) => {
         const u = t?.users || t?.user || t?.Users || {};
         const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        const label = name || `Tecnico #${t?.technicianid ?? t?.id ?? "?"}`;
         return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
       })
       .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
@@ -664,17 +355,19 @@ const {
       setQuotesLoading(true);
       setQuotesError(null);
       try {
-        const { data } = await api.get("quotes");
+        const { data } = await api.get("sales");
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
           ? data.data
+          : Array.isArray(data?.sales)
+          ? data.sales
           : Array.isArray(data?.quotes)
           ? data.quotes
           : [];
         if (!cancelled) setQuotesRaw(list);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando cotizaciones.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando ventas.";
         if (!cancelled) {
           setQuotesError(String(msg));
           setQuotesRaw([]);
@@ -691,26 +384,24 @@ const {
 
   const approvedQuotes = useMemo(() => {
     return (quotesRaw || []).filter((q) => {
-      const stateId = pickNumber(q?.state?.stateid, q?.stateid, q?.statesid, q?.state?.id);
-      if (Number.isFinite(stateId) && [3].includes(stateId)) return true;
-
-      const stateName =
+      const statusRaw =
+        q?.salestatus ??
+        q?.status ??
         q?.state?.name ??
         q?.state?.statename ??
-        (typeof q?.state === "string" ? q.state : "") ??
-        q?.status ??
         q?.stateName ??
-        q?.statename;
-
-      const normalized = normalizeText(stateName || "");
-      return normalized.includes("aprob") || normalized.includes("approv");
+        q?.statename ??
+        (typeof q?.state === "string" ? q.state : "");
+      const normalized = normalizeText(statusRaw || "");
+      if (!normalized) return true;
+      return !normalized.includes("cancel") && !normalized.includes("anulad");
     });
   }, [quotesRaw]);
 
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
     for (const q of approvedQuotes || []) {
-      const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id = pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
@@ -720,38 +411,65 @@ const {
     const opts: Array<{ id: number; label: string }> = [];
     for (const q of approvedQuotes || []) {
       const nq = normalizeQuote(q);
-      const id = nq.quotesid ?? pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id =
+        nq.saleid ??
+        nq.quotesid ??
+        pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
 
       const clientLabel =
         (nq.clientid && customers.find((c) => c.customerid === nq.clientid)?.label) ||
         (nq.clientid ? `Cliente #${nq.clientid}` : "Sin cliente");
 
+      const saleCode = String(q?.salecode ?? "").trim();
+      const statusLabel = String(q?.salestatus ?? q?.status ?? "").trim();
+      const total = pickNumber(q?.totalamount, q?.total, q?.grandtotal);
+
       const typeLabel =
         (nq.typeofserviceid && serviceTypes.find((t) => t.typeofserviceid === nq.typeofserviceid)?.label) || "";
+      const addressLabel = String(nq.direccion || "").trim();
 
-      const parts = [`#${id}`, clientLabel];
+      const parts = [saleCode ? `${saleCode} (#${id})` : `#${id}`, clientLabel];
       if (typeLabel) parts.push(typeLabel);
+      if (addressLabel) parts.push(`Dir: ${addressLabel}`);
+      if (statusLabel) parts.push(statusLabel);
+      if (Number.isFinite(total)) parts.push(formatCOP(Number(total)));
 
       const hasServices = Array.isArray(nq.services) && nq.services.length > 0;
       const hasProducts = Array.isArray(nq.products) && nq.products.length > 0;
-      const extra = [hasServices ? "con servicios" : "", hasProducts ? "con productos" : ""].filter(Boolean).join(" · ");
+      const extra = [hasServices ? "con servicios" : "", hasProducts ? "con productos" : ""].filter(Boolean).join(" - ");
       if (extra) parts.push(extra);
 
-      opts.push({ id, label: parts.join(" — ") });
+      opts.push({ id, label: parts.join(" - ") });
     }
     opts.sort((a, b) => b.id - a.id);
     return opts;
   }, [approvedQuotes, customers, serviceTypes]);
 
   const [selectedQuotesId, setSelectedQuotesId] = useState<number | "">("");
+  const [quoteQuery, setQuoteQuery] = useState("");
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteActiveIndex, setQuoteActiveIndex] = useState(0);
+  const quoteBoxRef = useRef<HTMLDivElement>(null);
+  const quoteInputRef = useRef<HTMLInputElement>(null);
 
   const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
   const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
   const [quoteApplyError, setQuoteApplyError] = useState<string | null>(null);
+  const saleToServiceRequestCacheRef = useRef<Map<number, number | null>>(new Map());
+  const quotesForLinkingRef = useRef<any[] | null>(null);
 
   const [clientId, setClientId] = useState<number | "">("");
   const selectedCustomer = useMemo(() => customers.find((c) => c.customerid === clientId), [customers, clientId]);
+  const [createClientInlineEnabled, setCreateClientInlineEnabled] = useState(false);
+  const [clientIdBeforeInlineCreate, setClientIdBeforeInlineCreate] = useState<number | "">("");
+  const clientLockedByQuote = !!quoteAppliedKey && !!clientId && !createClientInlineEnabled;
+  const [createClientLoading, setCreateClientLoading] = useState(false);
+  const [createClientBootstrapping, setCreateClientBootstrapping] = useState(false);
+  const [createClientRoleId, setCreateClientRoleId] = useState<number | null>(null);
+  const [createClientDocTypes, setCreateClientDocTypes] = useState<Array<{ id: number; name: string }>>([]);
+  const [createClientForm, setCreateClientForm] = useState<CreateClientForm>(EMPTY_CREATE_CLIENT_FORM);
+  const [createClientErrors, setCreateClientErrors] = useState<CreateClientErrors>({});
 
   const [tipoId, setTipoId] = useState<number | null>(null);
   const tipoSeleccionado = useMemo(
@@ -760,6 +478,7 @@ const {
   );
 
   const [descripcion, setDescripcion] = useState("");
+  const [direccion, setDireccion] = useState("");
 
   const [viaticosInput, setViaticosInput] = useState<string>("0");
   const viaticosValue = useMemo(() => {
@@ -798,9 +517,12 @@ const {
   const [techActiveIndex, setTechActiveIndex] = useState(0);
   const techBoxRef = useRef<HTMLDivElement>(null);
   const techInputRef = useRef<HTMLInputElement>(null);
+  const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
+  const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
   const [servicios, setServicios] = useState<ServiceLineItem[]>([]);
   const [materiales, setMateriales] = useState<MaterialLineItem[]>([]);
+  const [materialOpenId, setMaterialOpenId] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -821,8 +543,6 @@ const {
 
   const inputBase =
     "w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-200";
-  const selectBase = `${inputBase} appearance-none pr-8`;
-  const chevron = "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400";
   const errorText = "mt-1 text-xs text-red-600";
   const errorRing = "border-red-500 ring-1 ring-red-500";
 
@@ -859,6 +579,34 @@ const {
     showError(quotesError);
   }, [quotesError]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const [ordersRes, requestsRes] = await Promise.allSettled([
+        api.get("orders-services"),
+        api.get("service-requests"),
+      ]);
+      if (cancelled) return;
+
+      const ordersData =
+        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+          ? (ordersRes.value as any).data
+          : [];
+      const requestsData =
+        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+          ? (requestsRes.value as any).data
+          : [];
+
+      setScheduledOrdersRaw(ordersData);
+      setScheduledRequestsRaw(requestsData);
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const skipClearOnTipoChangeRef = useRef(false);
 
   useEffect(() => {
@@ -885,9 +633,34 @@ const {
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
 
+  const selectedWindow = useMemo(
+    () => buildWindowFromLocalSchedule(dateStart, timeStart, dateEnd, timeEnd),
+    [dateStart, timeStart, dateEnd, timeEnd]
+  );
+
+  const busyTechnicianIds = useMemo(
+    () =>
+      getBusyTechnicianIdsForWindow(
+        scheduledOrdersRaw,
+        scheduledRequestsRaw,
+        selectedWindow
+      ),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow]
+  );
+
+  const availableTechnicians = useMemo(
+    () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
+    [technicians, busyTechnicianIds]
+  );
+
+  const selectedBusyTechnicianIds = useMemo(
+    () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
+    [selectedTechnicians, busyTechnicianIds]
+  );
+
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -902,7 +675,7 @@ const {
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
-  }, [technicians, techQuery, selectedTechSet]);
+  }, [availableTechnicians, techQuery, selectedTechSet]);
 
   useEffect(() => {
     setTechActiveIndex(0);
@@ -910,6 +683,10 @@ const {
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
+    if (busyTechnicianIds.has(id)) {
+      showWarning("Ese tecnico ya esta ocupado en el horario seleccionado.");
+      return;
+    }
     setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setErrors((p) => ({ ...p, technicians: undefined }));
     setTechQuery("");
@@ -988,7 +765,7 @@ const {
       const isImg = f.type.startsWith("image/");
       const okSize = f.size <= MAX_SIZE;
       if (isImg && okSize) accepteds.push(f);
-      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (más de 5MB)" : ""}`);
+      else rejected.push(`${f.name}${!isImg ? " (no es imagen)" : ""}${!okSize ? " (mas de 5MB)" : ""}`);
     });
 
     const totalCount = accepteds.length + files.length;
@@ -996,10 +773,10 @@ const {
     if (totalCount > MAX_FILES) {
       const allowed = Math.max(0, MAX_FILES - files.length);
       if (allowed > 0) dedupeAppend(accepteds.slice(0, allowed));
-      showWarning(`Máximo ${MAX_FILES} imágenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
+      showWarning(`Maximo ${MAX_FILES} imagenes. ${rejected.length ? "Algunas fueron rechazadas." : ""}`.trim());
     } else {
       dedupeAppend(accepteds);
-      if (rejected.length) showWarning("Algunas imágenes fueron rechazadas (tipo/tamaño).");
+      if (rejected.length) showWarning("Algunas imagenes fueron rechazadas (tipo/tamano).");
     }
 
     e.currentTarget.value = "";
@@ -1073,14 +850,52 @@ const {
     return productsCatalog.filter((p) => !materialesSelectedNames.has(p.productname));
   }, [productsCatalog, materialesSelectedNames]);
 
-  function precioMaterialPorNombre(nombre: string) {
-    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  function findProductByName(nombre: string) {
+    const q = normalizeText(nombre);
+    if (!q) return null;
+    return productsCatalog.find((x) => normalizeText(x.productname) === q) || null;
   }
 
-  function materialOptionsForRow(currentName: string) {
+  function isProductAlreadyAdded(rowId: string, productName: string) {
+    const nameNorm = normalizeText(productName);
+    if (!nameNorm) return false;
+    return materiales.some((m) => m.id !== rowId && normalizeText(String(m.nombre || "")) === nameNorm);
+  }
+
+  function materialOptionsForRow(currentName: string, query = "") {
     const used = new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean));
     if (currentName) used.delete(currentName);
-    return productsCatalog.filter((p) => !used.has(p.productname));
+    const base = productsCatalog.filter((p) => !used.has(p.productname));
+    const q = normalizeText(query);
+    // If the input currently matches an existing product exactly, show full list.
+    // This keeps the dropdown useful after selecting an item.
+    if (q && findProductByName(query)) return base.slice(0, 15);
+    if (!q) return base.slice(0, 15);
+    const scored = base
+      .map((p) => {
+        const label = normalizeText(p.productname);
+        let score = 0;
+        if (label.startsWith(q)) score += 2;
+        if (label.includes(q)) score += 1;
+        return { p, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.p.productname.localeCompare(b.p.productname));
+    return scored.slice(0, 15).map((x) => x.p);
+  }
+
+  function selectMaterialForRow(rowId: string, product: ProductOption) {
+    if (isProductAlreadyAdded(rowId, product.productname)) {
+      showWarning(`El producto "${product.productname}" ya esta agregado.`);
+      return;
+    }
+    patchItem<MaterialLineItem>(
+      rowId,
+      { nombre: product.productname, precio: product.productpriceofsale },
+      setMateriales
+    );
+    setErrors((prev) => ({ ...prev, materiales: undefined }));
+    setMaterialOpenId(null);
   }
 
   function addMaterialRow() {
@@ -1096,190 +911,77 @@ const {
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
 
-  useEffect(() => {
-    if (!(submitAttempted || touched.servicios)) return;
-    const msg = validateField("servicios");
-    setErrors((p) => ({ ...p, servicios: msg }));
-  }, [servicios, servicesCatalog, submitAttempted, touched.servicios]);
-
-  useEffect(() => {
-    if (!(submitAttempted || touched.materiales)) return;
-    const msg = validateField("materiales");
-    setErrors((p) => ({ ...p, materiales: msg }));
-  }, [materiales, productsCatalog, submitAttempted, touched.materiales]);
-
-  function validateScheduleOnly(): string | undefined {
-    if (!dateStart || !timeStart || !dateEnd || !timeEnd) return "Completa fecha y hora de inicio y fin.";
-    if (!isAllowedDate(dateStart) || !isAllowedDate(dateEnd)) return "Solo se permite agendar de lunes a sábado.";
-    if (!isAllowedTime(timeStart) || !isAllowedTime(timeEnd)) return "Horario permitido: 07:00–17:00.";
-
-    const sDate = parseYMD(dateStart);
-    const eDate = parseYMD(dateEnd);
-    if (!sDate || !eDate) return "Fecha inválida.";
-
-    const s = new Date(sDate);
-    const e = new Date(eDate);
-    const sMin = timeToMinutes(timeStart);
-    const eMin = timeToMinutes(timeEnd);
-    if (!Number.isFinite(sMin) || !Number.isFinite(eMin)) return "Hora inválida.";
-    s.setHours(Math.floor(sMin / 60), sMin % 60, 0, 0);
-    e.setHours(Math.floor(eMin / 60), eMin % 60, 0, 0);
-
-    if (!(e.getTime() > s.getTime())) return "La fecha/hora fin debe ser mayor que la de inicio.";
-    if (timeStart === "17:00") return "La hora de inicio no puede ser 17:00.";
-    return undefined;
-  }
-
-  function validateForm(): Errors {
-    const errs: Errors = {};
-
-    if (!clientId) errs.clientId = "Selecciona un cliente.";
-
-    if (!servicios.length && !tipoId) errs.tipo = "Selecciona el tipo de servicio.";
-
-    const sch = validateScheduleOnly();
-    if (sch) errs.schedule = sch;
-
-    if (!selectedTechnicians.length) errs.technicians = "Selecciona al menos un técnico.";
-
-    if (!Number.isFinite(viaticosValue)) errs.viaticos = "Viáticos debe ser un número válido.";
-    if (Number.isFinite(viaticosValue) && viaticosValue < 0) errs.viaticos = "Viáticos no puede ser negativo.";
-    const desc = String(descripcion || "").trim();
-    if (!desc) errs.description = "La descripción es obligatoria.";
-    else if (desc.length < DESC_MIN) errs.description = `La descripción debe tener al menos ${DESC_MIN} caracteres.`;
-    else if (desc.length > DESC_MAX) errs.description = `La descripción no puede superar ${DESC_MAX} caracteres.`;
-
-
-    if (servicios.length === 0) {
-      errs.servicios = "Debes añadir al menos un servicio.";
-    } else {
-      const invalidSvc = servicios.some((s) => {
-        if (!s.tipoId) return true;
-        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
-      });
-      if (invalidSvc) errs.servicios = "Hay servicios inválidos. Vuelve a seleccionarlos.";
-
-      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-      if (badPriceSvc) errs.servicios = (errs.servicios ? errs.servicios + " " : "") + "Corrige precios de servicios.";
-
-      const dupByType = (() => {
-        const map = new Map<number, Set<string>>();
-        for (const s of servicios) {
-          const name = String(s.nombre || "").trim();
-          if (!name) continue;
-          const set = map.get(s.tipoId) ?? new Set<string>();
-          if (set.has(name)) return true;
-          set.add(name);
-          map.set(s.tipoId, set);
-        }
-        return false;
-      })();
-      if (dupByType)
-        errs.servicios =
-          (errs.servicios ? errs.servicios + " " : "") + "No puedes repetir el mismo servicio dentro del mismo tipo.";
-    }
-
-    if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
-    if (materiales.length === 0)
-      errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
-
-    const dupMat =
-      materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
-    if (dupMat) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "No puedes repetir el mismo producto.";
-
-    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-      errs.materiales =
-        (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
-    }
-
-    const badQty = materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1);
-    if (badQty) errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Corrige cantidades (mínimo 1).";
-
-    return errs;
-  }
-
-  function validateField(key: keyof Errors): string | undefined {
-    if (key === "clientId") {
-      if (!clientId) return "Selecciona un cliente.";
-      return undefined;
-    }
-    if (key === "tipo") {
-      if (servicios.length > 0) return undefined;
-      if (!tipoId) return "Selecciona el tipo de servicio.";
-      return undefined;
-    }
-    if (key === "schedule") return validateScheduleOnly();
-    if (key === "technicians") {
-      if (!selectedTechnicians.length) return "Selecciona al menos un técnico.";
-      return undefined;
-    }
-    if (key === "viaticos") {
-      if (!Number.isFinite(viaticosValue)) return "Viáticos debe ser un número válido.";
-      if (Number.isFinite(viaticosValue) && viaticosValue < 0) return "Viáticos no puede ser negativo.";
-      return undefined;
-    }
-    if (key === "servicios") {
-      if (servicios.length === 0) return "Debes añadir al menos un servicio.";
-      const invalidSvc = servicios.some((s) => {
-        if (!s.tipoId) return true;
-        return !servicesCatalog.some((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId);
-      });
-      if (invalidSvc) return "Hay servicios inválidos. Vuelve a seleccionarlos.";
-      const badPriceSvc = servicios.some((s) => !Number.isFinite(Number(s.precio)) || Number(s.precio) < 0);
-      if (badPriceSvc) return "Corrige precios de servicios.";
-      const dupByType = (() => {
-        const map = new Map<number, Set<string>>();
-        for (const s of servicios) {
-          const name = String(s.nombre || "").trim();
-          if (!name) continue;
-          const set = map.get(s.tipoId) ?? new Set<string>();
-          if (set.has(name)) return true;
-          set.add(name);
-          map.set(s.tipoId, set);
-        }
-        return false;
-      })();
-      if (dupByType) return "No puedes repetir el mismo servicio dentro del mismo tipo.";
-      return undefined;
-    }
-    if (key === "materiales") {
-      if (!productsCatalog.length) return "No hay productos cargados desde la BD.";
-      if (materiales.length === 0) return "Debes añadir al menos un producto (material).";
-      const dupMat =
-        materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
-      if (dupMat) return "No puedes repetir el mismo producto.";
-      if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre)))
-        return "Hay productos inválidos. Vuelve a seleccionarlos.";
-      if (materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1))
-        return "Corrige cantidades (mínimo 1).";
-      return undefined;
-    }
-    return undefined;
-  }
+  const validationContext = useMemo(
+    () => ({
+      clientId,
+      tipoId,
+      dateStart,
+      timeStart,
+      dateEnd,
+      timeEnd,
+      selectedTechnicians,
+      viaticosValue,
+      direccion,
+      descripcion,
+      servicios,
+      servicesCatalog,
+      materiales,
+      productsCatalog,
+    }),
+    [
+      clientId,
+      tipoId,
+      dateStart,
+      timeStart,
+      dateEnd,
+      timeEnd,
+      selectedTechnicians,
+      viaticosValue,
+      direccion,
+      descripcion,
+      servicios,
+      servicesCatalog,
+      materiales,
+      productsCatalog,
+    ]
+  );
 
   function runBlurValidation(key: keyof Errors) {
     setTouched((t) => ({ ...t, [key]: true }));
-    const msg = validateField(key);
+    const msg = validateField(key, validationContext);
     setErrors((p) => ({ ...p, [key]: msg }));
   }
 
   useEffect(() => {
     if (!(submitAttempted || touched.tipo)) return;
-    setErrors((p) => ({ ...p, tipo: validateField("tipo") }));
-  }, [submitAttempted, touched.tipo, tipoId, servicios.length]);
+    setErrors((p) => ({ ...p, tipo: validateField("tipo", validationContext) }));
+  }, [submitAttempted, touched.tipo, tipoId, servicios.length, validationContext]);
 
   useEffect(() => {
     if (!(submitAttempted || touched.servicios)) return;
-    setErrors((p) => ({ ...p, servicios: validateField("servicios") }));
-  }, [submitAttempted, touched.servicios, servicios, servicesCatalog]);
+    setErrors((p) => ({ ...p, servicios: validateField("servicios", validationContext) }));
+  }, [submitAttempted, touched.servicios, servicios, servicesCatalog, validationContext]);
 
   useEffect(() => {
     if (!(submitAttempted || touched.materiales)) return;
-    setErrors((p) => ({ ...p, materiales: validateField("materiales") }));
-  }, [submitAttempted, touched.materiales, materiales, productsCatalog]);
+    setErrors((p) => ({ ...p, materiales: validateField("materiales", validationContext) }));
+  }, [submitAttempted, touched.materiales, materiales, productsCatalog, validationContext]);
+
+  useEffect(() => {
+    if (!(submitAttempted || touched.technicians)) return;
+    if (!selectedTechnicians.length) {
+      setErrors((p) => ({ ...p, technicians: "Selecciona al menos un tecnico." }));
+      return;
+    }
+    if (selectedBusyTechnicianIds.length > 0) {
+      setErrors((p) => ({ ...p, technicians: "Hay tecnicos ocupados en ese horario." }));
+      return;
+    }
+    setErrors((p) => ({ ...p, technicians: undefined }));
+  }, [submitAttempted, touched.technicians, selectedTechnicians, selectedBusyTechnicianIds]);
 
   function focusFirstError(er: Errors) {
-    const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "description", "materiales", "servicios"] as const;
+    const order = ["quote", "clientId", "tipo", "schedule", "technicians", "viaticos", "direccion", "description", "materiales", "servicios"] as const;
     const key = order.find((k) => (er as any)[k]);
     if (!key) return;
     const el = document.getElementById(`field-${key}`);
@@ -1313,6 +1015,63 @@ const {
   const [customerActiveIndex, setCustomerActiveIndex] = useState(0);
   const customerBoxRef = useRef<HTMLDivElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!quoteOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!quoteBoxRef.current) return;
+      if (!quoteBoxRef.current.contains(t)) setQuoteOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [quoteOpen]);
+
+  const selectedQuoteOption = useMemo(() => {
+    if (!selectedQuotesId) return null;
+    return quoteOptions.find((q) => q.id === Number(selectedQuotesId)) || null;
+  }, [quoteOptions, selectedQuotesId]);
+
+  const quoteSearchOptions = useMemo(() => {
+    const q = normalizeText(quoteQuery);
+    if (!q) return quoteOptions.slice(0, 10);
+    const scored = quoteOptions
+      .map((opt) => {
+        const label = normalizeText(opt.label);
+        const idStr = String(opt.id);
+        let score = 0;
+        if (idStr.startsWith(q)) score += 3;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        return { opt, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || b.opt.id - a.opt.id);
+    return scored.slice(0, 10).map((x) => x.opt);
+  }, [quoteOptions, quoteQuery]);
+
+  useEffect(() => {
+    setQuoteActiveIndex(0);
+  }, [quoteQuery, quoteOpen]);
+
+  function pickQuote(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    setSelectedQuotesId(id as any);
+    setErrors((p) => ({ ...p, quote: undefined }));
+    setTouched((t) => ({ ...t, quote: true }));
+    setQuoteQuery("");
+    setQuoteOpen(false);
+    setQuoteApplyError(null);
+  }
+
+  function clearQuoteSelection() {
+    setSelectedQuotesId("");
+    setQuoteQuery("");
+    setQuoteOpen(false);
+    setQuoteApplyError(null);
+    setQuoteAppliedKey(null);
+    quoteInputRef.current?.focus();
+  }
 
   useEffect(() => {
     if (!customerOpen) return;
@@ -1362,14 +1121,152 @@ const {
     customerInputRef.current?.focus();
   }
 
+  function resetCreateClientForm() {
+    setCreateClientForm(EMPTY_CREATE_CLIENT_FORM);
+    setCreateClientErrors({});
+  }
+
+  function validateCreateClientForm(form: CreateClientForm) {
+    const next: CreateClientErrors = {};
+    const name = String(form.name || "").trim();
+    const lastname = String(form.lastname || "").trim();
+    const email = String(form.email || "").trim();
+    const phone = String(form.phone || "").trim();
+    const documentnumber = String(form.documentnumber || "").trim();
+    const typeid = Number(form.typeid);
+    const city = String(form.customercity || "").trim();
+    const zipcode = String(form.customerzipcode || "").trim();
+
+    if (name.length < 2) next.name = "El nombre es obligatorio (minimo 2 caracteres).";
+    if (lastname.length > 0 && lastname.length < 2) next.lastname = "El apellido debe tener minimo 2 caracteres.";
+    if (!email) next.email = "El correo es obligatorio.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) next.email = "Correo invalido.";
+    if (!/^\d{7,15}$/.test(phone)) next.phone = "Telefono invalido (7 a 15 digitos).";
+    if (!documentnumber) next.documentnumber = "El numero de documento es obligatorio.";
+    if (!Number.isFinite(typeid) || typeid <= 0) next.typeid = "Selecciona el tipo de documento.";
+    if (city && city.length > 120) next.customercity = "La ciudad no puede superar 120 caracteres.";
+    if (zipcode && zipcode.length > 20) next.customerzipcode = "El codigo postal no puede superar 20 caracteres.";
+
+    return next;
+  }
+
+  async function ensureCreateClientLookups() {
+    if (createClientRoleId && createClientDocTypes.length) return;
+    setCreateClientBootstrapping(true);
+    try {
+      const [rolesRes, docsRes] = await Promise.all([
+        api.get("/roles/list"),
+        api.get("/typeofdocuments"),
+      ]);
+
+      const roles = unwrapList((rolesRes as any)?.data);
+      const clienteRole = roles.find((r: any) => normalizeText(r?.name ?? r?.role?.name) === "cliente");
+      const roleId = Number(clienteRole?.roleid ?? clienteRole?.id ?? clienteRole?.role?.roleid ?? clienteRole?.role?.id);
+
+      const docsRaw = unwrapList((docsRes as any)?.data);
+      const docs = (docsRaw || [])
+        .map((d: any) => ({
+          id: Number(d?.typeofdocumentid ?? d?.id),
+          name: String(d?.name ?? d?.nombre ?? d?.label ?? "").trim(),
+        }))
+        .filter((d) => Number.isFinite(d.id) && d.id > 0 && d.name);
+
+      setCreateClientRoleId(Number.isFinite(roleId) && roleId > 0 ? roleId : null);
+      setCreateClientDocTypes(docs);
+      if (!createClientForm.typeid && docs.length) {
+        setCreateClientForm((prev) => ({ ...prev, typeid: String(docs[0].id) }));
+      }
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || "No se pudieron cargar roles y tipos de documento.");
+    } finally {
+      setCreateClientBootstrapping(false);
+    }
+  }
+
+  async function createClientFromInlineForm() {
+    if (!createClientRoleId) {
+      await ensureCreateClientLookups();
+    }
+    if (!createClientRoleId) {
+      throw new Error("No se encontro el rol Cliente para crear el usuario.");
+    }
+
+    setCreateClientLoading(true);
+    try {
+      const payload = {
+        name: String(createClientForm.name || "").trim(),
+        lastname: String(createClientForm.lastname || "").trim() || null,
+        email: String(createClientForm.email || "").trim(),
+        phone: String(createClientForm.phone || "").trim(),
+        documentnumber: String(createClientForm.documentnumber || "").trim(),
+        typeid: Number(createClientForm.typeid),
+        stateid: 1,
+        roleid: createClientRoleId,
+        customercity: String(createClientForm.customercity || "").trim() || null,
+        customerzipcode: String(createClientForm.customerzipcode || "").trim() || null,
+      };
+
+      const userRes: any = await api.post("/users", payload);
+      const newUserId = pickNumber(
+        userRes?.data?.userid,
+        userRes?.data?.id,
+        userRes?.data?.data?.userid,
+        userRes?.data?.data?.id
+      );
+
+      let createdCustomerId = 0;
+      if (newUserId) {
+        try {
+          const customerByUserRes: any = await api.get(`/customers/user/${newUserId}`, {
+            params: { includeRelations: true },
+          });
+          const byUser = customerByUserRes?.data;
+          createdCustomerId = Number(byUser?.customerid ?? byUser?.id ?? 0);
+        } catch {}
+      }
+
+      if (!createdCustomerId) {
+        const customerListRes: any = await api.get("/customers", { params: { includeRelations: true } });
+        const list = unwrapList(customerListRes?.data);
+        const emailNeedle = normalizeText(payload.email);
+        const docNeedle = normalizeText(payload.documentnumber);
+
+        const found = (list || []).find((c: any) => {
+          const base = c?.customer || c?.client || c;
+          const u = base?.users || base?.user || c?.users || c?.user || {};
+          const mail = normalizeText(u?.email ?? base?.email ?? c?.email ?? "");
+          const doc = normalizeText(u?.documentnumber ?? base?.documentnumber ?? c?.documentnumber ?? "");
+          return (emailNeedle && mail === emailNeedle) || (docNeedle && doc === docNeedle);
+        });
+
+        createdCustomerId = Number(found?.customerid ?? found?.id ?? 0);
+      }
+
+      await refreshLookups();
+
+      if (!(Number.isFinite(createdCustomerId) && createdCustomerId > 0)) {
+        throw new Error("Se creo el usuario, pero no se pudo obtener el cliente asociado.");
+      }
+
+      pickCustomer(createdCustomerId);
+      showSuccess("Cliente creado y asociado a la orden.");
+      return createdCustomerId;
+    } finally {
+      setCreateClientLoading(false);
+    }
+  }
+
   function resetPrefill() {
     setSubmitAttempted(false);
     setQuoteApplyError(null);
     setSelectedQuotesId("");
     setClientId("");
+    setCreateClientInlineEnabled(false);
+    resetCreateClientForm();
     skipClearOnTipoChangeRef.current = true;
     setTipoId(null);
     setDescripcion("");
+    setDireccion("");
     setSelectedTechnicians([]);
     setServicios([]);
     setMateriales([]);
@@ -1386,6 +1283,8 @@ const {
     setErrors({});
     setTouched({});
     setQuoteAppliedKey(null);
+    setQuoteQuery("");
+    setQuoteOpen(false);
     setCustomerQuery("");
     setCustomerOpen(false);
   }
@@ -1412,7 +1311,7 @@ const {
 
     skipClearOnTipoChangeRef.current = true;
     setTipoId(typeId);
-    // Si la cotización viene asociada a una solicitud, precarga el servicio de esa solicitud
+    // Si la venta/cotizacion viene asociada a una solicitud, precarga el servicio de esa solicitud
     if (nq?.serviceRequestId) {
       api
         .get<any>(`/service-requests/${nq.serviceRequestId}`)
@@ -1477,6 +1376,7 @@ const {
 
     const freeText = extractFreeTextFromDescription(nq.description || "");
     setDescripcion(freeText);
+    setDireccion(String(nq.direccion || "").trim());
 
     const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(nq.services) && nq.services.length) {
@@ -1516,6 +1416,148 @@ const {
     setCustomerOpen(false);
   }
 
+  function getServiceRequestIdFromQuoteLike(q: any): number | null {
+    if (!q) return null;
+    return (
+      pickNumber(
+        q?.serviceRequest?.serviceRequestId,
+        q?.serviceRequest?.id,
+        q?.serviceRequestId,
+        q?.servicerequestid,
+        q?.servicerequestId
+      ) ?? null
+    );
+  }
+
+  function getQuoteIdFromSaleLike(sale: any): number | null {
+    if (!sale) return null;
+    const direct =
+      pickNumber(
+        sale?.quoteid,
+        sale?.quoteId,
+        sale?.quotesid,
+        sale?.quotationid,
+        sale?.cotizacionid,
+        sale?.quote?.quotesid,
+        sale?.quote?.quoteid,
+        sale?.quotation?.quotesid
+      ) ?? null;
+    if (direct) return direct;
+
+    const notes = String(sale?.notes ?? sale?.observation ?? "").trim();
+    if (!notes) return null;
+    const m =
+      notes.match(/(?:quote|cotizacion)\s*#?\s*(\d+)/i) ||
+      notes.match(/\bquoteid\b\s*[:=]\s*(\d+)/i) ||
+      notes.match(/\bquotesid\b\s*[:=]\s*(\d+)/i);
+    if (!m?.[1]) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  function productsSignatureFromNormalized(products: Array<{ productid: number; cantidad: number }> = []) {
+    const normalized = products
+      .map((p) => ({
+        productid: Number(p.productid),
+        cantidad: Math.max(1, Math.round(Number(p.cantidad || 1))),
+      }))
+      .filter((p) => Number.isFinite(p.productid) && p.productid > 0)
+      .sort((a, b) => a.productid - b.productid || a.cantidad - b.cantidad);
+    return normalized.map((p) => `${p.productid}:${p.cantidad}`).join("|");
+  }
+
+  function productsSignatureFromQuoteLike(quote: any) {
+    const details = Array.isArray(quote?.details) ? quote.details : [];
+    const items = details
+      .map((d: any) => ({
+        productid: Number(d?.productid),
+        cantidad: Math.max(1, Math.round(Number(d?.quantity ?? d?.cantidad ?? 1))),
+      }))
+      .filter((p: any) => Number.isFinite(p.productid) && p.productid > 0);
+    return productsSignatureFromNormalized(items as any);
+  }
+
+  async function getQuotesForLinking(): Promise<any[]> {
+    if (quotesForLinkingRef.current) return quotesForLinkingRef.current;
+    const { data } = await api.get("quotes");
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.quotes)
+      ? data.quotes
+      : [];
+    quotesForLinkingRef.current = list;
+    return list;
+  }
+
+  async function resolveServiceRequestIdFromSale(rawSale: any, nq: QuoteNormalized): Promise<number | null> {
+    const current = pickNumber(
+      nq?.serviceRequestId,
+      nq?.servicerequestid,
+      rawSale?.serviceRequest?.serviceRequestId,
+      rawSale?.serviceRequest?.id,
+      rawSale?.serviceRequestId,
+      rawSale?.servicerequestid
+    );
+    if (current) return current;
+
+    const saleId = pickNumber(rawSale?.saleid, rawSale?.salesid, rawSale?.id);
+    if (saleId && saleToServiceRequestCacheRef.current.has(saleId)) {
+      return saleToServiceRequestCacheRef.current.get(saleId) ?? null;
+    }
+
+    const quoteId = getQuoteIdFromSaleLike(rawSale);
+    if (quoteId) {
+      try {
+        const { data } = await api.get(`quotes/${quoteId}`);
+        const sr = getServiceRequestIdFromQuoteLike(data);
+        if (saleId) saleToServiceRequestCacheRef.current.set(saleId, sr ?? null);
+        if (sr) return sr;
+      } catch {}
+    }
+
+    try {
+      const quotes = await getQuotesForLinking();
+      if (!quotes.length) {
+        if (saleId) saleToServiceRequestCacheRef.current.set(saleId, null);
+        return null;
+      }
+
+      const saleClientId = pickNumber(rawSale?.customerid, rawSale?.clientid, nq?.clientid);
+      const saleTotal = pickNumber(rawSale?.totalamount, rawSale?.total, rawSale?.grandtotal);
+      const saleProductsSig = productsSignatureFromNormalized((nq?.products || []) as any);
+
+      let best: any = null;
+      let bestScore = -1;
+
+      for (const q of quotes) {
+        let score = 0;
+        const qClientId = pickNumber(q?.customerid, q?.clientid, q?.customer?.customerid, q?.client?.clientid);
+        if (saleClientId && qClientId && saleClientId === qClientId) score += 3;
+
+        const qTotal = pickNumber(q?.total, q?.totalamount, q?.grandtotal);
+        if (saleTotal != null && qTotal != null && Math.abs(Number(saleTotal) - Number(qTotal)) <= 1) score += 3;
+
+        const qProductsSig = productsSignatureFromQuoteLike(q);
+        if (saleProductsSig && qProductsSig && saleProductsSig === qProductsSig) score += 4;
+
+        if (score > bestScore) {
+          best = q;
+          bestScore = score;
+        }
+      }
+
+      const matched = bestScore >= 5 ? best : null;
+      const sr = getServiceRequestIdFromQuoteLike(matched);
+      if (saleId) saleToServiceRequestCacheRef.current.set(saleId, sr ?? null);
+      return sr ?? null;
+    } catch {
+      if (saleId) saleToServiceRequestCacheRef.current.set(saleId, null);
+      return null;
+    }
+  }
+
   useEffect(() => {
     if (lookupsLoading) return;
     if (!customers.length || !technicians.length || !productsCatalog.length || !serviceTypes.length) return;
@@ -1538,19 +1580,24 @@ const {
 
         if (quotesIdFromUrl) {
           raw = quoteMapById.get(quotesIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontró la cotización aprobada #${quotesIdFromUrl} en /quotes`);
+          if (!raw) throw new Error(`No se encontro la venta #${quotesIdFromUrl} en /sales`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
-          if (!raw) throw new Error("No se pudo leer la cotización desde la URL.");
+          if (!raw) throw new Error("No se pudo leer la venta desde la URL.");
         }
 
         const nq = normalizeQuote(raw);
+        const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        if (srId) {
+          nq.serviceRequestId = srId;
+          nq.servicerequestid = srId;
+        }
         if (cancelled) return;
 
         applyNormalizedQuote(nq, keyFromUrl);
         if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando cotización.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando venta.";
         setQuoteApplyError(String(msg));
         showError(String(msg));
       } finally {
@@ -1589,24 +1636,38 @@ const {
 
     const raw = quoteMapById.get(id);
     if (!raw) {
-      const msg = `La cotización #${id} no está disponible en el listado de cotizaciones aprobadas.`;
+      const msg = `La venta #${id} no esta disponible en el listado de ventas.`;
       setQuoteApplyError(msg);
       showError(msg);
       return;
     }
 
-    setQuoteApplyError(null);
-    setQuoteLoadingApply(true);
-    try {
-      const nq = normalizeQuote(raw);
-      applyNormalizedQuote(nq, key);
-    } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || "Error aplicando cotización.";
-      setQuoteApplyError(String(msg));
-      showError(String(msg));
-    } finally {
-      setQuoteLoadingApply(false);
+    let cancelled = false;
+    async function run() {
+      setQuoteApplyError(null);
+      setQuoteLoadingApply(true);
+      try {
+        const nq = normalizeQuote(raw);
+        const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        if (srId) {
+          nq.serviceRequestId = srId;
+          nq.servicerequestid = srId;
+        }
+        if (cancelled) return;
+        applyNormalizedQuote(nq, key);
+      } catch (e: any) {
+        if (cancelled) return;
+        const msg = e?.response?.data?.message || e?.message || "Error aplicando venta.";
+        setQuoteApplyError(String(msg));
+        showError(String(msg));
+      } finally {
+        if (!cancelled) setQuoteLoadingApply(false);
+      }
     }
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [
     selectedQuotesId,
     lookupsLoading,
@@ -1634,11 +1695,19 @@ const {
       schedule: true,
       technicians: true,
       viaticos: true,
+      direccion: true,
       materiales: true,
       servicios: true,
     });
 
-    const er = validateForm();
+    const shouldCreateInlineClient = createClientInlineEnabled && !clientId;
+    const erRaw = validateForm(validationContext);
+    if (selectedBusyTechnicianIds.length > 0) {
+      erRaw.technicians = "Hay tecnicos ocupados en ese horario.";
+    }
+    const er = shouldCreateInlineClient
+      ? (Object.fromEntries(Object.entries(erRaw).filter(([k]) => k !== "clientId")) as Errors)
+      : erRaw;
     setErrors(er);
     if (Object.keys(er).length > 0) {
       showWarning("Revisa los campos marcados en rojo.");
@@ -1647,14 +1716,46 @@ const {
       return;
     }
 
+    let finalClientId = Number(clientId);
+    if (shouldCreateInlineClient) {
+      const inlineErrs = validateCreateClientForm(createClientForm);
+      setCreateClientErrors(inlineErrs);
+      if (Object.keys(inlineErrs).length) {
+        showWarning("Completa correctamente los datos del cliente nuevo.");
+        submitLockRef.current = false;
+        return;
+      }
+
+      try {
+        finalClientId = await createClientFromInlineForm();
+      } catch (e: any) {
+        showError(e?.response?.data?.message || e?.message || "No se pudo crear el cliente.");
+        submitLockRef.current = false;
+        return;
+      }
+    }
+
+    if (!Number.isFinite(finalClientId) || finalClientId <= 0) {
+      showError("Selecciona un cliente valido.");
+      submitLockRef.current = false;
+      return;
+    }
+
+    const findProductRecord = (name: string) => {
+      const normalizedName = normalizeText(name);
+      if (!normalizedName) return null;
+      return productsCatalog.find((p) => normalizeText(p.productname) === normalizedName) || null;
+    };
+
     const productQtyById = new Map<number, number>();
     for (const m of materiales) {
-      const rec = productsCatalog.find((p) => p.productname === m.nombre);
+      const rec = findProductRecord(m.nombre);
       if (!rec) {
         const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
         setErrors(next);
-        showError(next.materiales || "Producto inválido.");
+        showError(next.materiales || "Producto invalido.");
         focusFirstError(next);
+        submitLockRef.current = false;
         return;
       }
       const qty = Math.max(1, Math.round(Number(m.cantidad || 1)));
@@ -1668,15 +1769,20 @@ const {
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
-      const rec = servicesCatalog.find((x) => x.name === s.nombre && x.typeofserviceid === s.tipoId) || null;
+      const serviceName = normalizeText(s.nombre);
+      const rec =
+        servicesCatalog.find(
+          (x) => normalizeText(x.name) === serviceName && x.typeofserviceid === s.tipoId
+        ) || null;
       if (!rec) {
         const next = {
           ...er,
           servicios: `El servicio "${s.nombre}" no existe o no corresponde al tipo con el que fue agregado.`,
         };
         setErrors(next);
-        showError(next.servicios || "Servicio inválido.");
+        showError(next.servicios || "Servicio invalido.");
         focusFirstError(next);
+        submitLockRef.current = false;
         return;
       }
       const unitprice = Math.max(0, Math.round(Number(s.precio || 0)));
@@ -1697,7 +1803,8 @@ const {
 
       const dto: CreateOrdersServiceDto = {
         description: finalDescription,
-        clientid: Number(clientId),
+        direccion: String(direccion || "").trim(),
+        clientid: finalClientId,
         stateid,
         fechainicio: dateStart,
         fechafin: dateEnd,
@@ -1729,6 +1836,7 @@ setNavigating(true);
       if (returnTo === pathname) {
         setNavigating(false);
         setSaving(false);
+        submitLockRef.current = false;
         router.refresh();
         return;
       }
@@ -1807,59 +1915,113 @@ setNavigating(true);
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h1 className="text-xl font-semibold text-gray-900 truncate">Crear orden de servicio</h1>
-                <p className="text-xs text-gray-500 mt-1">Completa el cliente, programación y detalles del servicio.</p>
+                <p className="text-xs text-gray-500 mt-1">Completa el cliente, programacion y detalles del servicio.</p>
               </div>
             </div>
 
             <section className="mb-4 rounded-xl border bg-white shadow-sm" id="field-quote">
               <header className="border-b px-4 py-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800">Cotización (opcional)</div>
+                <div className="text-sm font-semibold text-gray-800">Venta (opcional)</div>
                 <div className="text-xs text-gray-500">
-                  {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "—"}
+                  {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "-"}
                 </div>
               </header>
 
               <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
                 <div className="md:col-span-9">
-                  <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-select">
-                    Seleccionar cotización para precargar el formulario
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="field-quote-select"
-                      value={selectedQuotesId === "" ? "" : String(selectedQuotesId)}
+                  {selectedQuoteOption && (
+                    <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border bg-gray-50 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{selectedQuoteOption.label}</div>
+                        <div className="text-xs text-gray-500">{`Venta #${selectedQuoteOption.id}`}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearQuoteSelection}
+                        className="h-8 px-2.5 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
+                        disabled={quotesLoading || lookupsLoading || saving || navigating}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  )}
+
+                  <div ref={quoteBoxRef} className="relative">
+                    <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-search">
+                      Buscar y seleccionar venta para precargar
+                    </label>
+                    <input
+                      id="field-quote-search"
+                      ref={quoteInputRef}
+                      value={quoteQuery}
                       onChange={(e) => {
-                        const v = e.target.value ? Number(e.target.value) : "";
-                        setSelectedQuotesId((Number.isFinite(v) && v > 0 ? v : "") as any);
-                        setErrors((p) => ({ ...p, quote: undefined }));
-                        setTouched((t) => ({ ...t, quote: true }));
+                        setQuoteQuery(e.target.value);
+                        setQuoteOpen(true);
+                        if (errors.quote) setErrors((p) => ({ ...p, quote: undefined }));
                       }}
-                      className={`${selectBase} ${showFieldError("quote") ? errorRing : ""}`}
+                      onFocus={() => setQuoteOpen(true)}
+                      onBlur={() => runBlurValidation("quote")}
+                      onKeyDown={(e) => {
+                        if (!quoteOpen) return;
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setQuoteActiveIndex((i) => Math.min(i + 1, Math.max(0, quoteSearchOptions.length - 1)));
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setQuoteActiveIndex((i) => Math.max(i - 1, 0));
+                        } else if (e.key === "Enter") {
+                          if (quoteSearchOptions[quoteActiveIndex]) {
+                            e.preventDefault();
+                            pickQuote(quoteSearchOptions[quoteActiveIndex].id);
+                          }
+                        } else if (e.key === "Escape") {
+                          setQuoteOpen(false);
+                        }
+                      }}
+                      placeholder={
+                        quotesLoading ? "Cargando ventas..." : quoteOptions.length ? "Codigo, cliente o #ID..." : "No hay ventas"
+                      }
+                      className={`${inputBase} ${showFieldError("quote") ? errorRing : ""}`}
                       disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0 || saving || navigating}
                       aria-invalid={showFieldError("quote")}
-                    >
-                      <option value="">
-                        {quotesLoading
-                          ? "Cargando cotizaciones..."
-                          : quoteOptions.length
-                          ? "Elige una cotización"
-                          : "No hay cotizaciones"}
-                      </option>
-                      {quoteOptions.map((q) => (
-                        <option key={q.id} value={String(q.id)}>
-                          {q.label}
-                        </option>
-                      ))}
-                    </select>
-                    <span className={chevron}>▾</span>
+                      aria-expanded={quoteOpen}
+                      aria-controls="quote-suggest"
+                      aria-autocomplete="list"
+                    />
+
+                    {quoteOpen && !quotesLoading && !lookupsLoading && !(saving || navigating) && (
+                      <div id="quote-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                        {quoteSearchOptions.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                        ) : (
+                          <ul className="max-h-60 overflow-auto">
+                            {quoteSearchOptions.map((q, idx) => (
+                              <li key={q.id}>
+                                <button
+                                  type="button"
+                                  onMouseDown={(ev) => ev.preventDefault()}
+                                  onClick={() => pickQuote(q.id)}
+                                  onMouseEnter={() => setQuoteActiveIndex(idx)}
+                                  className={`w-full px-3 py-2 text-left text-sm ${idx === quoteActiveIndex ? "bg-gray-100" : "bg-white"}`}
+                                >
+                                  <span className="block truncate font-medium">{q.label}</span>
+                                  <span className="block text-xs text-gray-500">{`Venta #${q.id}`}</span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {quotesError && <p className={errorText}>{quotesError}</p>}
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
-                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando cotización al formulario...</div>}
-                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Cotización aplicada al formulario.</div>}
+                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando venta al formulario...</div>}
+                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Venta aplicada al formulario.</div>}
                 </div>
 
-                <div className="md:col-span-3 flex items-end gap-2">
+                <div className="md:col-span-3">
+                  <label className="block text-xs mb-1 opacity-0 select-none">Accion</label>
                   <button
                     type="button"
                     onClick={resetPrefill}
@@ -1892,14 +2054,55 @@ setNavigating(true);
             <form id="order-form" onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[2fr_1fr]">
               <div className="space-y-6">
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2.5 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Cliente</div>
-                    <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "—"}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-gray-500">{customers.length ? `${customers.length} disponibles` : "-"}</div>
+                      {!clientLockedByQuote && (
+                        <label className="inline-flex items-center gap-1.5 text-xs text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={createClientInlineEnabled}
+                            onChange={async (e) => {
+                              if (clientLockedByQuote) return;
+                              const checked = e.target.checked;
+                              setCreateClientInlineEnabled(checked);
+                              if (checked) {
+                                setClientIdBeforeInlineCreate(clientId);
+                                clearCustomer();
+                                setErrors((p) => ({ ...p, clientId: undefined }));
+                                await ensureCreateClientLookups();
+                              } else {
+                                resetCreateClientForm();
+                                const previousId = Number(clientIdBeforeInlineCreate);
+                                if (
+                                  !clientId &&
+                                  Number.isFinite(previousId) &&
+                                  previousId > 0 &&
+                                  customers.some((c) => c.customerid === previousId)
+                                ) {
+                                  setClientId(previousId as any);
+                                  setErrors((p) => ({ ...p, clientId: undefined }));
+                                }
+                                setClientIdBeforeInlineCreate("");
+                              }
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 accent-red-700"
+                            disabled={saving || navigating || lookupsLoading || createClientLoading || clientLockedByQuote}
+                          />
+                          Crear cliente
+                        </label>
+                      )}
+                    </div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 gap-3" id="field-clientId">
                     <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("clientId") ? errorRing : ""}`}>
-                      {!selectedCustomer ? (
+                      {createClientInlineEnabled ? (
+                        <div className="text-xs text-gray-500">
+                          Se creara un cliente nuevo al guardar la orden.
+                        </div>
+                      ) : !selectedCustomer ? (
                         <div className="text-xs text-gray-500">No has seleccionado cliente.</div>
                       ) : (
                         <div className="flex items-center justify-between gap-3">
@@ -1911,9 +2114,9 @@ setNavigating(true);
                               <div className="text-sm font-semibold text-gray-900 truncate">{selectedCustomer.label}</div>
                               <div className="text-xs text-gray-600 truncate">
                                 {`Cliente #${selectedCustomer.customerid}`}
-                                {selectedCustomer.phone || selectedCustomer.email ? ` · ${selectedCustomer.phone || selectedCustomer.email}` : ""}
+                                {selectedCustomer.phone || selectedCustomer.email ? ` - ${selectedCustomer.phone || selectedCustomer.email}` : ""}
                                 {[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).length
-                                  ? ` · ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" • ")}`
+                                  ? ` - ${[selectedCustomer.city, selectedCustomer.zipcode].filter(Boolean).join(" * ")}`
                                   : ""}
                               </div>
                             </div>
@@ -1921,11 +2124,14 @@ setNavigating(true);
 
                           <button
                             type="button"
-                            onClick={clearCustomer}
+                            onClick={() => {
+                              if (clientLockedByQuote) return;
+                              clearCustomer();
+                            }}
                             className="h-9 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
                             aria-label="Quitar cliente"
                             title="Quitar"
-                            disabled={lookupsLoading || saving || navigating}
+                            disabled={lookupsLoading || saving || navigating || clientLockedByQuote}
                           >
                             Quitar
                           </button>
@@ -1933,88 +2139,241 @@ setNavigating(true);
                       )}
                     </div>
 
-                    <div ref={customerBoxRef} className="relative">
-                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-customer-search">
-                        Buscar y seleccionar cliente
-                      </label>
-                      <input
-                        id="field-customer-search"
-                        ref={customerInputRef}
-                        value={customerQuery}
-                        onChange={(e) => {
-                          setCustomerQuery(e.target.value);
-                          setCustomerOpen(true);
-                          if (errors.clientId) setErrors((p) => ({ ...p, clientId: undefined }));
-                        }}
-                        onFocus={() => setCustomerOpen(true)}
-                        onBlur={() => runBlurValidation("clientId")}
-                        onKeyDown={(e) => {
-                          if (!customerOpen) return;
-                          if (e.key === "ArrowDown") {
-                            e.preventDefault();
-                            setCustomerActiveIndex((i) => Math.min(i + 1, Math.max(0, customerOptions.length - 1)));
-                          } else if (e.key === "ArrowUp") {
-                            e.preventDefault();
-                            setCustomerActiveIndex((i) => Math.max(i - 1, 0));
-                          } else if (e.key === "Enter") {
-                            if (customerOptions[customerActiveIndex]) {
+                    {!createClientInlineEnabled && !clientLockedByQuote && (
+                      <div ref={customerBoxRef} className="relative">
+                        <label className="block text-xs text-gray-700 mb-1" htmlFor="field-customer-search">
+                          Buscar y seleccionar cliente
+                        </label>
+                        <input
+                          id="field-customer-search"
+                          ref={customerInputRef}
+                          value={customerQuery}
+                          onChange={(e) => {
+                            setCustomerQuery(e.target.value);
+                            setCustomerOpen(true);
+                            if (errors.clientId) setErrors((p) => ({ ...p, clientId: undefined }));
+                          }}
+                          onFocus={() => setCustomerOpen(true)}
+                          onBlur={() => runBlurValidation("clientId")}
+                          onKeyDown={(e) => {
+                            if (!customerOpen) return;
+                            if (e.key === "ArrowDown") {
                               e.preventDefault();
-                              pickCustomer(customerOptions[customerActiveIndex].customerid);
+                              setCustomerActiveIndex((i) => Math.min(i + 1, Math.max(0, customerOptions.length - 1)));
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              setCustomerActiveIndex((i) => Math.max(i - 1, 0));
+                            } else if (e.key === "Enter") {
+                              if (customerOptions[customerActiveIndex]) {
+                                e.preventDefault();
+                                pickCustomer(customerOptions[customerActiveIndex].customerid);
+                              }
+                            } else if (e.key === "Escape") {
+                              setCustomerOpen(false);
                             }
-                          } else if (e.key === "Escape") {
-                            setCustomerOpen(false);
-                          }
-                        }}
-                        placeholder="Nombre, apellido o ID..."
-                        className={`${inputBase} ${showFieldError("clientId") ? errorRing : ""}`}
-                        disabled={lookupsLoading || saving || navigating}
-                        aria-expanded={customerOpen}
-                        aria-controls="customer-suggest"
-                        aria-autocomplete="list"
-                      />
+                          }}
+                          placeholder="Nombre, apellido o ID..."
+                          className={`${inputBase} ${showFieldError("clientId") ? errorRing : ""}`}
+                          disabled={lookupsLoading || saving || navigating || createClientLoading || clientLockedByQuote}
+                          aria-expanded={customerOpen}
+                          aria-controls="customer-suggest"
+                          aria-autocomplete="list"
+                        />
 
-                      {customerOpen && !lookupsLoading && !(saving || navigating) && (
-                        <div id="customer-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
-                          {customerOptions.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
-                          ) : (
-                            <ul className="max-h-60 overflow-auto">
-                              {customerOptions.map((c, idx) => (
-                                <li key={c.customerid}>
-                                  <button
-                                    type="button"
-                                    onMouseDown={(ev) => ev.preventDefault()}
-                                    onClick={() => pickCustomer(c.customerid)}
-                                    onMouseEnter={() => setCustomerActiveIndex(idx)}
-                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                                      idx === customerActiveIndex ? "bg-gray-100" : "bg-white"
-                                    }`}
-                                  >
-                                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
-                                      {initials(c.label)}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate font-medium">{c.label}</span>
-                                      <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
-                                    </span>
-                                    <span className="text-xs text-gray-400">Seleccionar</span>
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        {customerOpen && !lookupsLoading && !(saving || navigating) && (
+                          <div id="customer-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
+                            {customerOptions.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                            ) : (
+                              <ul className="max-h-60 overflow-auto">
+                                {customerOptions.map((c, idx) => (
+                                  <li key={c.customerid}>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(ev) => ev.preventDefault()}
+                                      onClick={() => pickCustomer(c.customerid)}
+                                      onMouseEnter={() => setCustomerActiveIndex(idx)}
+                                      className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                        idx === customerActiveIndex ? "bg-gray-100" : "bg-white"
+                                      }`}
+                                    >
+                                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
+                                        {initials(c.label)}
+                                      </span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-medium">{c.label}</span>
+                                        <span className="block text-xs text-gray-500">Cliente #{c.customerid}</span>
+                                      </span>
+                                      <span className="text-xs text-gray-400">Seleccionar</span>
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {clientLockedByQuote && (
+                      <p className="text-xs text-gray-500">Cliente bloqueado por la venta seleccionada. Quita la venta para cambiarlo.</p>
+                    )}
+
+                    {createClientInlineEnabled && (
+                      <>
+                        {createClientBootstrapping ? (
+                          <div className="text-xs text-gray-500">Cargando tipos de documento...</div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-lg border bg-gray-50 p-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Nombre</label>
+                              <input
+                                value={createClientForm.name}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, name: value }));
+                                  if (createClientErrors.name) setCreateClientErrors((prev) => ({ ...prev, name: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.name ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Nombres"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.name && <p className="mt-1 text-xs text-red-600">{createClientErrors.name}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Apellido</label>
+                              <input
+                                value={createClientForm.lastname}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, lastname: value }));
+                                  if (createClientErrors.lastname) setCreateClientErrors((prev) => ({ ...prev, lastname: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.lastname ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Apellidos"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.lastname && <p className="mt-1 text-xs text-red-600">{createClientErrors.lastname}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Correo</label>
+                              <input
+                                type="email"
+                                value={createClientForm.email}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, email: value }));
+                                  if (createClientErrors.email) setCreateClientErrors((prev) => ({ ...prev, email: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.email ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="correo@dominio.com"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.email && <p className="mt-1 text-xs text-red-600">{createClientErrors.email}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Telefono</label>
+                              <input
+                                value={createClientForm.phone}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^\d]/g, "");
+                                  setCreateClientForm((prev) => ({ ...prev, phone: value }));
+                                  if (createClientErrors.phone) setCreateClientErrors((prev) => ({ ...prev, phone: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.phone ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Solo numeros"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.phone && <p className="mt-1 text-xs text-red-600">{createClientErrors.phone}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Tipo de documento</label>
+                              <select
+                                value={createClientForm.typeid}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, typeid: value }));
+                                  if (createClientErrors.typeid) setCreateClientErrors((prev) => ({ ...prev, typeid: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.typeid ? "border-red-500" : "border-gray-300"}`}
+                                disabled={createClientLoading || saving || navigating}
+                              >
+                                <option value="">Selecciona...</option>
+                                {createClientDocTypes.map((d) => (
+                                  <option key={d.id} value={String(d.id)}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {createClientErrors.typeid && <p className="mt-1 text-xs text-red-600">{createClientErrors.typeid}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Numero de documento</label>
+                              <input
+                                value={createClientForm.documentnumber}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^\d]/g, "");
+                                  setCreateClientForm((prev) => ({ ...prev, documentnumber: value }));
+                                  if (createClientErrors.documentnumber) setCreateClientErrors((prev) => ({ ...prev, documentnumber: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.documentnumber ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Solo numeros"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.documentnumber && <p className="mt-1 text-xs text-red-600">{createClientErrors.documentnumber}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Ciudad</label>
+                              <input
+                                value={createClientForm.customercity}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, customercity: value }));
+                                  if (createClientErrors.customercity) setCreateClientErrors((prev) => ({ ...prev, customercity: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.customercity ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Ciudad (opcional)"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.customercity && <p className="mt-1 text-xs text-red-600">{createClientErrors.customercity}</p>}
+                            </div>
+
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-gray-900">Codigo postal</label>
+                              <input
+                                value={createClientForm.customerzipcode}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCreateClientForm((prev) => ({ ...prev, customerzipcode: value }));
+                                  if (createClientErrors.customerzipcode) setCreateClientErrors((prev) => ({ ...prev, customerzipcode: undefined }));
+                                }}
+                                className={`w-full rounded-lg border bg-white h-10 px-3 text-sm ${createClientErrors.customerzipcode ? "border-red-500" : "border-gray-300"}`}
+                                placeholder="Opcional"
+                                disabled={createClientLoading || saving || navigating}
+                              />
+                              {createClientErrors.customerzipcode && (
+                                <p className="mt-1 text-xs text-red-600">{createClientErrors.customerzipcode}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
 
                     {showFieldError("clientId") && errors.clientId && <p className={errorText}>{errors.clientId}</p>}
                   </div>
                 </section>
 
                 <section className="rounded-xl border bg-white shadow-sm">
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-800">Programación</div>
-                    <div className="text-xs text-gray-500">Lun–Sáb · 07:00–17:00</div>
+                  <header className="border-b px-3 py-2 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-gray-800">Programacion</div>
+                    <div className="text-xs text-gray-500">Lun-Sab - 07:00-17:00</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4" id="field-schedule">
@@ -2092,7 +2451,7 @@ setNavigating(true);
 
                 <section className="rounded-xl border bg-white shadow-sm" id="field-technicians">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
-                    <div className="text-sm font-semibold text-gray-800">Técnicos</div>
+                    <div className="text-sm font-semibold text-gray-800">Tecnicos</div>
                     <div className="flex items-center gap-2">
                       <div className="text-xs text-gray-500">
                         Seleccionados: <span className="font-semibold text-gray-900">{selectedTechnicians.length}</span>
@@ -2111,7 +2470,7 @@ setNavigating(true);
                   <div className="p-4 grid grid-cols-1 gap-3">
                     <div className={`rounded-lg border bg-gray-50 p-3 ${showFieldError("technicians") ? errorRing : ""}`}>
                       {selectedTechniciansFull.length === 0 ? (
-                        <div className="text-xs text-gray-500">No has seleccionado técnicos.</div>
+                        <div className="text-xs text-gray-500">No has seleccionado tecnicos.</div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {selectedTechniciansFull.map((t) => (
@@ -2123,17 +2482,23 @@ setNavigating(true);
                                 {initials(t.label)}
                               </span>
                               <span className="max-w-[220px] truncate">
-                                #{t.technicianid} — {t.label}
+                                #{t.technicianid} - {t.label}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => removeTechnician(t.technicianid)}
                                 className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
-                                aria-label="Quitar técnico"
+                                aria-label="Quitar tecnico"
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ✕
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar tecnico"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </span>
                           ))}
@@ -2143,7 +2508,7 @@ setNavigating(true);
 
                     <div ref={techBoxRef} className="relative">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-tech-search">
-                        Buscar y agregar técnico
+                        Buscar y agregar tecnico
                       </label>
                       <input
                         id="field-tech-search"
@@ -2185,7 +2550,7 @@ setNavigating(true);
                         <div id="tech-suggest" className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                           {techOptions.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-gray-500">
-                              {selectedTechnicians.length === technicians.length ? "Ya seleccionaste todos los técnicos." : "No hay coincidencias."}
+                              {selectedTechnicians.length === availableTechnicians.length ? "Ya seleccionaste todos los tecnicos." : "No hay coincidencias."}
                             </div>
                           ) : (
                             <ul className="max-h-60 overflow-auto">
@@ -2205,7 +2570,7 @@ setNavigating(true);
                                     </span>
                                     <span className="min-w-0 flex-1">
                                       <span className="block truncate font-medium">{t.label}</span>
-                                      <span className="block text-xs text-gray-500">Técnico #{t.technicianid}</span>
+                                      <span className="block text-xs text-gray-500">Tecnico #{t.technicianid}</span>
                                     </span>
                                     <span className="text-xs text-gray-400">Agregar</span>
                                   </button>
@@ -2233,7 +2598,7 @@ setNavigating(true);
                 >
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Detalles del servicio</div>
-                    <div className="text-xs text-gray-500">Tipo, servicios, descripción e imágenes</div>
+                    <div className="text-xs text-gray-500">Tipo, servicios, descripcion e imagenes</div>
                   </header>
 
                   <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -2288,7 +2653,7 @@ setNavigating(true);
                           className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
                           disabled={!tipoId || lookupsLoading || saving || navigating || serviceOptionsForRow(tipoId, "").length === 0}
                         >
-                          Añadir servicio
+                          Anadir servicio
                         </button>
                       </div>
 
@@ -2362,7 +2727,13 @@ setNavigating(true);
                                       aria-label="Quitar servicio"
                                       title="Quitar"
                                     >
-                                      ✕
+                                      <Image
+                                        src="/icons/delete.svg"
+                                        alt="Quitar servicio"
+                                        width={16}
+                                        height={16}
+                                        className="mx-auto h-4 w-4 opacity-80"
+                                      />
                                     </button>
                                   </td>
                                 </tr>
@@ -2372,7 +2743,7 @@ setNavigating(true);
                             {servicios.length === 0 && (
                               <tr>
                                 <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
-                                  {tipoId ? "Aún no has añadido servicios." : "Selecciona primero el tipo de servicio."}
+                                  {tipoId ? "Aun no has anadido servicios." : "Selecciona primero el tipo de servicio."}
                                 </td>
                               </tr>
                             )}
@@ -2383,9 +2754,29 @@ setNavigating(true);
                       {showFieldError("servicios") && errors.servicios && <p className={errorText}>{errors.servicios}</p>}
                     </div>
 
+                    <div className="md:col-span-12" id="field-direccion">
+                      <label className="block text-xs text-gray-700 mb-1" htmlFor="field-direccion">
+                        Direccion del servicio
+                      </label>
+                      <input
+                        id="field-direccion"
+                        type="text"
+                        value={direccion}
+                        onChange={(e) => {
+                          setDireccion(e.target.value);
+                          if (errors.direccion) setErrors((p) => ({ ...p, direccion: undefined }));
+                        }}
+                        onBlur={() => runBlurValidation("direccion")}
+                        className={`${inputBase} ${showFieldError("direccion") ? errorRing : ""}`}
+                        placeholder="Ej: Calle 123 #45-67, Barrio..."
+                        disabled={saving || navigating}
+                      />
+                      {showFieldError("direccion") && errors.direccion && <p className={errorText}>{errors.direccion}</p>}
+                    </div>
+
                     <div className="md:col-span-12" id="field-description">
                       <label className="block text-xs text-gray-700 mb-1" htmlFor="field-desc">
-                        Descripción
+                        Descripcion
                       </label>
                       <textarea
                         id="field-desc"
@@ -2393,22 +2784,10 @@ setNavigating(true);
                         onChange={(e) => {
                           const v = e.target.value;
                           setDescripcion(v);
-                          const t = String(v || "").trim();
-                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
-                          else if (t.length < DESC_MIN)
-                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
-                          else if (t.length > DESC_MAX)
-                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
-                          else setErrors((p) => ({ ...p, description: undefined }));
+                          setErrors((p) => ({ ...p, description: validateDescription(v) }));
                         }}
                         onBlur={() => {
-                          const t = String(descripcion || "").trim();
-                          if (!t) setErrors((p) => ({ ...p, description: "La descripción es obligatoria." }));
-                          else if (t.length < DESC_MIN)
-                            setErrors((p) => ({ ...p, description: `La descripción debe tener al menos ${DESC_MIN} caracteres.` }));
-                          else if (t.length > DESC_MAX)
-                            setErrors((p) => ({ ...p, description: `La descripción no puede superar ${DESC_MAX} caracteres.` }));
-                          else setErrors((p) => ({ ...p, description: undefined }));
+                          setErrors((p) => ({ ...p, description: validateDescription(descripcion) }));
                         }}
                         rows={3}
                         className={`w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200 ${
@@ -2419,7 +2798,7 @@ setNavigating(true);
                       />
                       {errors.description && <p className={errorText}>{errors.description}</p>}
                       <div className="mt-1 flex items-center justify-between text-[11px] text-gray-500">
-                        <span>{`Mínimo ${DESC_MIN} / Máximo ${DESC_MAX}`}</span>
+                        <span>{`Opcional / Maximo ${DESC_MAX}`}</span>
                         <span className={String(descripcion || "").trim().length > DESC_MAX ? "text-red-600" : ""}>
                           {String(descripcion || "").trim().length}/{DESC_MAX}
                         </span>
@@ -2428,15 +2807,15 @@ setNavigating(true);
 
                     <div className="md:col-span-12" id="field-files">
                       <div className="flex items-center justify-between gap-2">
-                        <label className="block text-xs text-gray-700">Imágenes del servicio</label>
+                        <label className="block text-xs text-gray-700">Imagenes del servicio</label>
                         <button
                           type="button"
                           onClick={() => fileRef.current?.click()}
                           className="h-8 px-3 rounded-md border bg-white text-xs hover:bg-gray-50 disabled:opacity-60"
-                          title="Subir imágenes"
+                          title="Subir imagenes"
                           disabled={lookupsLoading || saving || navigating}
                         >
-                          Subir imágenes
+                          Subir imagenes
                         </button>
                         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFiles} />
                       </div>
@@ -2445,7 +2824,7 @@ setNavigating(true);
 
                       <div className="mt-3 flex flex-wrap gap-2">
                         {files.length === 0 ? (
-                          <div className="text-xs text-gray-500">No hay imágenes aún.</div>
+                          <div className="text-xs text-gray-500">No hay imagenes aun.</div>
                         ) : (
                           files.map((f, idx) => (
                             <div key={`${f.name}_${f.lastModified}_${idx}`} className="relative w-20 h-20 rounded-lg overflow-hidden border bg-white">
@@ -2458,7 +2837,13 @@ setNavigating(true);
                                 title="Quitar"
                                 disabled={lookupsLoading || saving || navigating}
                               >
-                                ✕
+                                <Image
+                                  src="/icons/delete.svg"
+                                  alt="Quitar imagen"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 opacity-80"
+                                />
                               </button>
                             </div>
                           ))
@@ -2479,7 +2864,7 @@ setNavigating(true);
                     runBlurValidation("materiales");
                   }}
                 >
-                  <header className="border-b px-4 py-3 flex items-center justify-between">
+                  <header className="border-b px-3 py-2 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
                       <div className="text-xs text-gray-500">Agrega los materiales consumidos. Puedes ajustar la cantidad.</div>
@@ -2487,107 +2872,157 @@ setNavigating(true);
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
 
-                  <div className="p-4">
-                    <div className={`rounded-lg border overflow-hidden bg-white ${showFieldError("materiales") ? errorRing : ""}`}>
-                      <table className="w-full text-xs md:text-sm">
-                        <thead className="bg-gray-50">
-                          <tr className="text-gray-700">
-                            <th className="px-3 py-2 text-left">Producto</th>
-                            <th className="px-3 py-2 text-center w-24">Cantidad</th>
-                            <th className="px-3 py-2 text-right w-32">Precio</th>
-                            <th className="px-3 py-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {materiales.map((m) => (
-                            <tr key={m.id} className="border-t">
-                              <td className="px-3 py-2">
-                                <select
+                  <div className="p-3">
+                    <div className={`rounded-lg border bg-white p-2.5 space-y-2 ${showFieldError("materiales") ? errorRing : ""}`}>
+                      {materiales.length === 0 ? (
+                        <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
+                          Aun no has anadido productos.
+                        </div>
+                      ) : (
+                        materiales.map((m) => {
+                          const rowMaterialOptions = materialOptionsForRow(m.nombre, m.nombre);
+                          return (
+                            <div key={m.id} className="rounded-md border bg-gray-50 p-2 space-y-1.5">
+                              <label className="block text-[10px] text-gray-600">Producto</label>
+                              <div
+                                className="relative"
+                                onBlurCapture={(e) => {
+                                  const next = e.relatedTarget as Node | null;
+                                  if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+                                  const match = findProductByName(m.nombre);
+                                  if (match && isProductAlreadyAdded(m.id, match.productname)) {
+                                    showWarning(`El producto "${match.productname}" ya esta agregado.`);
+                                    patchItem<MaterialLineItem>(m.id, { nombre: "", precio: 0 }, setMateriales);
+                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                    runBlurValidation("materiales");
+                                    return;
+                                  }
+                                  patchItem<MaterialLineItem>(
+                                    m.id,
+                                    {
+                                      nombre: match?.productname ?? String(m.nombre || "").trim(),
+                                      precio: match?.productpriceofsale ?? 0,
+                                    },
+                                    setMateriales
+                                  );
+                                  setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                  runBlurValidation("materiales");
+                                }}
+                              >
+                                <input
+                                  type="text"
                                   value={m.nombre}
+                                  onFocus={() => setMaterialOpenId(m.id)}
                                   onChange={(e) => {
                                     const n = e.target.value;
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { nombre: n, precio: precioMaterialPorNombre(n) },
-                                      setMateriales
-                                    );
+                                    patchItem<MaterialLineItem>(m.id, { nombre: n }, setMateriales);
+                                    setMaterialOpenId(m.id);
                                     if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
                                   }}
-                                  onBlur={() => runBlurValidation("materiales")}
-                                  className="w-full h-9 rounded-md border px-2"
+                                  className="w-full h-9 rounded-md border bg-white px-2.5 pr-8 text-xs"
+                                  placeholder="Buscar producto por nombre"
+                                  disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
+                                  className="absolute inset-y-0 right-0 px-2 text-gray-500"
+                                  title="Mostrar productos"
+                                  aria-label="Mostrar productos"
                                   disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
                                 >
-                                  {materialOptionsForRow(m.nombre).map((opt) => (
-                                    <option key={opt.productid} value={opt.productname}>
-                                      {opt.productname}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
+                                  v
+                                </button>
 
-                              <td className="px-3 py-2 text-center">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  step={1}
-                                  value={m.cantidad}
-                                  onChange={(e) => {
-                                    const n = Number(e.target.value || 1);
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
-                                      setMateriales
-                                    );
-                                    if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  onBlur={() => runBlurValidation("materiales")}
-                                  className="h-9 w-20 rounded-md border px-2 text-center"
-                                  disabled={lookupsLoading || saving || navigating}
-                                />
-                              </td>
+                                {materialOpenId === m.id && (
+                                  <div className="absolute left-0 right-0 z-30 mt-1 max-h-44 overflow-auto rounded-md border bg-white shadow-lg">
+                                    {rowMaterialOptions.length === 0 ? (
+                                      <div className="px-3 py-2 text-xs text-gray-500">No hay productos disponibles.</div>
+                                    ) : (
+                                      rowMaterialOptions.map((opt) => (
+                                        <button
+                                          key={opt.productid}
+                                          type="button"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={() => selectMaterialForRow(m.id, opt)}
+                                          className="w-full border-b border-gray-100 px-2.5 py-1.5 text-left last:border-b-0 hover:bg-gray-50"
+                                        >
+                                          <span className="block truncate text-xs text-gray-900">{opt.productname}</span>
+                                          <span className="block text-[11px] text-gray-500">{formatCOP(opt.productpriceofsale)}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
 
-                              <td className="px-3 py-2 text-right font-medium">{formatCOP(m.precio)}</td>
+                              <div className="flex items-end gap-1.5">
+                                <div className="w-20 shrink-0">
+                                  <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={m.cantidad}
+                                    onChange={(e) => {
+                                      const n = Number(e.target.value || 1);
+                                      patchItem<MaterialLineItem>(
+                                        m.id,
+                                        { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
+                                        setMateriales
+                                      );
+                                      if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
+                                    }}
+                                    onBlur={() => runBlurValidation("materiales")}
+                                    className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
+                                    disabled={lookupsLoading || saving || navigating}
+                                  />
+                                </div>
 
-                              <td className="px-3 py-2 text-right">
+                                <div className="flex-1 min-w-0">
+                                  <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
+                                  <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
+                                    {formatCOP(m.precio)}
+                                  </div>
+                                </div>
+
                                 <button
                                   type="button"
                                   onClick={() => {
                                     removeItem<MaterialLineItem>(m.id, setMateriales);
                                     setErrors((p) => ({ ...p, materiales: undefined }));
                                   }}
-                                  className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                  className="h-9 w-9 shrink-0 rounded-md border bg-white hover:bg-gray-100"
                                   disabled={lookupsLoading || saving || navigating}
                                   aria-label="Quitar producto"
                                   title="Quitar"
                                 >
-                                  ✕
+                                  <Image
+                                    src="/icons/delete.svg"
+                                    alt="Quitar producto"
+                                    width={16}
+                                    height={16}
+                                    className="mx-auto h-4 w-4 opacity-80"
+                                  />
                                 </button>
-                              </td>
-                            </tr>
-                          ))}
-
-                          {materiales.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-3 py-6 text-center text-gray-500">
-                                Aún no has añadido productos.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
 
                     {showFieldError("materiales") && errors.materiales && <p className={errorText}>{errors.materiales}</p>}
 
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <button
                         type="button"
                         onClick={addMaterialRow}
-                        className="w-full h-10 rounded-md bg-gray-100 border hover:bg-gray-50 text-sm disabled:opacity-60"
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
                         disabled={!availableProducts.length || lookupsLoading || saving || navigating}
                         title={!availableProducts.length ? "Ya agregaste todos los productos disponibles." : undefined}
                       >
-                        Añadir producto
+                        {!availableProducts.length ? "No hay mas productos disponibles" : "Anadir producto"}
                       </button>
                     </div>
                   </div>
@@ -2596,7 +3031,7 @@ setNavigating(true);
                 <section className="rounded-xl border bg-white shadow-sm" id="field-viaticos">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">Viáticos</div>
+                      <div className="text-sm font-semibold text-gray-800">Viaticos</div>
                       <div className="text-xs text-gray-500">Afecta base e IVA.</div>
                     </div>
                   </header>
@@ -2622,7 +3057,7 @@ setNavigating(true);
                     />
                     {showFieldError("viaticos") && errors.viaticos && <p className={errorText}>{errors.viaticos}</p>}
                     <div className="pt-3 border-t text-sm flex justify-between">
-                      <span className="text-gray-600">Total viáticos</span>
+                      <span className="text-gray-600">Total viaticos</span>
                       <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
                   </div>
@@ -2631,7 +3066,7 @@ setNavigating(true);
                 <section className="rounded-xl border bg-white shadow-sm">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div className="text-sm font-semibold text-gray-800">Totales</div>
-                    <div className="text-xs text-gray-500">Estimación</div>
+                    <div className="text-xs text-gray-500">Estimacion</div>
                   </header>
 
                   <div className="p-4 space-y-3 text-sm">
@@ -2645,7 +3080,7 @@ setNavigating(true);
                           {serviciosMiniLista.map((s) => (
                             <li key={s.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
-                                {s.nombre} × {s.cantidad}
+                                {s.nombre} x {s.cantidad}
                               </span>
                               <span>{formatCOP(s.total)}</span>
                             </li>
@@ -2664,7 +3099,7 @@ setNavigating(true);
                           {materialesMiniLista.map((m) => (
                             <li key={m.nombre} className="flex justify-between gap-2">
                               <span className="truncate">
-                                {m.nombre} × {m.cantidad}
+                                {m.nombre} x {m.cantidad}
                               </span>
                               <span>{formatCOP(m.total)}</span>
                             </li>
@@ -2674,7 +3109,7 @@ setNavigating(true);
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Viáticos</span>
+                      <span className="text-gray-600">Viaticos</span>
                       <span className="font-medium">{formatCOP(Number.isFinite(viaticosValue) ? viaticosValue : 0)}</span>
                     </div>
 

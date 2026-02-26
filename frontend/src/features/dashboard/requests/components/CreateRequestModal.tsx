@@ -2,13 +2,17 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
-import type { Option } from "@/features/dashboard/requests/hooks/useLookups";
+import type { Option } from "@/features/dashboard/requests/types/option.types";
 import { showError, showInfo, showWarning } from "@/shared/utils/notifications";
 import {
   getServiceOptions,
   getCustomerOptions,
 } from "@/features/dashboard/requests/services/lookups.service";
 import { api } from "@/lib/api";
+import {
+  buildWindowFromLocalSchedule,
+  getBusyTechnicianIdsForWindow,
+} from "@/features/dashboard/shared/technicianAvailability";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -242,6 +246,8 @@ export default function CreateRequestModal({
   const [techniciansRaw, setTechniciansRaw] = useState<any[]>([]);
   const [techLoading, setTechLoading] = useState(false);
   const [techError, setTechError] = useState<string | null>(null);
+  const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
+  const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
   const technicians = useMemo<TechnicianOption[]>(() => {
     return (techniciansRaw || [])
@@ -256,11 +262,46 @@ export default function CreateRequestModal({
 
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
   const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+  const selectedClient = useMemo(
+    () => finalClientes.find((c) => Number(c.id) === Number(clientId)) ?? null,
+    [finalClientes, clientId]
+  );
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
     return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
+
+  const selectedWindow = useMemo(
+    () => buildWindowFromLocalSchedule(programada, horaProgramada, programada, horaFinal),
+    [programada, horaProgramada, horaFinal]
+  );
+
+  const busyTechnicianIds = useMemo(
+    () =>
+      getBusyTechnicianIdsForWindow(
+        scheduledOrdersRaw,
+        scheduledRequestsRaw,
+        selectedWindow
+      ),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow]
+  );
+
+  const availableTechnicians = useMemo(
+    () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
+    [technicians, busyTechnicianIds]
+  );
+
+  const selectedBusyTechnicianIds = useMemo(
+    () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
+    [selectedTechnicians, busyTechnicianIds]
+  );
+
+  const [clientQuery, setClientQuery] = useState("");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [clientActiveIndex, setClientActiveIndex] = useState(0);
+  const clientBoxRef = useRef<HTMLDivElement>(null);
+  const clientInputRef = useRef<HTMLInputElement>(null);
 
   const [techQuery, setTechQuery] = useState("");
   const [techOpen, setTechOpen] = useState(false);
@@ -347,7 +388,13 @@ export default function CreateRequestModal({
     e.horaProgramada = needsTime ? validateStartTimeRequired(programada, horaProgramada) : null;
     e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
 
-    e.technicians = selectedTechnicians.length ? null : "Selecciona al menos un técnico.";
+    if (!selectedTechnicians.length) {
+      e.technicians = "Selecciona al menos un técnico.";
+    } else if (selectedBusyTechnicianIds.length > 0) {
+      e.technicians = "Hay técnicos seleccionados que ya están ocupados en ese horario.";
+    } else {
+      e.technicians = null;
+    }
 
     return e;
   }, [
@@ -360,6 +407,7 @@ export default function CreateRequestModal({
     horaProgramada,
     horaFinal,
     selectedTechnicians,
+    selectedBusyTechnicianIds,
   ]);
 
   function isValidNow() {
@@ -368,7 +416,7 @@ export default function CreateRequestModal({
 
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = technicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -383,10 +431,51 @@ export default function CreateRequestModal({
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
-  }, [technicians, techQuery, selectedTechSet]);
+  }, [availableTechnicians, techQuery, selectedTechSet]);
+
+  const clientOptions = useMemo(() => {
+    const q = normalizeText(clientQuery);
+    const list = finalClientes || [];
+    if (!q) return list.slice(0, 10);
+    const scored = list
+      .map((c) => {
+        const label = normalizeText(c.label);
+        const document = normalizeText(String(c.documentnumber ?? ""));
+        const searchText = normalizeText(c.searchText ?? "");
+        let score = 0;
+        if (document && document.startsWith(q)) score += 4;
+        if (label.includes(q)) score += 2;
+        if (label.startsWith(q)) score += 1;
+        if (searchText.includes(q)) score += 1;
+        return { c, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.c.label.localeCompare(b.c.label));
+    return scored.slice(0, 10).map((x) => x.c);
+  }, [finalClientes, clientQuery]);
+
+  function pickClient(id: number) {
+    if (!Number.isFinite(id) || id <= 0) return;
+    markTouched("clientId");
+    setClientId(id);
+    setClientQuery("");
+    setClientOpen(false);
+  }
+
+  function clearClient() {
+    markTouched("clientId");
+    setClientId("");
+    setClientQuery("");
+    setClientOpen(false);
+    clientInputRef.current?.focus();
+  }
 
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
+    if (busyTechnicianIds.has(id)) {
+      showWarning("Este técnico ya está ocupado en el horario seleccionado.");
+      return;
+    }
     markTouched("technicians");
     setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
     setTechQuery("");
@@ -497,6 +586,37 @@ export default function CreateRequestModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
+
+    async function run() {
+      const [ordersRes, requestsRes] = await Promise.allSettled([
+        api.get("orders-services"),
+        api.get("service-requests"),
+      ]);
+
+      if (cancelled) return;
+
+      const ordersData =
+        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+          ? (ordersRes.value as any).data
+          : [];
+      const requestsData =
+        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+          ? (requestsRes.value as any).data
+          : [];
+
+      setScheduledOrdersRaw(ordersData);
+      setScheduledRequestsRaw(requestsData);
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
 
     setServiceTypeId(null);
     setServiceId("");
@@ -508,6 +628,9 @@ export default function CreateRequestModal({
     setHoraFinal(initialEndTime ?? null);
 
     setSelectedTechnicians([]);
+    setClientQuery("");
+    setClientOpen(false);
+    setClientActiveIndex(0);
     setTechQuery("");
     setTechOpen(false);
     setTechActiveIndex(0);
@@ -536,6 +659,29 @@ export default function CreateRequestModal({
       markTouched("serviceId");
     }
   }, [isOpen, filteredServicios, serviceId]);
+
+  useEffect(() => {
+    setClientActiveIndex(0);
+  }, [clientQuery, clientOpen]);
+
+  useEffect(() => {
+    if (!clientOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!clientBoxRef.current) return;
+      if (!clientBoxRef.current.contains(t)) setClientOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [clientOpen]);
+
+  useEffect(() => {
+    if (clientId === "") return;
+    if (!finalClientes.some((c) => Number(c.id) === Number(clientId))) {
+      setClientId("");
+      markTouched("clientId");
+    }
+  }, [finalClientes, clientId]);
 
   useEffect(() => {
     setTechActiveIndex(0);
@@ -647,6 +793,11 @@ export default function CreateRequestModal({
     }
 
     if (!isValidNow()) return;
+
+    if (selectedBusyTechnicianIds.length > 0) {
+      showError("Hay técnicos ocupados en ese horario. Ajusta horario o técnicos.");
+      return;
+    }
 
     if (!selectedType) {
       showError("Selecciona un tipo de servicio.");
@@ -820,38 +971,122 @@ export default function CreateRequestModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
-            <div className="relative">
-              <select
-                value={clientId === "" ? "" : String(clientId)}
-                onChange={(e) => {
-                  markTouched("clientId");
-                  setClientId(e.target.value ? Number(e.target.value) : "");
-                }}
-                onBlur={() => markTouched("clientId")}
-                disabled={saving || loadingLookups}
-                className={[
-                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("clientId") && errors.clientId
-                    ? "border-red-500"
-                    : "border-gray-300",
-                ].join(" ")}
-              >
-                <option value="">
-                  {loadingLookups
-                    ? "Cargando clientes..."
-                    : finalClientes.length
-                    ? "Selecciona el cliente"
-                    : "No hay clientes"}
-                </option>
-                {finalClientes.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▾
-              </span>
+            <div
+              ref={clientBoxRef}
+              className={[
+                "rounded-lg border bg-gray-50 p-2",
+                shouldShowError("clientId") && errors.clientId ? "border-red-500" : "border-gray-300",
+              ].join(" ")}
+            >
+              {selectedClient ? (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white p-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
+                      {initials(selectedClient.label)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900">{selectedClient.label}</p>
+                      <p className="truncate text-[11px] text-gray-500">
+                        Cliente #{selectedClient.id}
+                        {selectedClient.documentnumber ? ` - Doc ${selectedClient.documentnumber}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearClient}
+                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                    disabled={saving || loadingLookups}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="relative">
+                <input
+                  ref={clientInputRef}
+                  value={clientQuery}
+                  onChange={(e) => {
+                    setClientQuery(e.target.value);
+                    setClientOpen(true);
+                    markTouched("clientId");
+                  }}
+                  onFocus={() => {
+                    setClientOpen(true);
+                    markTouched("clientId");
+                  }}
+                  onBlur={() => markTouched("clientId")}
+                  onKeyDown={(e) => {
+                    if (!clientOpen) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setClientActiveIndex((i) => Math.max(i - 1, 0));
+                    } else if (e.key === "Enter") {
+                      if (clientOptions[clientActiveIndex]) {
+                        e.preventDefault();
+                        pickClient(clientOptions[clientActiveIndex].id);
+                      }
+                    } else if (e.key === "Escape") {
+                      setClientOpen(false);
+                    }
+                  }}
+                  placeholder={
+                    loadingLookups
+                      ? "Cargando clientes..."
+                      : finalClientes.length
+                      ? "Buscar por nombre o documento"
+                      : "No hay clientes"
+                  }
+                  disabled={saving || loadingLookups || finalClientes.length === 0}
+                  className="w-full rounded-lg border border-gray-300 bg-white h-10 px-3 text-sm focus:ring-2 focus:ring-black/15 disabled:opacity-60"
+                  aria-expanded={clientOpen}
+                  aria-controls="client-suggest"
+                  aria-autocomplete="list"
+                />
+
+                {clientOpen && !loadingLookups && !saving && (
+                  <div
+                    id="client-suggest"
+                    className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+                  >
+                    {clientOptions.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
+                    ) : (
+                      <ul className="max-h-56 overflow-auto">
+                        {clientOptions.map((c, idx) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              onMouseDown={(ev) => ev.preventDefault()}
+                              onClick={() => pickClient(c.id)}
+                              onMouseEnter={() => setClientActiveIndex(idx)}
+                              className={[
+                                "w-full px-3 py-2 text-left text-sm flex items-center gap-2",
+                                idx === clientActiveIndex ? "bg-gray-100" : "bg-white",
+                              ].join(" ")}
+                            >
+                              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
+                                {initials(c.label)}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium text-gray-900">{c.label}</span>
+                                <span className="block truncate text-[11px] text-gray-500">
+                                  Cliente #{c.id}
+                                  {c.documentnumber ? ` - Doc ${c.documentnumber}` : ""}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             {shouldShowError("clientId") && errors.clientId && (
               <p className="mt-1 text-xs text-red-600">{errors.clientId}</p>
@@ -1043,7 +1278,7 @@ export default function CreateRequestModal({
               <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border bg-white shadow-sm">
                 {techOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">
-                    {selectedTechnicians.length === technicians.length
+                    {selectedTechnicians.length === availableTechnicians.length
                       ? "Ya seleccionaste todos los técnicos."
                       : "No hay coincidencias."}
                   </div>

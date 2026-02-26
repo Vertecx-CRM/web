@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "../../auth/requireauth";
 import { DataTable } from "../components/datatable/DataTable";
@@ -8,20 +8,23 @@ import Modal from "../components/Modal";
 import { ToastContainer } from "react-toastify";
 import { Column } from "../components/datatable/types/column.types";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
-import RegisterQuoteForm from "./components/RegisterQuote";
 import ViewQuote from "./components/ViewQuote";
+
 import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
 import { updateServiceRequest } from "@/features/dashboard/requests/services/servicerequests.service";
+
 import {
-  createQuote,
   getQuotes,
   approveQuote,
   completeQuote,
   cancelQuote,
   revokeQuote,
 } from "./api/quotes.api";
+
 import { QuoteTableRow } from "./types/Quote.type";
+import Colors from "@/shared/theme/colors";
 
 /* ================================
  * NORMALIZACIÓN DE ESTADOS (VISUAL)
@@ -29,21 +32,24 @@ import { QuoteTableRow } from "./types/Quote.type";
 type QuoteStatusConfig = {
   label: string;
   className: string;
+  style?: React.CSSProperties;
 };
 
 const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
-  if (!status) {
-    return { label: "—", className: "text-slate-500" };
-  }
+  if (!status) return { label: "—", className: "text-slate-500" };
 
-  const value = status.toLowerCase();
+  const value = String(status).toLowerCase();
 
   if (value.includes("pend")) {
-    return { label: "Pendiente", className: "text-yellow-600" };
+    return { label: "Pendiente", className: "", style: { color: Colors.states.pending } };
   }
 
   if (value.includes("aprob") || value.includes("approved")) {
-    return { label: "Aprobada", className: "text-green-600" };
+    return { label: "Aprobada", className: "", style: { color: Colors.states.success } };
+  }
+
+  if (value.includes("finish") || value.includes("finaliz") || value.includes("complet")) {
+    return { label: "Completada", className: "", style: { color: Colors.states.completed } };
   }
 
   if (value.includes("cancel")) {
@@ -51,7 +57,7 @@ const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
   }
 
   if (value.includes("revoke") || value.includes("anul")) {
-    return { label: "Anulada", className: "text-red-600" };
+    return { label: "Anulada", className: "", style: { color: Colors.states.nullable } };
   }
 
   return { label: status, className: "text-slate-500" };
@@ -62,11 +68,11 @@ const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
  * ================================ */
 const normalizeQuoteStatusText = (status?: string): string => {
   if (!status) return "";
-
-  const value = status.toLowerCase();
+  const value = String(status).toLowerCase();
 
   if (value.includes("pend")) return "pendiente";
   if (value.includes("aprob") || value.includes("approved")) return "aprobada";
+  if (value.includes("finish") || value.includes("finaliz") || value.includes("complet")) return "completada";
   if (value.includes("cancel")) return "cancelada";
   if (value.includes("revoke") || value.includes("anul")) return "anulada";
 
@@ -89,12 +95,10 @@ const getQuoteServiceRequestId = (quote?: any): number | null => {
     quote.servicerequestid,
     quote.servicerequestId,
   ];
-
   for (const candidate of candidates) {
     const id = toPositiveInteger(candidate);
     if (id) return id;
   }
-
   return null;
 };
 
@@ -109,59 +113,59 @@ const getQuoteOrderServiceId = (quote?: any): number | null => {
     quote.order?.ordersservicesId,
     quote.order?.id,
   ];
-
   for (const candidate of candidates) {
     const id = toPositiveInteger(candidate);
     if (id) return id;
   }
-
   return null;
 };
 
 export default function QuotesIndex() {
+  const router = useRouter();
+
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
   const [isDetailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<any>(null);
+
   const [isCompletingQuote, setCompletingQuote] = useState(false);
   const [isFinalizingQuote, setFinalizingQuote] = useState(false);
 
   /* ================================
    * CARGAR COTIZACIONES
    * ================================ */
-  const fetchQuotes = async () => {
+  const fetchQuotes = useCallback(async () => {
     setLoading(true);
+    try {
+      const data = await getQuotes();
 
-    const data = await getQuotes();
+      const mapped: QuoteTableRow[] = (data ?? []).map((q: any) => {
+        const rawStatus = q.state?.name ?? "";
+        const clientName = `${q.customer?.users?.name ?? ""} ${q.customer?.users?.lastname ?? ""}`.trim();
+        const techName = `${q.technician?.users?.name ?? ""} ${q.technician?.users?.lastname ?? ""}`.trim();
 
-    const mapped: QuoteTableRow[] = data.map((q: any) => {
-      const rawStatus = q.state?.name ?? "";
+        return {
+          id: q.quotesid,
+          client: clientName,
+          technician: techName,
+          status: rawStatus,
+          statusSearch: normalizeQuoteStatusText(rawStatus),
+          creationDate: q.createdat,
+          amount: Number(q.total ?? 0),
+          raw: q,
+        };
+      });
 
-      return {
-        id: q.quotesid,
-        client: `${q.customer?.users?.name ?? ""} ${
-          q.customer?.users?.lastname ?? ""
-        }`,
-        technician: `${q.technician?.users?.name ?? ""} ${
-          q.technician?.users?.lastname ?? ""
-        }`,
-        status: rawStatus, // render
-        statusSearch: normalizeQuoteStatusText(rawStatus), // 🔑 búsqueda en español
-        creationDate: q.createdat,
-        amount: Number(q.total),
-        raw: q,
-      };
-    });
-
-    setQuotesData(mapped);
-    setLoading(false);
-  };
+      setQuotesData(mapped);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchQuotes();
-  }, []);
+  }, [fetchQuotes]);
 
   /* ================================
    * COLUMNAS
@@ -173,7 +177,10 @@ export default function QuotesIndex() {
     {
       key: "creationDate",
       header: "Fecha",
-      render: (row) => new Date(row.creationDate).toLocaleDateString("es-CO"),
+      render: (row) => {
+        const d = row.creationDate ? new Date(row.creationDate) : null;
+        return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-CO") : "—";
+      },
     },
     {
       key: "status",
@@ -181,7 +188,7 @@ export default function QuotesIndex() {
       render: (row) => {
         const config = normalizeQuoteStatus(row.status);
         return (
-          <span className={`font-semibold ${config.className}`}>
+          <span className={config.className} style={config.style}>
             {config.label}
           </span>
         );
@@ -191,7 +198,7 @@ export default function QuotesIndex() {
       key: "amount",
       header: "Total",
       render: (row) =>
-        row.amount.toLocaleString("es-CO", {
+        Number(row.amount ?? 0).toLocaleString("es-CO", {
           style: "currency",
           currency: "COP",
           minimumFractionDigits: 0,
@@ -205,9 +212,10 @@ export default function QuotesIndex() {
   const handleApproveQuote = async (row: QuoteTableRow) => {
     const r = await Swal.fire({
       title: "¿Aprobar cotización?",
-      text: `Total: ${row.amount.toLocaleString("es-CO", {
+      text: `Total: ${Number(row.amount ?? 0).toLocaleString("es-CO", {
         style: "currency",
         currency: "COP",
+        minimumFractionDigits: 0,
       })}`,
       icon: "question",
       showCancelButton: true,
@@ -222,11 +230,9 @@ export default function QuotesIndex() {
       await approveQuote(row.id);
     } catch (error: any) {
       console.error("Error al aprobar la cotización:", error);
-      Swal.fire(
+      await Swal.fire(
         "Error",
-        error?.response?.data?.message ??
-          error?.message ??
-          "No se pudo aprobar la cotización.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo aprobar la cotización.",
         "error"
       );
       return;
@@ -238,7 +244,7 @@ export default function QuotesIndex() {
     } catch (error: any) {
       console.error("Error al convertir la cotización:", error);
       await fetchQuotes();
-      Swal.fire(
+      await Swal.fire(
         "Cotización aprobada",
         "La cotización quedó en estado aprobada, pero no se pudo generar la venta.",
         "warning"
@@ -247,7 +253,8 @@ export default function QuotesIndex() {
     }
 
     await fetchQuotes();
-    Swal.fire(
+
+    await Swal.fire(
       "Cotización completada",
       completionResult?.sale
         ? `Venta generada: ${completionResult.sale.salecode ?? completionResult.sale.saleid}`
@@ -272,10 +279,18 @@ export default function QuotesIndex() {
 
     if (!r.isConfirmed) return;
 
-    await cancelQuote(row.id);
-    await fetchQuotes();
-
-    Swal.fire("Cancelada", "Cotización cancelada", "success");
+    try {
+      await cancelQuote(row.id);
+      await fetchQuotes();
+      await Swal.fire("Cancelada", "Cotización cancelada", "success");
+    } catch (error: any) {
+      console.error(error);
+      await Swal.fire(
+        "Error",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo cancelar la cotización.",
+        "error"
+      );
+    }
   };
 
   /* ================================
@@ -309,24 +324,34 @@ export default function QuotesIndex() {
 
     if (!r.isConfirmed) return;
 
-    await revokeQuote(row.id, r.value);
-    await fetchQuotes();
-
-    await Swal.fire({
-      icon: "success",
-      title: "Cotización anulada",
-      text: "La cotización fue anulada correctamente.",
-    });
+    try {
+      await revokeQuote(row.id, r.value);
+      await fetchQuotes();
+      await Swal.fire({
+        icon: "success",
+        title: "Cotización anulada",
+        text: "La cotización fue anulada correctamente.",
+      });
+    } catch (error: any) {
+      console.error(error);
+      await Swal.fire(
+        "Error",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo anular la cotización.",
+        "error"
+      );
+    }
   };
 
+  /* ================================
+   * COMPLETAR (desde modal detalle)
+   * ================================ */
   const handleCompleteQuote = useCallback(async () => {
     if (!selectedQuote) return;
 
-    const quoteId = Number(
-      selectedQuote.quotesid ?? selectedQuote.id ?? selectedQuote.quoteId ?? 0
-    );
+    const quoteId = Number(selectedQuote.quotesid ?? selectedQuote.id ?? selectedQuote.quoteId ?? 0);
+
     if (!quoteId) {
-      Swal.fire("Error", "ID de cotización inválido.", "error");
+      await Swal.fire("Error", "ID de cotización inválido.", "error");
       return;
     }
 
@@ -345,20 +370,20 @@ export default function QuotesIndex() {
       setCompletingQuote(true);
       await completeQuote(quoteId);
       await fetchQuotes();
+
       setDetailModalOpen(false);
       setSelectedQuote(null);
-      Swal.fire(
+
+      await Swal.fire(
         "Cotización completada",
         "Se creó la venta asociada y la cotización se actualizó.",
         "success"
       );
     } catch (error: any) {
       console.error(error);
-      Swal.fire(
+      await Swal.fire(
         "Error",
-        error?.response?.data?.message ??
-          error?.message ??
-          "No se pudo completar la cotización.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo completar la cotización.",
         "error"
       );
     } finally {
@@ -366,6 +391,9 @@ export default function QuotesIndex() {
     }
   }, [selectedQuote, fetchQuotes]);
 
+  /* ================================
+   * FINALIZAR (actualiza orden/solicitud a estado 6)
+   * ================================ */
   const handleFinalizeQuote = useCallback(async () => {
     if (!selectedQuote) return;
 
@@ -373,11 +401,7 @@ export default function QuotesIndex() {
     const orderServiceId = getQuoteOrderServiceId(selectedQuote);
 
     if (!serviceRequestId && !orderServiceId) {
-      Swal.fire(
-        "Sin registros relacionados",
-        "La cotización no tiene orden ni solicitud asociada.",
-        "warning"
-      );
+      await Swal.fire("Sin registros relacionados", "La cotización no tiene orden ni solicitud asociada.", "warning");
       return;
     }
 
@@ -385,12 +409,13 @@ export default function QuotesIndex() {
       serviceRequestId ? "solicitud de servicio" : null,
       orderServiceId ? "orden de servicio" : null,
     ].filter(Boolean) as string[];
+
     const targetText = targets.join(" y ");
-    const verb = targets.length > 1 ? "marcaran" : "marcara";
+    const verb = targets.length > 1 ? "marcarán" : "marcará";
     const suffix = targets.length > 1 ? "finalizados" : "finalizado";
 
     const confirm = await Swal.fire({
-      title: "Finalizar cotización?",
+      title: "¿Finalizar cotización?",
       text: `Se ${verb} ${targetText} como ${suffix} (estado 6).`,
       icon: "question",
       showCancelButton: true,
@@ -402,29 +427,22 @@ export default function QuotesIndex() {
 
     try {
       setFinalizingQuote(true);
+
       const requests: Promise<any>[] = [];
-      if (serviceRequestId) {
-        requests.push(updateServiceRequest(serviceRequestId, { stateId: 6 }));
-      }
-      if (orderServiceId) {
-        requests.push(updateOrderService(orderServiceId, { stateid: 6 }));
-      }
-      if (requests.length) {
-        await Promise.all(requests);
-      }
+
+      if (serviceRequestId) requests.push(updateServiceRequest(serviceRequestId, { stateId: 6 }));
+      if (orderServiceId) requests.push(updateOrderService(orderServiceId, { stateid: 6 }));
+
+      if (requests.length) await Promise.all(requests);
+
       await fetchQuotes();
-      Swal.fire(
-        "Finalizado",
-        `Se ${verb} ${targetText} como ${suffix} (estado 6).`,
-        "success"
-      );
+
+      await Swal.fire("Finalizado", `Se ${verb} ${targetText} como ${suffix} (estado 6).`, "success");
     } catch (error: any) {
       console.error("Error al actualizar estados:", error);
-      Swal.fire(
+      await Swal.fire(
         "Error",
-        error?.response?.data?.message ??
-          error?.message ??
-          "No se pudieron actualizar los registros.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudieron actualizar los registros.",
         "error"
       );
     } finally {
@@ -433,31 +451,25 @@ export default function QuotesIndex() {
   }, [selectedQuote, fetchQuotes]);
 
   /* ================================
-   * CREAR
-   * ================================ */
-  const handleAddQuote = async (payload: any) => {
-    await createQuote(payload);
-    await fetchQuotes();
-    setRegisterModalOpen(false);
-  };
-
-  /* ================================
    * RENDER
    * ================================ */
   const selectedQuoteStateName = selectedQuote?.state?.name ?? "";
-  const isSelectedQuoteCompleted = Boolean(
-    selectedQuoteStateName.toLowerCase().includes("complet")
-  );
+  const isSelectedQuoteCompleted =
+    selectedQuoteStateName
+      ? selectedQuoteStateName.toLowerCase().includes("complet") ||
+        selectedQuoteStateName.toLowerCase().includes("finish") ||
+        selectedQuoteStateName.toLowerCase().includes("finaliz")
+      : false;
+
   const selectedServiceRequestId = getQuoteServiceRequestId(selectedQuote);
   const selectedOrderServiceId = getQuoteOrderServiceId(selectedQuote);
-  const canFinalizeSelectedQuote = Boolean(
-    selectedServiceRequestId || selectedOrderServiceId
-  );
+  const canFinalizeSelectedQuote = Boolean(selectedServiceRequestId || selectedOrderServiceId);
 
   return (
     <RequireAuth>
       <div className="p-6">
         <ToastContainer position="bottom-right" />
+
         <h1 className="text-xl font-semibold mb-4">Listado de Cotizaciones</h1>
 
         <DataTable<QuoteTableRow>
@@ -465,45 +477,28 @@ export default function QuotesIndex() {
           data={quotesData}
           columns={columns}
           loading={loading}
-          searchableKeys={[
-            "id",
-            "client",
-            "technician",
-            "statusSearch", // 👈 estado en español
-            "amount",
-            "creationDate",
-          ]}
+          searchableKeys={["id", "client", "technician", "statusSearch", "amount", "creationDate"]}
           pageSize={8}
           onView={(row) => {
             setSelectedQuote(row.raw);
             setDetailModalOpen(true);
           }}
-          onCreate={() => setRegisterModalOpen(true)}
+          onCreate={() => router.push("/dashboard/quotes/register")}
           createButtonText="Crear Cotización"
           onCheck={handleApproveQuote}
           onCancel={handleCancelQuote}
           onDelete={handleRevokeQuote}
           rightActions={
-            <button className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#b20000] text-white text-sm font-semibold hover:bg-[#910000]">
-              <Image
-                src="/icons/download.svg"
-                alt="Descargar"
-                width={16}
-                height={16}
-              />
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#b20000] text-white text-sm font-semibold hover:bg-[#910000]"
+              onClick={() => Swal.fire("Pendiente", "Conecta aquí la descarga del reporte.", "info")}
+            >
+              <Image src="/icons/download.svg" alt="Descargar" width={16} height={16} />
               Descargar Reporte
             </button>
           }
         />
-
-        <Modal
-          title="Registrar Cotización"
-          isOpen={isRegisterModalOpen}
-          onClose={() => setRegisterModalOpen(false)}
-          footer={null}
-        >
-          <RegisterQuoteForm onSave={handleAddQuote} />
-        </Modal>
 
         <Modal
           title="Detalle de Cotización"

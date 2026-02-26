@@ -49,12 +49,18 @@ const PRIVILEGE_ALIASES: Record<string, string> = {
   leer: "read",
 
   update: "update",
+  edit: "update",
   actualizar: "update",
   editar: "update",
 
   delete: "delete",
   eliminar: "delete",
   borrar: "delete",
+
+  report_warranty: "report_warranty",
+  reportwarranty: "report_warranty",
+  warrantyreport: "report_warranty",
+  reportargarantia: "report_warranty",
 };
 
 function normalizeModule(name: string) {
@@ -83,9 +89,32 @@ function parsePermission(item: string) {
   };
 }
 
+function getTokenPermissions(): string[] {
+  if (typeof document === "undefined") return [];
+  const tokenCookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("token="));
+  if (!tokenCookie) return [];
+
+  try {
+    const token = decodeURIComponent(tokenCookie.split("=")[1] || "");
+    const parts = token.split(".");
+    if (parts.length !== 3) return [];
+    const payloadRaw = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(payloadRaw);
+    const raw = payload?.permissions ?? payload?.permisos ?? payload?.privileges ?? [];
+    if (!Array.isArray(raw)) return [];
+    return raw.map((entry: any) => String(entry ?? "").trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export function usePermissions() {
   const { user } = useAuth();
-  const perms = (user as any)?.permissions || [];
+  const userPerms = (user as any)?.permissions || [];
+  const perms = Array.isArray(userPerms) && userPerms.length ? userPerms : getTokenPermissions();
 
   function has(module: string, privilege: string) {
     const targetModule = normalizeModule(module);

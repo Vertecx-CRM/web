@@ -7,72 +7,15 @@ import Colors from "@/shared/theme/colors";
 import { EditRoleData, PermissionGroup, Role } from "../../types/typeRoles";
 import { showWarning } from "@/shared/utils/notifications";
 
-const permissionGroups: PermissionGroup[] = [
-  { title: "Roles", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Usuarios", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Categoría de Productos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Productos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Proveedores", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Órdenes de Compra", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Compras", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Servicios", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Técnicos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Horarios de los técnicos", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Clientes", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Solicitud de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Citas", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Cotización de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Orden de Servicio", permissions: ["Crear", "Editar", "Eliminar", "Ver"] },
-  { title: "Ventas", permissions: ["Crear", "Ver", "Desactivar"] },
-  { title: "Dashboard", permissions: ["Ver"] },
-];
+import {
+  ALL_MODULE_PERMISSIONS,
+  MODULE_BACK_TO_UI,
+  privilegeNameToUiActions,
+} from "../../constants/roleMatrix.constants";
 
-const PRIV_BACK_TO_UI: Record<string, string> = {
-  create: "Crear",
-  read: "Ver",
-  update: "Editar",
-  delete: "Eliminar",
-  deactivate: "Desactivar",
-};
-
-const MODULE_BACK_TO_UI: Record<string, string> = {
-  Roles: "Roles",
-  users: "Usuarios",
-  User: "Usuarios",
-  Products: "Productos",
-  products: "Productos",
-  suppliers: "Proveedores",
-  Supplier: "Proveedores",
-  purchases: "Compras",
-  Purchases: "Compras",
-  purchaseOrders: "Órdenes de Compra",
-  Orders: "Órdenes de Compra",
-  services: "Servicios",
-  Service: "Servicios",
-  technicians: "Técnicos",
-  Technician: "Técnicos",
-  customers: "Clientes",
-  Client: "Clientes",
-  servicesRequest: "Solicitud de Servicio",
-  "Service Request": "Solicitud de Servicio",
-  "Service Requests": "Solicitud de Servicio",
-  Requests: "Solicitud de Servicio",
-  appointments: "Citas",
-  Appointments: "Citas",
-  Appointment: "Citas",
-  quotes: "Cotización de Servicio",
-  Quotes: "Cotización de Servicio",
-  Quotation: "Cotización de Servicio",
-  orderServices: "Orden de Servicio",
-  "Service Orders": "Orden de Servicio",
-  "Service Order": "Orden de Servicio",
-  dashboard: "Dashboard",
-  Dashboard: "Dashboard",
-  Categories: "Categoría de Productos",
-  categoryProducts: "Categoría de Productos",
-  sales: "Ventas",
-  Sales: "Ventas",
-};
+const permissionGroups: PermissionGroup[] = Object.entries(ALL_MODULE_PERMISSIONS).map(
+  ([title, permissions]) => ({ title, permissions })
+);
 
 interface EditRoleModalProps {
   isOpen: boolean;
@@ -102,21 +45,21 @@ export default function EditRoleModal({
     setName(role.name);
     setStatus((role.state ?? "Activo") as "Activo" | "Inactivo");
 
-    const normalized = (role.permissions ?? []).map((token) => {
+    const normalized = (role.permissions ?? []).flatMap((token) => {
       const idx = token.lastIndexOf("-");
-      if (idx === -1) return token;
+      if (idx === -1) return [token];
 
-      const rawModule = token.slice(0, idx);
-      const rawPriv = token.slice(idx + 1).toLowerCase();
+      const rawModule = token.slice(0, idx).trim();
+      const rawPrivName = token.slice(idx + 1).trim();
 
       const modUI =
-        MODULE_BACK_TO_UI[rawModule.trim()] ??
-        MODULE_BACK_TO_UI[rawModule.replace(/\s/g, "")] ??
-        rawModule;
+        MODULE_BACK_TO_UI[rawModule] ??
+        MODULE_BACK_TO_UI[rawModule.toLowerCase()] ??
+        (rawModule as any);
 
-      const privUI = PRIV_BACK_TO_UI[rawPriv] ?? rawPriv;
+      const actions = privilegeNameToUiActions(modUI as any, rawPrivName);
 
-      return `${modUI}-${privUI}`;
+      return actions.map((a) => `${modUI}-${a}`);
     });
 
     const mapped: Record<string, string[]> = {};

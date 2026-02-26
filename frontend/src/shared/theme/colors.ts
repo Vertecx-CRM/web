@@ -30,6 +30,7 @@ interface IColors {
     error?: any;
     warning?: any;
     success: string;
+    completed: string;
     pending: string;
     inactive: string;
     nullable: string;
@@ -110,6 +111,7 @@ const Colors: IColors = {
     primary: "#B20000",
   },
   states: {
+    completed: "#015800",
     success: "#189416",
     pending: "#FFBB00",
     inactive: "#FF0000",

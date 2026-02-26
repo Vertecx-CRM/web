@@ -15,32 +15,13 @@ import {
   patchRoleMeta,
 } from "../api/roles.api";
 
-const MODULE_TO_PERMISSION_ID: Record<string, number> = {
-  Roles: 1,
-  Usuarios: 2,
-  "Categoría de Productos": 3,
-  Productos: 4,
-  Proveedores: 5,
-  "Órdenes de Compra": 6,
-  Compras: 7,
-  Servicios: 8,
-  Técnicos: 9,
-  Clientes: 10,
-  "Solicitud de Servicio": 11,
-  Citas: 12,
-  "Cotización de Servicio": 13,
-  "Orden de Servicio": 14,
-  Dashboard: 15,
-  Ventas: 16,
-};
-
-const PRIVILEGE_TO_ID: Record<string, number> = {
-  Crear: 1,
-  Ver: 2,
-  Editar: 3,
-  Eliminar: 4,
-  Desactivar: 5,
-};
+import {
+  MODULE_TO_PERMISSION_ID,
+  PRIVILEGE_NAME_TO_ID,
+  uiActionToPrivilegeName,
+  MODULE_BACK_TO_UI,
+  privilegeNameToUiActions,
+} from "../constants/roleMatrix.constants";
 
 function isValidConfig(
   v: { permissionid: number; privilegeid: number } | null
@@ -100,13 +81,18 @@ export const useRoles = () => {
       .map((token) => {
         const idx = token.lastIndexOf("-");
         if (idx === -1) return null;
+
         const moduleName = token.slice(0, idx);
-        const privilegeName = token.slice(idx + 1);
+        const action = token.slice(idx + 1);
 
-        const permissionid = MODULE_TO_PERMISSION_ID[moduleName];
-        const privilegeid = PRIVILEGE_TO_ID[privilegeName];
+        const permissionid = (MODULE_TO_PERMISSION_ID as any)[moduleName];
+        if (!permissionid) return null;
 
-        if (!permissionid || !privilegeid) return null;
+        const privName = uiActionToPrivilegeName(moduleName as any, action);
+        if (!privName) return null;
+
+        const privilegeid = PRIVILEGE_NAME_TO_ID[privName];
+        if (!privilegeid) return null;
 
         return { permissionid, privilegeid };
       })
@@ -141,11 +127,16 @@ export const useRoles = () => {
       if (idx === -1) continue;
 
       const moduleName = t.slice(0, idx);
-      const privilegeName = t.slice(idx + 1);
+      const action = t.slice(idx + 1);
 
-      const permissionid = MODULE_TO_PERMISSION_ID[moduleName];
-      const privilegeid = PRIVILEGE_TO_ID[privilegeName];
-      if (!permissionid || !privilegeid) continue;
+      const permissionid = (MODULE_TO_PERMISSION_ID as any)[moduleName];
+      if (!permissionid) continue;
+
+      const privName = uiActionToPrivilegeName(moduleName as any, action);
+      if (!privName) continue;
+
+      const privilegeid = PRIVILEGE_NAME_TO_ID[privName];
+      if (!privilegeid) continue;
 
       const arr = map.get(permissionid) ?? [];
       if (!arr.includes(privilegeid)) arr.push(privilegeid);
@@ -202,9 +193,15 @@ export const useRoles = () => {
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
 
-      const mappedPermissions = configurations.map(
-        (cfg: any) => `${cfg.permission.module}-${cfg.privilege.name}`
-      );
+      const mappedPermissions = configurations.flatMap((cfg: any) => {
+        const moduleUi =
+          MODULE_BACK_TO_UI[cfg.permission.module] ??
+          MODULE_BACK_TO_UI[String(cfg.permission.module).toLowerCase()] ??
+          cfg.permission.module;
+
+        const actions = privilegeNameToUiActions(moduleUi as any, cfg.privilege.name);
+        return actions.map((a) => `${moduleUi}-${a}`);
+      });
 
       setViewingRole({
         ...role,
@@ -228,9 +225,15 @@ export const useRoles = () => {
     try {
       const { role: roleInfo, configurations } = await getRoleDetail(role.id);
 
-      const mappedPermissions = configurations.map(
-        (cfg: any) => `${cfg.permission.module}-${cfg.privilege.name}`
-      );
+      const mappedPermissions = configurations.flatMap((cfg: any) => {
+        const moduleUi =
+          MODULE_BACK_TO_UI[cfg.permission.module] ??
+          MODULE_BACK_TO_UI[String(cfg.permission.module).toLowerCase()] ??
+          cfg.permission.module;
+
+        const actions = privilegeNameToUiActions(moduleUi as any, cfg.privilege.name);
+        return actions.map((a) => `${moduleUi}-${a}`);
+      });
 
       setEditingRole({
         id: roleInfo.roleid,
@@ -259,41 +262,41 @@ export const useRoles = () => {
     await handleDeleteRole(role);
   };
 
-const handleDeleteRole = async (role: Role): Promise<boolean> => {
-  return confirmDelete(
-    {
-      itemName: role.name,
-      itemType: "rol",
-      successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
-      errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
-      skipSuccessToast: true, // <- clave: que confirmDelete NO muestre el success
-    },
-    async () => {
-      startLoading();
-      try {
-        await apiDeleteRole(role.id);
-        await loadRoles();
+  const handleDeleteRole = async (role: Role): Promise<boolean> => {
+    return confirmDelete(
+      {
+        itemName: role.name,
+        itemType: "rol",
+        successMessage: `El rol "${role.name}" ha sido eliminado correctamente.`,
+        errorMessage: "No se pudo eliminar el rol. Intenta nuevamente.",
+        skipSuccessToast: true,
+      },
+      async () => {
+        startLoading();
+        try {
+          await apiDeleteRole(role.id);
+          await loadRoles();
 
-        showSuccess(`El rol "${role.name}" ha sido eliminado correctamente.`);
-      } catch (err) {
-        const ax = err as AxiosError<any>;
+          showSuccess(`El rol "${role.name}" ha sido eliminado correctamente.`);
+        } catch (err) {
+          const ax = err as AxiosError<any>;
 
-        if (ax.response?.status === 404) {
-          showWarning("El rol ya no existe.");
-        } else if (ax.response?.status === 400 || ax.response?.status === 409) {
-          showWarning(
-            ax.response?.data?.message ??
-              "No se puede eliminar el rol (está vinculado a usuarios)."
-          );
-        } else {
-          showWarning("Ocurrió un error al eliminar el rol.");
+          if (ax.response?.status === 404) {
+            showWarning("El rol ya no existe.");
+          } else if (ax.response?.status === 400 || ax.response?.status === 409) {
+            showWarning(
+              ax.response?.data?.message ??
+                "No se puede eliminar el rol (está vinculado a usuarios)."
+            );
+          } else {
+            showWarning("Ocurrió un error al eliminar el rol.");
+          }
+        } finally {
+          stopLoading();
         }
-      } finally {
-        stopLoading();
       }
-    }
-  );
-};
+    );
+  };
 
   const closeModals = () => {
     setIsCreateModalOpen(false);
