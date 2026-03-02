@@ -117,7 +117,7 @@ const OurServices = () => {
 
         {/* Footer animado */}
         <div className="mt-20 flex flex-col items-center opacity-0 animate-fadeInUp delay-1000">
-          <button className="group relative overflow-hidden bg-black px-12 py-5 text-white transition-all hover:bg-red-600">
+          <button className="cursor-pointer group relative overflow-hidden bg-black px-12 py-5 text-white transition-all hover:bg-red-600">
             <span className="relative z-10 font-bold tracking-widest uppercase text-sm">
               Solicitar Servicio Online
             </span>

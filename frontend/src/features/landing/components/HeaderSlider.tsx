@@ -56,10 +56,10 @@ const HeaderSlider = () => {
 
             {/* Botones con animación de escala y sombra */}
             <div className="flex flex-wrap gap-4 opacity-0 animate-fadeIn delay-1000">
-              <button className="px-10 py-4 bg-black text-white font-bold uppercase tracking-widest text-xs hover:bg-red-600 transition-all duration-300 shadow-2xl shadow-gray-200 hover:scale-105 hover:shadow-red-600/30">
+              <button className="cursor-pointer px-10 py-4 bg-black text-white font-bold uppercase tracking-widest text-xs hover:bg-red-600 transition-all duration-300 shadow-2xl shadow-gray-200 hover:scale-105 hover:shadow-red-600/30">
                 Contactar Ahora
               </button>
-              <button className="px-10 py-4 border-2 border-gray-100 text-black font-bold uppercase tracking-widest text-xs hover:border-red-600 transition-all duration-300 hover:scale-105">
+              <button className="cursor-pointer px-10 py-4 border-2 border-gray-100 text-black font-bold uppercase tracking-widest text-xs hover:border-red-600 transition-all duration-300 hover:scale-105">
                 Nuestros Servicios
               </button>
             </div>

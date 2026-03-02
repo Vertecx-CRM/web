@@ -50,7 +50,6 @@ export default function CardServices({
   clientLabel,
 }: CardServicesProps) {
   const [open, setOpen] = useState(false);
-
   const { ready, isAuthenticated, user, profile } = useAuth();
   const { pendingStateId, scheduledStateId } = useRequestStates();
 
@@ -72,11 +71,13 @@ export default function CardServices({
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .trim()
-          .toLowerCase()
+          .toLowerCase(),
       )
       .filter(Boolean);
 
-    return normalized.some((r) => r === "cliente" || r === "client" || r.includes("cliente"));
+    return normalized.some(
+      (r) => r === "cliente" || r === "client" || r.includes("cliente"),
+    );
   }, [user, profile]);
 
   const handleOpenModal = () => {
@@ -105,7 +106,7 @@ export default function CardServices({
 
     const hasSchedule = Boolean(
       (data.scheduledAt && String(data.scheduledAt).trim()) ||
-        (data.scheduledEndAt && String(data.scheduledEndAt).trim())
+      (data.scheduledEndAt && String(data.scheduledEndAt).trim()),
     );
 
     const fromPayloadState = Number(data?.stateId);
@@ -114,12 +115,16 @@ export default function CardServices({
         ? Number(pendingStateId)
         : null;
     const resolvedScheduled =
-      scheduledStateId && Number.isFinite(scheduledStateId) && scheduledStateId > 0
+      scheduledStateId &&
+      Number.isFinite(scheduledStateId) &&
+      scheduledStateId > 0
         ? Number(scheduledStateId)
         : null;
 
     const stateIdToSend =
-      (Number.isFinite(fromPayloadState) && fromPayloadState > 0 && fromPayloadState) ||
+      (Number.isFinite(fromPayloadState) &&
+        fromPayloadState > 0 &&
+        fromPayloadState) ||
       (hasSchedule && resolvedScheduled) ||
       resolvedPending ||
       5;
@@ -138,12 +143,10 @@ export default function CardServices({
 
     try {
       await createServiceRequest(payload);
-      showSuccess("Hemos recibido tu solicitud. Pronto nos pondremos en contacto.");
+      showSuccess("Solicitud procesada. Nos pondremos en contacto pronto.");
       handleCloseModal();
     } catch (error: any) {
-      showError(
-        getBackendMessage(error) || "No fue posible registrar la solicitud. Intenta nuevamente."
-      );
+      showError(getBackendMessage(error) || "Error al registrar la solicitud.");
       throw error;
     }
   };
@@ -151,52 +154,73 @@ export default function CardServices({
   return (
     <>
       <motion.div
-        className="bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer font-montserrat flex flex-col h-full"
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-        whileInView={{ opacity: 1, y: 0, scale: 1 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        whileHover={{
-          y: -5,
-          boxShadow: "0 12px 20px rgba(0,0,0,0.1)",
-        }}
+        className="group relative bg-white border border-gray-100 flex flex-col h-full transition-all duration-500 hover:border-red-600/30 overflow-hidden"
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        whileHover={{ y: -10 }}
       >
-        <div className="h-56 bg-gray-200 flex-shrink-0">
-          {image && (
-            <img src={image} alt={title} className="w-full h-full object-cover" />
+        {/* Contenedor de Imagen */}
+        <div className="relative h-64 overflow-hidden bg-gray-50">
+          {image ? (
+            <img
+              src={image}
+              alt={title}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-200 uppercase font-black text-4xl italic select-none">
+              SISTEMAS PC
+            </div>
           )}
+          {/* Overlay sutil al hacer hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-white/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         </div>
 
-        <div className="p-4 flex flex-col justify-between flex-1 gap-2">
-          <div>
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-            {category && (
-              <span className="text-sm font-semibold text-[#B20000]">{category}</span>
-            )}
-            <p className="text-gray-600 text-sm mt-1">{description}</p>
+        {/* Cuerpo de la Card */}
+        <div className="p-6 flex flex-col flex-1 gap-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-[2px] bg-red-600"></span>
+              {category && (
+                <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">
+                  {category}
+                </span>
+              )}
+            </div>
+
+            <h3 className="text-2xl font-black text-black leading-tight tracking-tighter uppercase mb-3 group-hover:text-red-600 transition-colors">
+              {title}
+            </h3>
+
+            <p className="text-gray-500 text-sm font-medium leading-relaxed">
+              {description}
+            </p>
           </div>
 
-          <motion.button
-            className="mt-4 bg-[#B20000] text-white rounded-full px-4 py-2 flex items-center justify-center gap-2"
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0 4px 12px rgba(178,0,0,0.3)",
-            }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 250, damping: 15 }}
-            type="button"
-            onClick={handleOpenModal}
-          >
-            Contratar Servicio
-          </motion.button>
+          {/* Botón de Acción */}
+          <div className="pt-4 border-t border-gray-50">
+            <button
+              onClick={handleOpenModal}
+              type="button"
+              className="cursor-pointer relative w-full h-12 bg-black overflow-hidden group/btn transition-transform active:scale-95"
+            >
+              <div className="absolute inset-0 bg-red-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
+              <span className="relative z-10 text-white font-black text-[10px] uppercase tracking-[0.2em]">
+                CONTRATAR SERVICIO
+              </span>
+            </button>
+          </div>
         </div>
+
+        {/* Detalle Decorativo Inferior */}
+        <div className="h-1 w-0 group-hover:w-full bg-red-600 transition-all duration-500"></div>
       </motion.div>
 
       <ClientRequestModal
         isOpen={open}
         onClose={handleCloseModal}
         onSave={handleSave}
-        title="Solicitar servicio"
+        title="Solicitud de Servicio Técnico"
         clientId={Number(clientId) || 0}
         clientLabel={clientLabel}
         initialServiceId={serviceId}
