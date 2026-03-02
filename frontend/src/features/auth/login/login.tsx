@@ -258,12 +258,6 @@ export default function LoginPage() {
               className="object-contain drop-shadow-2xl"
               priority
             />
-            {/* Texto de fondo sutil */}
-            <div className="absolute -bottom-6 -right-6 pointer-events-none">
-              <h3 className="text-[120px] font-black text-gray-50 leading-none select-none tracking-tighter">
-                SPC
-              </h3>
-            </div>
           </div>
         </div>
       </div>

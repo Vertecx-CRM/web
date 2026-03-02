@@ -10,8 +10,8 @@ import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
-// ✅ NUEVO: catálogo offline país/ciudad
-import { Country, City } from "country-state-city";
+//  catálogo offline ciudades (Colombia)
+import { City } from "country-state-city";
 
 type FormState = {
   name: string;
@@ -19,7 +19,6 @@ type FormState = {
   typeid: string;
   documentnumber: string;
   phone: string;
-  country: string; // ✅ NUEVO (ISO2, ej: "CO")
   city: string;
   zipcode: string;
   email: string;
@@ -34,7 +33,6 @@ const emptyErrors: FormErrors = {
   typeid: "",
   documentnumber: "",
   phone: "",
-  country: "", // ✅ NUEVO
   city: "",
   zipcode: "",
   email: "",
@@ -46,7 +44,6 @@ const emptyTouched: FormTouched = {
   typeid: false,
   documentnumber: false,
   phone: false,
-  country: false, // ✅ NUEVO
   city: false,
   zipcode: false,
   email: false,
@@ -57,12 +54,34 @@ const sanitize = (v: unknown) => String(v ?? "").trim();
 const hasSpecialChars = (value: string) =>
   /[@,.;:_{}\[\]^`+*~¡¿?\\'=)(/&%$#"|<>]/.test(value);
 
-// ✅ NUEVO: normalizador para comparar sin tildes / mayúsculas
+//  normalizador para comparar sin tildes / mayúsculas
 const normalizeText = (s: string) =>
   sanitize(s)
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+
+//  IMPORTANTE: catálogo de ciudades CO *fuera* del componente (para que validateField lo vea)
+const COLOMBIA_CITY_SET: Set<string> = (() => {
+  const list = City.getCitiesOfCountry("CO") ?? [];
+  const set = new Set<string>();
+  for (const c of list) set.add(normalizeText(c.name));
+  return set;
+})();
+
+const COLOMBIA_CITY_NAMES: string[] = (() => {
+  const list = City.getCitiesOfCountry("CO") ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of list.sort((a, b) => a.name.localeCompare(b.name))) {
+    const key = normalizeText(c.name);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(c.name);
+    }
+  }
+  return out;
+})();
 
 function validateField(
   field: keyof FormState,
@@ -85,6 +104,7 @@ function validateField(
         return "El nombre no puede contener caracteres especiales";
       return "";
     }
+
     case "lastname": {
       if (isNit) return "";
       if (!v) return "El apellido es obligatorio";
@@ -93,10 +113,12 @@ function validateField(
         return "El apellido no puede contener caracteres especiales";
       return "";
     }
+
     case "typeid": {
       if (!v) return "El tipo de documento es obligatorio";
       return "";
     }
+
     case "documentnumber": {
       if (!v) return "El número de documento es obligatorio";
       if (!typeIdNum) return "Seleccione el tipo de documento";
@@ -117,6 +139,7 @@ function validateField(
       if (v.length > 10) return "Máximo 10 caracteres";
       return "";
     }
+
     case "phone": {
       if (!v) return "El teléfono es obligatorio";
       if (!/^\d+$/.test(v)) return "Solo números";
@@ -124,29 +147,15 @@ function validateField(
       return "";
     }
 
-    // ✅ NUEVO: validación país
-    case "country": {
-      if (!v) return "El país es obligatorio";
-      // Asegura que exista en el catálogo:
-      const exists = Country.getAllCountries().some((c) => c.isoCode === v);
-      if (!exists) return "País inválido";
-      return "";
-    }
-
-    // ✅ ACTUALIZADO: ciudad validada contra país seleccionado
+    //  ciudad solo Colombia
     case "city": {
       if (!v) return "La ciudad es obligatoria";
       if (/[0-9]/.test(v)) return "No puede contener números";
-      if (!form.country) return "Selecciona un país primero";
-
-      const cities = City.getCitiesOfCountry(form.country) ?? [];
-      if (cities.length === 0)
-        return "No se pudo validar ciudades de este país";
 
       const target = normalizeText(v);
-      const found = cities.some((c) => normalizeText(c.name) === target);
+      const found = COLOMBIA_CITY_SET.has(target);
 
-      if (!found) return "La ciudad no existe para el país seleccionado";
+      if (!found) return "La ciudad no existe en Colombia";
       return "";
     }
 
@@ -155,11 +164,13 @@ function validateField(
       if (!/^\d+$/.test(v)) return "Solo números";
       return "";
     }
+
     case "email": {
       if (!v) return "El correo es obligatorio";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Formato inválido";
       return "";
     }
+
     default:
       return "";
   }
@@ -172,7 +183,6 @@ function validateAll(form: FormState): FormErrors {
     typeid: validateField("typeid", form.typeid, form),
     documentnumber: validateField("documentnumber", form.documentnumber, form),
     phone: validateField("phone", form.phone, form),
-    country: validateField("country", form.country, form), // ✅ NUEVO
     city: validateField("city", form.city, form),
     zipcode: validateField("zipcode", form.zipcode, form),
     email: validateField("email", form.email, form),
@@ -189,46 +199,21 @@ export default function RegisterPage() {
   const { documentTypes } = useDocumentTypes();
   const { roles } = useRoles();
 
-  // ✅ NUEVO: países ordenados
-  const countries = useMemo(() => {
-    const all = Country.getAllCountries();
-    return all
-      .map((c) => ({ iso2: c.isoCode, name: c.name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
-
-  // ✅ NUEVO: ciudades del país seleccionado (para ayudar UX)
-  const citiesOfSelectedCountry = useMemo(() => {
-    if (!sanitize(form.country)) return [];
-    const list = City.getCitiesOfCountry(form.country) ?? [];
-    // ordenar + eliminar duplicados por nombre
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const c of list.sort((a, b) => a.name.localeCompare(b.name))) {
-      const key = normalizeText(c.name);
-      if (!seen.has(key)) {
-        seen.add(key);
-        out.push(c.name);
-      }
-    }
-    return out;
-  }, [form.country]);
-
-  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<FormState>({
     name: "",
     lastname: "",
     typeid: "",
     documentnumber: "",
     phone: "",
-    country: "CO", // ✅ DEFAULT opcional (Colombia). Si no quieres default, pon ""
     city: "",
     zipcode: "",
     email: "",
   });
 
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>(emptyErrors);
   const [touched, setTouched] = useState<FormTouched>(emptyTouched);
+
   const [checking, setChecking] = useState({
     documentnumber: false,
     phone: false,
@@ -249,14 +234,8 @@ export default function RegisterPage() {
 
   const setField = (name: keyof FormState, value: string) => {
     let nextForm: FormState = { ...form, [name]: value };
-
     if (name === "typeid" && Number(value || 0) === 4) {
       nextForm = { ...nextForm, lastname: "" };
-    }
-
-    // ✅ NUEVO: si cambia país, limpia ciudad para evitar inconsistencias
-    if (name === "country") {
-      nextForm = { ...nextForm, city: "" };
     }
 
     setForm(nextForm);
@@ -281,11 +260,6 @@ export default function RegisterPage() {
         nextForm.lastname,
         nextForm,
       );
-    }
-
-    // ✅ NUEVO: al cambiar país revalida ciudad
-    if (name === "country") {
-      nextErrors.city = validateField("city", nextForm.city, nextForm);
     }
 
     setErrors(nextErrors);
@@ -332,6 +306,7 @@ export default function RegisterPage() {
         }));
       }
     } catch {
+      // silencio
     } finally {
       setChecking((prev) => ({ ...prev, [field]: false }));
     }
@@ -386,11 +361,8 @@ export default function RegisterPage() {
       typeid: Number(form.typeid),
       roleid: clientRole.roleid,
       stateid: 1,
-      // Si tu backend espera city/zipcode como customercity/customerzipcode
       customercity: sanitize(form.city),
       customerzipcode: sanitize(form.zipcode),
-      // ✅ si tu backend tiene campo país, envíalo (ajusta el nombre si aplica)
-      customercountry: sanitize(form.country),
     });
     setLoading(false);
 
@@ -606,70 +578,36 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* ✅ NUEVO: País */}
-            <div className="relative">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
-                País
-              </label>
-              <select
-                name="country"
-                value={form.country}
-                onChange={onChange}
-                onBlur={onBlur}
-                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all appearance-none cursor-pointer ${
-                  touched.country && errors.country
-                    ? "border-red-600"
-                    : "border-gray-100 focus:border-red-600"
-                }`}
-              >
-                <option value="">Seleccionar País...</option>
-                {countries.map((c) => (
-                  <option key={c.iso2} value={c.iso2}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {touched.country && errors.country && (
-                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
-                  {errors.country}
-                </p>
-              )}
-            </div>
-
-            {/* Ciudad (con datalist opcional para evitar errores) */}
+            {/* Ciudad (CO) */}
             <div className="relative">
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
                 Ubicación / Ciudad
               </label>
-
               <input
                 name="city"
                 value={form.city}
                 onChange={onChange}
                 onBlur={onBlur}
                 placeholder="Ciudad de residencia"
-                list="cities-list"
+                list="colombia-cities"
                 className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
                   touched.city && errors.city
                     ? "border-red-600"
                     : "border-gray-100 focus:border-red-600"
                 }`}
-                disabled={!form.country}
               />
-
-              {/* ✅ NUEVO: sugerencias de ciudades según país */}
-              <datalist id="cities-list">
-                {citiesOfSelectedCountry.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-
               {touched.city && errors.city && (
                 <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
                   {errors.city}
                 </p>
               )}
             </div>
+
+            <datalist id="colombia-cities">
+              {COLOMBIA_CITY_NAMES.map((city) => (
+                <option key={city} value={city} />
+              ))}
+            </datalist>
 
             {/* Código Postal */}
             <div className="relative">
