@@ -7,12 +7,9 @@ export interface AuthUser {
   avatar?: string | null;
   image?: string | null;
   roleid?: number;
-  rolename?: string;
   stateid?: number;
   isactive?: boolean;
   permissions?: string[];
   rolename?: string;
-  permissions?: string[];
   mustchangepassword?: boolean;
-  isactive?: boolean;
 }

@@ -159,9 +159,10 @@ function validateField(
       return "";
     }
 
+    // ZIP de Colombia
     case "zipcode": {
       if (!v) return "Obligatorio";
-      if (!/^\d+$/.test(v)) return "Solo números";
+      if (!/^\d{6}$/.test(v)) return "Debe tener 6 dígitos numéricos";
       return "";
     }
 
@@ -353,17 +354,22 @@ export default function RegisterPage() {
     if (hasErrors(newErrors))
       return showError("Revisa los campos marcados en rojo.");
 
-    setLoading(true);
-    const res = await register({
-      ...form,
+    // ✅ PAYLOAD LIMPIO: NO enviamos city ni zipcode (porque DTO no los acepta)
+    const payload = {
       name: sanitize(form.name),
       lastname: sanitize(form.lastname),
       typeid: Number(form.typeid),
+      documentnumber: sanitize(form.documentnumber),
+      phone: sanitize(form.phone),
+      email: sanitize(form.email),
       roleid: clientRole.roleid,
       stateid: 1,
       customercity: sanitize(form.city),
       customerzipcode: sanitize(form.zipcode),
-    });
+    };
+
+    setLoading(true);
+    const res = await register(payload as any);
     setLoading(false);
 
     if (res.ok) {
@@ -619,7 +625,7 @@ export default function RegisterPage() {
                 value={form.zipcode}
                 onChange={onChange}
                 onBlur={onBlur}
-                placeholder="Zip Code"
+                placeholder="Ej: 050001"
                 className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
                   touched.zipcode && errors.zipcode
                     ? "border-red-600"
