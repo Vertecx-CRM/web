@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3001/dashboard";
+const API_URL = "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/dashboard";
 
 const buildUrl = (path: string, year?: number) => {
   if (!year) return path;

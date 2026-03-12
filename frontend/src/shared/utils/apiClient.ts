@@ -1,7 +1,7 @@
 import axios, { type AxiosRequestConfig } from "axios";
 
 const DEFAULT_API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL || "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net";
 
 export const api = axios.create({
   baseURL: DEFAULT_API_BASE,

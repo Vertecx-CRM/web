@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:3001/typeofdocuments";
+const API_URL = "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/api/typeofdocuments";
 
 export interface DocumentTypeResponse {
   typeofdocumentid: number;
