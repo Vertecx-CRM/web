@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useLoader } from "@/shared/components/loader";
 import LoginForm from "@/features/auth/login/login";
 import RegisterForm from "@/features/auth/register/RegisterPage";
 import AuthShell from "@/features/auth/layout/Authshell";
 import { routes } from "@/shared/routes";
+
+export const dynamic = "force-dynamic";
 
 export default function AccessPage() {
   const { hideLoader } = useLoader();
@@ -35,13 +37,15 @@ export default function AccessPage() {
         ← Volver
       </Link>
 
-      <AuthShell mode={mode}>
-        {mode === "login" ? (
-          <LoginForm onSwitch={() => setMode("register")} />
-        ) : (
-          <RegisterForm onSwitch={() => setMode("login")} />
-        )}
-      </AuthShell>
+      <Suspense fallback={null}>
+        <AuthShell mode={mode}>
+          {mode === "login" ? (
+            <LoginForm onSwitch={() => setMode("register")} />
+          ) : (
+            <RegisterForm onSwitch={() => setMode("login")} />
+          )}
+        </AuthShell>
+      </Suspense>
     </>
   );
 }

@@ -22,7 +22,7 @@ export const apiClient = {
   async post<T>(
     path: string,
     body?: unknown,
-    config?: RequestOptions
+    config?: RequestOptions,
   ): Promise<T> {
     const res = await api.post<T>(path, body, config);
     return res.data;
@@ -31,7 +31,7 @@ export const apiClient = {
   async patch<T>(
     path: string,
     body?: unknown,
-    config?: RequestOptions
+    config?: RequestOptions,
   ): Promise<T> {
     const res = await api.patch<T>(path, body, config);
     return res.data;
