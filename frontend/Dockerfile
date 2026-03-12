@@ -24,6 +24,8 @@ RUN npm config set fetch-retries 5 \
 
 FROM deps AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Copiar el resto del código fuente
 COPY . .
@@ -38,6 +40,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Copiar archivos necesarios para el modo standalone
 COPY --from=builder /app/public ./public
