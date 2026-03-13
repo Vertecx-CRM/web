@@ -12,14 +12,15 @@ import {
   Box,
   ChevronRight,
   ChevronLeft,
+  LayoutGrid,
 } from "lucide-react";
-import Colors from "@/shared/theme/colors";
 import { motion, AnimatePresence } from "framer-motion";
 import React from "react";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 import { canViewModule, type AuthzModule } from "@/features/auth/authz";
 
+// --- COMPONENTE: ITEM DE MENÚ ---
 const MenuItem = React.memo(
   ({
     href,
@@ -37,19 +38,33 @@ const MenuItem = React.memo(
     <Link
       href={href}
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-3 rounded-md text-base transition transform duration-200 ${
+      className={`group relative flex items-center gap-3 px-6 py-4 transition-all duration-300 border-b border-gray-50 ${
         isActive
-          ? "bg-red-800 text-white hover:scale-105"
-          : "hover:bg-red-600 hover:scale-105"
+          ? "bg-gray-50 text-[#B22222]"
+          : "text-gray-500 hover:text-black hover:bg-gray-100/50"
       }`}
     >
-      <Icon size={20} /> {label}
+      {/* Indicador lateral activo */}
+      {isActive && (
+        <motion.div
+          layoutId="activeIndicator"
+          className="absolute left-0 w-1 h-full bg-[#B22222]"
+        />
+      )}
+
+      <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+      <span
+        className={`text-[11px] font-black uppercase tracking-[0.15em] ${isActive ? "opacity-100" : "opacity-80"}`}
+      >
+        {label}
+      </span>
     </Link>
-  )
+  ),
 );
 
 MenuItem.displayName = "MenuItem";
 
+// --- COMPONENTE: SUBMENÚ ---
 const SubMenu = React.memo(
   ({
     parent,
@@ -76,58 +91,69 @@ const SubMenu = React.memo(
 
     return (
       <div
-        className="relative"
+        className="relative border-b border-gray-50"
         onMouseEnter={() => setOpenMenu(parent)}
         onMouseLeave={() => setOpenMenu(null)}
       >
         <button
           onClick={() => toggleMenu(parent)}
-          className={`cursor-pointer flex items-center justify-between w-full px-4 py-3 rounded-md text-base transition transform duration-200 ${
+          className={`cursor-pointer flex items-center justify-between w-full px-6 py-4 transition-colors ${
             isActive
-              ? "bg-red-800 text-white hover:scale-105"
-              : "hover:bg-red-600 hover:scale-105"
+              ? "bg-gray-50 text-[#B22222]"
+              : "text-gray-500 hover:text-black hover:bg-gray-100/50"
           }`}
         >
-          <span className="flex items-center gap-2">
-            <Icon size={20} /> {label}
+          <span className="flex items-center gap-3">
+            <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+            <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+              {label}
+            </span>
           </span>
-          <ChevronDown
-            size={18}
-            className={`transition-transform ${
-              openMenu === parent ? "rotate-180" : ""
-            }`}
+          <ChevronRight
+            size={14}
+            className={`transition-transform duration-300 ${openMenu === parent ? "rotate-90 text-[#B22222]" : ""}`}
           />
         </button>
 
         <AnimatePresence>
           {openMenu === parent && (
             <motion.div
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 20, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="absolute top-0 left-full ml-1 bg-white text-red-800 rounded-md shadow-lg flex flex-col w-60 z-50"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="absolute top-0 left-full z-[100] w-56 bg-white shadow-[15px_0_30px_rgba(0,0,0,0.1)] border border-gray-100"
             >
-              {items.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setOpenMenu(null)}
-                  className="px-4 py-3 hover:bg-red-100 hover:text-red-700 transition rounded-md"
-                >
-                  {label}
-                </Link>
-              ))}
+              <div className="bg-black text-white px-4 py-2 text-[9px] font-black uppercase tracking-widest">
+                Opciones de {label}
+              </div>
+              {items.map(({ href, label: itemLabel }) => {
+                const isSubActive = pathname === href;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setOpenMenu(null)}
+                    className={`block px-5 py-3 text-[10px] font-bold uppercase tracking-wider border-b border-gray-50 last:border-0 transition-colors ${
+                      isSubActive
+                        ? "text-[#B22222] bg-gray-50"
+                        : "text-gray-500 hover:text-black hover:bg-gray-50"
+                    }`}
+                  >
+                    {itemLabel}
+                  </Link>
+                );
+              })}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
     );
-  }
+  },
 );
 
 SubMenu.displayName = "SubMenu";
 
+// --- COMPONENTE PRINCIPAL ---
 const AsideNav = ({
   isCollapsed,
   setIsCollapsed,
@@ -140,35 +166,26 @@ const AsideNav = ({
   const { user } = useAuth();
 
   const permissions = useMemo<string[]>(
-    () =>
-      ((user as any)?.permissions ||
-        (user as any)?.permission ||
-        []) as string[],
-    [user]
+    () => ((user as any)?.permissions || []) as string[],
+    [user],
   );
 
   const canView = useCallback(
     (module: AuthzModule) => canViewModule(permissions, module),
-    [permissions]
+    [permissions],
   );
 
   const toggleMenu = useCallback(
-    (menu: string) => {
-      setOpenMenu(openMenu === menu ? null : menu);
-    },
-    [openMenu]
+    (menu: string) => setOpenMenu(openMenu === menu ? null : menu),
+    [openMenu],
   );
 
   const isLinkActive = useCallback(
     (href: string) => {
       if (href === routes.dashboard.main) return pathname === href;
-      return (
-        pathname === href ||
-        pathname.startsWith(href + "/") ||
-        pathname.startsWith(href)
-      );
+      return pathname === href || pathname.startsWith(href + "/");
     },
-    [pathname]
+    [pathname],
   );
 
   const menuConfig = useMemo(
@@ -177,7 +194,7 @@ const AsideNav = ({
         type: "link" as const,
         href: routes.dashboard.main,
         label: "Dashboard",
-        icon: Home,
+        icon: LayoutGrid,
         module: "dashboard" as AuthzModule,
       },
       {
@@ -212,7 +229,7 @@ const AsideNav = ({
           },
           {
             href: routes.dashboard.purchasesOrders,
-            label: "Órdenes de compras",
+            label: "Órdenes",
             module: "purchaseOrders" as AuthzModule,
           },
           {
@@ -220,7 +237,7 @@ const AsideNav = ({
             label: "Compras",
             module: "purchases" as AuthzModule,
           },
-],
+        ],
       },
       {
         type: "submenu" as const,
@@ -315,91 +332,113 @@ const AsideNav = ({
       {
         type: "link" as const,
         href: routes.path,
-        label: "volver",
+        label: "Volver a Web",
         icon: ChevronLeft,
       },
     ],
-    [isLinkActive, pathname]
+    [pathname],
   );
 
   return (
-    <motion.aside
-      initial={{ x: -260 }}
-      animate={{ x: isCollapsed ? -260 : 0 }}
-      transition={{ duration: 0.3 }}
-      className="text-white w-64 h-screen flex flex-col fixed left-0 top-0 z-50 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.25)]"
-      style={{ backgroundColor: Colors.asideNavBackground.primary }}
-    >
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="cursor-pointer absolute -right-5 top-4 bg-red-700 text-white rounded-full p-1 drop-shadow-[0_10px_25px_rgba(0,0,0,0.35)] hover:bg-red-600 transition"
+    <>
+      {/* Overlay para móvil si fuera necesario */}
+      {!isCollapsed && (
+        <div
+          className="fixed inset-0 bg-black/10 z-40 lg:hidden"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+
+      <motion.aside
+        initial={{ x: -260 }}
+        animate={{ x: isCollapsed ? -260 : 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed left-0 top-0 z-50 w-64 h-screen bg-white border-r border-gray-100 flex flex-col shadow-[10px_0_40px_rgba(0,0,0,0.04)]"
       >
-        {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-      </button>
+        {/* Toggle Button Industrial */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-10 top-6 bg-black text-white p-2 hover:bg-[#B22222] transition-colors shadow-xl"
+        >
+          {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </button>
 
-      <div className="flex items-center gap-2 px-4 py-3 mb-4">
-        <div className="w-8 h-8 flex items-center justify-center bg-red-600 rounded-lg text-white font-bold">
-          V
+        {/* Brand / Logo Section */}
+        <div className="p-8 border-b border-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-black flex items-center justify-center">
+              <span className="text-white font-black text-xl">S</span>
+            </div>
+            <div>
+              <h1 className="text-sm font-black uppercase tracking-[0.2em] leading-none text-black">
+                Sistemas<span className="text-[#B22222]">PC</span>
+              </h1>
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                Engineering Portal
+              </p>
+            </div>
+          </div>
         </div>
-        <div>
-          <h1 className="text-5xl font-bold text-white">Vertecx</h1>
-          <p className="text-xs text-center text-white">Panel de gestión</p>
-        </div>
-      </div>
 
-      <nav className="flex flex-col gap-1 px-2">
-        {menuConfig.map((item) => {
-          if (item.type === "link") {
-            if (item.module && !canView(item.module)) return null;
-
-            return (
-              <MenuItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                isActive={isLinkActive(item.href)}
-              />
-            );
-          }
-
-          if (item.type === "submenu") {
-            const visibleItems = item.items.filter((i) => canView(i.module));
-            if (visibleItems.length === 0) return null;
-
-            if (visibleItems.length === 1) {
-              const only = visibleItems[0];
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-4 custom-scrollbar">
+          <p className="px-6 mb-4 text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">
+            Menú de Gestión
+          </p>
+          {menuConfig.map((item, idx) => {
+            if (item.type === "link") {
+              if (item.module && !canView(item.module)) return null;
               return (
                 <MenuItem
-                  key={only.href}
-                  href={only.href}
+                  key={idx}
+                  href={item.href}
                   icon={item.icon}
-                  label={only.label}
-                  isActive={isLinkActive(only.href)}
+                  label={item.label}
+                  isActive={isLinkActive(item.href)}
                 />
               );
             }
 
-            return (
-              <SubMenu
-                key={item.parent}
-                parent={item.parent}
-                icon={item.icon}
-                label={item.label}
-                childrenRoutes={item.childrenRoutes}
-                pathname={pathname}
-                openMenu={openMenu}
-                toggleMenu={toggleMenu}
-                items={visibleItems}
-                setOpenMenu={setOpenMenu}
-              />
-            );
-          }
+            if (item.type === "submenu") {
+              const visibleItems = item.items.filter((i) => canView(i.module));
+              if (visibleItems.length === 0) return null;
+              return (
+                <SubMenu
+                  key={idx}
+                  parent={item.parent}
+                  icon={item.icon}
+                  label={item.label}
+                  childrenRoutes={item.childrenRoutes}
+                  pathname={pathname}
+                  openMenu={openMenu}
+                  toggleMenu={toggleMenu}
+                  items={visibleItems}
+                  setOpenMenu={setOpenMenu}
+                />
+              );
+            }
+            return null;
+          })}
+        </nav>
 
-          return null;
-        })}
-      </nav>
-    </motion.aside>
+        {/* User Info / Footer */}
+        <div className="p-6 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500 uppercase">
+              {user?.name?.substring(0, 2) || "US"}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-[10px] font-black text-black uppercase truncate">
+                {user?.name || "Usuario"}
+              </p>
+              <p className="text-[9px] font-bold text-[#B22222] uppercase tracking-tighter">
+                Acceso Autorizado
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.aside>
+    </>
   );
 };
 
