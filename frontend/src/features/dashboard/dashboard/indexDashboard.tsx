@@ -1,7 +1,15 @@
 ﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
+import {
+  TrendingUp,
+  ShoppingCart,
+  ClipboardList,
+  Settings,
+  Calendar,
+  Filter,
+} from "lucide-react";
 import Colors from "@/shared/theme/colors";
 import { YearlyGraph } from "./components/BarChar/YearlySalesGraph";
 import { MonthlyGraph } from "./components/BarChar/monthlySalesGraph";
@@ -15,13 +23,9 @@ import { CustomBarChart } from "./components/BarChar/barChart";
 import { dashboardApi } from "./api/dashboardApi";
 import { MonthSelection } from "./components/BarChar/monthUtils";
 
-type CategoryProductsResponse = {
-  category: string;
-  value: number | string | null;
-};
-
-const normalizeStateKey = (value: string) =>
-  value
+// --- HELPERS ---
+const normalizeStateKey = (v: string) =>
+  v
     .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -30,20 +34,15 @@ const normalizeStateKey = (value: string) =>
 
 const translateDashboardState = (value: string) => {
   const key = normalizeStateKey(value);
-  if (key === "cancel") return "Cancelados";
-  if (key === "finished" || key === "finish") return "Finalizados";
-  if (key === "inprocess" || key === "in-process") return "En-proceso";
-  if (key === "pendient") return "pendintes";
-  return value;
+  const map: Record<string, string> = {
+    cancel: "Cancelados",
+    finished: "Finalizados",
+    finish: "Finalizados",
+    inprocess: "En Proceso",
+    pendient: "Pendientes",
+  };
+  return map[key] || value;
 };
-
-function Loader() {
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-}
 
 export const formatCOP = (value: number | string) =>
   Number(value ?? 0).toLocaleString("es-CO", {
@@ -52,309 +51,289 @@ export const formatCOP = (value: number | string) =>
     maximumFractionDigits: 0,
   });
 
+// --- COMPONENTES DE APOYO ---
+const StatCard = ({ title, value, icon: Icon, color = "red" }: any) => (
+  <div className="relative overflow-hidden bg-white rounded-xl border border-[#626262]/20 shadow-sm p-6 group hover:border-[#B20000]/50 transition-all duration-300">
+    <div className="absolute -right-4 -top-4 text-[#B20000]/5 group-hover:text-[#B20000]/10 transition-colors">
+      <Icon size={120} strokeWidth={1} />
+    </div>
+    <div className="relative z-10">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-[#B20000]/10 rounded-lg text-[#B20000]">
+          <Icon size={20} />
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#717680]">
+          {title}
+        </span>
+      </div>
+      <p className="text-2xl font-black text-[#0D141C] truncate">{value}</p>
+    </div>
+  </div>
+);
 
 export const IndexDashboard = () => {
-  // ESTADOS
+  const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [salesYear, setSalesYear] = useState([]);
   const [totalSales, setTotalSales] = useState(0);
-
   const [purchasesYear, setPurchasesYear] = useState([]);
   const [totalPurchases, setTotalPurchases] = useState(0);
-
   const [categoryProducts, setCategoryProducts] = useState<CategoryData[]>([]);
-
   const [ordersState, setOrdersState] = useState([]);
   const [totalOrders, setTotalOrders] = useState(0);
-
   const [serviceRequestsState, setServiceRequestsState] = useState([]);
   const [totalServiceRequests, setTotalServiceRequests] = useState(0);
-
   const [clientsYear, setClientsYear] = useState([]);
   const [totalClients, setTotalClients] = useState(0);
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [availableYears] = useState(() => {
-    const years: number[] = [];
-    for (let y = currentYear; y >= currentYear - 5; y--) {
-      years.push(y);
-    }
-    return years;
-  });
 
-  const [selectedMonthSalesPurchases, setSelectedMonthSalesPurchases] = useState<MonthSelection | null>(null);
-  const [selectedMonthClients, setSelectedMonthClients] = useState<MonthSelection | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedMonthSalesPurchases, setSelectedMonthSalesPurchases] =
+    useState<MonthSelection | null>(null);
+  const [selectedMonthClients, setSelectedMonthClients] =
+    useState<MonthSelection | null>(null);
 
-  // CARGAR TODA LA DATA DEL DASHBOARD
+  const availableYears = useMemo(
+    () => Array.from({ length: 6 }, (_, i) => selectedYear - i),
+    [],
+  );
+
   useEffect(() => {
-    const loadDashboard = async () => {
+    const loadData = async () => {
       setLoading(true);
       try {
-        // VENTAS
-        setSalesYear(await dashboardApi.getSalesByYear(selectedYear));
-        setTotalSales((await dashboardApi.getTotalSales(selectedYear)).total);
+        const [
+          sales,
+          tSales,
+          purch,
+          tPurch,
+          cats,
+          ords,
+          tOrds,
+          reqs,
+          tReqs,
+          clis,
+          tClis,
+        ] = await Promise.all([
+          dashboardApi.getSalesByYear(selectedYear),
+          dashboardApi.getTotalSales(selectedYear),
+          dashboardApi.getPurchasesByYear(selectedYear),
+          dashboardApi.getTotalPurchases(selectedYear),
+          dashboardApi.getCategoryProducts(selectedYear),
+          dashboardApi.getOrdersByState(selectedYear),
+          dashboardApi.getTotalOrders(selectedYear),
+          dashboardApi.getServiceRequestsByState(selectedYear),
+          dashboardApi.getTotalServiceRequests(selectedYear),
+          dashboardApi.getClientsByYear(selectedYear),
+          dashboardApi.getTotalClients(selectedYear),
+        ]);
 
-        // COMPRAS
-        setPurchasesYear(await dashboardApi.getPurchasesByYear(selectedYear));
-        setTotalPurchases((await dashboardApi.getTotalPurchases(selectedYear)).total);
-
-        // PRODUCTOS POR CATEGORÃA
-        const rawCategoryProducts =
-          (await dashboardApi.getCategoryProducts(selectedYear)) as CategoryProductsResponse[];
+        setSalesYear(sales);
+        setTotalSales(tSales.total);
+        setPurchasesYear(purch);
+        setTotalPurchases(tPurch.total);
         setCategoryProducts(
-          rawCategoryProducts.map(({ category, value }) => ({
-            category,
-            value: Number(value ?? 0),
-          }))
+          (cats as any[]).map((c) => ({
+            category: c.category,
+            value: Number(c.value ?? 0),
+          })),
         );
-
-        // Ã“RDENES
-        const rawOrdersState = await dashboardApi.getOrdersByState(selectedYear);
         setOrdersState(
-          (rawOrdersState ?? []).map((item: any) => ({
-            ...item,
-            state: typeof item?.state === "string" ? translateDashboardState(item.state) : item?.state,
-          }))
+          (ords ?? []).map((o: any) => ({
+            ...o,
+            state: translateDashboardState(o.state),
+          })),
         );
-        setTotalOrders((await dashboardApi.getTotalOrders(selectedYear)).total);
-
-        // SOLICITUDES
-        const rawServiceRequestsState = await dashboardApi.getServiceRequestsByState(selectedYear);
+        setTotalOrders(tOrds.total);
         setServiceRequestsState(
-          (rawServiceRequestsState ?? []).map((item: any) => ({
-            ...item,
-            state: typeof item?.state === "string" ? translateDashboardState(item.state) : item?.state,
-          }))
+          (reqs ?? []).map((r: any) => ({
+            ...r,
+            state: translateDashboardState(r.state),
+          })),
         );
-        setTotalServiceRequests((await dashboardApi.getTotalServiceRequests(selectedYear)).total);
-
-        // CLIENTES
-        setClientsYear(await dashboardApi.getClientsByYear(selectedYear));
-        setTotalClients((await dashboardApi.getTotalClients(selectedYear)).total);
-      } catch (error) {
-        console.error("Error cargando dashboard:", error);
+        setTotalServiceRequests(tReqs.total);
+        setClientsYear(clis);
+        setTotalClients(tClis.total);
       } finally {
         setLoading(false);
       }
     };
-
-    loadDashboard();
+    loadData();
   }, [selectedYear]);
 
-  const handleYearChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const year = Number(event.target.value);
-    setSelectedYear(year);
-    setSelectedMonthSalesPurchases(null);
-    setSelectedMonthClients(null);
-  };
-
   return (
-    <div className="w-full h-screen p-4">
-      {loading && <Loader />}
+    <div className="min-h-screen bg-[#E8E8E8]/30 p-4 lg:p-8 space-y-8 animate-in fade-in duration-700">
+      {/* HEADER & SELECTOR */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-sm font-black text-[#B20000] uppercase tracking-[0.3em]">
+            Resumen Ejecutivo
+          </h2>
+          <p className="text-[#717680] text-xs mt-1 font-medium italic">
+            Datos actualizados al {new Date().toLocaleDateString()}
+          </p>
+        </div>
 
-      <div className="flex w-full justify-end mb-4">
-        <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg shadow-sm">
-          <label htmlFor="year-selector" className="text-sm font-semibold text-gray-700">
-            Año
-          </label>
+        <div className="flex items-center gap-3 bg-white border border-[#626262]/20 p-2 rounded-xl shadow-sm">
+          <Filter size={16} className="text-[#B20000] ml-2" />
           <select
-            id="year-selector"
             value={selectedYear}
-            onChange={handleYearChange}
-            className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring focus:ring-red-200"
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="bg-transparent text-sm font-bold text-[#0D141C] focus:outline-none pr-4"
           >
-            {availableYears.map((yearOption) => (
-              <option key={yearOption} value={yearOption}>
-                {yearOption}
+            {availableYears.map((y) => (
+              <option key={y} value={y}>
+                {y}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* PRIMERA FILA: MÃ‰TRICAS PRINCIPALES */}
-      <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-        {/* Ventas */}
-        <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
-          <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 h-full flex flex-col justify-between">
-              <div className="flex items-start justify-between gap-3 min-h-10">
-                <h2 className="text-sm sm:text-base font-medium whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                  Ventas
-                </h2>
-                <Image src="/icons/cash-stack.svg" alt="Ventas" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
-              </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{formatCOP(totalSales)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Compras */}
-        <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
-          <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 h-full flex flex-col justify-between">
-              <div className="flex items-start justify-between gap-3 min-h-10">
-                <h2 className="text-sm sm:text-base font-medium whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                  Compras
-                </h2>
-                <Image src="/icons/cart2.svg" alt="Compras" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
-              </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{formatCOP(totalPurchases)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Solicitudes de servicio */}
-        <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
-          <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 h-full flex flex-col justify-between">
-              <div className="flex items-start justify-between gap-3 min-h-10">
-                <h2 className="text-sm sm:text-base font-medium whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                  Solicitud de servicio
-                </h2>
-                <Image src="/icons/calendar.svg" alt="SolicitudServicio" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
-              </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{totalServiceRequests}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Ã“rdenes */}
-        <div className="p-3 w-full sm:w-[calc(50%-1rem)] md:w-[calc(25%-1rem)]">
-          <div className="bg-[#F4F4F4] rounded-lg p-5 shadow-md h-full">
-            <div className="bg-[#B20000] text-white rounded-lg p-4 sm:p-6 h-full flex flex-col justify-between">
-              <div className="flex items-start justify-between gap-3 min-h-10">
-                <h2 className="text-sm sm:text-base font-medium whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                  Orden de servicio
-                </h2>
-                <Image src="/icons/box.svg" alt="Ã“rdenes" width={32} height={32} className="w-8 h-8 object-contain filter brightness-0 invert" />
-              </div>
-              <p className="text-lg sm:text-2xl font-bold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">{totalOrders}</p>
-            </div>
-          </div>
-        </div>
+      {/* METRICAS PRINCIPALES */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Ventas Totales"
+          value={formatCOP(totalSales)}
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="Compras Invertidas"
+          value={formatCOP(totalPurchases)}
+          icon={ShoppingCart}
+        />
+        <StatCard
+          title="Solicitudes Servicio"
+          value={totalServiceRequests}
+          icon={Calendar}
+        />
+        <StatCard
+          title="Órdenes Gestión"
+          value={totalOrders}
+          icon={ClipboardList}
+        />
       </div>
-      {/* SEGUNDA FILA: GRÁFICA COMBINADA DE VENTAS & COMPRAS */}
-      <div className="flex flex-wrap w-full h-auto mt-4">
-        <div className="p-2 w-full">
-          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
-            <div className="bg-white rounded-lg p-6 flex flex-col h-full">
-              {!selectedMonthSalesPurchases ? (
-                <>
-                  <h2 className="text-xl font-bold mb-4">
-                    Ventas: {formatCOP(totalSales)} | Compras: {formatCOP(totalPurchases)}
-                  </h2>
-                  <YearlySalesPurchasesGraph
-                    salesData={salesYear}
-                    purchasesData={purchasesYear}
-                    onMonthClick={setSelectedMonthSalesPurchases}
-                    isCurrency={true}
-                  />
-                </>
-              ) : (
-                <MonthlySalesPurchasesGraph
-                  month={selectedMonthSalesPurchases?.label ?? ""}
-                  monthNumber={selectedMonthSalesPurchases?.value}
-                  salesData={salesYear}
-                  purchasesData={purchasesYear}
-                  onBack={() => setSelectedMonthSalesPurchases(null)}
-                  isCurrency={true}
-                  year={selectedYear}
-                />
-              )}
+
+      {/* FILA DE GRÁFICAS PRINCIPALES */}
+      <div className="grid grid-cols-1 gap-6">
+        <div className="bg-white rounded-2xl border border-[#626262]/10 shadow-sm p-6 lg:p-8 transition-all hover:shadow-md">
+          <div className="flex justify-between items-center mb-8 border-b border-[#626262]/10 pb-4">
+            <h3 className="text-[12px] font-black uppercase tracking-[0.25em] text-[#0D141C]">
+              Balance Financiero Anual
+            </h3>
+            <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest">
+              <span className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-[#B20000] rounded-sm" /> Ventas
+              </span>
+              <span className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-[#0D141C] rounded-sm" /> Compras
+              </span>
             </div>
+          </div>
+          <div className="h-[400px]">
+            {!selectedMonthSalesPurchases ? (
+              <YearlySalesPurchasesGraph
+                salesData={salesYear}
+                purchasesData={purchasesYear}
+                onMonthClick={setSelectedMonthSalesPurchases}
+                isCurrency={true}
+              />
+            ) : (
+              <MonthlySalesPurchasesGraph
+                month={selectedMonthSalesPurchases.label}
+                monthNumber={selectedMonthSalesPurchases.value}
+                salesData={salesYear}
+                purchasesData={purchasesYear}
+                onBack={() => setSelectedMonthSalesPurchases(null)}
+                isCurrency={true}
+                year={selectedYear}
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {/* TERCERA FILA: CATEGORÃAS, Ã“RDENES Y SOLICITUDES */}
-      <div className="flex flex-wrap lg:flex-nowrap gap-4 w-full h-auto mt-6">
-        {/* CategorÃ­as */}
-        <div className="p-2 w-full md:w-[35%]">
-          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
-            <div className="bg-white rounded-lg p-6 flex flex-col h-full">
-              <h2 className="text-xl font-bold mb-4">Productos por categorí­a</h2>
-              <div className="h-[320px]">
-                <PieChartCategoryAndProducts data={categoryProducts} />
-              </div>
-            </div>
+      {/* GRID DE DISTRIBUCIÓN Y ESTADOS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Categorías */}
+        <div className="bg-white rounded-2xl border border-[#626262]/10 p-6 shadow-sm">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#717680] mb-6">
+            Distribución por Categoría
+          </h3>
+          <div className="h-[300px]">
+            <PieChartCategoryAndProducts data={categoryProducts} />
           </div>
         </div>
 
-        {/* Ã“rdenes */}
-        <div className="p-2 w-full md:w-[35%]">
-          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
-            <div className="bg-white rounded-lg p-6 flex flex-col h-full">
-              <h2 className="text-xl font-bold mb-4">Orden de servicio</h2>
-              <div className="h-[320px]">
-                <CustomBarChart
-                  data={ordersState}
-                  xKey="state"
-                  bars={[
-                    {
-                      dataKey: "value",
-                      color: Colors.graphic.linePrimary,
-                      radius: [0, 0, 8, 8],
-                    },
-                  ]}
-                  height={300}
-                />
-              </div>
-            </div>
+        {/* Órdenes */}
+        <div className="bg-white rounded-2xl border border-[#626262]/10 p-6 shadow-sm">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#717680] mb-6">
+            Estado de Órdenes
+          </h3>
+          <div className="h-[300px]">
+            <CustomBarChart
+              data={ordersState}
+              xKey="state"
+              bars={[
+                { dataKey: "value", color: "#B20000", radius: [4, 4, 0, 0] },
+              ]}
+              height={280}
+            />
           </div>
         </div>
 
         {/* Solicitudes */}
-        <div className="p-2 w-full md:w-[35%]">
-          <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
-            <div className="bg-white rounded-lg p-6 flex flex-col h-full">
-              <h2 className="text-xl font-bold mb-4">Solicitud de servicio</h2>
-              <div className="h-[320px]">
-                <CustomBarChart
-                  data={serviceRequestsState}
-                  xKey="state"
-                  bars={[
-                    {
-                      dataKey: "value",
-                      color: Colors.graphic.linePrimary,
-                      radius: [0, 0, 8, 8],
-                    },
-                  ]}
-                  height={300}
-                />
-              </div>
-            </div>
+        <div className="bg-white rounded-2xl border border-[#626262]/10 p-6 shadow-sm">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#717680] mb-6">
+            Estado de Solicitudes
+          </h3>
+          <div className="h-[300px]">
+            <CustomBarChart
+              data={serviceRequestsState}
+              xKey="state"
+              bars={[
+                { dataKey: "value", color: "#0D141C", radius: [4, 4, 0, 0] },
+              ]}
+              height={280}
+            />
           </div>
         </div>
       </div>
 
-      {/* CUARTA FILA: CLIENTES */}
-      <div className="p-2 w-full mt-6 mb-10">
-        <div className="bg-[#F4F4F4] rounded-lg p-6 shadow-md h-full">
-          <div className="bg-white rounded-lg p-6 flex flex-col h-full">
-            {!selectedMonthClients ? (
-              <>
-                <h2 className="text-xl font-bold mb-4">Clientes: {totalClients}</h2>
-                <YearlyGraph title="Clientes" data={clientsYear} onMonthClick={setSelectedMonthClients} isCurrency={false} />
-              </>
-            ) : (
-              <MonthlyGraph
-                key={`clients-${selectedYear}-${selectedMonthClients?.value}`}
+      {/* SECCIÓN CLIENTES */}
+      <div className="bg-white rounded-2xl p-8 text-white shadow-xl overflow-hidden relative">
+        <div className="absolute right-0 top-0 opacity-10 pointer-events-none">
+          <Image src="/icons/logo-bg.svg" alt="" width={400} height={400} />
+        </div>
+        <div className="relative z-10 h-[400px]">
+          {!selectedMonthClients ? (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-black uppercase tracking-widest text-[#B20000]">
+                  Nuevos  Clientes
+                </h3>
+                <span className="bg-white/10 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                  {totalClients} Registrados
+                </span>
+              </div>
+              <YearlyGraph
                 title="Clientes"
-                month={selectedMonthClients?.label ?? ""}
-                monthNumber={selectedMonthClients?.value}
                 data={clientsYear}
-                onBack={() => setSelectedMonthClients(null)}
+                onMonthClick={setSelectedMonthClients}
                 isCurrency={false}
-                year={selectedYear}
               />
-
-            )}
-          </div>
+            </>
+          ) : (
+            <MonthlyGraph
+              title="Detalle Mensual"
+              month={selectedMonthClients.label}
+              monthNumber={selectedMonthClients.value}
+              data={clientsYear}
+              onBack={() => setSelectedMonthClients(null)}
+              isCurrency={false}
+              year={selectedYear}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 };
-
-

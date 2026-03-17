@@ -146,7 +146,7 @@ export default function DashboardLayout({
           <TopNav />
 
           <main
-            className={`flex-1 h-50 bg-gray-100 p-6 overflow-x-hidden scrollbar-thin ${
+            className={`flex-1 h-50 bg-gray-200 p-6 overflow-x-hidden scrollbar-thin ${
               isNoScrollRoute ? "overflow-y-hidden" : ""
             }`}
           >

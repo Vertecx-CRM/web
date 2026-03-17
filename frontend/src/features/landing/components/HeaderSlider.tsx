@@ -4,8 +4,8 @@ import React, { useEffect, useState } from "react";
 
 const HeaderSlider = () => {
   const images = [
-    "/assets/imgs/HomeSlider1.webp",
-    "/assets/imgs/HomeSlider2.webp",
+    "https://images.pexels.com/photos/3205735/pexels-photo-3205735.jpeg?auto=compress&cs=tinysrgb&w=1400&h=1400&fit=crop",
+    "https://images.pexels.com/photos/257736/pexels-photo-257736.jpeg?auto=compress&cs=tinysrgb&w=1400&h=1400&fit=crop",
   ];
 
   const [current, setCurrent] = useState(0);

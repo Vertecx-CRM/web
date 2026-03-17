@@ -2,7 +2,13 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { FaShoppingCart } from "react-icons/fa";
+import {
+  ShoppingCart,
+  Eye,
+  Package,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface CardProductProps {
@@ -27,103 +33,101 @@ export default function CardProduct({
   onAddToCart,
 }: CardProductProps) {
   const router = useRouter();
-
   const inStock = stock > 0;
 
   return (
     <motion.div
-      className="bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer font-montserrat flex flex-col h-full"
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      whileHover={{
-        y: -5,
-        boxShadow: "0 12px 20px rgba(0,0,0,0.1)",
-      }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      whileHover={{ y: -8 }}
+      className="group bg-white rounded-2xl border border-[#626262]/10 overflow-hidden flex flex-col h-full transition-all duration-300 hover:shadow-[0_20px_40px_rgba(0,0,0,0.08)]"
     >
-      <div
-        className="aspect-[4/3] bg-white flex items-center justify-center bg-center bg-contain bg-no-repeat"
-        style={{ backgroundImage: image ? `url(${image})` : "none" }}
-      >
-        {!image && <span className="text-gray-400 text-sm">Sin imagen</span>}
-      </div>
-
-      <div className="p-4 flex flex-col justify-between flex-1 gap-3">
-        <div>
-          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-
-          {category && (
-            <span className="text-sm font-semibold text-[#B20000]">
-              {category}
-            </span>
-          )}
-
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span
-              className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                inStock
-                  ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-600"
-              }`}
-            >
-              {inStock ? "Disponible" : "Agotado"}
-            </span>
-
-            {inStock && (
-              <span className="text-xs text-gray-600">
-                <strong>Unidades:</strong> {stock}
+      {/* Contenedor de Imagen con Overlay Técnico */}
+      <div className="relative aspect-square bg-[#f9f9f9] overflow-hidden p-6">
+        <div
+          className="w-full h-full bg-center bg-contain bg-no-repeat transition-transform duration-500 group-hover:scale-110"
+          style={{ backgroundImage: image ? `url(${image})` : "none" }}
+        >
+          {!image && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <Package size={48} strokeWidth={1} />
+              <span className="text-[10px] font-black uppercase tracking-widest mt-2">
+                No Image
               </span>
-            )}
-          </div>
-
-          <p className="text-gray-600 text-sm mt-2 overflow-hidden line-clamp-2">
-            {description}
-          </p>
-
-          {price !== undefined && (
-            <span className="block text-lg font-bold text-[#B20000] mt-2">
-              ${price.toLocaleString("es-CO")}
-            </span>
+            </div>
           )}
         </div>
 
-        <div className="flex gap-3">
-          <motion.button
-            onClick={onAddToCart}
-            disabled={!inStock}
-            className={`rounded-full px-4 py-1.5 w-1/2 text-sm flex items-center justify-center gap-2 transition ${
-              inStock
-                ? "bg-[#B20000] text-white"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-            whileHover={
-              inStock
-                ? {
-                    scale: 1.05,
-                    boxShadow: "0 4px 12px rgba(178,0,0,0.3)",
-                  }
-                : {}
-            }
-            whileTap={inStock ? { scale: 0.95 } : {}}
-            transition={{ type: "spring", stiffness: 250, damping: 15 }}
-          >
-            <FaShoppingCart />
-            {inStock ? "Agregar" : "Sin stock"}
-          </motion.button>
+        {/* Badge de Categoría Flotante */}
+        {category && (
+          <div className="absolute top-4 left-4">
+            <span className="bg-[#0D141C] text-white text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-full shadow-lg">
+              {category}
+            </span>
+          </div>
+        )}
 
-          <motion.button
-            className="border border-[#B20000] text-[#B20000] rounded-full px-4 py-1.5 w-1/2 text-sm"
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0 4px 12px rgba(178,0,0,0.1)",
-            }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 250, damping: 15 }}
-            onClick={() => router.push(`/landing/products/${id}`)}
+        {/* Status de Stock */}
+        <div className="absolute bottom-4 right-4">
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider shadow-sm ${
+              inStock
+                ? "bg-white border-green-200 text-green-600"
+                : "bg-white border-red-200 text-red-600"
+            }`}
           >
-            Ver Detalles
-          </motion.button>
+            {inStock ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+            {inStock ? `${stock} disp.` : "Agotado"}
+          </div>
+        </div>
+      </div>
+
+      {/* Cuerpo de la Card */}
+      <div className="p-6 flex flex-col flex-1">
+        <div className="flex-1">
+          <h3 className="text-sm font-black text-[#0D141C] uppercase tracking-wider mb-2 line-clamp-1 group-hover:text-[#B20000] transition-colors">
+            {title}
+          </h3>
+          <p className="text-xs text-[#717680] leading-relaxed line-clamp-2 mb-4 font-medium italic">
+            {description}
+          </p>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[#626262]/5">
+          {price !== undefined && (
+            <div className="flex flex-col mb-4">
+              <span className="text-[10px] font-black text-[#B20000] uppercase tracking-widest opacity-60">
+                Precio Unitario
+              </span>
+              <span className="text-xl font-black text-[#0D141C]">
+                ${price.toLocaleString("es-CO")}
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onAddToCart}
+              disabled={!inStock}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                inStock
+                  ? "bg-[#B20000] text-white hover:bg-[#8e0000] shadow-md hover:shadow-[#B20000]/20"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              <ShoppingCart size={14} />
+              {inStock ? "Añadir" : "Sin Stock"}
+            </button>
+
+            <button
+              onClick={() => router.push(`/landing/products/${id}`)}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl border border-[#0D141C] text-[#0D141C] text-[10px] font-black uppercase tracking-widest hover:bg-[#0D141C] hover:text-white transition-all"
+            >
+              <Eye size={14} />
+              Detalles
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

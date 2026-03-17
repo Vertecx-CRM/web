@@ -8,21 +8,21 @@ const OurServices = () => {
       description:
         "Reparación inmediata de fallas imprevistas. Garantizamos el retorno a la operatividad en tiempo récord con piezas certificadas.",
       image:
-        "https://images.pexels.com/photos/3862630/pexels-photo-3862630.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&fit=crop",
+        "https://images.pexels.com/photos/442150/pexels-photo-442150.jpeg?auto=compress&cs=tinysrgb&w=1200&h=800&fit=crop",
     },
     {
       title: "MANTENIMIENTO PREVENTIVO",
       description:
         "Evita paros costosos. Programamos inspecciones técnicas profundas para extender la vida útil de toda su infraestructura.",
       image:
-        "https://images.pexels.com/photos/417014/pexels-photo-417014.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&fit=crop",
+        "https://images.pexels.com/photos/4508751/pexels-photo-4508751.jpeg?auto=compress&cs=tinysrgb&w=1200&h=800&fit=crop",
     },
     {
       title: "INSTALACIÓN",
       description:
         "Montaje de sistemas eléctricos y electrónicos bajo normativa internacional, asegurando eficiencia energética desde el día uno.",
       image:
-        "https://images.pexels.com/photos/4195325/pexels-photo-4195325.jpeg?auto=compress&cs=tinysrgb&w=600&h=400&fit=crop",
+        "https://images.pexels.com/photos/442151/pexels-photo-442151.jpeg?auto=compress&cs=tinysrgb&w=1200&h=800&fit=crop",
     },
   ];
 
