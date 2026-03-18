@@ -180,13 +180,6 @@ export default function About() {
             <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-4 md:p-8 border border-slate-200">
               <Accordion items={faqItems} />
             </div>
-
-            <div className="mt-12 text-center">
-              <p className="text-slate-600 mb-6">¿Tu duda no está aquí?</p>
-              <button className="px-10 py-4 bg-[#B20000] text-white font-bold rounded-2xl hover:scale-105 transition-transform shadow-lg shadow-red-200">
-                Contactar a un Técnico
-              </button>
-            </div>
           </div>
         </Container>
       </section>

@@ -1,5 +1,5 @@
-import PaymentMethod from "@/features/landing/components/PaymentMethod";
+import RegisterPaymentMarket from "@/features/landing/components/RegisterPaymentMarket";
 
 export default function Page() {
-  return <PaymentMethod />;
+  return <RegisterPaymentMarket />;
 }

@@ -1,10 +1,9 @@
 "use client";
 
-import { X, ChevronUp, ChevronDown } from "lucide-react";
+import { X, ChevronUp, ChevronDown, WalletCards } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import Swal from "sweetalert2";
 import { City } from "country-state-city";
 
 import ClientCreateRequestModal, {
@@ -14,7 +13,10 @@ import {
   createServiceRequest,
   deleteServiceRequest,
 } from "@/features/dashboard/requests/services/servicerequests.service";
-import { createSaleFromAuth } from "@/features/dashboard/sales/api/sales.api";
+import {
+  createSaleFromAuth,
+  createWompiCheckoutSession,
+} from "@/features/dashboard/sales/api/sales.api";
 import {
   useCart,
   type CartItem,
@@ -64,6 +66,28 @@ interface CartModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+type CartAddress = {
+  city: string;
+  zone: string;
+  streetType: string;
+  streetNumber: string;
+  secondaryNumber: string;
+  complement: string;
+};
+
+const DELIVERY_FEE = 20000;
+const SERVICE_VISIT_FEE = 50000;
+const TAX_PERCENT = 19;
+const CART_ADDRESS_STORAGE_PREFIX = "vertecx_cart_address";
+const EMPTY_ADDRESS: CartAddress = {
+  city: "",
+  zone: "",
+  streetType: "",
+  streetNumber: "",
+  secondaryNumber: "",
+  complement: "",
+};
 
 type SaleDetailPayload = {
   productid: number;
@@ -139,18 +163,24 @@ function buildSalePayload({
   cart,
   serviceRequestIds,
   deliveryAddress,
+  deliveryFee,
+  serviceVisitFeeTotal,
 }: {
   cart: CartItem[];
   serviceRequestIds: Map<string, number>;
   deliveryAddress: string;
+  deliveryFee: number;
+  serviceVisitFeeTotal: number;
 }): SaleFromAuthPayload {
   const subtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
 
-  const taxpercent = 19;
+  const taxpercent = TAX_PERCENT;
   const taxamount = Math.round((subtotal * taxpercent) / 100);
+  const shippingamount = deliveryFee + serviceVisitFeeTotal;
+  const serviceRequestsCount = Array.from(serviceRequestIds.values()).length;
 
   return {
     saledate: new Date().toISOString(),
@@ -159,11 +189,15 @@ function buildSalePayload({
     taxpercent,
     taxamount,
     discountamount: 0,
-    shippingamount: 20000,
-    totalamount: subtotal + taxamount + 20000,
-    paymentmethod: "Cash",
+    shippingamount,
+    totalamount: subtotal + taxamount + shippingamount,
+    paymentmethod: "Transfer",
     salestatus: "Pending",
-    notes: `Venta creada desde carrito. Direccion de entrega: ${deliveryAddress}`,
+    notes: `Venta creada desde carrito. Direccion de entrega: ${deliveryAddress}. Envio: $${deliveryFee.toLocaleString(
+      "es-CO",
+    )}. Visitas tecnicas: ${serviceRequestsCount} por $${serviceVisitFeeTotal.toLocaleString(
+      "es-CO",
+    )}.`,
     details: cart.map((item) => {
       const serviceRequestId = serviceRequestIds.get(String(item.id));
 
@@ -178,6 +212,41 @@ function buildSalePayload({
   };
 }
 
+function submitWompiWebCheckout(session: Record<string, any>) {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    throw new Error("El checkout de Wompi solo puede abrirse desde el navegador.");
+  }
+
+  const form = document.createElement("form");
+  form.method = "GET";
+  form.action = "https://checkout.wompi.co/p/";
+  form.style.display = "none";
+
+  const appendField = (name: string, value: string | number | undefined | null) => {
+    if (value === undefined || value === null || `${value}`.trim() === "") return;
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = String(value);
+    form.appendChild(input);
+  };
+
+  appendField("public-key", session.publicKey);
+  appendField("currency", session.currency);
+  appendField("amount-in-cents", session.amountInCents);
+  appendField("reference", session.reference);
+  appendField("signature:integrity", session.signature?.integrity);
+  appendField("redirect-url", session.redirectUrl);
+  appendField("expiration-time", session.expirationTime);
+  appendField("customer-data:email", session.customerData?.email);
+
+  document.body.appendChild(form);
+  form.submit();
+  window.setTimeout(() => {
+    form.remove();
+  }, 1000);
+}
+
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [openProducts, setOpenProducts] = useState<Set<string>>(new Set());
   const [addressError, setAddressError] = useState("");
@@ -186,15 +255,9 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     null,
   );
   const [authUser, setAuthUser] = useState<SessionUser | null>(null);
+  const [isPurchasing, setIsPurchasing] = useState(false);
 
-  const [address, setAddress] = useState({
-    city: "",
-    zone: "",
-    streetType: "",
-    streetNumber: "",
-    secondaryNumber: "",
-    complement: "",
-  });
+  const [address, setAddress] = useState<CartAddress>(EMPTY_ADDRESS);
   const [zoneSuggestions, setZoneSuggestions] = useState<PlaceSuggestion[]>([]);
   const [zoneSuggestionsLoading, setZoneSuggestionsLoading] = useState(false);
   const [placesProviderReady, setPlacesProviderReady] = useState(true);
@@ -214,6 +277,27 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     clearCart,
   } = useCart();
 
+  const getAddressStorageKey = (userId: number) =>
+    `${CART_ADDRESS_STORAGE_PREFIX}:${userId}`;
+
+  const hydrateSavedAddress = (raw: string | null): CartAddress | null => {
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<CartAddress>;
+      return {
+        city: String(parsed.city ?? ""),
+        zone: String(parsed.zone ?? ""),
+        streetType: String(parsed.streetType ?? ""),
+        streetNumber: String(parsed.streetNumber ?? ""),
+        secondaryNumber: String(parsed.secondaryNumber ?? ""),
+        complement: String(parsed.complement ?? ""),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     setAuthUser(getUserFromToken());
@@ -221,9 +305,37 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || !authUser?.userid || typeof window === "undefined") return;
+
+    const savedAddress = hydrateSavedAddress(
+      window.localStorage.getItem(getAddressStorageKey(authUser.userid)),
+    );
+
+    if (savedAddress) {
+      setAddress(savedAddress);
+    }
+  }, [isOpen, authUser?.userid]);
+
+  useEffect(() => {
     if (isOpen) return;
     resetServiceModal();
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!authUser?.userid || typeof window === "undefined") return;
+
+    const storageKey = getAddressStorageKey(authUser.userid);
+    const hasData = Object.values(address).some((value) =>
+      String(value ?? "").trim(),
+    );
+
+    if (!hasData) {
+      window.localStorage.removeItem(storageKey);
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(address));
+  }, [authUser?.userid, address]);
 
   useEffect(() => {
     setOpenProducts((prev) => {
@@ -304,7 +416,14 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     (item) => !item.serviceDraft,
   );
   const hasSelectedService = selectedServiceItems.length > 0;
-  const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const productsSubtotal = cart.reduce(
+    (acc, item) => acc + item.price * item.quantity,
+    0,
+  );
+  const serviceVisitFeeTotal = selectedServiceItems.length * SERVICE_VISIT_FEE;
+  const taxAmount = Math.round((productsSubtotal * TAX_PERCENT) / 100);
+  const checkoutTotal =
+    productsSubtotal + DELIVERY_FEE + taxAmount + serviceVisitFeeTotal;
 
   const validateAddress = (): string | null => {
     if (!address.city.trim()) return "Seleccione una ciudad";
@@ -371,6 +490,8 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
   };
 
   const handlePurchase = async () => {
+    if (isPurchasing) return;
+
     const validationError = validateAddress();
     if (validationError) {
       setAddressError(validationError);
@@ -401,8 +522,11 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
     const createdRequestIds = new Map<string, number>();
     const createdRequestOrder: number[] = [];
+    let createdSaleId: number | null = null;
 
     try {
+      setIsPurchasing(true);
+
       for (const item of configuredServiceItems) {
         const draft = item.serviceDraft as CartServiceDraft;
         const createdRequest = await createServiceRequest({
@@ -432,47 +556,50 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         cart,
         serviceRequestIds: createdRequestIds,
         deliveryAddress: fullAddress,
+        deliveryFee: DELIVERY_FEE,
+        serviceVisitFeeTotal,
       });
 
-      await createSaleFromAuth(salePayload);
+      const createdSale = await createSaleFromAuth(salePayload);
+      createdSaleId = Number(createdSale?.saleid ?? createdSale?.saleId ?? 0);
+      if (!Number.isFinite(createdSaleId) || createdSaleId <= 0) {
+        throw new Error("La venta fue creada, pero no se pudo obtener su identificador.");
+      }
+
+      const redirectUrl = `${window.location.origin}/payments/register?saleId=${createdSaleId}`;
+      const wompiSession = await createWompiCheckoutSession(createdSaleId, {
+        redirectUrl,
+      });
+
+      if (!wompiSession?.publicKey || !wompiSession?.reference) {
+        throw new Error("No se pudo inicializar el checkout de Wompi.");
+      }
 
       localStorage.setItem(
-        "vertecx_cart",
+        "vertecx_checkout",
         JSON.stringify({
+          saleId: createdSaleId,
+          saleCode: wompiSession.saleCode,
+          reference: wompiSession.reference,
           cart,
           address,
-          total,
+          subtotal: productsSubtotal,
+          serviceVisitFeeTotal,
+          deliveryFee: DELIVERY_FEE,
+          taxAmount,
+          total: checkoutTotal,
           hasService: configuredServiceItems.length > 0,
           serviceRequestIds: Object.fromEntries(createdRequestIds),
           savedAt: new Date().toISOString(),
         }),
       );
 
+      showSuccess("Te estamos redirigiendo al checkout seguro de Wompi.");
       clearCart();
-
-      await Swal.fire({
-        title: "Compra exitosa",
-        text:
-          configuredServiceItems.length > 0
-            ? "La venta y las solicitudes de servicio fueron creadas correctamente."
-            : "La venta fue creada correctamente.",
-        icon: "success",
-        confirmButtonText: "Continuar",
-        confirmButtonColor: "#dc2626",
-        timer: 3000,
-        timerProgressBar: true,
-        showClass: {
-          popup: "animate__animated animate__fadeInDown",
-        },
-        hideClass: {
-          popup: "animate__animated animate__fadeOutUp",
-        },
-      });
-
       onClose();
-      window.location.href = "/payments/register";
+      submitWompiWebCheckout(wompiSession);
     } catch (err) {
-      if (createdRequestOrder.length) {
+      if (!createdSaleId && createdRequestOrder.length) {
         await Promise.allSettled(
           createdRequestOrder.map((id) => deleteServiceRequest(id)),
         );
@@ -483,7 +610,14 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           ? err.message
           : "No se pudo completar la compra.";
 
+      if (createdSaleId) {
+        showInfo(
+          `La venta ${createdSaleId} quedo pendiente. Puedes intentar el pago nuevamente desde soporte o ventas.`,
+        );
+      }
       showError(message);
+    } finally {
+      setIsPurchasing(false);
     }
   };
 
@@ -695,8 +829,14 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                                       ? "Configurado"
                                       : isServicePending
                                         ? "Pendiente"
-                                        : "No incluido"}
+                                      : "No incluido"}
                                   </span>
+
+                                  {item.service && (
+                                    <span className="text-[11px] font-medium text-gray-500">
+                                      Visita tecnica: ${SERVICE_VISIT_FEE.toLocaleString("es-CO")}
+                                    </span>
+                                  )}
 
                                   <button
                                     type="button"
@@ -1005,21 +1145,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
             <div className="space-y-2 text-right text-gray-700">
               <p className="flex justify-between text-base">
                 <span className="font-medium">Subtotal:</span>
-                <span>${total.toLocaleString("es-CO")}</span>
+                <span>${productsSubtotal.toLocaleString("es-CO")}</span>
               </p>
               <p className="flex justify-between text-base">
                 <span className="font-medium">Envio:</span>
-                <span>$20,000</span>
+                <span>${DELIVERY_FEE.toLocaleString("es-CO")}</span>
               </p>
               <p className="flex justify-between text-base">
-                <span className="font-medium">IVA (19%):</span>
-                <span>${(total * 0.19).toLocaleString("es-CO")}</span>
+                <span className="font-medium">
+                  Visita tecnica ({selectedServiceItems.length}):
+                </span>
+                <span>${serviceVisitFeeTotal.toLocaleString("es-CO")}</span>
+              </p>
+              <p className="flex justify-between text-base">
+                <span className="font-medium">IVA ({TAX_PERCENT}%):</span>
+                <span>${taxAmount.toLocaleString("es-CO")}</span>
               </p>
               <p className="flex justify-between border-t pt-3 text-xl font-bold text-gray-900">
                 <span>Total:</span>
-                <span>
-                  ${(total + 20000 + total * 0.19).toLocaleString("es-CO")}
-                </span>
+                <span>${checkoutTotal.toLocaleString("es-CO")}</span>
               </p>
             </div>
 
@@ -1037,10 +1181,31 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                   </>
                 ) : (
                   <>
-                    <span>Paga ahora y recibe en 3 dias.</span>
+                    <span>Paga ahora con Wompi y recibe en 3 dias.</span>
                   </>
                 )}
               </p>
+
+              <div className="mb-4 w-full rounded-2xl border border-red-100 bg-white p-4 text-left shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-red-50 p-2 text-red-700">
+                    <WalletCards className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-gray-800">
+                      Pago online con Wompi
+                    </p>
+                    <p className="text-sm leading-relaxed text-gray-600">
+                      Desde el checkout podras pagar con Nequi, PSE o Bancolombia, segun los metodos activos en tu cuenta de Wompi.
+                    </p>
+                    {hasSelectedService && (
+                      <p className="text-xs font-medium text-red-700">
+                        Cada solicitud con servicio suma ${SERVICE_VISIT_FEE.toLocaleString("es-CO")} por visita tecnica previa.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               {pendingServiceItems.length > 0 && (
                 <p className="mb-3 text-center text-sm font-medium text-amber-700">
@@ -1050,9 +1215,18 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
               <button
                 onClick={handlePurchase}
-                className="cursor-pointer rounded-lg bg-gradient-to-r from-red-600 to-red-700 px-8 py-3 text-lg font-semibold text-white shadow-md transition hover:from-red-700 hover:to-red-800"
+                disabled={isPurchasing}
+                className={`cursor-pointer rounded-lg px-8 py-3 text-lg font-semibold text-white shadow-md transition ${
+                  isPurchasing
+                    ? "cursor-not-allowed bg-gray-400"
+                    : "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
+                }`}
               >
-                {hasSelectedService ? "Comprar y enviar servicio" : "Comprar"}
+                {isPurchasing
+                  ? "Preparando checkout..."
+                  : hasSelectedService
+                    ? "Comprar y pagar visita"
+                    : "Comprar y pagar"}
               </button>
             </div>
           </div>

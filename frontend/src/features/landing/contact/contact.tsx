@@ -57,7 +57,7 @@ export default function Contact({ className = "" }: ContactProps) {
                 Para consultas técnicas y presupuestos detallados.
               </p>
               <a
-                href="mailto:soporte@sistemapc.com"
+                href="vertecxoficial@gmail.com"
                 className="text-[#B20000] font-bold hover:underline"
               >
                 soporte@sistemapc.com

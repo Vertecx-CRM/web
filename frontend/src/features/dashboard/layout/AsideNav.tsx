@@ -376,6 +376,7 @@ const AsideNav = ({
             <div className="w-10 h-10 bg-[#B20000] rounded flex items-center justify-center shadow-lg">
               <span className="text-[#ffffff] font-black text-xl">S</span>
             </div>
+
             <div>
               <h1 className="text-sm font-black uppercase tracking-[0.2em] leading-none text-[#ffffff]">
                 Sistemas<span className="text-[#B20000]">PC</span>
@@ -388,7 +389,7 @@ const AsideNav = ({
         </div>
 
         <nav className="flex-1 overflow-y-auto py-6">
-          <p className="px-8 mb-6 text-[9px] font-black text-[#ffffff]/30 uppercase tracking-[0.4em]">
+          <p className="px-8 mb-6 text-[9px] font-black text-[#ffffff] uppercase tracking-[0.4em]">
             Menú de Gestión
           </p>
           <div className="space-y-0.5">

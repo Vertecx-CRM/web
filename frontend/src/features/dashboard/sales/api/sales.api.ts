@@ -2,6 +2,50 @@ import { api } from "@/lib/api";
 import { AxiosError } from "axios";
 import { ISale } from "../types/sales.type";
 
+export type WompiCheckoutSessionDTO = {
+  saleId: number;
+  saleCode: string;
+  wompiEnv: "sandbox" | "production";
+  publicKey: string;
+  currency: "COP";
+  amountInCents: number;
+  reference: string;
+  redirectUrl: string;
+  expirationTime: string;
+  signature: {
+    integrity: string;
+  };
+  customerData?: {
+    email?: string;
+    fullName?: string;
+    phoneNumber?: string;
+    phoneNumberPrefix?: string;
+    legalId?: string;
+    legalIdType?: string;
+  };
+  shippingAddress?: {
+    addressLine1?: string;
+    city?: string;
+    phoneNumber?: string;
+    region?: string;
+    country?: string;
+  };
+};
+
+export type WompiTransactionSyncDTO = {
+  saleId: number;
+  saleCode: string | null;
+  reference: string;
+  transactionId: string;
+  transactionStatus: string;
+  transactionStatusMessage: string;
+  paymentMethod: string;
+  amountInCents: number;
+  currency: string;
+  paymentState: string | null;
+  saleStatus: string | null;
+};
+
 export const getSales = async (signal?: AbortSignal): Promise<ISale[]> => {
   const { data } = await api.get<ISale[]>("/sales", {
     signal,
@@ -87,6 +131,64 @@ export const createSaleFromAuth = async (sale: Record<string, unknown>) => {
     }
     console.error("Error al crear la venta desde el cliente:", error);
     throw new Error("No se pudo crear la compra.");
+  }
+};
+
+export const createWompiCheckoutSession = async (
+  saleId: number,
+  input: { redirectUrl: string }
+): Promise<WompiCheckoutSessionDTO> => {
+  try {
+    const { data } = await api.post<WompiCheckoutSessionDTO>(
+      `/payments/wompi/sales/${saleId}/checkout-session`,
+      input
+    );
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      console.error(
+        "Error al crear la sesion de pago con Wompi:",
+        error.response?.data ?? error
+      );
+      const message =
+        (error.response?.data as any)?.message ??
+        (error.response?.data as any)?.error ??
+        error.message ??
+        "No se pudo iniciar el checkout de Wompi.";
+      throw new Error(message);
+    }
+    console.error("Error al crear la sesion de pago con Wompi:", error);
+    throw new Error("No se pudo iniciar el checkout de Wompi.");
+  }
+};
+
+export const syncWompiTransaction = async (
+  transactionId: string,
+  saleId: number
+): Promise<WompiTransactionSyncDTO> => {
+  try {
+    const { data } = await api.get<WompiTransactionSyncDTO>(
+      `/payments/wompi/transactions/${transactionId}`,
+      {
+        params: { saleId },
+      }
+    );
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      console.error(
+        "Error al sincronizar la transaccion de Wompi:",
+        error.response?.data ?? error
+      );
+      const message =
+        (error.response?.data as any)?.message ??
+        (error.response?.data as any)?.error ??
+        error.message ??
+        "No se pudo confirmar el estado del pago.";
+      throw new Error(message);
+    }
+    console.error("Error al sincronizar la transaccion de Wompi:", error);
+    throw new Error("No se pudo confirmar el estado del pago.");
   }
 };
 
