@@ -101,6 +101,35 @@ export async function getServiceOptions(): Promise<
   })[];
 }
 
+export async function ensureServiceOption(input: {
+  name: string;
+  typeofserviceid: number;
+  description?: string;
+}): Promise<
+  Option & { typeofserviceid?: number | null; typeofservicename?: string | null; serviceTypeCode?: string | null }
+> {
+  const res = await api.post<any>("/services/ensure", {
+    name: String(input.name || "").trim(),
+    typeofserviceid: Number(input.typeofserviceid),
+    description: String(input.description || "").trim() || undefined,
+  });
+
+  const row = unwrap<any>(res.data);
+  const id = Number(row?.serviceid ?? row?.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error("No se pudo resolver el servicio especifico.");
+  }
+
+  return {
+    id,
+    label: String(row?.name ?? row?.servicename ?? `Servicio #${id}`).trim(),
+    typeofserviceid: Number(row?.typeofserviceid ?? input.typeofserviceid),
+    typeofservicename:
+      row?.typeofservicename != null ? String(row.typeofservicename).trim() : null,
+    serviceTypeCode: null,
+  };
+}
+
 export async function getCustomerOptions(): Promise<Option[]> {
   const res = await api.get<any>("/customers", {
     params: { includeRelations: true },

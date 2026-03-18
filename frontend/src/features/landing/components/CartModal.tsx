@@ -1,14 +1,26 @@
 "use client";
+
 import { X, ChevronUp, ChevronDown } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCart } from "../contexts/CartContext";
-import ClientCreateRequestModal from "@/features/dashboard/requests/components/ClientRequestModal";
-import { useCreateServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
-import { showSuccess, showError } from "@/shared/utils/notifications";
-import { createSale } from "@/features/dashboard/sales/api/sales.api";
 import Swal from "sweetalert2";
+import { City } from "country-state-city";
+
+import ClientCreateRequestModal, {
+  type CreateRequestPayload,
+} from "@/features/dashboard/requests/components/ClientRequestModal";
+import {
+  createServiceRequest,
+  deleteServiceRequest,
+} from "@/features/dashboard/requests/services/servicerequests.service";
+import { createSaleFromAuth } from "@/features/dashboard/sales/api/sales.api";
+import {
+  useCart,
+  type CartItem,
+  type CartServiceDraft,
+} from "../contexts/CartContext";
+import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
 
 function getUserFromToken(): SessionUser | null {
   if (typeof window === "undefined") return null;
@@ -53,69 +65,127 @@ interface CartModalProps {
   onClose: () => void;
 }
 
-type Address = {
-  city: string;
-  zone: string;
-  streetType: string;
-  streetNumber: string;
-  secondaryNumber: string;
-  complement?: string;
+type SaleDetailPayload = {
+  productid: number;
+  quantity: number;
+  unitprice: number;
+  discountpercent: number;
+  servicerequestid?: number;
 };
 
-const CITIES = ["Medellín", "Bogotá", "Cali", "Barranquilla"];
-const ZONES = ["Centro", "Norte", "Sur", "Oriente", "Occidente"];
-const STREET_TYPES = ["Calle", "Carrera", "Avenida", "Transversal", "Diagonal"];
+type SaleFromAuthPayload = {
+  saledate: string;
+  salecode: string;
+  subtotal: number;
+  taxpercent: number;
+  taxamount: number;
+  discountamount: number;
+  shippingamount: number;
+  totalamount: number;
+  paymentmethod: string;
+  salestatus: string;
+  notes: string;
+  details: SaleDetailPayload[];
+};
+
+const STREET_TYPES = [
+  { value: "Calle", label: "Calle" },
+  { value: "Carrera", label: "Carrera" },
+  { value: "Avenida", label: "Avenida" },
+  { value: "Avenida Calle", label: "Av. Calle" },
+  { value: "Avenida Carrera", label: "Av. Carrera" },
+  { value: "Transversal", label: "Transversal" },
+  { value: "Diagonal", label: "Diagonal" },
+  { value: "Circular", label: "Circular" },
+];
+
+type PlaceSuggestion = {
+  placeId?: string | null;
+  label: string;
+  fullText?: string;
+  secondaryText?: string;
+};
+
+const normalizeText = (value: string) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const COLOMBIA_CITY_NAMES: string[] = (() => {
+  const list = City.getCitiesOfCountry("CO") ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const city of list.sort((a, b) => a.name.localeCompare(b.name))) {
+    const key = normalizeText(city.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(city.name);
+  }
+
+  return out;
+})();
+
+const COLOMBIA_CITY_SET = new Set(COLOMBIA_CITY_NAMES.map(normalizeText));
+
+function getServiceRequestNumericId(row: any): number | null {
+  const id = Number(row?.serviceRequestId ?? row?.servicerequestid ?? row?.id);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
 
 function buildSalePayload({
   cart,
-  userId,
+  serviceRequestIds,
+  deliveryAddress,
 }: {
-  cart: typeof cart;
-  userId: number;
-}) {
+  cart: CartItem[];
+  serviceRequestIds: Map<string, number>;
+  deliveryAddress: string;
+}): SaleFromAuthPayload {
   const subtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
-    0
+    0,
   );
 
   const taxpercent = 19;
   const taxamount = Math.round((subtotal * taxpercent) / 100);
 
   return {
-    customerid: userId,
     saledate: new Date().toISOString(),
     salecode: `VEN-${Date.now()}`,
     subtotal,
     taxpercent,
     taxamount,
     discountamount: 0,
+    shippingamount: 20000,
     totalamount: subtotal + taxamount + 20000,
     paymentmethod: "Cash",
     salestatus: "Pending",
-    notes: "Venta creada desde carrito",
-    details: cart.map((item) => ({
-      productid: Number(item.id),
-      quantity: item.quantity,
-      unitprice: item.price,
-      discountpercent: 0,
-    })),
+    notes: `Venta creada desde carrito. Direccion de entrega: ${deliveryAddress}`,
+    details: cart.map((item) => {
+      const serviceRequestId = serviceRequestIds.get(String(item.id));
+
+      return {
+        productid: Number(item.id),
+        quantity: item.quantity,
+        unitprice: item.price,
+        discountpercent: 0,
+        ...(serviceRequestId ? { servicerequestid: serviceRequestId } : {}),
+      };
+    }),
   };
 }
 
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
-  const [openProducts, setOpenProducts] = useState<Set<number>>(new Set());
+  const [openProducts, setOpenProducts] = useState<Set<string>>(new Set());
   const [addressError, setAddressError] = useState("");
-  const [error, setError] = useState("");
   const [openServiceModal, setOpenServiceModal] = useState(false);
+  const [selectedCartItemId, setSelectedCartItemId] = useState<string | null>(
+    null,
+  );
   const [authUser, setAuthUser] = useState<SessionUser | null>(null);
-  const createRequestMut = useCreateServiceRequest();
-  const [serviceDraft, setServiceDraft] = useState<CreateRequestPayload | null>(
-    null
-  );
-
-  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(
-    null
-  );
 
   const [address, setAddress] = useState({
     city: "",
@@ -125,49 +195,180 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     secondaryNumber: "",
     complement: "",
   });
+  const [zoneSuggestions, setZoneSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [zoneSuggestionsLoading, setZoneSuggestionsLoading] = useState(false);
+  const [placesProviderReady, setPlacesProviderReady] = useState(true);
 
-  const { cart, updateQuantity, toggleService, removeFromCart } = useCart();
+  const updateAddressField = (field: keyof typeof address, value: string) => {
+    setAddress((prev) => ({ ...prev, [field]: value }));
+    if (addressError) setAddressError("");
+  };
+
+  const {
+    cart,
+    updateQuantity,
+    removeFromCart,
+    setServiceSelection,
+    saveServiceDraft,
+    clearServiceDraft,
+    clearCart,
+  } = useCart();
 
   useEffect(() => {
-    const user = getUserFromToken();
-    setAuthUser(user);
+    if (!isOpen) return;
+    setAuthUser(getUserFromToken());
+    setOpenProducts(new Set(cart.map((item) => String(item.id))));
+  }, [isOpen]);
 
-    // Inicializar con todos los productos desplegados
-    const allProductIds = new Set(cart.map((item) => item.id));
-    setOpenProducts(allProductIds);
-  }, []);
-
-  // Actualizar openProducts cuando cambie el carrito
   useEffect(() => {
-    const currentIds = Array.from(openProducts);
-    const newIds = cart.map((item) => item.id);
+    if (isOpen) return;
+    resetServiceModal();
+  }, [isOpen]);
 
-    // Mantener los que ya estaban abiertos y agregar nuevos productos
-    const updatedSet = new Set([
-      ...currentIds.filter((id) => newIds.includes(id)),
-      ...newIds.filter((id) => !currentIds.includes(id)),
-    ]);
+  useEffect(() => {
+    setOpenProducts((prev) => {
+      const currentIds = Array.from(prev);
+      const newIds = cart.map((item) => String(item.id));
 
-    setOpenProducts(updatedSet);
+      return new Set([
+        ...currentIds.filter((id) => newIds.includes(id)),
+        ...newIds.filter((id) => !currentIds.includes(id)),
+      ]);
+    });
   }, [cart]);
+
+  const selectedCartItem = useMemo(
+    () =>
+      selectedCartItemId
+        ? (cart.find((item) => String(item.id) === selectedCartItemId) ?? null)
+        : null,
+    [cart, selectedCartItemId],
+  );
+
+  useEffect(() => {
+    const query = String(address.zone || "").trim();
+    const city = String(address.city || "").trim();
+
+    if (query.length < 2) {
+      setZoneSuggestions([]);
+      setZoneSuggestionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      try {
+        setZoneSuggestionsLoading(true);
+        const params = new URLSearchParams({ query });
+        if (city) params.set("city", city);
+
+        const response = await fetch(
+          `/api/places/autocomplete?${params.toString()}`,
+          {
+            method: "GET",
+            signal: controller.signal,
+            cache: "no-store",
+          },
+        );
+
+        const payload = (await response.json()) as {
+          suggestions?: PlaceSuggestion[];
+          providerReady?: boolean;
+        };
+
+        setZoneSuggestions(
+          Array.isArray(payload?.suggestions) ? payload.suggestions : [],
+        );
+        setPlacesProviderReady(payload?.providerReady !== false);
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
+        setZoneSuggestions([]);
+      } finally {
+        setZoneSuggestionsLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [address.zone, address.city]);
 
   if (!isOpen) return null;
 
-  const hasService = cart.some((item) => item.service);
+  const selectedServiceItems = cart.filter((item) => item.service);
+  const configuredServiceItems = selectedServiceItems.filter(
+    (item) => item.serviceDraft,
+  );
+  const pendingServiceItems = selectedServiceItems.filter(
+    (item) => !item.serviceDraft,
+  );
+  const hasSelectedService = selectedServiceItems.length > 0;
   const total = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   const validateAddress = (): string | null => {
-    if (!address.city) return "Seleccione una ciudad";
-    if (!address.zone) return "Seleccione la zona o barrio";
-    if (!address.streetType) return "Seleccione el tipo de vía";
-    if (!address.streetNumber.trim()) return "Ingrese el número de la vía";
-    if (!address.secondaryNumber.trim()) return "Ingrese el número secundario";
+    if (!address.city.trim()) return "Seleccione una ciudad";
+    if (!COLOMBIA_CITY_SET.has(normalizeText(address.city))) {
+      return "Selecciona una ciudad valida de Colombia";
+    }
+    if (address.zone.trim().length < 3)
+      return "Ingresa un barrio o zona valida";
+    if (!address.streetType) return "Seleccione el tipo de via";
+    if (!address.streetNumber.trim()) return "Ingrese el numero de la via";
+    if (!address.secondaryNumber.trim()) return "Ingrese el numero secundario";
     return null;
   };
 
-  const fullAddress = `${address.streetType} ${address.streetNumber} #${address.secondaryNumber
-    }, ${address.zone}, ${address.city}${address.complement ? ` (${address.complement})` : ""
-    }`;
+  const fullAddress = [
+    [address.streetType, address.streetNumber].filter(Boolean).join(" ").trim(),
+    address.secondaryNumber ? `#${address.secondaryNumber}` : "",
+    [address.zone, address.city].filter(Boolean).join(", ").trim(),
+    address.complement ? `(${address.complement})` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const mapQuery = encodeURIComponent(
+    fullAddress || [address.zone, address.city, "Colombia"].filter(Boolean).join(", ")
+  );
+  const mapEmbedUrl = `https://www.google.com/maps?q=${mapQuery}&z=16&output=embed`;
+  const mapOpenUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+
+  const hasAddressDraft = Object.values(address).some((value) =>
+    String(value || "").trim(),
+  );
+
+  function resetServiceModal() {
+    setOpenServiceModal(false);
+    setSelectedCartItemId(null);
+  }
+
+  const handleOpenServiceModal = (item: CartItem) => {
+    if (!authUser) {
+      showError("Debes iniciar sesion para solicitar un servicio.");
+      return;
+    }
+
+    if (!item.service) {
+      setServiceSelection(String(item.id), true);
+    }
+
+    setAddressError("");
+    setSelectedCartItemId(String(item.id));
+    setOpenServiceModal(true);
+
+    if (!fullAddress) {
+      showInfo(
+        "Puedes terminar la direccion del servicio dentro del formulario.",
+      );
+    }
+  };
+
+  const handleRemoveService = (itemId: string) => {
+    clearServiceDraft(itemId);
+    if (selectedCartItemId === itemId) resetServiceModal();
+    showInfo("El servicio fue retirado del producto.");
+  };
 
   const handlePurchase = async () => {
     const validationError = validateAddress();
@@ -176,41 +377,85 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
       return;
     }
 
+    if (!cart.length) {
+      showInfo("Tu carrito esta vacio.");
+      return;
+    }
+
     if (!authUser) {
       showError("Usuario no autenticado.");
       return;
     }
 
+    const missingServiceConfig = cart.filter(
+      (item) => item.service && !item.serviceDraft,
+    );
+    if (missingServiceConfig.length) {
+      showError(
+        `Configura el servicio para: ${missingServiceConfig
+          .map((item) => item.name)
+          .join(", ")}.`,
+      );
+      return;
+    }
+
+    const createdRequestIds = new Map<string, number>();
+    const createdRequestOrder: number[] = [];
+
     try {
-      // Crear solicitud de servicio (si existe)
-      if (hasService && serviceDraft) {
-        await createRequestMut.mutateAsync(serviceDraft);
+      for (const item of configuredServiceItems) {
+        const draft = item.serviceDraft as CartServiceDraft;
+        const createdRequest = await createServiceRequest({
+          scheduledAt: draft.scheduledAt ?? null,
+          scheduledEndAt: draft.scheduledEndAt ?? null,
+          serviceType: draft.serviceType as any,
+          description: [draft.description, `Producto asociado: ${item.name}`]
+            .filter(Boolean)
+            .join(" | "),
+          direccion: String(draft.direccion || fullAddress).trim(),
+          stateId: Number(draft.stateId ?? 5),
+          serviceId: Number(draft.serviceId),
+        });
+
+        const requestId = getServiceRequestNumericId(createdRequest);
+        if (!requestId) {
+          throw new Error(
+            `No se pudo obtener el ID de la solicitud para "${item.name}".`,
+          );
+        }
+
+        createdRequestIds.set(String(item.id), requestId);
+        createdRequestOrder.push(requestId);
       }
 
-      // Crear venta
       const salePayload = buildSalePayload({
         cart,
-        userId: authUser.userid,
+        serviceRequestIds: createdRequestIds,
+        deliveryAddress: fullAddress,
       });
 
-      await createSale(salePayload);
+      await createSaleFromAuth(salePayload);
 
-      // Persistencia auxiliar (opcional)
       localStorage.setItem(
         "vertecx_cart",
         JSON.stringify({
           cart,
           address,
           total,
-          hasService,
+          hasService: configuredServiceItems.length > 0,
+          serviceRequestIds: Object.fromEntries(createdRequestIds),
           savedAt: new Date().toISOString(),
-        })
+        }),
       );
 
-      // Mostrar Sweet Alert antes de redireccionar
+      clearCart();
+
       await Swal.fire({
-        title: "¡Compra Exitosa!",
-        text: "La venta y solicitud de servicio han sido creadas correctamente.",
+        title: "Compra exitosa",
+        text:
+          configuredServiceItems.length > 0
+            ? "La venta y las solicitudes de servicio fueron creadas correctamente."
+            : "La venta fue creada correctamente.",
         icon: "success",
         confirmButtonText: "Continuar",
         confirmButtonColor: "#dc2626",
@@ -224,389 +469,553 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         },
       });
 
-      window.location.href = "/payments/register";
       onClose();
+      window.location.href = "/payments/register";
     } catch (err) {
-      showError("No se pudo completar la compra.");
+      if (createdRequestOrder.length) {
+        await Promise.allSettled(
+          createdRequestOrder.map((id) => deleteServiceRequest(id)),
+        );
+      }
+
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "No se pudo completar la compra.";
+
+      showError(message);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Fondo oscuro */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      {/* Contenido */}
+
       <motion.div
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -50 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 z-50 max-h-[95vh] overflow-y-auto scroll-smooth"
+        className="relative z-50 max-h-[96vh] w-full max-w-7xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl scroll-smooth xl:p-8"
       >
-        {/* Botón cerrar */}
         <button
-          className="cursor-pointer absolute top-4 right-4 text-gray-700 hover:text-black"
+          className="absolute right-4 top-4 cursor-pointer text-gray-700 hover:text-black"
           onClick={onClose}
         >
           <X className="h-6 w-6" />
         </button>
 
-        <h2 className="text-3xl font-semibold mb-6">Tu carrito</h2>
+        <h2 className="mb-6 text-3xl font-semibold">Tu carrito</h2>
 
-        {/* productos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-h-96 overflow-y-auto pr-2">
+        <div className="grid max-h-96 grid-cols-1 gap-6 overflow-y-auto pr-2 sm:grid-cols-2 md:grid-cols-3">
           <AnimatePresence>
-            {cart.map((item) => (
-              <motion.div
-                key={item.id}
-                whileHover={{
-                  boxShadow: "0px 10px 25px rgba(139, 0, 0, 0.7)",
-                }}
-                whileTap={{ scale: 0.97 }}
-                layout
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-                className={`cursor-pointer bg-gray-50 rounded-xl shadow-md hover:shadow-xl p-4 relative
-  ${openProducts.has(item.id)
-                    ? "flex flex-col md:flex-row gap-6 items-start md:col-span-3"
-                    : "flex flex-col items-center"
+            {cart.map((item) => {
+              const isExpanded = openProducts.has(String(item.id));
+              const isServiceConfigured = !!(item.service && item.serviceDraft);
+              const isServicePending = !!(item.service && !item.serviceDraft);
+
+              return (
+                <motion.div
+                  key={item.id}
+                  whileHover={{
+                    boxShadow: "0px 10px 25px rgba(139, 0, 0, 0.7)",
+                  }}
+                  whileTap={{ scale: 0.97 }}
+                  layout
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className={`relative cursor-pointer rounded-xl bg-gray-50 p-4 shadow-md hover:shadow-xl ${
+                    isExpanded
+                      ? "flex flex-col items-start gap-6 md:col-span-3 md:flex-row"
+                      : "flex flex-col items-center"
                   }`}
-              >
-                {/* Flecha de despliegue - arriba a la izquierda */}
-                <div className="absolute top-2 left-2 z-10">
-                  <button
-                    className="cursor-pointer p-1 hover:bg-gray-200 rounded transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                >
+                  <div className="absolute left-2 top-2 z-10">
+                    <button
+                      className="cursor-pointer rounded p-1 transition-colors hover:bg-gray-200"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenProducts((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(String(item.id)))
+                            next.delete(String(item.id));
+                          else next.add(String(item.id));
+                          return next;
+                        });
+                      }}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 text-gray-600" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-gray-600" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div
+                    className="flex w-full flex-col items-center justify-between md:w-40"
+                    onClick={() => {
                       setOpenProducts((prev) => {
-                        const newSet = new Set(prev);
-                        if (newSet.has(item.id)) {
-                          newSet.delete(item.id);
-                        } else {
-                          newSet.add(item.id);
-                        }
-                        return newSet;
+                        const next = new Set(prev);
+                        if (next.has(String(item.id)))
+                          next.delete(String(item.id));
+                        else next.add(String(item.id));
+                        return next;
                       });
                     }}
                   >
-                    {openProducts.has(item.id) ? (
-                      <ChevronUp className="h-4 w-4 text-gray-600" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-gray-600" />
-                    )}
-                  </button>
-                </div>
+                    <p className="mt-2 text-center font-medium text-gray-800">
+                      {item.name}
+                    </p>
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="mt-2 object-contain"
+                    />
+                    <span
+                      className={`mt-3 rounded-full px-3 py-1 text-xs font-semibold ${
+                        isServiceConfigured
+                          ? "bg-green-100 text-green-800"
+                          : isServicePending
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-gray-200 text-gray-700"
+                      }`}
+                    >
+                      {isServiceConfigured
+                        ? "Servicio configurado"
+                        : isServicePending
+                          ? "Servicio pendiente"
+                          : "Sin servicio"}
+                    </span>
+                  </div>
 
-                {/* Vista simple */}
-                <div
-                  className="flex flex-col items-center justify-between w-full md:w-40"
-                  onClick={() => {
-                    setOpenProducts((prev) => {
-                      const newSet = new Set(prev);
-                      if (newSet.has(item.id)) {
-                        newSet.delete(item.id);
-                      } else {
-                        newSet.add(item.id);
-                      }
-                      return newSet;
-                    });
-                  }}
-                >
-                  <p className="mt-2 font-medium text-gray-800 text-center">
-                    {item.name}
-                  </p>
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    width={80}
-                    height={80}
-                    className="object-contain mt-2"
-                  />
-                </div>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                      className="mt-4 flex w-full flex-row items-start gap-6 md:mt-0 md:w-auto"
+                    >
+                      <div className="flex-1 overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="p-3 text-center">Precio</th>
+                              <th className="p-3 text-center">Cantidad</th>
+                              <th className="p-3 text-center">Servicio</th>
+                              <th className="p-3 text-center">Sub-total</th>
+                              <th className="p-3 text-center">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="p-3 text-center">
+                                ${item.price.toLocaleString("es-CO")}
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    className="cursor-pointer rounded transition hover:scale-110 hover:bg-red-300/60"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuantity(String(item.id), -1);
+                                    }}
+                                  >
+                                    <Image
+                                      src="/assets/imgs/minus.png"
+                                      alt="Disminuir"
+                                      width={25}
+                                      height={25}
+                                    />
+                                  </button>
 
-                {/* Vista detallada */}
-                {openProducts.has(item.id) && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="flex-1 w-full md:w-auto mt-4 md:mt-0 flex flex-row gap-6 items-start"
-                  >
-                    {/* Vista detallada SOLO para el producto seleccionado */}
-                    <div className="flex-1 overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr>
-                            <th className="p-3 text-center">Precio</th>
-                            <th className="p-3 text-center">Cantidad</th>
-                            <th className="p-3 text-center">Servicio</th>
-                            <th className="p-3 text-center">Sub-total</th>
-                            <th className="p-3 text-center">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td className="p-3 text-center">
-                              ${item.price.toLocaleString("es-CO")}
-                            </td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  className="cursor-pointer transition hover:scale-110 hover:bg-red-300/60 rounded"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    updateQuantity(item.id, -1);
-                                  }}
-                                >
-                                  <Image
-                                    src="/assets/imgs/minus.png"
-                                    alt="Disminuir"
-                                    width={25}
-                                    height={25}
-                                  />
-                                </button>
-                                <motion.span
-                                  key={item.quantity}
-                                  initial={{ scale: 0.8 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{
-                                    type: "spring",
-                                    stiffness: 300,
-                                    damping: 20,
-                                  }}
-                                >
-                                  {item.quantity}
-                                </motion.span>
+                                  <motion.span
+                                    key={item.quantity}
+                                    initial={{ scale: 0.8 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{
+                                      type: "spring",
+                                      stiffness: 300,
+                                      damping: 20,
+                                    }}
+                                  >
+                                    {item.quantity}
+                                  </motion.span>
 
-                                <button
-                                  disabled={item.quantity >= item.stock}
-                                  className={`cursor-pointer transition rounded 
-    ${item.quantity >= item.stock
-                                      ? "opacity-40 cursor-not-allowed"
-                                      : "hover:scale-110 hover:bg-red-300/60"
+                                  <button
+                                    disabled={item.quantity >= item.stock}
+                                    className={`cursor-pointer rounded transition ${
+                                      item.quantity >= item.stock
+                                        ? "cursor-not-allowed opacity-40"
+                                        : "hover:scale-110 hover:bg-red-300/60"
                                     }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      updateQuantity(String(item.id), 1);
+                                    }}
+                                  >
+                                    <Image
+                                      src="/assets/imgs/add.png"
+                                      alt="Aumentar"
+                                      width={25}
+                                      height={25}
+                                      className="rotate-180"
+                                    />
+                                  </button>
+
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    Stock disponible: {item.stock}
+                                  </div>
+
+                                  {item.error && (
+                                    <div className="mt-1 text-xs font-medium text-red-600">
+                                      {item.error}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="p-3 text-center">
+                                <div className="flex flex-col items-center gap-2">
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                      isServiceConfigured
+                                        ? "bg-green-100 text-green-800"
+                                        : isServicePending
+                                          ? "bg-amber-100 text-amber-800"
+                                          : "bg-gray-100 text-gray-700"
+                                    }`}
+                                  >
+                                    {isServiceConfigured
+                                      ? "Configurado"
+                                      : isServicePending
+                                        ? "Pendiente"
+                                        : "No incluido"}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenServiceModal(item);
+                                    }}
+                                    className={`cursor-pointer rounded px-3 py-1 text-sm font-medium transition ${
+                                      isServiceConfigured
+                                        ? "bg-black text-white hover:bg-neutral-800"
+                                        : isServicePending
+                                          ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
+                                          : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                                    }`}
+                                  >
+                                    {isServiceConfigured
+                                      ? "Cambiar servicio"
+                                      : isServicePending
+                                        ? "Configurar servicio"
+                                        : "Incluir servicio"}
+                                  </button>
+
+                                  {item.service && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveService(String(item.id));
+                                      }}
+                                      className="cursor-pointer rounded px-3 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                                    >
+                                      Quitar
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="p-3 text-center">
+                                $
+                                {(item.price * item.quantity).toLocaleString(
+                                  "es-CO",
+                                )}
+                              </td>
+
+                              <td className="p-3 text-center">
+                                <button
+                                  className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    updateQuantity(item.id, 1);
+                                    if (
+                                      selectedCartItemId === String(item.id)
+                                    ) {
+                                      resetServiceModal();
+                                    }
+                                    removeFromCart(String(item.id));
                                   }}
                                 >
                                   <Image
-                                    src="/assets/imgs/add.png"
-                                    alt="Aumentar"
-                                    width={25}
-                                    height={25}
-                                    className="rotate-180"
+                                    src="/assets/imgs/Boton_medio.png"
+                                    alt="Eliminar"
+                                    width={28}
+                                    height={28}
+                                    className="rounded transition hover:scale-110 hover:bg-red-300/60"
                                   />
                                 </button>
-                                <div className="text-xs text-gray-600 mt-1">
-                                  Stock disponible: {item.stock}
-                                </div>
-
-                                {item.error && (
-                                  <div className="text-xs text-red-600 mt-1 font-medium">
-                                    {item.error}
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 text-center">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-
-                                  // Debe estar autenticado
-                                  if (!authUser) {
-                                    setError(
-                                      "Debes iniciar sesión para solicitar un servicio."
-                                    );
-                                    return;
-                                  }
-
-                                  // Validar dirección ANTES de abrir el modal
-                                  const addressValidationError =
-                                    validateAddress();
-                                  if (addressValidationError) {
-                                    setAddressError(addressValidationError);
-                                    setError("");
-                                    return;
-                                  }
-
-                                  // Todo OK → activar servicio y abrir modal
-                                  setAddressError("");
-
-                                  toggleService(item.id);
-
-                                  if (!item.service) {
-                                    setSelectedServiceId(Number(item.id));
-                                    setOpenServiceModal(true);
-                                  } else {
-                                    setSelectedServiceId(null);
-                                    setOpenServiceModal(false);
-                                  }
-                                }}
-                                className={`cursor-pointer px-3 py-1 rounded text-sm font-medium transition ${item.service
-                                    ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                    : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                                  }`}
-                              >
-                                {item.service
-                                  ? "✓ Servicio incluido"
-                                  : "➕ Incluir servicio"}
-                              </button>
-                            </td>
-                            <td className="p-3 text-center">
-                              $
-                              {(item.price * item.quantity).toLocaleString(
-                                "es-CO"
-                              )}
-                            </td>
-                            <td className="p-3 text-center">
-                              <button
-                                className="cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeFromCart(item.id);
-                                }}
-                              >
-                                <Image
-                                  src="/assets/imgs/Boton_medio.png"
-                                  alt="Eliminar"
-                                  width={28}
-                                  height={28}
-                                  className=" transition hover:scale-110 hover:bg-red-300/60 rounded"
-                                />
-                              </button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </motion.div>
+                  )}
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
 
-        {/* Datos + Total */}
-        <div className="flex flex-col lg:flex-row justify-between items-start mt-8 gap-6">
-          {/* Datos cliente */}
-          <div className="flex flex-col gap-3 w-full lg:w-1/2 bg-gray-50 p-4 rounded-xl shadow-inner">
+        <div className="mt-8 grid grid-cols-1 items-start gap-6 xl:grid-cols-[1.45fr_0.95fr]">
+          <div className="flex w-full flex-col gap-4 rounded-2xl bg-gray-50 p-5 shadow-inner xl:p-6">
             <p className="text-gray-800">
-              <span className="font-semibold">Nombre:</span> Samuel Córdoba
+              <span className="font-semibold">Nombre:</span>{" "}
+              {authUser?.name || "Cliente autenticado"}
             </p>
             <p className="text-gray-800">
-              <span className="font-semibold">Cédula:</span> 1033259147
+              <span className="font-semibold">Correo:</span>{" "}
+              {authUser?.email || "No disponible"}
             </p>
-            <div className="flex flex-col gap-3">
-              <h4 className="font-semibold text-gray-800">
-                Dirección de envío
-              </h4>
 
-              <select
-                value={address.city}
-                onChange={(e) =>
-                  setAddress({ ...address, city: e.target.value })
-                }
-                className="border rounded p-2"
-              >
-                <option value="">Ciudad</option>
-                {CITIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={address.zone}
-                onChange={(e) =>
-                  setAddress({ ...address, zone: e.target.value })
-                }
-                className="border rounded p-2"
-              >
-                <option value="">Zona / Barrio</option>
-                {ZONES.map((z) => (
-                  <option key={z} value={z}>
-                    {z}
-                  </option>
-                ))}
-              </select>
-
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={address.streetType}
-                  onChange={(e) =>
-                    setAddress({ ...address, streetType: e.target.value })
-                  }
-                  className="border rounded p-2"
-                >
-                  <option value="">Tipo</option>
-                  {STREET_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  placeholder="Número"
-                  value={address.streetNumber}
-                  onChange={(e) =>
-                    setAddress({ ...address, streetNumber: e.target.value })
-                  }
-                  className="border rounded p-2"
-                />
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="flex flex-col gap-3">
+              <div className="space-y-1">
+                <h4 className="font-semibold text-gray-800">
+                  Direccion de envio
+                </h4>
+                <p className="text-sm text-gray-500">
+                  Completa una direccion clara para la entrega y para el
+                  servicio si lo agregas.
+                </p>
               </div>
 
-              <input
-                placeholder="# secundaria (ej: 23-18)"
-                value={address.secondaryNumber}
-                onChange={(e) =>
-                  setAddress({ ...address, secondaryNumber: e.target.value })
-                }
-                className="border rounded p-2"
-              />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Ciudad
+                  </label>
+                  <input
+                    value={address.city}
+                    onChange={(e) => updateAddressField("city", e.target.value)}
+                    list="cart-colombia-cities"
+                    placeholder="Ej. Medellin"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
 
-              <input
-                placeholder="Complemento (Apto, Casa, Torre...)"
-                value={address.complement}
-                onChange={(e) =>
-                  setAddress({ ...address, complement: e.target.value })
-                }
-                className="border rounded p-2"
-              />
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Barrio o zona
+                  </label>
+                  <input
+                    value={address.zone}
+                    onChange={(e) => updateAddressField("zone", e.target.value)}
+                    list="cart-zone-suggestions"
+                    placeholder={
+                      address.city.trim()
+                        ? `Ej. barrio o zona de ${address.city}`
+                        : "Escribe barrio o zona"
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
+              </div>
+
+              <datalist id="cart-colombia-cities">
+                {COLOMBIA_CITY_NAMES.map((city) => (
+                  <option key={city} value={city} />
+                ))}
+              </datalist>
+
+              <datalist id="cart-zone-suggestions">
+                {zoneSuggestions.map((zone) => (
+                  <option
+                    key={`${zone.placeId ?? zone.label}-${zone.label}`}
+                    value={zone.label}
+                  />
+                ))}
+              </datalist>
+
+              {address.zone.trim().length >= 2 && zoneSuggestionsLoading && (
+                <p className="text-xs text-gray-500">
+                  Buscando sugerencias de barrio o zona...
+                </p>
+              )}
+
+              {!placesProviderReady && (
+                <p className="text-xs text-amber-700">
+                  El autocompletado de barrios no esta configurado todavia. Puedes escribirlo manualmente.
+                </p>
+              )}
+
+              {!!zoneSuggestions.length && (
+                <div className="flex flex-wrap gap-2">
+                  {zoneSuggestions.slice(0, 6).map((zone) => (
+                    <button
+                      key={`${zone.placeId ?? zone.label}-chip`}
+                      type="button"
+                      onClick={() => updateAddressField("zone", zone.label)}
+                      className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:border-red-300 hover:text-red-700"
+                      title={zone.secondaryText || zone.fullText || zone.label}
+                    >
+                      {zone.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.1fr_1fr]">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Tipo de via
+                  </label>
+                  <select
+                    value={address.streetType}
+                    onChange={(e) =>
+                      updateAddressField("streetType", e.target.value)
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  >
+                    <option value="">Selecciona el tipo</option>
+                    {STREET_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Numero principal
+                  </label>
+                  <input
+                    placeholder="Ej. 10B"
+                    value={address.streetNumber}
+                    onChange={(e) =>
+                      updateAddressField("streetNumber", e.target.value)
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Numero secundario
+                  </label>
+                  <input
+                    placeholder="Ej. 23-18"
+                    value={address.secondaryNumber}
+                    onChange={(e) =>
+                      updateAddressField("secondaryNumber", e.target.value)
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Complemento
+                  </label>
+                  <input
+                    placeholder="Apto, Casa, Torre, Oficina..."
+                    value={address.complement}
+                    onChange={(e) =>
+                      updateAddressField("complement", e.target.value)
+                    }
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  />
+                </div>
+              </div>
+
+              {hasAddressDraft && (
+                <div className="rounded-xl border border-red-100 bg-red-50/60 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700">
+                    Vista previa
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700">
+                    {fullAddress || "Sigue completando la direccion"}
+                  </p>
+                </div>
+              )}
 
               {addressError && (
-                <p className="text-sm text-red-600 font-medium">
+                <p className="text-sm font-medium text-red-600">
                   {addressError}
                 </p>
               )}
-            </div>
+              </div>
 
-            {error && <p className="text-red-600 text-sm">{error}</p>}
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Mapa
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        Revisa la ubicacion aproximada de la entrega.
+                      </p>
+                    </div>
+                    <a
+                      href={mapOpenUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                    >
+                      Abrir Maps
+                    </a>
+                  </div>
+
+                  <div className="overflow-hidden rounded-xl border border-gray-200">
+                    <iframe
+                      title="Mapa de direccion"
+                      src={mapEmbedUrl}
+                      className="h-[320px] w-full bg-gray-100 md:h-[380px]"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Consejo
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600">
+                    Si el mapa no cae exacto, agrega el complemento y un barrio claro para facilitar la entrega y la visita tecnica.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Resumen de costos + Botón */}
-          <div className="flex flex-col w-full lg:w-1/2 gap-5 bg-gray-50 p-5 rounded-xl shadow-md">
-            {/* Resumen */}
+          <div className="flex w-full flex-col gap-5 rounded-2xl bg-gray-50 p-5 shadow-md xl:sticky xl:top-4">
             <div className="space-y-2 text-right text-gray-700">
               <p className="flex justify-between text-base">
                 <span className="font-medium">Subtotal:</span>
                 <span>${total.toLocaleString("es-CO")}</span>
               </p>
               <p className="flex justify-between text-base">
-                <span className="font-medium">Envío:</span>
+                <span className="font-medium">Envio:</span>
                 <span>$20,000</span>
               </p>
               <p className="flex justify-between text-base">
                 <span className="font-medium">IVA (19%):</span>
                 <span>${(total * 0.19).toLocaleString("es-CO")}</span>
               </p>
-              <p className="flex justify-between text-xl font-bold border-t pt-3 text-gray-900">
+              <p className="flex justify-between border-t pt-3 text-xl font-bold text-gray-900">
                 <span>Total:</span>
                 <span>
                   ${(total + 20000 + total * 0.19).toLocaleString("es-CO")}
@@ -614,48 +1023,79 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               </p>
             </div>
 
-            {/* Botón Comprar */}
-            <div className="flex flex-col items-center mt-5">
-              <p className="text-lg font-medium text-gray-700 flex items-center gap-2 mb-3 text-center">
-                {hasService ? (
+            <div className="mt-5 flex flex-col items-center">
+              <p className="mb-3 flex items-center gap-2 text-center text-lg font-medium text-gray-700">
+                {hasSelectedService ? (
                   <>
-                    🛠️ <span>Su solicitud de servicio será enviada</span>
+                    <span>
+                      Servicios seleccionados: {configuredServiceItems.length}{" "}
+                      configurado(s)
+                      {pendingServiceItems.length
+                        ? `, ${pendingServiceItems.length} pendiente(s)`
+                        : "."}
+                    </span>
                   </>
                 ) : (
                   <>
-                    🚚 <span>Paga ahora y recibe en 3 días</span>
+                    <span>Paga ahora y recibe en 3 dias.</span>
                   </>
                 )}
               </p>
 
+              {pendingServiceItems.length > 0 && (
+                <p className="mb-3 text-center text-sm font-medium text-amber-700">
+                  Completa la configuracion del servicio antes de comprar.
+                </p>
+              )}
+
               <button
                 onClick={handlePurchase}
-                className="cursor-pointer bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow-md transition"
+                className="cursor-pointer rounded-lg bg-gradient-to-r from-red-600 to-red-700 px-8 py-3 text-lg font-semibold text-white shadow-md transition hover:from-red-700 hover:to-red-800"
               >
-                {hasService ? "Confirmar servicio" : "Comprar"}
+                {hasSelectedService ? "Comprar y enviar servicio" : "Comprar"}
               </button>
             </div>
           </div>
         </div>
-      </motion.div>{" "}
+      </motion.div>
+
       {authUser && (
         <ClientCreateRequestModal
           isOpen={openServiceModal}
-          onClose={() => {
-            setOpenServiceModal(false);
-            setSelectedServiceId(null);
-          }}
-          onSave={async (payload) => {
-            // Solo guardar en memoria
-            setServiceDraft(payload);
+          onClose={resetServiceModal}
+          onSave={async (payload: CreateRequestPayload) => {
+            if (!selectedCartItemId) {
+              showError("No se pudo identificar el producto del servicio.");
+              return;
+            }
 
-            showSuccess("Servicio listo. Confirma el carrito para enviarlo.");
-            setOpenServiceModal(false);
+            const draft: CartServiceDraft = {
+              scheduledAt: payload.scheduledAt ?? null,
+              scheduledEndAt: payload.scheduledEndAt ?? null,
+              serviceType: payload.serviceType,
+              description: String(payload.description ?? "").trim(),
+              direccion: String(payload.direccion ?? fullAddress).trim(),
+              stateId: Number(payload.stateId ?? 5),
+              serviceId: Number(payload.serviceId),
+            };
+
+            saveServiceDraft(selectedCartItemId, draft);
+            showSuccess(
+              "Servicio agregado al producto. Ya puedes finalizar la compra.",
+            );
+            resetServiceModal();
           }}
+          title={
+            selectedCartItem
+              ? `Servicio para ${selectedCartItem.name}`
+              : "Solicitar servicio"
+          }
           clientId={authUser.userid}
           clientLabel={authUser.name}
-          initialServiceId={selectedServiceId}
-          initialDireccion={fullAddress}
+          initialServiceId={selectedCartItem?.serviceDraft?.serviceId ?? null}
+          initialDireccion={
+            selectedCartItem?.serviceDraft?.direccion ?? fullAddress
+          }
         />
       )}
     </div>

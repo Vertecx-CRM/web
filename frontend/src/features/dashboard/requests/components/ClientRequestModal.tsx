@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/types/option.types";
-import { showError, showInfo, showSuccess } from "@/shared/utils/notifications";
-import { getServiceOptions } from "@/features/dashboard/requests/services/lookups.service";
+import { showError, showInfo } from "@/shared/utils/notifications";
+import {
+  ensureServiceOption,
+  getServiceOptions,
+} from "@/features/dashboard/requests/services/lookups.service";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -43,7 +46,12 @@ type Props = {
   scheduledStateId?: number | null;
 };
 
-type ErrorKey = "tipo" | "serviceId" | "description" | "direccion";
+type ErrorKey =
+  | "tipo"
+  | "serviceId"
+  | "customServiceName"
+  | "description"
+  | "direccion";
 type Errors = Partial<Record<ErrorKey, string | null>>;
 type Touched = Partial<Record<ErrorKey, boolean>>;
 
@@ -69,110 +77,124 @@ export default function ClientCreateRequestModal({
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
+  const [customServiceMode, setCustomServiceMode] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState("");
   const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
-
   const [saving, setSaving] = useState(false);
-
   const [loadingLookups, setLoadingLookups] = useState(false);
   const [serviciosLocal, setServiciosLocal] = useState<ServiceOption[]>([]);
 
   const finalServicios = useMemo<ServiceOption[]>(() => {
-    const fromProps = (
-      Array.isArray(servicios) ? servicios : []
-    ) as ServiceOption[];
+    const fromProps = (Array.isArray(servicios) ? servicios : []) as ServiceOption[];
     return fromProps.length ? fromProps : serviciosLocal;
   }, [servicios, serviciosLocal]);
 
   const serviceTypes = useMemo<ServiceTypeOption[]>(() => {
     const map = new Map<number, ServiceTypeOption>();
 
-    (finalServicios || []).forEach((s) => {
-      const typeId = s.typeofserviceid;
-      const typeName = s.typeofservicename;
-      if (!typeId || !typeName) return;
-      if (map.has(typeId)) return;
+    finalServicios.forEach((service) => {
+      const typeId = service.typeofserviceid;
+      const typeName = service.typeofservicename;
+      if (!typeId || !typeName || map.has(typeId)) return;
 
-      let code = (s.serviceTypeCode || "").trim();
+      let code = String(service.serviceTypeCode || "").trim();
       if (!code) {
-        const norm = typeName
+        const normalized = typeName
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .toLowerCase();
-        if (norm.startsWith("mantenimiento")) code = "MANTENIMIENTO";
-        else if (norm.startsWith("instal")) code = "INSTALACION";
+        if (normalized.startsWith("mantenimiento")) code = "MANTENIMIENTO";
+        else if (normalized.startsWith("instal")) code = "INSTALACION";
         else code = typeName;
       }
 
       map.set(typeId, { id: typeId, label: typeName, code });
     });
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.label.localeCompare(b.label)
-    );
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [finalServicios]);
 
   const selectedType = useMemo(
-    () =>
-      serviceTypeId
-        ? serviceTypes.find((t) => t.id === serviceTypeId) || null
-        : null,
+    () => (serviceTypeId ? serviceTypes.find((item) => item.id === serviceTypeId) || null : null),
     [serviceTypeId, serviceTypes]
   );
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
-    const list = finalServicios || [];
-    if (!serviceTypeId) return list;
-
-    const hasTypeInfo = list.some((s) => s.typeofserviceid != null);
-    if (!hasTypeInfo) return list;
-
-    return list.filter((s) => s.typeofserviceid === serviceTypeId);
+    if (!serviceTypeId) return finalServicios;
+    const hasTypeInfo = finalServicios.some((item) => item.typeofserviceid != null);
+    if (!hasTypeInfo) return finalServicios;
+    return finalServicios.filter((item) => item.typeofserviceid === serviceTypeId);
   }, [finalServicios, serviceTypeId]);
 
-  function validateDireccion(v: string) {
-    const dir = (v ?? "").trim();
-    if (dir.length < 3) return "Mínimo 3 caracteres.";
-    if (dir.length > 255) return "Máximo 255 caracteres.";
+  function validateDireccion(value: string) {
+    const text = String(value ?? "").trim();
+    if (text.length < 3) return "Minimo 3 caracteres.";
+    if (text.length > 255) return "Maximo 255 caracteres.";
     return null;
   }
 
-  function validateDescription(v: string) {
-    const d = (v ?? "").trim();
-    return d.length >= 3 ? null : "Mínimo 3 caracteres.";
+  function validateDescription(value: string) {
+    return String(value ?? "").trim().length >= 3 ? null : "Minimo 3 caracteres.";
   }
 
-  function validateServiceId(v: number | "") {
-    return v !== "" ? null : "Selecciona un servicio.";
+  function validateServiceId(
+    value: number | "",
+    customName: string,
+    isCustomMode: boolean
+  ) {
+    if (isCustomMode && customName.trim().length >= 3) return null;
+    return value !== "" ? null : "Selecciona un servicio.";
   }
 
-  function validateTipo(id: number | null) {
-    return id ? null : "Selecciona un tipo.";
+  function validateCustomServiceName(value: string, isCustomMode: boolean) {
+    if (!isCustomMode) return null;
+    const text = String(value ?? "").trim();
+    if (text.length < 3) return "Escribe al menos 3 caracteres.";
+    if (text.length > 120) return "Maximo 120 caracteres.";
+    return null;
+  }
+
+  function validateTipo(value: number | null) {
+    return value ? null : "Selecciona un tipo.";
   }
 
   const errors: Errors = useMemo(() => {
-    const e: Errors = {};
-    e.tipo = validateTipo(serviceTypeId);
-    e.serviceId = validateServiceId(serviceId);
-    e.description = validateDescription(description);
-    e.direccion = validateDireccion(direccion);
-    return e;
-  }, [serviceTypeId, serviceId, description, direccion]);
+    const next: Errors = {};
+    next.tipo = validateTipo(serviceTypeId);
+    next.serviceId = validateServiceId(serviceId, customServiceName, customServiceMode);
+    next.customServiceName = validateCustomServiceName(
+      customServiceName,
+      customServiceMode
+    );
+    next.description = validateDescription(description);
+    next.direccion = validateDireccion(direccion);
+    return next;
+  }, [
+    serviceTypeId,
+    serviceId,
+    customServiceName,
+    customServiceMode,
+    description,
+    direccion,
+  ]);
 
-  function markTouched(k: ErrorKey) {
-    setTouched((p) => ({ ...p, [k]: true }));
+  function markTouched(key: ErrorKey) {
+    setTouched((prev) => ({ ...prev, [key]: true }));
   }
 
-  function shouldShowError(k: ErrorKey) {
-    return !!submitAttempted || !!touched[k];
+  function shouldShowError(key: ErrorKey) {
+    return !!submitAttempted || !!touched[key];
   }
 
   function resetForm() {
     setServiceTypeId(null);
     setServiceId("");
+    setCustomServiceMode(false);
+    setCustomServiceName("");
     setDescription("");
     setDireccion("");
     setTouched({});
@@ -186,15 +208,12 @@ export default function ClientCreateRequestModal({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (!initialDireccion) return;
-
+    if (!isOpen || !initialDireccion) return;
     setDireccion(initialDireccion);
   }, [isOpen, initialDireccion]);
 
   useEffect(() => {
     if (!isOpen) return;
-
     if (Array.isArray(servicios) && servicios.length) return;
 
     let cancel = false;
@@ -204,7 +223,7 @@ export default function ClientCreateRequestModal({
         setLoadingLookups(true);
         const opts = await getServiceOptions();
         if (cancel) return;
-        setServiciosLocal(Array.isArray(opts) ? (opts as any) : []);
+        setServiciosLocal(Array.isArray(opts) ? (opts as ServiceOption[]) : []);
       } catch {
         if (cancel) return;
         setServiciosLocal([]);
@@ -220,27 +239,41 @@ export default function ClientCreateRequestModal({
   }, [isOpen, servicios]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (!initialServiceId) return;
-    if (!finalServicios.length) return;
+    if (!isOpen || !initialServiceId || !finalServicios.length) return;
 
-    const found = finalServicios.find(
-      (s: any) => Number(s?.id) === Number(initialServiceId)
-    );
+    const found = finalServicios.find((item) => Number(item.id) === Number(initialServiceId));
     if (!found) return;
 
-    const sid = Number(found.id);
-    if (Number.isFinite(sid) && sid > 0) setServiceId(sid as any);
+    const resolvedServiceId = Number(found.id);
+    const resolvedTypeId = Number(found.typeofserviceid);
 
-    const tid = Number(found.typeofserviceid);
-    if (Number.isFinite(tid) && tid > 0) setServiceTypeId(tid);
+    if (Number.isFinite(resolvedServiceId) && resolvedServiceId > 0) {
+      setServiceId(resolvedServiceId);
+    }
+
+    if (Number.isFinite(resolvedTypeId) && resolvedTypeId > 0) {
+      setServiceTypeId(resolvedTypeId);
+    }
   }, [isOpen, initialServiceId, finalServicios]);
+
+  useEffect(() => {
+    if (!serviceTypeId) {
+      setServiceId("");
+      return;
+    }
+
+    if (customServiceMode || serviceId === "") return;
+
+    if (!filteredServicios.some((item) => Number(item.id) === Number(serviceId))) {
+      setServiceId("");
+    }
+  }, [serviceTypeId, customServiceMode, serviceId, filteredServicios]);
 
   async function submit() {
     setSubmitAttempted(true);
 
     const errKeys = Object.keys(errors) as ErrorKey[];
-    const firstError = errKeys.find((k) => !!errors[k]);
+    const firstError = errKeys.find((key) => !!errors[key]);
     if (firstError) {
       showInfo("Revisa los campos marcados.");
       return;
@@ -251,9 +284,32 @@ export default function ClientCreateRequestModal({
       return;
     }
 
-    const sid = Number(serviceId);
-    if (!Number.isFinite(sid) || sid <= 0) {
-      showInfo("Selecciona un servicio válido.");
+    let resolvedServiceId = Number(serviceId);
+
+    if (customServiceMode) {
+      const customError = validateCustomServiceName(customServiceName, true);
+      if (customError) {
+        showInfo("Escribe un servicio especifico valido.");
+        return;
+      }
+
+      const ensuredService = await ensureServiceOption({
+        name: customServiceName,
+        typeofserviceid: selectedType.id,
+        description,
+      });
+
+      resolvedServiceId = Number(ensuredService.id);
+      setServiciosLocal((prev) => {
+        const exists = prev.some((item) => Number(item.id) === Number(ensuredService.id));
+        if (exists) return prev;
+        return [...prev, ensuredService];
+      });
+      setServiceId(resolvedServiceId);
+    }
+
+    if (!Number.isFinite(resolvedServiceId) || resolvedServiceId <= 0) {
+      showInfo("Selecciona un servicio valido.");
       return;
     }
 
@@ -267,7 +323,7 @@ export default function ClientCreateRequestModal({
         description: String(description || "").trim(),
         direccion: String(direccion || "").trim(),
         stateId: 0,
-        serviceId: sid,
+        serviceId: resolvedServiceId,
         clientId,
       };
 
@@ -281,15 +337,16 @@ export default function ClientCreateRequestModal({
           Number.isFinite(scheduledStateId) &&
           scheduledStateId > 0 &&
           scheduledStateId) ||
-        (pendingStateId && Number.isFinite(pendingStateId) && pendingStateId > 0 && pendingStateId) ||
+        (pendingStateId &&
+          Number.isFinite(pendingStateId) &&
+          pendingStateId > 0 &&
+          pendingStateId) ||
         5;
 
-      const payload: CreateRequestPayload = {
+      await onSave({
         ...basePayload,
         stateId: stateIdToSend,
-      };
-
-      await onSave(payload);
+      });
 
       resetForm();
       onClose();
@@ -337,9 +394,7 @@ export default function ClientCreateRequestModal({
 
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">
-              Tipo de servicio
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
             <span className="text-[11px] text-gray-500">
               {loadingLookups
                 ? "Cargando tipos..."
@@ -351,23 +406,23 @@ export default function ClientCreateRequestModal({
 
           {serviceTypes.length ? (
             <div className="inline-grid grid-cols-2 gap-2">
-              {serviceTypes.map((t) => (
+              {serviceTypes.map((type) => (
                 <button
-                  key={t.id}
+                  key={type.id}
                   type="button"
                   onClick={() => {
                     markTouched("tipo");
-                    setServiceTypeId(t.id);
+                    setServiceTypeId(type.id);
                   }}
                   className={[
-                    "inline-flex items-center justify-center rounded-full px-3 py-1.5 text-xs border transition min-w-36",
-                    serviceTypeId === t.id
-                      ? "bg-black text-white border-black"
-                      : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200",
+                    "inline-flex min-w-36 items-center justify-center rounded-full border px-3 py-1.5 text-xs transition",
+                    serviceTypeId === type.id
+                      ? "border-black bg-black text-white"
+                      : "border-gray-300 bg-gray-100 text-gray-800 hover:bg-gray-200",
                   ].join(" ")}
                   disabled={saving || loadingLookups}
                 >
-                  {t.label}
+                  {type.label}
                 </button>
               ))}
             </div>
@@ -385,20 +440,22 @@ export default function ClientCreateRequestModal({
         <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">
-              Servicio
+              Servicio especifico
             </label>
             <div className="relative">
               <select
                 value={serviceId === "" ? "" : String(serviceId)}
                 onChange={(e) => {
                   markTouched("serviceId");
-                  const v = e.target.value ? Number(e.target.value) : "";
-                  setServiceId(v);
+                  const value = e.target.value ? Number(e.target.value) : "";
+                  setServiceId(value);
+                  setCustomServiceMode(false);
+                  setCustomServiceName("");
                 }}
                 onBlur={() => markTouched("serviceId")}
-                disabled={saving || loadingLookups}
+                disabled={saving || loadingLookups || customServiceMode}
                 className={[
-                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  "h-10 w-full appearance-none rounded-lg border bg-gray-50 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                   shouldShowError("serviceId") && errors.serviceId
                     ? "border-red-500"
                     : "border-gray-300",
@@ -413,27 +470,70 @@ export default function ClientCreateRequestModal({
                     ? "No hay servicios para este tipo"
                     : "No hay servicios"}
                 </option>
-                {filteredServicios.map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.label}
+                {filteredServicios.map((service) => (
+                  <option key={service.id} value={String(service.id)}>
+                    {service.label}
                   </option>
                 ))}
               </select>
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▾
+                ▼
               </span>
             </div>
 
             {shouldShowError("serviceId") && errors.serviceId && (
               <p className="mt-1 text-xs text-red-600">{errors.serviceId}</p>
             )}
+
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-gray-500">
+                Si no aparece en la lista, puedes agregarlo.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  markTouched("customServiceName");
+                  setCustomServiceMode((prev) => !prev);
+                  setServiceId("");
+                }}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
+                disabled={saving || loadingLookups || !serviceTypeId}
+              >
+                {customServiceMode ? "Usar lista" : "Agregar servicio"}
+              </button>
+            </div>
+
+            {customServiceMode && (
+              <div className="mt-3">
+                <input
+                  value={customServiceName}
+                  onChange={(e) => {
+                    markTouched("customServiceName");
+                    setCustomServiceName(e.target.value);
+                  }}
+                  onBlur={() => markTouched("customServiceName")}
+                  placeholder="Ej. Instalacion de camara PTZ"
+                  className={[
+                    "h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                    shouldShowError("customServiceName") && errors.customServiceName
+                      ? "border-red-500"
+                      : "border-gray-300",
+                  ].join(" ")}
+                />
+                {shouldShowError("customServiceName") && errors.customServiceName && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {errors.customServiceName}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">
-              Dirección
+              Direccion
             </label>
             <input
               value={direccion}
@@ -444,7 +544,7 @@ export default function ClientCreateRequestModal({
               onBlur={() => markTouched("direccion")}
               placeholder="Ej. Calle 123 #45-67"
               className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                "h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
                 shouldShowError("direccion") && errors.direccion
                   ? "border-red-500"
                   : "border-gray-300",
@@ -458,7 +558,7 @@ export default function ClientCreateRequestModal({
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-900">
-            Descripción
+            Descripcion
           </label>
           <textarea
             value={description}

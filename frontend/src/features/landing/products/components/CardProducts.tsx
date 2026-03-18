@@ -110,7 +110,7 @@ export default function CardProduct({
             <button
               onClick={onAddToCart}
               disabled={!inStock}
-              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`cursor-pointer flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                 inStock
                   ? "bg-[#B20000] text-white hover:bg-[#8e0000] shadow-md hover:shadow-[#B20000]/20"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -122,7 +122,7 @@ export default function CardProduct({
 
             <button
               onClick={() => router.push(`/landing/products/${id}`)}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl border border-[#0D141C] text-[#0D141C] text-[10px] font-black uppercase tracking-widest hover:bg-[#0D141C] hover:text-white transition-all"
+              className="cursor-pointer flex items-center justify-center gap-2 py-3 rounded-xl border border-[#0D141C] text-[#0D141C] text-[10px] font-black uppercase tracking-widest hover:bg-[#0D141C] hover:text-white transition-all"
             >
               <Eye size={14} />
               Detalles

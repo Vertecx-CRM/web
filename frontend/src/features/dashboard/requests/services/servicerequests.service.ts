@@ -71,8 +71,8 @@ export type CreateServiceRequestInput = {
   direccion: string;
   stateId: number;
   serviceId: number;
-  clientId: number;
-  technicians: number[];
+  clientId?: number;
+  technicians?: number[];
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
@@ -197,21 +197,46 @@ export async function createServiceRequest(
   const hasValidClientId = Number(payload?.clientId) > 0;
   const hasTechnicians = Array.isArray(payload?.technicians) && payload.technicians.length > 0;
 
-  const useFromAuth = !hasValidClientId || !hasTechnicians;
+  const normalizedAddress = String(payload?.direccion ?? "").trim();
+  if (hasTechnicians && !hasValidClientId) {
+    throw new Error("Se requiere un cliente valido para crear una solicitud administrativa.");
+  }
 
-  const endpoint = useFromAuth ? "/service-requests/from-auth" : "/service-requests";
+  const endpoint = hasTechnicians ? "/service-requests/admin" : "/service-requests";
+  const normalizedScheduledAt =
+    typeof payload?.scheduledAt === "string" && payload.scheduledAt.trim()
+      ? payload.scheduledAt
+      : new Date().toISOString();
+  const normalizedScheduledEndAt =
+    typeof payload?.scheduledEndAt === "string" && payload.scheduledEndAt.trim()
+      ? payload.scheduledEndAt
+      : undefined;
 
-  const body = useFromAuth
+  const body = hasTechnicians
     ? {
-        scheduledAt: payload.scheduledAt ?? null,
-        scheduledEndAt: payload.scheduledEndAt ?? null,
+        scheduledAt: normalizedScheduledAt,
+        ...(normalizedScheduledEndAt
+          ? { scheduledEndAt: normalizedScheduledEndAt }
+          : {}),
         serviceType: payload.serviceType,
         description: payload.description,
-        direccion: payload.direccion,
+        address: normalizedAddress,
         stateId: payload.stateId,
         serviceId: payload.serviceId,
+        clientId: hasValidClientId ? Number(payload.clientId) : undefined,
+        technicians: payload.technicians ?? [],
       }
-    : payload;
+    : {
+        scheduledAt: normalizedScheduledAt,
+        ...(normalizedScheduledEndAt
+          ? { scheduledEndAt: normalizedScheduledEndAt }
+          : {}),
+        serviceType: payload.serviceType,
+        description: payload.description,
+        address: normalizedAddress,
+        stateId: payload.stateId,
+        serviceId: payload.serviceId,
+      };
 
   try {
     const res = await api.post<any>(endpoint, body as any);

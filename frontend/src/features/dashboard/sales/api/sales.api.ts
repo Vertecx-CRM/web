@@ -71,6 +71,25 @@ export const createSale = async (sale: Partial<ISale>) => {
   }
 };
 
+export const createSaleFromAuth = async (sale: Record<string, unknown>) => {
+  try {
+    const { data } = await api.post("/sales/from-auth", sale);
+    return data;
+  } catch (error: unknown) {
+    if (error instanceof AxiosError) {
+      console.error("Error al crear la venta desde el cliente:", error.response?.data ?? error);
+      const message =
+        (error.response?.data as any)?.message ??
+        (error.response?.data as any)?.error ??
+        error.message ??
+        "No se pudo crear la compra.";
+      throw new Error(message);
+    }
+    console.error("Error al crear la venta desde el cliente:", error);
+    throw new Error("No se pudo crear la compra.");
+  }
+};
+
 export const cancelSale = async (id: number, observation: string) => {
   try {
     const { data } = await api.patch(`/sales/${id}/cancel`, {

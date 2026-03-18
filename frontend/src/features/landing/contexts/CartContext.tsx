@@ -1,6 +1,16 @@
 "use client";
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export type CartServiceDraft = {
+  scheduledAt?: string | null;
+  scheduledEndAt?: string | null;
+  serviceType: string;
+  description: string;
+  direccion: string;
+  stateId?: number;
+  serviceId: number;
+};
+
 export type CartItem = {
   id: string;
   name: string;
@@ -8,16 +18,20 @@ export type CartItem = {
   quantity: number;
   stock: number;
   service: boolean;
+  serviceDraft?: CartServiceDraft | null;
   image: string;
   error?: string;
 };
 
 type CartContextType = {
   cart: CartItem[];
-  addToCart: (item: Omit<CartItem, "quantity" | "service" | "error">) => void;
+  addToCart: (item: Omit<CartItem, "quantity" | "service" | "serviceDraft" | "error">) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
-  toggleService: (id: string) => void;
+  setServiceSelection: (id: string, selected: boolean) => void;
+  saveServiceDraft: (id: string, draft: CartServiceDraft) => void;
+  clearServiceDraft: (id: string) => void;
+  clearCart: () => void;
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -26,7 +40,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const addToCart = (
-    item: Omit<CartItem, "quantity" | "service" | "error">
+    item: Omit<CartItem, "quantity" | "service" | "serviceDraft" | "error">
   ) => {
     setCart((prev) => {
       const existing = prev.find((p) => p.id === item.id);
@@ -49,7 +63,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       return [
         ...prev,
-        { ...item, quantity: 1, service: false, error: undefined },
+        {
+          ...item,
+          quantity: 1,
+          service: false,
+          serviceDraft: null,
+          error: undefined,
+        },
       ];
     });
   };
@@ -84,16 +104,50 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const removeFromCart = (id: string) =>
     setCart((prev) => prev.filter((item) => item.id !== id));
 
-  const toggleService = (id: string) =>
+  const setServiceSelection = (id: string, selected: boolean) =>
     setCart((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, service: !item.service } : item
+        item.id === id
+          ? {
+              ...item,
+              service: selected,
+              serviceDraft: selected ? item.serviceDraft ?? null : null,
+              error: undefined,
+            }
+          : item
       )
     );
 
+  const saveServiceDraft = (id: string, draft: CartServiceDraft) =>
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, service: true, serviceDraft: draft, error: undefined }
+          : item
+      )
+    );
+
+  const clearServiceDraft = (id: string) =>
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, service: false, serviceDraft: null } : item
+      )
+    );
+
+  const clearCart = () => setCart([]);
+
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, toggleService }}
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        setServiceSelection,
+        saveServiceDraft,
+        clearServiceDraft,
+        clearCart,
+      }}
     >
       {children}
     </CartContext.Provider>

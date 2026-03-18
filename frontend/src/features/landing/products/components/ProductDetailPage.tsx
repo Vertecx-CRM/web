@@ -161,7 +161,7 @@ export default function ProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => router.back()}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition active:scale-[0.99]"
+                  className="cursor-pointer inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 hover:border-gray-300 transition active:scale-[0.99]"
                 >
                   <FaArrowLeft className="text-sm" />
                   Volver
@@ -258,7 +258,7 @@ export default function ProductDetailPage() {
 
                       <button
                         type="button"
-                        className="w-8 h-8 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed"
+                        className="cursor-pointer w-8 h-8 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed"
                         onClick={() => setQty((q) => clampQty(q - 1))}
                         disabled={!inStock}
                         aria-label="Disminuir"
@@ -279,7 +279,7 @@ export default function ProductDetailPage() {
 
                       <button
                         type="button"
-                        className="w-8 h-8 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed"
+                        className="cursor-pointer w-8 h-8 rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed"
                         onClick={() => setQty((q) => clampQty(q + 1))}
                         disabled={!inStock || qty >= remaining} // ✅ se bloquea por límite real
                         aria-label="Aumentar"
@@ -289,7 +289,7 @@ export default function ProductDetailPage() {
                     </div>
 
                     <motion.button
-                      className="bg-[#B20000] text-white rounded-full px-6 py-3 text-sm font-semibold flex items-center justify-center gap-3 shadow-lg hover:bg-red-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="cursor-pointer bg-[#B20000] text-white rounded-full px-6 py-3 text-sm font-semibold flex items-center justify-center gap-3 shadow-lg hover:bg-red-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
                       whileHover={inStock ? { scale: 1.03 } : {}}
                       whileTap={inStock ? { scale: 0.97 } : {}}
                       onClick={handleAddToCart}
