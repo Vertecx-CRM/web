@@ -15,8 +15,8 @@ import { useSearchParams } from "next/navigation";
 
 import Nav from "../layout/Nav";
 import {
-  getSaleById,
-  syncWompiTransaction,
+  getSaleCheckoutSummary,
+  syncWompiTransactionForCheckout,
   type WompiTransactionSyncDTO,
 } from "@/features/dashboard/sales/api/sales.api";
 import { showError, showInfo } from "@/shared/utils/notifications";
@@ -162,7 +162,7 @@ export default function RegisterPaymentMarket() {
 
     let cancelled = false;
 
-    getSaleById(saleId)
+    getSaleCheckoutSummary(saleId, reference)
       .then((sale) => {
         if (cancelled) return;
         setSnapshot((current) => ({
@@ -207,7 +207,7 @@ export default function RegisterPaymentMarket() {
       message: "Confirmando el estado de tu pago con Wompi.",
     });
 
-    syncWompiTransaction(transactionId, saleId)
+    syncWompiTransactionForCheckout(transactionId, saleId, reference)
       .then((payment) => {
         if (cancelled) return;
 

@@ -2,6 +2,10 @@ import { api } from "@/lib/api";
 import { AxiosError } from "axios";
 import { ISale } from "../types/sales.type";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/";
+
 export type WompiCheckoutSessionDTO = {
   saleId: number;
   saleCode: string;
@@ -192,6 +196,41 @@ export const syncWompiTransaction = async (
   }
 };
 
+export const syncWompiTransactionForCheckout = async (
+  transactionId: string,
+  saleId: number,
+  reference: string
+): Promise<WompiTransactionSyncDTO> => {
+  try {
+    const response = await fetch(
+      `${API_URL}payments/wompi/public/transactions/${encodeURIComponent(
+        transactionId
+      )}?saleId=${encodeURIComponent(String(saleId))}&reference=${encodeURIComponent(reference)}`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        payload?.message ?? payload?.error ?? "No se pudo confirmar el estado del pago.";
+      throw new Error(Array.isArray(message) ? message.join(" | ") : String(message));
+    }
+
+    return payload as WompiTransactionSyncDTO;
+  } catch (error: unknown) {
+    console.error("Error al sincronizar la transaccion publica de Wompi:", error);
+    throw error instanceof Error
+      ? error
+      : new Error("No se pudo confirmar el estado del pago.");
+  }
+};
+
 export const cancelSale = async (id: number, observation: string) => {
   try {
     const { data } = await api.patch(`/sales/${id}/cancel`, {
@@ -243,5 +282,35 @@ export const getSaleById = async (id: number): Promise<ISale> => {
       console.error("Error al obtener la venta:", error);
     }
     throw error;
+  }
+};
+
+export const getSaleCheckoutSummary = async (
+  id: number,
+  reference: string
+): Promise<ISale> => {
+  try {
+    const response = await fetch(
+      `${API_URL}sales/${encodeURIComponent(String(id))}/checkout-summary?reference=${encodeURIComponent(reference)}`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        payload?.message ?? payload?.error ?? "No se pudo obtener la venta.";
+      throw new Error(Array.isArray(message) ? message.join(" | ") : String(message));
+    }
+
+    return payload as ISale;
+  } catch (error: unknown) {
+    console.error("Error al obtener el resumen publico de la venta:", error);
+    throw error instanceof Error ? error : new Error("No se pudo obtener la venta.");
   }
 };
