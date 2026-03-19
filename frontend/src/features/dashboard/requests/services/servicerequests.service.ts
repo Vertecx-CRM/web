@@ -313,7 +313,23 @@ export async function updateServiceRequest(
   id: number,
   payload: UpdateServiceRequestInput
 ): Promise<ServiceRequestDTO> {
-  const res = await api.patch<any>(`/service-requests/${id}`, payload);
+  const normalizedAddress = String(
+    (payload as UpdateServiceRequestInput & { address?: string })?.direccion ??
+      (payload as UpdateServiceRequestInput & { address?: string })?.address ??
+      "",
+  ).trim();
+
+  const {
+    direccion: _direccion,
+    ...rest
+  } = (payload || {}) as UpdateServiceRequestInput & { address?: string };
+
+  const body = {
+    ...rest,
+    ...(normalizedAddress ? { address: normalizedAddress } : {}),
+  };
+
+  const res = await api.patch<any>(`/service-requests/${id}`, body);
   return unwrap<ServiceRequestDTO>(res.data);
 }
 
