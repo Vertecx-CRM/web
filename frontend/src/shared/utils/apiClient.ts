@@ -1,15 +1,7 @@
-import axios, { type AxiosRequestConfig } from "axios";
+import { type AxiosRequestConfig } from "axios";
+import { api } from "@/lib/api";
 
-const DEFAULT_API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net";
-
-export const api = axios.create({
-  baseURL: DEFAULT_API_BASE,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+export { api } from "@/lib/api";
 
 type RequestOptions = AxiosRequestConfig;
 
