@@ -1,5 +1,10 @@
 import { api } from "@/lib/api";
 import type { AxiosError } from "axios";
+import type {
+  RequestAvailabilityOption,
+  RequestPurchasedMaterial,
+  RequestSiteChecklist,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 
 export type StateDTO = {
   stateid: number;
@@ -67,6 +72,18 @@ export type ServiceRequestDTO = {
   technicianId?: number;
   technicianid?: number;
   clientAvailabilityOptions?: RequestAvailabilityOptionDTO[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION" | null;
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE"
+    | null;
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
 };
 
 export type ServiceTypeApi = "MANTENIMIENTO" | "INSTALACION";
@@ -81,7 +98,18 @@ export type CreateServiceRequestInput = {
   serviceId: number;
   clientId?: number;
   technicians?: number[];
-  availabilityOptions?: RequestAvailabilityOptionDTO[];
+  availabilityOptions?: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
@@ -278,6 +306,23 @@ export async function createServiceRequest(
         ...(availabilityOptions?.length
           ? { availabilityOptions }
           : {}),
+        ...(payload.requestMode ? { requestMode: payload.requestMode } : {}),
+        ...(payload.technicalReviewStatus
+          ? { technicalReviewStatus: payload.technicalReviewStatus }
+          : {}),
+        ...(typeof payload.alreadyHasMaterials === "boolean"
+          ? { alreadyHasMaterials: payload.alreadyHasMaterials }
+          : {}),
+        ...(Number(payload.linkedSaleId) > 0
+          ? { linkedSaleId: Number(payload.linkedSaleId) }
+          : {}),
+        ...(String(payload.linkedSaleCode ?? "").trim()
+          ? { linkedSaleCode: String(payload.linkedSaleCode).trim() }
+          : {}),
+        ...(Array.isArray(payload.purchasedMaterials)
+          ? { purchasedMaterials: payload.purchasedMaterials }
+          : {}),
+        ...(payload.siteChecklist ? { siteChecklist: payload.siteChecklist } : {}),
       }
     : {
         ...(normalizedScheduledAt ? { scheduledAt: normalizedScheduledAt } : {}),
@@ -292,6 +337,23 @@ export async function createServiceRequest(
         ...(availabilityOptions?.length
           ? { availabilityOptions }
           : {}),
+        ...(payload.requestMode ? { requestMode: payload.requestMode } : {}),
+        ...(payload.technicalReviewStatus
+          ? { technicalReviewStatus: payload.technicalReviewStatus }
+          : {}),
+        ...(typeof payload.alreadyHasMaterials === "boolean"
+          ? { alreadyHasMaterials: payload.alreadyHasMaterials }
+          : {}),
+        ...(Number(payload.linkedSaleId) > 0
+          ? { linkedSaleId: Number(payload.linkedSaleId) }
+          : {}),
+        ...(String(payload.linkedSaleCode ?? "").trim()
+          ? { linkedSaleCode: String(payload.linkedSaleCode).trim() }
+          : {}),
+        ...(Array.isArray(payload.purchasedMaterials)
+          ? { purchasedMaterials: payload.purchasedMaterials }
+          : {}),
+        ...(payload.siteChecklist ? { siteChecklist: payload.siteChecklist } : {}),
       };
 
   try {

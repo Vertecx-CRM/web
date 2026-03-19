@@ -45,6 +45,14 @@ import {
   buildWindowFromLocalSchedule,
   getBusyTechnicianIdsForWindow,
 } from "@/features/dashboard/shared/technicianAvailability";
+import {
+  getInstallationAssessmentExplainer,
+  getQuotedInstallationCopy,
+  getRequestStageLabel,
+  getTechnicalReviewStatusHelp,
+  getTechnicalReviewStatusLabel,
+  isInstallationServiceType,
+} from "@/shared/utils/requestFlow";
 
 type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
 type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
@@ -82,6 +90,40 @@ type ServiceOption = {
   typeofservicename?: string | null;
   stateid?: number | null;
   statename?: string | null;
+};
+
+type PrefilledRequestContext = {
+  serviceRequestId?: number;
+  serviceType?: string;
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION" | null;
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE"
+    | null;
+  direccion?: string | null;
+  description?: string | null;
+  alreadyHasMaterials?: boolean;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: Array<{
+    productId?: number | null;
+    name: string;
+    quantity: number;
+    unitPrice?: number | null;
+    source?: string | null;
+  }>;
+  siteChecklist?: {
+    installationArea?: string | null;
+    installationHeight?: string | null;
+    estimatedCableMeters?: string | null;
+    needsLadder?: "YES" | "NO" | "UNKNOWN" | null;
+    hasPowerPoint?: "YES" | "NO" | "UNKNOWN" | null;
+    hasInternetPoint?: "YES" | "NO" | "UNKNOWN" | null;
+    materialsSummary?: string | null;
+    additionalContext?: string | null;
+    evidenceNotes?: string | null;
+  } | null;
 };
 
 const IVA_PCT = 19;
@@ -472,6 +514,8 @@ const {
   const [quoteLoadingApply, setQuoteLoadingApply] = useState(false);
   const [quoteAppliedKey, setQuoteAppliedKey] = useState<string | null>(null);
   const [quoteApplyError, setQuoteApplyError] = useState<string | null>(null);
+  const [prefilledRequestContext, setPrefilledRequestContext] =
+    useState<PrefilledRequestContext | null>(null);
   const saleToServiceRequestCacheRef = useRef<Map<number, number | null>>(new Map());
   const quotesForLinkingRef = useRef<any[] | null>(null);
 
@@ -1086,6 +1130,7 @@ const {
     setQuoteOpen(false);
     setQuoteApplyError(null);
     setQuoteAppliedKey(null);
+    setPrefilledRequestContext(null);
     quoteInputRef.current?.focus();
   }
 
@@ -1299,13 +1344,18 @@ const {
     setErrors({});
     setTouched({});
     setQuoteAppliedKey(null);
+    setPrefilledRequestContext(null);
     setQuoteQuery("");
     setQuoteOpen(false);
     setCustomerQuery("");
     setCustomerOpen(false);
   }
 
-  function applyNormalizedQuote(nq: QuoteNormalized, key: string) {
+  async function applyNormalizedQuote(
+    nq: QuoteNormalized,
+    key: string,
+    prefilledRequest?: PrefilledRequestContext | null
+  ) {
     const nextClient = nq.clientid && customers.some((c) => c.customerid === nq.clientid) ? nq.clientid : "";
     setClientId(nextClient as any);
 
@@ -1329,34 +1379,53 @@ const {
     setTipoId(typeId);
     // Si la venta/cotizacion viene asociada a una solicitud, precarga el servicio de esa solicitud
     if (nq?.serviceRequestId) {
-      api
-        .get<any>(`/service-requests/${nq.serviceRequestId}`)
-        .then((srRes) => {
-          const sr = (srRes as any)?.data ?? null;
-          const srv = sr?.service ?? null;
-          const srvId = pickNumber(sr?.serviceId, sr?.serviceid, srv?.serviceid);
-          const srvTypeId = pickNumber(srv?.typeofserviceid, srv?.typeOfServiceId, srv?.typeofserviceId);
+      let sr = prefilledRequest ?? null;
+      if (!sr) {
+        try {
+          sr =
+            (((await api.get<any>(`/service-requests/${nq.serviceRequestId}`)) as any)
+              ?.data as PrefilledRequestContext | null) ?? null;
+        } catch {
+          sr = null;
+        }
+      }
+      setPrefilledRequestContext(sr ?? null);
+      if (sr) {
+        const srv = (sr as any)?.service ?? null;
+        const srvId = pickNumber((sr as any)?.serviceId, (sr as any)?.serviceid, srv?.serviceid);
+        const srvTypeId = pickNumber(
+          srv?.typeofserviceid,
+          srv?.typeOfServiceId,
+          srv?.typeofserviceId
+        );
 
-          if (typeof srvTypeId === "number") setTipoId(srvTypeId);
+        if (typeof srvTypeId === "number") setTipoId(srvTypeId);
 
-          const name = String(srv?.name ?? "").trim();
-          const price = pickNumber(srv?.servicepriceofsale, srv?.serviceprice, srv?.price, srv?.precio) ?? 0;
+        const name = String(srv?.name ?? "").trim();
+        const price =
+          pickNumber(
+            srv?.servicepriceofsale,
+            srv?.serviceprice,
+            srv?.price,
+            srv?.precio
+          ) ?? 0;
 
-          if (srvId && name) {
-            setServicios((prev) => {
-              const exists = prev.some((x: any) => pickNumber(x?.serviceid, x?.id) === srvId);
-              if (exists) return prev;
-              return [
-                ...prev,
-                { id: `sr-${srvId}`, nombre: name, precio: price, tipoId: srvTypeId ?? typeId },
-              ];
-            });
-          }
-        })
-        .catch(() => {});
+        if (srvId && name) {
+          setServicios((prev) => {
+            const exists = prev.some(
+              (x: any) => pickNumber(x?.serviceid, x?.id) === srvId
+            );
+            if (exists) return prev;
+            return [
+              ...prev,
+              { id: `sr-${srvId}`, nombre: name, precio: price, tipoId: srvTypeId ?? typeId },
+            ];
+          });
+        }
+      }
+    } else {
+      setPrefilledRequestContext(null);
     }
-
-
 
     const techSet = new Set<number>();
     for (const id of nq.technicians || []) {
@@ -1604,13 +1673,22 @@ const {
 
         const nq = normalizeQuote(raw);
         const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        let requestData: PrefilledRequestContext | null = null;
         if (srId) {
           nq.serviceRequestId = srId;
           nq.servicerequestid = srId;
+          try {
+            requestData =
+              (((await api.get<any>(`/service-requests/${srId}`)) as any)?.data as
+                | PrefilledRequestContext
+                | null) ?? null;
+          } catch {
+            requestData = null;
+          }
         }
         if (cancelled) return;
 
-        applyNormalizedQuote(nq, keyFromUrl);
+        await applyNormalizedQuote(nq, keyFromUrl, requestData);
         if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.message || "Error cargando cotizacion.";
@@ -1665,12 +1743,21 @@ const {
       try {
         const nq = normalizeQuote(raw);
         const srId = await resolveServiceRequestIdFromSale(raw, nq);
+        let requestData: PrefilledRequestContext | null = null;
         if (srId) {
           nq.serviceRequestId = srId;
           nq.servicerequestid = srId;
+          try {
+            requestData =
+              (((await api.get<any>(`/service-requests/${srId}`)) as any)?.data as
+                | PrefilledRequestContext
+                | null) ?? null;
+          } catch {
+            requestData = null;
+          }
         }
         if (cancelled) return;
-        applyNormalizedQuote(nq, key);
+        await applyNormalizedQuote(nq, key, requestData);
       } catch (e: any) {
         if (cancelled) return;
         const msg = e?.response?.data?.message || e?.message || "Error aplicando cotizacion.";
@@ -1940,6 +2027,18 @@ setNavigating(true);
   const timeMin = "07:00";
   const timeMax = "17:00";
   const showPrefillBanner = !!quoteAppliedKey;
+  const prefilledRequestStageLabel = getRequestStageLabel(
+    prefilledRequestContext?.serviceType ?? "",
+    prefilledRequestContext?.requestMode ?? undefined,
+  );
+  const prefilledReviewLabel = getTechnicalReviewStatusLabel(
+    prefilledRequestContext?.technicalReviewStatus ?? undefined,
+  );
+  const prefilledIsInstallationFlow = isInstallationServiceType(
+    prefilledRequestContext?.serviceType ?? "",
+  );
+  const prefilledIsDirectInstallation =
+    prefilledRequestContext?.requestMode === "DIRECT_INSTALLATION";
 
   return (
     <RequireAuth>
@@ -2052,6 +2151,143 @@ setNavigating(true);
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
                   {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando cotizacion al formulario...</div>}
                   {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Cotizacion aplicada al formulario.</div>}
+                  {showPrefillBanner && !quoteLoadingApply && prefilledRequestContext && (
+                    <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                          Solicitud tecnica vinculada
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">
+                          {prefilledRequestStageLabel}
+                        </p>
+                        {prefilledIsInstallationFlow && (
+                          <p className="mt-1 text-xs text-slate-700">
+                            {prefilledIsDirectInstallation
+                              ? getQuotedInstallationCopy(
+                                  prefilledRequestContext?.requestMode
+                                )
+                              : getInstallationAssessmentExplainer()}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="rounded-lg border border-sky-200 bg-white p-3 text-sm text-slate-700">
+                          <p>
+                            <span className="font-medium">Solicitud:</span>{" "}
+                            #{prefilledRequestContext.serviceRequestId ?? "-"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Direccion:</span>{" "}
+                            {prefilledRequestContext.direccion || "-"}
+                          </p>
+                          <p>
+                            <span className="font-medium">Venta vinculada:</span>{" "}
+                            {prefilledRequestContext.linkedSaleCode || "-"}
+                          </p>
+                          {prefilledIsDirectInstallation && (
+                            <p>
+                              <span className="font-medium">Revision tecnica:</span>{" "}
+                              {prefilledReviewLabel}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border border-sky-200 bg-white p-3 text-sm text-slate-700">
+                          <p className="font-medium text-slate-900">
+                            Observaciones del sitio
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                            {prefilledRequestContext.description || "Sin descripcion adicional."}
+                          </p>
+                          {prefilledIsDirectInstallation && (
+                            <p className="mt-2 text-[11px] text-slate-600">
+                              {getTechnicalReviewStatusHelp(
+                                prefilledRequestContext.technicalReviewStatus
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {prefilledIsDirectInstallation && (
+                        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div className="rounded-lg border border-sky-200 bg-white p-3 text-sm text-slate-700">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Checklist del cliente
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              <p>
+                                <span className="font-medium">Zona:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.installationArea || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Altura:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.installationHeight || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Cable estimado:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.estimatedCableMeters || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Escalera:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.needsLadder || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Energia:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.hasPowerPoint || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Internet/red:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.hasInternetPoint || "-"}
+                              </p>
+                              <p>
+                                <span className="font-medium">Contexto:</span>{" "}
+                                {prefilledRequestContext.siteChecklist?.additionalContext || "-"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-sky-200 bg-white p-3 text-sm text-slate-700">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                              Materiales ya comprados
+                            </p>
+                            <p className="mt-2 text-xs text-slate-600">
+                              {prefilledRequestContext.alreadyHasMaterials
+                                ? "El cliente indico que ya cuenta con materiales o equipos."
+                                : "El cliente no confirmo materiales propios."}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-600">
+                              {prefilledRequestContext.siteChecklist?.materialsSummary ||
+                                "Sin resumen manual de materiales."}
+                            </p>
+                            <div className="mt-3 space-y-2">
+                              {prefilledRequestContext.purchasedMaterials?.length ? (
+                                prefilledRequestContext.purchasedMaterials.map((item, index) => (
+                                  <div
+                                    key={`${item.productId ?? item.name}-${index}`}
+                                    className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2"
+                                  >
+                                    <p className="font-medium text-slate-900">{item.name}</p>
+                                    <p className="text-xs text-slate-600">
+                                      Cantidad: {item.quantity}
+                                      {item.unitPrice != null
+                                        ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-xs text-slate-600">
+                                  No hay materiales comprados vinculados a esta solicitud.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-3">

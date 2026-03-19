@@ -11,12 +11,17 @@ import {
 import {
   formatRequestAvailabilityLabel,
   normalizeRequestAvailabilityOptions,
+  type RequestPurchasedMaterial,
+  type RequestSiteChecklist,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
 import {
+  getDirectInstallationExplainer,
+  getInstallationModeOptions,
   getInstallationAssessmentExplainer,
   getRequestStageLabel,
   isInstallationServiceType,
+  normalizeRequestMode,
 } from "@/shared/utils/requestFlow";
 
 export type CreateRequestPayload = {
@@ -29,6 +34,17 @@ export type CreateRequestPayload = {
   serviceId: number;
   clientId: number;
   availabilityOptions?: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
 };
 
 type ServiceOption = Option & {
@@ -65,9 +81,24 @@ type ErrorKey =
   | "customServiceName"
   | "description"
   | "direccion"
-  | "availabilityOptions";
+  | "availabilityOptions"
+  | "siteChecklist";
 type Errors = Partial<Record<ErrorKey, string | null>>;
 type Touched = Partial<Record<ErrorKey, boolean>>;
+
+const INSTALLATION_MODE_OPTIONS = getInstallationModeOptions();
+
+const EMPTY_SITE_CHECKLIST: RequestSiteChecklist = {
+  installationArea: "",
+  installationHeight: "",
+  estimatedCableMeters: "",
+  needsLadder: "UNKNOWN",
+  hasPowerPoint: "UNKNOWN",
+  hasInternetPoint: "UNKNOWN",
+  materialsSummary: "",
+  additionalContext: "",
+  evidenceNotes: "",
+};
 
 const SCHEDULE_MIN = 7 * 60;
 const SCHEDULE_MAX = 17 * 60;
@@ -130,6 +161,12 @@ export default function ClientCreateRequestModal({
   const [customServiceName, setCustomServiceName] = useState("");
   const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [requestMode, setRequestMode] = useState<
+    "ASSESSMENT" | "DIRECT_INSTALLATION"
+  >("ASSESSMENT");
+  const [alreadyHasMaterials, setAlreadyHasMaterials] = useState(false);
+  const [siteChecklist, setSiteChecklist] =
+    useState<RequestSiteChecklist>(EMPTY_SITE_CHECKLIST);
   const [availabilityOptions, setAvailabilityOptions] = useState<RequestAvailabilityOption[]>([]);
   const [availabilityDate, setAvailabilityDate] = useState("");
   const [availabilityStartTime, setAvailabilityStartTime] = useState("");
@@ -177,7 +214,16 @@ export default function ClientCreateRequestModal({
   );
   const effectiveServiceType = selectedType?.code ?? initial?.serviceType ?? "";
   const isInstallationFlow = isInstallationServiceType(effectiveServiceType);
-  const requestStageLabel = getRequestStageLabel(effectiveServiceType);
+  const requestStageLabel = getRequestStageLabel(effectiveServiceType, requestMode);
+  const isDirectInstallation = isInstallationFlow && requestMode === "DIRECT_INSTALLATION";
+
+  function updateSiteChecklistField<K extends keyof RequestSiteChecklist>(
+    key: K,
+    value: RequestSiteChecklist[K]
+  ) {
+    markTouched("siteChecklist");
+    setSiteChecklist((prev) => ({ ...prev, [key]: value }));
+  }
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     if (!serviceTypeId) return finalServicios;
@@ -222,6 +268,36 @@ export default function ClientCreateRequestModal({
     return value.length ? null : "Agrega al menos una opcion de disponibilidad.";
   }
 
+  function validateSiteChecklistValue(value: RequestSiteChecklist) {
+    if (!isDirectInstallation) return null;
+
+    if (String(value.installationArea ?? "").trim().length < 3) {
+      return "Describe en que zona o espacio se instalara el equipo.";
+    }
+    if (String(value.installationHeight ?? "").trim().length < 2) {
+      return "Indica la altura aproximada de instalacion.";
+    }
+    if (String(value.estimatedCableMeters ?? "").trim().length < 1) {
+      return "Indica los metros aproximados de cable.";
+    }
+    if (!value.needsLadder || value.needsLadder === "UNKNOWN") {
+      return "Indica si se requiere escalera o acceso especial.";
+    }
+    if (!value.hasPowerPoint || value.hasPowerPoint === "UNKNOWN") {
+      return "Indica si hay punto de energia disponible.";
+    }
+    if (!value.hasInternetPoint || value.hasInternetPoint === "UNKNOWN") {
+      return "Indica si hay punto de red o conectividad disponible.";
+    }
+    if (
+      alreadyHasMaterials &&
+      String(value.materialsSummary ?? "").trim().length < 3
+    ) {
+      return "Resume los materiales que ya tienes para la instalacion.";
+    }
+    return null;
+  }
+
   const errors: Errors = useMemo(() => {
     const next: Errors = {};
     next.tipo = validateTipo(serviceTypeId);
@@ -233,6 +309,7 @@ export default function ClientCreateRequestModal({
     next.description = validateDescription(description);
     next.direccion = validateDireccion(direccion);
     next.availabilityOptions = validateAvailabilityOptions(availabilityOptions);
+    next.siteChecklist = validateSiteChecklistValue(siteChecklist);
     return next;
   }, [
     serviceTypeId,
@@ -242,6 +319,9 @@ export default function ClientCreateRequestModal({
     description,
     direccion,
     availabilityOptions,
+    siteChecklist,
+    alreadyHasMaterials,
+    isDirectInstallation,
   ]);
 
   function markTouched(key: ErrorKey) {
@@ -265,6 +345,9 @@ export default function ClientCreateRequestModal({
     setCustomServiceName("");
     setDescription("");
     setDireccion(initialDireccion ?? "");
+    setRequestMode("ASSESSMENT");
+    setAlreadyHasMaterials(false);
+    setSiteChecklist(EMPTY_SITE_CHECKLIST);
     setAvailabilityOptions([]);
     resetDraftAvailability();
     setTouched({});
@@ -339,6 +422,10 @@ export default function ClientCreateRequestModal({
     const initialAvailability = normalizeRequestAvailabilityOptions(
       initial?.availabilityOptions
     );
+    const initialRequestMode =
+      normalizeRequestMode(initial?.requestMode) === "DIRECT_INSTALLATION"
+        ? "DIRECT_INSTALLATION"
+        : "ASSESSMENT";
     const initialService =
       Number(initial?.serviceId ?? initialServiceId ?? 0) > 0
         ? Number(initial?.serviceId ?? initialServiceId ?? 0)
@@ -349,6 +436,21 @@ export default function ClientCreateRequestModal({
     setCustomServiceName("");
     setDescription(String(initial?.description ?? "").trim());
     setDireccion(String(initial?.direccion ?? initialDireccion ?? ""));
+    setRequestMode(initialRequestMode);
+    setAlreadyHasMaterials(Boolean(initial?.alreadyHasMaterials));
+    setSiteChecklist({
+      ...EMPTY_SITE_CHECKLIST,
+      ...(initial?.siteChecklist ?? {}),
+      needsLadder:
+        initial?.siteChecklist?.needsLadder ??
+        EMPTY_SITE_CHECKLIST.needsLadder,
+      hasPowerPoint:
+        initial?.siteChecklist?.hasPowerPoint ??
+        EMPTY_SITE_CHECKLIST.hasPowerPoint,
+      hasInternetPoint:
+        initial?.siteChecklist?.hasInternetPoint ??
+        EMPTY_SITE_CHECKLIST.hasInternetPoint,
+    });
     setAvailabilityOptions(initialAvailability);
     resetDraftAvailability();
     setTouched({});
@@ -449,6 +551,47 @@ export default function ClientCreateRequestModal({
         serviceId: resolvedServiceId,
         clientId,
         availabilityOptions: availabilityOptions,
+        ...(isInstallationFlow
+          ? {
+              requestMode,
+              technicalReviewStatus:
+                requestMode === "DIRECT_INSTALLATION"
+                  ? ((initial?.technicalReviewStatus as
+                      | "PENDING_REVIEW"
+                      | "ASSESSMENT_REQUIRED"
+                      | "READY_TO_QUOTE"
+                      | undefined) ?? "PENDING_REVIEW")
+                  : "NOT_APPLICABLE",
+              alreadyHasMaterials,
+              siteChecklist:
+                requestMode === "DIRECT_INSTALLATION"
+                  ? {
+                      ...siteChecklist,
+                      installationArea: String(
+                        siteChecklist.installationArea ?? ""
+                      ).trim(),
+                      installationHeight: String(
+                        siteChecklist.installationHeight ?? ""
+                      ).trim(),
+                      estimatedCableMeters: String(
+                        siteChecklist.estimatedCableMeters ?? ""
+                      ).trim(),
+                      materialsSummary: String(
+                        siteChecklist.materialsSummary ?? ""
+                      ).trim(),
+                      additionalContext: String(
+                        siteChecklist.additionalContext ?? ""
+                      ).trim(),
+                      evidenceNotes: String(
+                        siteChecklist.evidenceNotes ?? ""
+                      ).trim(),
+                    }
+                  : null,
+              purchasedMaterials: initial?.purchasedMaterials ?? [],
+              linkedSaleId: initial?.linkedSaleId ?? null,
+              linkedSaleCode: initial?.linkedSaleCode ?? null,
+            }
+          : {}),
       };
 
       const hasProgrammedDate =
@@ -485,6 +628,7 @@ export default function ClientCreateRequestModal({
     <Modal
       title={title}
       isOpen={isOpen}
+      widthClass = "md:max-w-2xl"
       onClose={onClose}
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -517,13 +661,74 @@ export default function ClientCreateRequestModal({
         )}
 
         {isInstallationFlow && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-              {requestStageLabel}
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-amber-900">
-              {getInstallationAssessmentExplainer()}
-            </p>
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+                Modalidad para instalacion
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                Elige si primero quieres asesoria tecnica o si prefieres que revisemos una
+                instalacion directa con la informacion del sitio.
+              </p>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              {INSTALLATION_MODE_OPTIONS.map((option) => {
+                const active = requestMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setRequestMode(option.value);
+                      markTouched("siteChecklist");
+                    }}
+                    className={[
+                      "rounded-xl border px-3 py-3 text-left transition",
+                      active
+                        ? "border-black bg-white shadow-sm"
+                        : "border-gray-300 bg-white hover:border-gray-400",
+                    ].join(" ")}
+                    disabled={saving || loadingLookups}
+                  >
+                    <p className="text-sm font-semibold text-gray-900">
+                      {option.label}
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                      {option.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              className={[
+                "rounded-xl border px-3 py-3",
+                isDirectInstallation
+                  ? "border-sky-200 bg-sky-50"
+                  : "border-amber-200 bg-amber-50",
+              ].join(" ")}
+            >
+              <p
+                className={[
+                  "text-xs font-semibold uppercase tracking-wide",
+                  isDirectInstallation ? "text-sky-800" : "text-amber-800",
+                ].join(" ")}
+              >
+                {requestStageLabel}
+              </p>
+              <p
+                className={[
+                  "mt-1 text-sm leading-relaxed",
+                  isDirectInstallation ? "text-sky-900" : "text-amber-900",
+                ].join(" ")}
+              >
+                {isDirectInstallation
+                  ? getDirectInstallationExplainer()
+                  : getInstallationAssessmentExplainer()}
+              </p>
+            </div>
           </div>
         )}
 
@@ -665,6 +870,196 @@ export default function ClientCreateRequestModal({
           </div>
         </div>
 
+        {isDirectInstallation && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3">
+            <div className="mb-3">
+              <h4 className="text-sm font-semibold text-sky-900">
+                Checklist tecnico para instalacion directa
+              </h4>
+              <p className="mt-1 text-[11px] leading-relaxed text-sky-800">
+                Completa estos datos para que el admin o el tecnico revisen si ya se puede
+                cotizar la instalacion o si primero hace falta una asesoria tecnica.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Zona o punto de instalacion
+                </label>
+                <input
+                  value={siteChecklist.installationArea ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("installationArea", e.target.value)
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. Sala principal, fachada, porton"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Altura aproximada
+                </label>
+                <input
+                  value={siteChecklist.installationHeight ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("installationHeight", e.target.value)
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. 3 metros"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Metros de cable estimados
+                </label>
+                <input
+                  value={siteChecklist.estimatedCableMeters ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("estimatedCableMeters", e.target.value)
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. 15 metros"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2">
+                <input
+                  id="alreadyHasMaterials"
+                  type="checkbox"
+                  checked={alreadyHasMaterials}
+                  onChange={(e) => {
+                    markTouched("siteChecklist");
+                    setAlreadyHasMaterials(e.target.checked);
+                  }}
+                  className="h-4 w-4"
+                />
+                <label
+                  htmlFor="alreadyHasMaterials"
+                  className="text-sm font-medium text-gray-800"
+                >
+                  Ya tengo materiales o equipos comprados
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Requiere escalera
+                </label>
+                <select
+                  value={siteChecklist.needsLadder ?? "UNKNOWN"}
+                  onChange={(e) =>
+                    updateSiteChecklistField(
+                      "needsLadder",
+                      e.target.value as RequestSiteChecklist["needsLadder"]
+                    )
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                >
+                  <option value="UNKNOWN">Selecciona</option>
+                  <option value="YES">Si</option>
+                  <option value="NO">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Tiene punto de energia
+                </label>
+                <select
+                  value={siteChecklist.hasPowerPoint ?? "UNKNOWN"}
+                  onChange={(e) =>
+                    updateSiteChecklistField(
+                      "hasPowerPoint",
+                      e.target.value as RequestSiteChecklist["hasPowerPoint"]
+                    )
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                >
+                  <option value="UNKNOWN">Selecciona</option>
+                  <option value="YES">Si</option>
+                  <option value="NO">No</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Tiene punto de red / internet
+                </label>
+                <select
+                  value={siteChecklist.hasInternetPoint ?? "UNKNOWN"}
+                  onChange={(e) =>
+                    updateSiteChecklistField(
+                      "hasInternetPoint",
+                      e.target.value as RequestSiteChecklist["hasInternetPoint"]
+                    )
+                  }
+                  className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm focus:ring-2 focus:ring-black/15"
+                >
+                  <option value="UNKNOWN">Selecciona</option>
+                  <option value="YES">Si</option>
+                  <option value="NO">No</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Materiales disponibles
+                </label>
+                <textarea
+                  value={siteChecklist.materialsSummary ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("materialsSummary", e.target.value)
+                  }
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. Camara, DVR, cable UTP, conectores, soporte, fuente..."
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Contexto adicional
+                </label>
+                <textarea
+                  value={siteChecklist.additionalContext ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("additionalContext", e.target.value)
+                  }
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. El cable puede pasar por canaleta existente, el techo es alto..."
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-900">
+                  Evidencias o notas
+                </label>
+                <textarea
+                  value={siteChecklist.evidenceNotes ?? ""}
+                  onChange={(e) =>
+                    updateSiteChecklistField("evidenceNotes", e.target.value)
+                  }
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-black/15"
+                  placeholder="Ej. Tengo fotos del sitio, acceso por escalera comun, requiere perforacion..."
+                />
+              </div>
+            </div>
+
+            {shouldShowError("siteChecklist") && errors.siteChecklist && (
+              <p className="mt-2 text-xs text-red-600">{errors.siteChecklist}</p>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">
@@ -695,10 +1090,16 @@ export default function ClientCreateRequestModal({
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-semibold text-gray-900">
-                {isInstallationFlow ? "Disponibilidad para la asesoria" : "Disponibilidad"}
+                {isDirectInstallation
+                  ? "Disponibilidad tentativa para instalacion"
+                  : isInstallationFlow
+                  ? "Disponibilidad para la asesoria"
+                  : "Disponibilidad"}
               </h4>
               <p className="text-[11px] text-gray-500">
-                {isInstallationFlow
+                {isDirectInstallation
+                  ? "Agrega horarios donde podrias recibir la instalacion. Primero revisaremos la informacion tecnica y luego el admin confirmara la fecha real segun agenda y disponibilidad."
+                  : isInstallationFlow
                   ? "Agrega horarios para la asesoria tecnica previa. Con esa visita definiremos materiales y luego se podra cotizar la instalacion."
                   : "Agrega uno o varios horarios donde puedas recibir la visita. El admin vera estas opciones y luego confirmara la cita final segun la agenda de los tecnicos."}
               </p>

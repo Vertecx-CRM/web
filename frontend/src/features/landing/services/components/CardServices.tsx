@@ -140,6 +140,13 @@ export default function CardServices({
       clientId: Number(clientId) || 0,
       technicians: [],
       availabilityOptions: data.availabilityOptions ?? [],
+      requestMode: data.requestMode,
+      technicalReviewStatus: data.technicalReviewStatus,
+      alreadyHasMaterials: data.alreadyHasMaterials,
+      linkedSaleId: data.linkedSaleId ?? null,
+      linkedSaleCode: data.linkedSaleCode ?? null,
+      purchasedMaterials: data.purchasedMaterials ?? [],
+      siteChecklist: data.siteChecklist ?? null,
     };
 
     try {

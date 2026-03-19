@@ -25,8 +25,32 @@ export interface ServiceRequest {
   scheduledAt?: string;
   scheduledEndAt?: string;
   serviceType?: string;
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION" | null;
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE"
+    | null;
   direccion?: string;
   description?: string;
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: Array<{
+    productId?: number | null;
+    name: string;
+    quantity: number;
+    unitPrice?: number | null;
+  }>;
+  siteChecklist?: {
+    installationArea?: string | null;
+    installationHeight?: string | null;
+    estimatedCableMeters?: string | null;
+    materialsSummary?: string | null;
+    additionalContext?: string | null;
+    evidenceNotes?: string | null;
+  } | null;
   createdAt?: string;
   stateId?: number;
   serviceId?: number;

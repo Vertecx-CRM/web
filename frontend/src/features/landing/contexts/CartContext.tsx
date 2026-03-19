@@ -1,6 +1,10 @@
 "use client";
 import { createContext, useContext, useState, ReactNode } from "react";
-import type { RequestAvailabilityOption } from "@/features/dashboard/requests/utils/requestAvailability";
+import type {
+  RequestAvailabilityOption,
+  RequestPurchasedMaterial,
+  RequestSiteChecklist,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 
 export type CartServiceDraft = {
   scheduledAt?: string | null;
@@ -11,6 +15,17 @@ export type CartServiceDraft = {
   stateId?: number;
   serviceId: number;
   availabilityOptions?: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
 };
 
 export type CartItem = {

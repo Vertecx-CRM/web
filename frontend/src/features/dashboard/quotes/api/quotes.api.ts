@@ -67,6 +67,17 @@ const isAvailableRequestForQuote = (request: any, activeRequestIds: Set<number>)
     return false;
   }
 
+  const requestMode = normalizeText(request?.requestMode ?? "");
+  const technicalReviewStatus = normalizeText(
+    request?.technicalReviewStatus ?? ""
+  );
+  if (requestMode.includes("direct")) {
+    const isReadyToQuote =
+      technicalReviewStatus.includes("ready") ||
+      technicalReviewStatus.includes("lista");
+    if (!isReadyToQuote) return false;
+  }
+
   return true;
 };
 

@@ -12,15 +12,19 @@ import ClientCreateRequestModal, {
 import {
   createServiceRequest,
   deleteServiceRequest,
+  updateServiceRequest,
 } from "@/features/dashboard/requests/services/servicerequests.service";
 import {
   createSaleFromAuth,
   createWompiCheckoutSession,
 } from "@/features/dashboard/sales/api/sales.api";
 import {
+  buildDirectInstallationDescription,
   buildPreInstallationAssessmentDescription,
-  getInstallationAssessmentExplainer,
+  getAssessmentFeeLabel,
+  getDirectInstallationExplainer,
   isInstallationServiceType,
+  shouldChargeAssessmentVisit,
 } from "@/shared/utils/requestFlow";
 import {
   useCart,
@@ -170,12 +174,14 @@ function buildSalePayload({
   deliveryAddress,
   deliveryFee,
   serviceVisitFeeTotal,
+  chargeableServiceCount,
 }: {
   cart: CartItem[];
   serviceRequestIds: Map<string, number>;
   deliveryAddress: string;
   deliveryFee: number;
   serviceVisitFeeTotal: number;
+  chargeableServiceCount: number;
 }): SaleFromAuthPayload {
   const subtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -185,7 +191,6 @@ function buildSalePayload({
   const taxpercent = TAX_PERCENT;
   const taxamount = Math.round((subtotal * taxpercent) / 100);
   const shippingamount = deliveryFee + serviceVisitFeeTotal;
-  const serviceRequestsCount = Array.from(serviceRequestIds.values()).length;
 
   return {
     saledate: new Date().toISOString(),
@@ -200,7 +205,7 @@ function buildSalePayload({
     salestatus: "Pending",
     notes: `Venta creada desde carrito. Direccion de entrega: ${deliveryAddress}. Envio: $${deliveryFee.toLocaleString(
       "es-CO",
-    )}. Asesorias tecnicas previas: ${serviceRequestsCount} por $${serviceVisitFeeTotal.toLocaleString(
+    )}. Asesorias tecnicas previas cobradas: ${chargeableServiceCount} por $${serviceVisitFeeTotal.toLocaleString(
       "es-CO",
     )}.`,
     details: cart.map((item) => {
@@ -215,6 +220,16 @@ function buildSalePayload({
       };
     }),
   };
+}
+
+function buildPurchasedMaterialsFromCart(cart: CartItem[]) {
+  return cart.map((item) => ({
+    productId: Number(item.id),
+    name: item.name,
+    quantity: item.quantity,
+    unitPrice: item.price,
+    source: "Compra del carrito",
+  }));
 }
 
 function submitWompiWebCheckout(session: Record<string, any>) {
@@ -421,11 +436,18 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
     (item) => !item.serviceDraft,
   );
   const hasSelectedService = selectedServiceItems.length > 0;
+  const chargeableServiceItems = configuredServiceItems.filter((item) =>
+    shouldChargeAssessmentVisit(
+      item.serviceDraft?.serviceType,
+      item.serviceDraft?.requestMode,
+    ),
+  );
   const productsSubtotal = cart.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
-  const serviceVisitFeeTotal = selectedServiceItems.length * SERVICE_VISIT_FEE;
+  const serviceVisitFeeTotal =
+    chargeableServiceItems.length * SERVICE_VISIT_FEE;
   const taxAmount = Math.round((productsSubtotal * TAX_PERCENT) / 100);
   const checkoutTotal =
     productsSubtotal + DELIVERY_FEE + taxAmount + serviceVisitFeeTotal;
@@ -527,6 +549,11 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
     const createdRequestIds = new Map<string, number>();
     const createdRequestOrder: number[] = [];
+    const createdRequestDrafts: Array<{
+      requestId: number;
+      itemId: string;
+      draft: CartServiceDraft;
+    }> = [];
     let createdSaleId: number | null = null;
 
     try {
@@ -534,17 +561,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
       for (const item of configuredServiceItems) {
         const draft = item.serviceDraft as CartServiceDraft;
-        const isInstallationAssessment = isInstallationServiceType(
-          draft.serviceType,
-        );
+        const isInstallationRequest = isInstallationServiceType(draft.serviceType);
+        const isAssessmentRequest =
+          !isInstallationRequest || draft.requestMode !== "DIRECT_INSTALLATION";
+        const purchasedMaterials = isInstallationRequest
+          ? buildPurchasedMaterialsFromCart(cart)
+          : [];
         const createdRequest = await createServiceRequest({
           scheduledAt: draft.scheduledAt ?? null,
           scheduledEndAt: draft.scheduledEndAt ?? null,
           serviceType: draft.serviceType as any,
-          description: isInstallationAssessment
+          description: isInstallationRequest
+            ? isAssessmentRequest
             ? buildPreInstallationAssessmentDescription(
                 draft.description,
                 `Producto asociado: ${item.name}`,
+              )
+            : buildDirectInstallationDescription(
+                draft.description,
+                `Producto principal: ${item.name}`,
               )
             : [draft.description, `Producto asociado: ${item.name}`]
                 .filter(Boolean)
@@ -553,6 +588,15 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           stateId: Number(draft.stateId ?? 5),
           serviceId: Number(draft.serviceId),
           availabilityOptions: draft.availabilityOptions ?? [],
+          requestMode: draft.requestMode,
+          technicalReviewStatus: draft.technicalReviewStatus,
+          alreadyHasMaterials:
+            draft.alreadyHasMaterials ?? purchasedMaterials.length > 0,
+          purchasedMaterials:
+            draft.purchasedMaterials?.length
+              ? draft.purchasedMaterials
+              : purchasedMaterials,
+          siteChecklist: draft.siteChecklist ?? null,
         });
 
         const requestId = getServiceRequestNumericId(createdRequest);
@@ -564,6 +608,17 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
         createdRequestIds.set(String(item.id), requestId);
         createdRequestOrder.push(requestId);
+        createdRequestDrafts.push({
+          requestId,
+          itemId: String(item.id),
+          draft: {
+            ...draft,
+            purchasedMaterials:
+              draft.purchasedMaterials?.length
+                ? draft.purchasedMaterials
+                : purchasedMaterials,
+          },
+        });
       }
 
       const salePayload = buildSalePayload({
@@ -572,6 +627,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
         deliveryAddress: fullAddress,
         deliveryFee: DELIVERY_FEE,
         serviceVisitFeeTotal,
+        chargeableServiceCount: chargeableServiceItems.length,
       });
 
       const createdSale = await createSaleFromAuth(salePayload);
@@ -579,6 +635,22 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
       if (!Number.isFinite(createdSaleId) || createdSaleId <= 0) {
         throw new Error("La venta fue creada, pero no se pudo obtener su identificador.");
       }
+      const createdSaleCode =
+        String((createdSale as any)?.salecode ?? "").trim() || null;
+
+      await Promise.allSettled(
+        createdRequestDrafts.map(({ requestId, draft }) =>
+          updateServiceRequest(requestId, {
+            requestMode: draft.requestMode,
+            technicalReviewStatus: draft.technicalReviewStatus,
+            alreadyHasMaterials: draft.alreadyHasMaterials,
+            linkedSaleId: createdSaleId,
+            linkedSaleCode: createdSaleCode,
+            purchasedMaterials: draft.purchasedMaterials ?? [],
+            siteChecklist: draft.siteChecklist ?? null,
+          }),
+        ),
+      );
 
       const redirectUrl = `${window.location.origin}/payments/register?saleId=${createdSaleId}`;
       const wompiSession = await createWompiCheckoutSession(createdSaleId, {
@@ -848,7 +920,16 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
                                   {item.service && (
                                     <span className="text-[11px] font-medium text-gray-500">
-                                      Asesoria tecnica: ${SERVICE_VISIT_FEE.toLocaleString("es-CO")}
+                                      {getAssessmentFeeLabel(
+                                        item.serviceDraft?.serviceType ?? "INSTALACION",
+                                        item.serviceDraft?.requestMode,
+                                      )}
+                                      {shouldChargeAssessmentVisit(
+                                        item.serviceDraft?.serviceType ?? "INSTALACION",
+                                        item.serviceDraft?.requestMode,
+                                      )
+                                        ? `: $${SERVICE_VISIT_FEE.toLocaleString("es-CO")}`
+                                        : " sin cobro inicial"}
                                     </span>
                                   )}
 
@@ -1167,7 +1248,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               </p>
               <p className="flex justify-between text-base">
                 <span className="font-medium">
-                  Asesoria tecnica previa ({selectedServiceItems.length}):
+                  Visitas / asesorias cobradas ({chargeableServiceItems.length}):
                 </span>
                 <span>${serviceVisitFeeTotal.toLocaleString("es-CO")}</span>
               </p>
@@ -1214,12 +1295,12 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                     </p>
                     {hasSelectedService && (
                       <p className="text-xs font-medium text-red-700">
-                        Cada servicio agregado suma ${SERVICE_VISIT_FEE.toLocaleString("es-CO")} por asesoria tecnica previa.
+                        Solo se cobra ${SERVICE_VISIT_FEE.toLocaleString("es-CO")} cuando la solicitud requiere asesoria tecnica previa.
                       </p>
                     )}
                     {hasSelectedService && (
                       <p className="text-xs text-gray-600">
-                        {getInstallationAssessmentExplainer()}
+                        {getDirectInstallationExplainer()}
                       </p>
                     )}
                   </div>
@@ -1244,7 +1325,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                 {isPurchasing
                   ? "Preparando checkout..."
                   : hasSelectedService
-                    ? "Comprar y pagar asesoria"
+                    ? "Comprar y continuar al pago"
                     : "Comprar y pagar"}
               </button>
             </div>
@@ -1271,18 +1352,27 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               stateId: Number(payload.stateId ?? 5),
               serviceId: Number(payload.serviceId),
               availabilityOptions: payload.availabilityOptions ?? [],
+              requestMode: payload.requestMode,
+              technicalReviewStatus: payload.technicalReviewStatus,
+              alreadyHasMaterials: payload.alreadyHasMaterials,
+              linkedSaleId: payload.linkedSaleId ?? null,
+              linkedSaleCode: payload.linkedSaleCode ?? null,
+              purchasedMaterials: payload.purchasedMaterials ?? [],
+              siteChecklist: payload.siteChecklist ?? null,
             };
 
             saveServiceDraft(selectedCartItemId, draft);
             showSuccess(
-              "Asesoria tecnica agregada al producto. Ya puedes finalizar la compra.",
+              draft.requestMode === "DIRECT_INSTALLATION"
+                ? "Instalacion directa agregada al producto. Tu solicitud quedara en revision tecnica antes de cotizar."
+                : "Asesoria tecnica agregada al producto. Ya puedes finalizar la compra.",
             );
             resetServiceModal();
           }}
           title={
             selectedCartItem
-              ? `Asesoria tecnica para ${selectedCartItem.name}`
-              : "Solicitar asesoria tecnica"
+              ? `Servicio tecnico para ${selectedCartItem.name}`
+              : "Solicitar servicio tecnico"
           }
           clientId={authUser.userid}
           clientLabel={authUser.name}
@@ -1290,6 +1380,25 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           initialDireccion={
             selectedCartItem?.serviceDraft?.direccion ?? fullAddress
           }
+          initial={{
+            serviceType: selectedCartItem?.serviceDraft?.serviceType,
+            serviceId: selectedCartItem?.serviceDraft?.serviceId ?? undefined,
+            description: selectedCartItem?.serviceDraft?.description ?? "",
+            direccion: selectedCartItem?.serviceDraft?.direccion ?? fullAddress,
+            availabilityOptions:
+              selectedCartItem?.serviceDraft?.availabilityOptions ?? [],
+            requestMode: selectedCartItem?.serviceDraft?.requestMode,
+            technicalReviewStatus:
+              selectedCartItem?.serviceDraft?.technicalReviewStatus,
+            alreadyHasMaterials:
+              selectedCartItem?.serviceDraft?.alreadyHasMaterials,
+            siteChecklist: selectedCartItem?.serviceDraft?.siteChecklist ?? null,
+            purchasedMaterials:
+              selectedCartItem?.serviceDraft?.purchasedMaterials ?? [],
+            linkedSaleId: selectedCartItem?.serviceDraft?.linkedSaleId ?? null,
+            linkedSaleCode:
+              selectedCartItem?.serviceDraft?.linkedSaleCode ?? null,
+          }}
         />
       )}
     </div>

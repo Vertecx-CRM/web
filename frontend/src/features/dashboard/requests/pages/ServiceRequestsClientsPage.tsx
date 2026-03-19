@@ -14,6 +14,8 @@ import ClientRequestModal, {
 import { useLookups } from "@/features/dashboard/requests/hooks/useLookups";
 import {
   parseRequestDescriptionWithAvailability,
+  type RequestPurchasedMaterial,
+  type RequestSiteChecklist,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
 import { getRequestStageLabel } from "@/shared/utils/requestFlow";
@@ -38,6 +40,17 @@ type Row = {
   direccion: string;
   descripcion: string;
   availabilityOptions: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
   estado: string;
   estadoKey: EstadoKey;
   programada?: string | null;
@@ -156,6 +169,23 @@ function toRow(r: ServiceRequestDTO): Row {
   const apiAvailability = Array.isArray(anyR?.clientAvailabilityOptions)
     ? anyR.clientAvailabilityOptions
     : [];
+  const flowMetadata = parsedDescription.flowMetadata;
+  const requestMode =
+    (anyR?.requestMode as "ASSESSMENT" | "DIRECT_INSTALLATION" | undefined) ??
+    (flowMetadata?.requestMode as "ASSESSMENT" | "DIRECT_INSTALLATION" | undefined);
+  const technicalReviewStatus =
+    (anyR?.technicalReviewStatus as
+      | "NOT_APPLICABLE"
+      | "PENDING_REVIEW"
+      | "ASSESSMENT_REQUIRED"
+      | "READY_TO_QUOTE"
+      | undefined) ??
+    (flowMetadata?.technicalReviewStatus as
+      | "NOT_APPLICABLE"
+      | "PENDING_REVIEW"
+      | "ASSESSMENT_REQUIRED"
+      | "READY_TO_QUOTE"
+      | undefined);
 
   return {
     id,
@@ -163,7 +193,10 @@ function toRow(r: ServiceRequestDTO): Row {
     clienteId: toPositiveId(anyR?.clientId ?? anyR?.customer?.customerid ?? anyR?.customer?.id) ?? undefined,
     servicio: String(anyR?.service?.name ?? anyR?.service?.servicename ?? "-"),
     serviceId: toPositiveId(anyR?.service?.serviceid ?? anyR?.serviceId ?? anyR?.service?.id) ?? undefined,
-    tipo: mapTipo(anyR?.serviceType ?? anyR?.servicetype ?? null),
+    tipo: getRequestStageLabel(
+      anyR?.serviceType ?? anyR?.servicetype ?? null,
+      requestMode,
+    ),
     fecha: formatDate(anyR?.createdAt ?? anyR?.createdat ?? null),
     direccion: String(anyR?.direccion ?? anyR?.address ?? anyR?.customer?.customercity ?? "-"),
     descripcion: parsedDescription.descriptionPlain,
@@ -171,6 +204,24 @@ function toRow(r: ServiceRequestDTO): Row {
       apiAvailability.length > 0
         ? apiAvailability
         : parsedDescription.availabilityOptions,
+    requestMode,
+    technicalReviewStatus,
+    alreadyHasMaterials:
+      Boolean(anyR?.alreadyHasMaterials) ||
+      Boolean(flowMetadata?.alreadyHasMaterials),
+    linkedSaleId:
+      toPositiveId(anyR?.linkedSaleId ?? flowMetadata?.linkedSaleId) ?? null,
+    linkedSaleCode:
+      String(anyR?.linkedSaleCode ?? flowMetadata?.linkedSaleCode ?? "").trim() ||
+      null,
+    purchasedMaterials:
+      (Array.isArray(anyR?.purchasedMaterials)
+        ? anyR.purchasedMaterials
+        : flowMetadata?.purchasedMaterials) ?? [],
+    siteChecklist:
+      (anyR?.siteChecklist as RequestSiteChecklist | undefined) ??
+      flowMetadata?.siteChecklist ??
+      null,
     estado: estadoApi || mapEstadoKey(estadoApi),
     estadoKey: mapEstadoKey(estadoApi),
     programada: String(anyR?.scheduledAt ?? anyR?.scheduledat ?? "") || null,
@@ -295,6 +346,13 @@ export default function ServiceRequestsClientsPage() {
         clientId: Number(values.clientId),
         technicians: [],
         availabilityOptions: values.availabilityOptions ?? [],
+        requestMode: values.requestMode,
+        technicalReviewStatus: values.technicalReviewStatus,
+        alreadyHasMaterials: values.alreadyHasMaterials,
+        linkedSaleId: values.linkedSaleId ?? null,
+        linkedSaleCode: values.linkedSaleCode ?? null,
+        purchasedMaterials: values.purchasedMaterials ?? [],
+        siteChecklist: values.siteChecklist ?? null,
       } as any);
       setOpenCreate(false);
       await loadData();
@@ -316,6 +374,16 @@ export default function ServiceRequestsClientsPage() {
         description: String(values.description ?? selected.descripcion ?? "").trim(),
         direccion: String(values.direccion ?? selected.direccion ?? "").trim(),
         availabilityOptions: values.availabilityOptions ?? selected.availabilityOptions ?? [],
+        requestMode: values.requestMode ?? selected.requestMode,
+        technicalReviewStatus:
+          values.technicalReviewStatus ?? selected.technicalReviewStatus,
+        alreadyHasMaterials:
+          values.alreadyHasMaterials ?? selected.alreadyHasMaterials,
+        linkedSaleId: values.linkedSaleId ?? selected.linkedSaleId ?? null,
+        linkedSaleCode: values.linkedSaleCode ?? selected.linkedSaleCode ?? null,
+        purchasedMaterials:
+          values.purchasedMaterials ?? selected.purchasedMaterials ?? [],
+        siteChecklist: values.siteChecklist ?? selected.siteChecklist ?? null,
       };
 
       const serviceId = Number(values.serviceId ?? selected.serviceId ?? 0);
@@ -585,6 +653,13 @@ export default function ServiceRequestsClientsPage() {
             description: selected.descripcion ?? "",
             direccion: selected.direccion ?? "",
             availabilityOptions: selected.availabilityOptions ?? [],
+            requestMode: selected.requestMode,
+            technicalReviewStatus: selected.technicalReviewStatus,
+            alreadyHasMaterials: selected.alreadyHasMaterials,
+            linkedSaleId: selected.linkedSaleId ?? null,
+            linkedSaleCode: selected.linkedSaleCode ?? null,
+            purchasedMaterials: selected.purchasedMaterials ?? [],
+            siteChecklist: selected.siteChecklist ?? null,
           }}
           submitLabel="Actualizar"
           servicios={serviceOptions}

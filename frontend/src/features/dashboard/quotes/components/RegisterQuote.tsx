@@ -8,6 +8,8 @@ import { showError, showSuccess } from "@/shared/utils/notifications";
 import { getServicesRequestsForQuote } from "../api/quotes.api";
 import { QuoteCreatePayload } from "../types/Quote.type";
 import {
+  getQuotedInstallationCopy,
+  getTechnicalReviewStatusLabel,
   getInstallationAssessmentExplainer,
   getRequestStageLabel,
   isInstallationServiceType,
@@ -18,6 +20,26 @@ type ServiceRequestFromApi = {
   serviceType: string;
   description?: string | null;
   direccion?: string | null;
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION" | null;
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE"
+    | null;
+  alreadyHasMaterials?: boolean;
+  purchasedMaterials?: Array<{
+    productId?: number | null;
+    name: string;
+    quantity: number;
+    unitPrice?: number | null;
+  }>;
+  siteChecklist?: {
+    installationArea?: string | null;
+    installationHeight?: string | null;
+    estimatedCableMeters?: string | null;
+    materialsSummary?: string | null;
+  } | null;
   customer?: {
     customerid?: number;
     users?: {
@@ -386,6 +408,10 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       : "";
   const selectedRequestStageLabel = getRequestStageLabel(
     selectedServiceRequest?.serviceType ?? "",
+    selectedServiceRequest?.requestMode ?? undefined,
+  );
+  const selectedReviewStatus = getTechnicalReviewStatusLabel(
+    selectedServiceRequest?.technicalReviewStatus ?? undefined,
   );
   const isInstallationAssessment = isInstallationServiceType(
     selectedServiceRequest?.serviceType ?? "",
@@ -410,7 +436,11 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
             return (
               <option key={request.serviceRequestId} value={request.serviceRequestId}>
-                #{request.serviceRequestId} - {label} - {getRequestStageLabel(request.serviceType)}
+                #{request.serviceRequestId} - {label} -{" "}
+                {getRequestStageLabel(
+                  request.serviceType,
+                  request.requestMode ?? undefined,
+                )}
               </option>
             );
           })}
@@ -425,7 +455,17 @@ export default function RegisterQuoteForm({ onSave }: Props) {
           <h3 className="font-bold text-gray-700">Informacion de la solicitud base</h3>
           {isInstallationAssessment && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <strong>{selectedRequestStageLabel}:</strong> {getInstallationAssessmentExplainer()}
+              <strong>{selectedRequestStageLabel}:</strong>{" "}
+              {selectedServiceRequest?.requestMode === "DIRECT_INSTALLATION"
+                ? getQuotedInstallationCopy(selectedServiceRequest?.requestMode)
+                : getInstallationAssessmentExplainer()}
+            </div>
+          )}
+          {selectedServiceRequest?.requestMode === "DIRECT_INSTALLATION" && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+              <strong>Revision tecnica:</strong> {selectedReviewStatus}
+              <br />
+              {getQuotedInstallationCopy(selectedServiceRequest?.requestMode)}
             </div>
           )}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -459,6 +499,51 @@ export default function RegisterQuoteForm({ onSave }: Props) {
               {selectedServiceRequest.description ?? "Sin descripcion"}
             </p>
           </div>
+          {selectedServiceRequest?.requestMode === "DIRECT_INSTALLATION" && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded bg-white p-3 text-sm text-gray-700">
+                <div className="mb-1 text-xs text-gray-500">Checklist del sitio</div>
+                <p>
+                  Zona: {selectedServiceRequest.siteChecklist?.installationArea || "-"}
+                </p>
+                <p>
+                  Altura: {selectedServiceRequest.siteChecklist?.installationHeight || "-"}
+                </p>
+                <p>
+                  Cable estimado: {selectedServiceRequest.siteChecklist?.estimatedCableMeters || "-"}
+                </p>
+                <p className="mt-2">
+                  Materiales reportados: {selectedServiceRequest.siteChecklist?.materialsSummary || "-"}
+                </p>
+              </div>
+
+              <div className="rounded bg-white p-3 text-sm text-gray-700">
+                <div className="mb-1 text-xs text-gray-500">
+                  Materiales ya comprados por el cliente
+                </div>
+                {selectedServiceRequest.purchasedMaterials?.length ? (
+                  <div className="space-y-2">
+                    {selectedServiceRequest.purchasedMaterials.map((item, index) => (
+                      <div
+                        key={`${item.productId ?? item.name}-${index}`}
+                        className="rounded border border-gray-200 bg-gray-50 px-3 py-2"
+                      >
+                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500">
+                          Cantidad: {item.quantity}
+                          {item.unitPrice != null
+                            ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
+                            : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p>No hay materiales vinculados. Si faltan insumos, agregalos en la cotizacion.</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

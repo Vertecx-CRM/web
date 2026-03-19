@@ -11,7 +11,10 @@ import {
   parseRequestDescriptionWithAvailability,
 } from "@/features/dashboard/requests/utils/requestAvailability";
 import {
+  getTechnicalReviewStatusHelp,
+  getTechnicalReviewStatusLabel,
   getInstallationAssessmentExplainer,
+  getDirectInstallationExplainer,
   getRequestStageLabel,
   isInstallationServiceType,
 } from "@/shared/utils/requestFlow";
@@ -101,6 +104,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
       ),
     [data.descriptionPlain, data.description]
   );
+  const flowMetadata = parsedDescription.flowMetadata;
 
   const customerUser = data.customer?.users;
   const customerFullName = [customerUser?.name, customerUser?.lastname]
@@ -114,10 +118,16 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
 
   const stateLabel = data.state?.name ?? "-";
   const stateDescription = data.state?.description ?? "Sin descripcion del estado.";
-  const requestStageLabel = getRequestStageLabel(data.serviceType ?? data.servicetype ?? "");
+  const requestStageLabel = getRequestStageLabel(
+    data.serviceType ?? data.servicetype ?? "",
+    data.requestMode ?? flowMetadata?.requestMode,
+  );
   const isInstallationAssessment = isInstallationServiceType(
     data.serviceType ?? data.servicetype ?? "",
   );
+  const isDirectInstallation =
+    isInstallationAssessment &&
+    (data.requestMode ?? flowMetadata?.requestMode) === "DIRECT_INSTALLATION";
 
   const serviceDescription = data.service?.description;
   const serviceImage = data.service?.image;
@@ -201,8 +211,41 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
               Flujo previo a instalacion
             </p>
             <p className="mt-2 text-sm text-amber-900">
-              {getInstallationAssessmentExplainer()}
+              {isDirectInstallation
+                ? getDirectInstallationExplainer()
+                : getInstallationAssessmentExplainer()}
             </p>
+          </div>
+        )}
+        {isDirectInstallation && (
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                Revision tecnica
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {getTechnicalReviewStatusLabel(
+                  data.technicalReviewStatus ?? flowMetadata?.technicalReviewStatus
+                )}
+              </p>
+              <p className="mt-1 text-sm text-slate-700">
+                {getTechnicalReviewStatusHelp(
+                  data.technicalReviewStatus ?? flowMetadata?.technicalReviewStatus
+                ) || "Sin observaciones adicionales."}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                Venta vinculada
+              </p>
+              <p className="mt-2 text-sm text-slate-700">
+                {data.linkedSaleCode ?? flowMetadata?.linkedSaleCode ?? "Sin codigo de venta"}
+              </p>
+              <p className="text-xs text-slate-500">
+                ID: {data.linkedSaleId ?? flowMetadata?.linkedSaleId ?? "-"}
+              </p>
+            </div>
           </div>
         )}
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
@@ -239,6 +282,98 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="text-xs text-slate-500">{stateDescription}</p>
           </div>
         </div>
+        {isDirectInstallation && (
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">
+                Checklist tecnico
+              </p>
+              <div className="mt-2 space-y-1 text-sm text-slate-700">
+                <p>
+                  <span className="font-medium">Zona:</span>{" "}
+                  {data.siteChecklist?.installationArea ??
+                    flowMetadata?.siteChecklist?.installationArea ??
+                    "-"}
+                </p>
+                <p>
+                  <span className="font-medium">Altura:</span>{" "}
+                  {data.siteChecklist?.installationHeight ??
+                    flowMetadata?.siteChecklist?.installationHeight ??
+                    "-"}
+                </p>
+                <p>
+                  <span className="font-medium">Cable:</span>{" "}
+                  {data.siteChecklist?.estimatedCableMeters ??
+                    flowMetadata?.siteChecklist?.estimatedCableMeters ??
+                    "-"}
+                </p>
+                <p>
+                  <span className="font-medium">Escalera:</span>{" "}
+                  {data.siteChecklist?.needsLadder ??
+                    flowMetadata?.siteChecklist?.needsLadder ??
+                    "-"}
+                </p>
+                <p>
+                  <span className="font-medium">Energia:</span>{" "}
+                  {data.siteChecklist?.hasPowerPoint ??
+                    flowMetadata?.siteChecklist?.hasPowerPoint ??
+                    "-"}
+                </p>
+                <p>
+                  <span className="font-medium">Internet/red:</span>{" "}
+                  {data.siteChecklist?.hasInternetPoint ??
+                    flowMetadata?.siteChecklist?.hasInternetPoint ??
+                    "-"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">
+                Materiales comprados / reportados
+              </p>
+              <p className="mt-2 text-sm text-slate-700">
+                {(data.alreadyHasMaterials ?? flowMetadata?.alreadyHasMaterials)
+                  ? "El cliente reporto que ya cuenta con materiales."
+                  : "No se confirmaron materiales propios."}
+              </p>
+              <p className="mt-2 text-sm text-slate-700">
+                {data.siteChecklist?.materialsSummary ??
+                  flowMetadata?.siteChecklist?.materialsSummary ??
+                  "Sin resumen manual de materiales."}
+              </p>
+              <div className="mt-3 space-y-2">
+                {(
+                  data.purchasedMaterials ??
+                  flowMetadata?.purchasedMaterials ??
+                  []
+                ).length ? (
+                  (data.purchasedMaterials ??
+                    flowMetadata?.purchasedMaterials ??
+                    []
+                  ).map((item, index) => (
+                    <div
+                      key={`${item.productId ?? item.name}-${index}`}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    >
+                      <p className="font-medium text-slate-900">{item.name}</p>
+                      <p className="text-xs text-slate-500">
+                        Cantidad: {item.quantity}
+                        {item.unitPrice != null
+                          ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
+                          : ""}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    No hay materiales vinculados en la solicitud.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

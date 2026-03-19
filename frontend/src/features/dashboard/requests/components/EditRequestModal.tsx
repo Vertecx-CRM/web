@@ -18,8 +18,17 @@ import {
 import {
   formatRequestAvailabilityLabel,
   normalizeRequestAvailabilityOptions,
+  type RequestPurchasedMaterial,
+  type RequestSiteChecklist,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
+import {
+  getTechnicalReviewStatusHelp,
+  getTechnicalReviewStatusLabel,
+  getRequestStageLabel,
+  isInstallationServiceType,
+  normalizeRequestMode,
+} from "@/shared/utils/requestFlow";
 
 export type EditRequestPayload = {
   serviceId: number;
@@ -30,6 +39,17 @@ export type EditRequestPayload = {
   scheduledAt: string | null;
   scheduledEndAt: string | null;
   availabilityOptions?: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
   estado?: string;
   stateId?: number;
   estadoLabel?: string;
@@ -244,6 +264,18 @@ function toServiceTypeCode(value: string | null | undefined) {
   return "MANTENIMIENTO";
 }
 
+const EMPTY_SITE_CHECKLIST: RequestSiteChecklist = {
+  installationArea: "",
+  installationHeight: "",
+  estimatedCableMeters: "",
+  needsLadder: "UNKNOWN",
+  hasPowerPoint: "UNKNOWN",
+  hasInternetPoint: "UNKNOWN",
+  materialsSummary: "",
+  additionalContext: "",
+  evidenceNotes: "",
+};
+
 export default function EditRequestModal({
   isOpen,
   onClose,
@@ -263,6 +295,18 @@ export default function EditRequestModal({
 
   const [descripcion, setDescripcion] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [requestMode, setRequestMode] = useState<
+    "ASSESSMENT" | "DIRECT_INSTALLATION"
+  >("ASSESSMENT");
+  const [technicalReviewStatus, setTechnicalReviewStatus] = useState<
+    "NOT_APPLICABLE" | "PENDING_REVIEW" | "ASSESSMENT_REQUIRED" | "READY_TO_QUOTE"
+  >("NOT_APPLICABLE");
+  const [alreadyHasMaterials, setAlreadyHasMaterials] = useState(false);
+  const [purchasedMaterials, setPurchasedMaterials] = useState<
+    RequestPurchasedMaterial[]
+  >([]);
+  const [siteChecklist, setSiteChecklist] =
+    useState<RequestSiteChecklist>(EMPTY_SITE_CHECKLIST);
 
   const [programada, setProgramada] = useState<string | null>(null);
   const [horaProgramada, setHoraProgramada] = useState<string | null>(null);
@@ -299,6 +343,14 @@ export default function EditRequestModal({
     () => (serviceTypeId ? serviceTypes.find((t) => t.id === serviceTypeId) || null : null),
     [serviceTypeId, serviceTypes]
   );
+  const effectiveServiceType = selectedType
+    ? toServiceTypeCode(selectedType.label)
+    : initial?.serviceType
+      ? String(initial.serviceType)
+      : "";
+  const isInstallationFlow = isInstallationServiceType(effectiveServiceType);
+  const isDirectInstallation = isInstallationFlow && requestMode === "DIRECT_INSTALLATION";
+  const requestStageLabel = getRequestStageLabel(effectiveServiceType, requestMode);
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     const list = finalServicios || [];
@@ -751,6 +803,34 @@ export default function EditRequestModal({
 
     setDescripcion(String(init?.descripcion ?? init?.description ?? ""));
     setDireccion(String(init?.direccion ?? ""));
+    setRequestMode(
+      normalizeRequestMode(init?.requestMode) === "DIRECT_INSTALLATION"
+        ? "DIRECT_INSTALLATION"
+        : "ASSESSMENT"
+    );
+    setTechnicalReviewStatus(
+      (String(init?.technicalReviewStatus ?? "").trim().toUpperCase() as
+        | "NOT_APPLICABLE"
+        | "PENDING_REVIEW"
+        | "ASSESSMENT_REQUIRED"
+        | "READY_TO_QUOTE") || "NOT_APPLICABLE"
+    );
+    setAlreadyHasMaterials(Boolean(init?.alreadyHasMaterials));
+    setPurchasedMaterials(
+      Array.isArray(init?.purchasedMaterials) ? init.purchasedMaterials : []
+    );
+    setSiteChecklist({
+      ...EMPTY_SITE_CHECKLIST,
+      ...(init?.siteChecklist ?? {}),
+      needsLadder:
+        init?.siteChecklist?.needsLadder ?? EMPTY_SITE_CHECKLIST.needsLadder,
+      hasPowerPoint:
+        init?.siteChecklist?.hasPowerPoint ??
+        EMPTY_SITE_CHECKLIST.hasPowerPoint,
+      hasInternetPoint:
+        init?.siteChecklist?.hasInternetPoint ??
+        EMPTY_SITE_CHECKLIST.hasInternetPoint,
+    });
 
     const partsStart =
       init?.programada || init?.horaProgramada
@@ -1008,6 +1088,17 @@ export default function EditRequestModal({
       direccion: String(direccion ?? "").trim().slice(0, 255),
       scheduledAt: scheduledAtISO,
       scheduledEndAt: scheduledEndAtISO,
+      requestMode: isInstallationFlow ? requestMode : undefined,
+      technicalReviewStatus: isInstallationFlow
+        ? isDirectInstallation
+          ? technicalReviewStatus
+          : "NOT_APPLICABLE"
+        : undefined,
+      alreadyHasMaterials: isInstallationFlow ? alreadyHasMaterials : undefined,
+      linkedSaleId: (initial as any)?.linkedSaleId ?? null,
+      linkedSaleCode: (initial as any)?.linkedSaleCode ?? null,
+      purchasedMaterials,
+      siteChecklist: isDirectInstallation ? siteChecklist : null,
       estado: estado || undefined,
       stateId: estado ? Number(estado) : undefined,
       estadoLabel: stateOptions.find((s) => String(s.id) === String(estado))?.label,
@@ -1227,6 +1318,139 @@ export default function EditRequestModal({
           </div>
         </div>
         </div>
+
+        {isInstallationFlow && (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                  Flujo de instalacion
+                </p>
+                <div className="rounded-lg border border-sky-200 bg-white px-3 py-2">
+                  <p className="text-sm font-semibold text-slate-900">{requestStageLabel}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {requestMode === "DIRECT_INSTALLATION"
+                      ? "El cliente pidio una instalacion directa sujeta a validacion tecnica."
+                      : "Esta solicitud representa la asesoria tecnica previa a instalacion."}
+                  </p>
+                </div>
+              </div>
+
+              {requestMode === "DIRECT_INSTALLATION" && (
+                <div className="w-full max-w-xs">
+                  <label className="mb-1 block text-xs font-medium text-gray-900">
+                    Revision tecnica
+                  </label>
+                  <select
+                    value={technicalReviewStatus}
+                    onChange={(e) =>
+                      setTechnicalReviewStatus(
+                        e.target.value as
+                          | "PENDING_REVIEW"
+                          | "ASSESSMENT_REQUIRED"
+                          | "READY_TO_QUOTE"
+                      )
+                    }
+                    className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
+                    disabled={saving}
+                  >
+                    <option value="PENDING_REVIEW">
+                      {getTechnicalReviewStatusLabel("PENDING_REVIEW")}
+                    </option>
+                    <option value="ASSESSMENT_REQUIRED">
+                      {getTechnicalReviewStatusLabel("ASSESSMENT_REQUIRED")}
+                    </option>
+                    <option value="READY_TO_QUOTE">
+                      {getTechnicalReviewStatusLabel("READY_TO_QUOTE")}
+                    </option>
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    {getTechnicalReviewStatusHelp(technicalReviewStatus)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {requestMode === "DIRECT_INSTALLATION" && (
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-sky-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Checklist del cliente
+                  </p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-700">
+                    <p>
+                      <span className="font-medium">Zona:</span>{" "}
+                      {siteChecklist.installationArea || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Altura:</span>{" "}
+                      {siteChecklist.installationHeight || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Cable estimado:</span>{" "}
+                      {siteChecklist.estimatedCableMeters || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Escalera:</span>{" "}
+                      {siteChecklist.needsLadder || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Energia:</span>{" "}
+                      {siteChecklist.hasPowerPoint || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Internet/red:</span>{" "}
+                      {siteChecklist.hasInternetPoint || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Contexto:</span>{" "}
+                      {siteChecklist.additionalContext || "-"}
+                    </p>
+                    <p>
+                      <span className="font-medium">Notas/evidencias:</span>{" "}
+                      {siteChecklist.evidenceNotes || "-"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-sky-200 bg-white p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Materiales reportados
+                  </p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {alreadyHasMaterials
+                      ? "El cliente indico que ya cuenta con materiales."
+                      : "El cliente no confirmo materiales propios."}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {siteChecklist.materialsSummary || "Sin resumen manual de materiales."}
+                  </p>
+
+                  <div className="mt-3 space-y-2">
+                    {purchasedMaterials.length ? (
+                      purchasedMaterials.map((item, index) => (
+                        <div
+                          key={`${item.productId ?? item.name}-${index}`}
+                          className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-slate-700"
+                        >
+                          <p className="font-medium text-slate-900">{item.name}</p>
+                          <p className="text-xs text-slate-600">
+                            Cantidad: {item.quantity}
+                            {item.unitPrice != null ? ` - $${item.unitPrice.toLocaleString("es-CO")}` : ""}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-600">
+                        No hay productos comprados vinculados a esta solicitud.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-2 flex items-center justify-between gap-3">

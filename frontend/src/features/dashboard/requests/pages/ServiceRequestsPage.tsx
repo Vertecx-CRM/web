@@ -28,6 +28,8 @@ import {
 } from "@/features/dashboard/requests/utils/schedule";
 import {
   parseRequestDescriptionWithAvailability,
+  type RequestPurchasedMaterial,
+  type RequestSiteChecklist,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
 import { ToastContainer } from "react-toastify";
@@ -47,6 +49,17 @@ type Row = {
   id: number | string;
   descripcion: string;
   availabilityOptions: RequestAvailabilityOption[];
+  requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION";
+  technicalReviewStatus?:
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE";
+  alreadyHasMaterials?: boolean;
+  linkedSaleId?: number | null;
+  linkedSaleCode?: string | null;
+  purchasedMaterials?: RequestPurchasedMaterial[];
+  siteChecklist?: RequestSiteChecklist | null;
   tipo: string;
   tipos: ("Mantenimiento" | "Instalacion")[];
   servicio: string;
@@ -365,17 +378,36 @@ export default function ServiceRequestsPage() {
       const availabilityOptions = Array.isArray(r?.clientAvailabilityOptions)
         ? r.clientAvailabilityOptions
         : parsedDescription.availabilityOptions;
+      const flowMetadata = parsedDescription.flowMetadata;
       const direccion =
         r?.direccion ?? r?.customer?.customercity ?? r?.address ?? "";
 
       const tipoRaw = r?.serviceType ?? r?.service?.category ?? "";
-      const lower = String(tipoRaw).toLowerCase();
-      const tipo = getRequestStageLabel(tipoRaw);
+      const requestMode =
+        (r?.requestMode as "ASSESSMENT" | "DIRECT_INSTALLATION" | undefined) ??
+        (flowMetadata?.requestMode as
+          | "ASSESSMENT"
+          | "DIRECT_INSTALLATION"
+          | undefined);
+      const technicalReviewStatus =
+        (r?.technicalReviewStatus as
+          | "NOT_APPLICABLE"
+          | "PENDING_REVIEW"
+          | "ASSESSMENT_REQUIRED"
+          | "READY_TO_QUOTE"
+          | undefined) ??
+        (flowMetadata?.technicalReviewStatus as
+          | "NOT_APPLICABLE"
+          | "PENDING_REVIEW"
+          | "ASSESSMENT_REQUIRED"
+          | "READY_TO_QUOTE"
+          | undefined);
+      const tipo = getRequestStageLabel(tipoRaw, requestMode);
 
       const tipos: ("Mantenimiento" | "Instalacion")[] =
-        tipo === "Mantenimiento"
+        String(tipoRaw || "").toLowerCase().includes("manten")
           ? ["Mantenimiento"]
-          : tipo === "Instalacion"
+          : String(tipoRaw || "").toLowerCase().includes("instal")
           ? ["Instalacion"]
           : [];
 
@@ -405,6 +437,23 @@ export default function ServiceRequestsPage() {
         id,
         descripcion: String(descripcion),
         availabilityOptions,
+        requestMode,
+        technicalReviewStatus,
+        alreadyHasMaterials:
+          Boolean(r?.alreadyHasMaterials) || Boolean(flowMetadata?.alreadyHasMaterials),
+        linkedSaleId:
+          toPositiveId(r?.linkedSaleId ?? flowMetadata?.linkedSaleId) ?? null,
+        linkedSaleCode:
+          String(r?.linkedSaleCode ?? flowMetadata?.linkedSaleCode ?? "").trim() ||
+          null,
+        purchasedMaterials:
+          (Array.isArray(r?.purchasedMaterials)
+            ? r.purchasedMaterials
+            : flowMetadata?.purchasedMaterials) ?? [],
+        siteChecklist:
+          (r?.siteChecklist as RequestSiteChecklist | undefined) ??
+          flowMetadata?.siteChecklist ??
+          null,
         tipo,
         tipos,
         servicio: String(servicio),
@@ -597,6 +646,13 @@ export default function ServiceRequestsPage() {
         serviceId: Number(v?.serviceId ?? parseMaybeId(String(v?.servicio ?? ""))),
         clientId: Number(v?.clientId ?? parseMaybeId(String(v?.cliente ?? ""))),
         technicians: Array.isArray(v?.technicians) ? v.technicians : [],
+        requestMode: v?.requestMode,
+        technicalReviewStatus: v?.technicalReviewStatus,
+        alreadyHasMaterials: v?.alreadyHasMaterials,
+        linkedSaleId: v?.linkedSaleId ?? null,
+        linkedSaleCode: v?.linkedSaleCode ?? null,
+        purchasedMaterials: v?.purchasedMaterials ?? [],
+        siteChecklist: v?.siteChecklist ?? null,
       };
 
       await createMut.mutateAsync(dto as any);
@@ -662,6 +718,16 @@ export default function ServiceRequestsPage() {
         direccion,
         serviceId,
         technicians,
+        requestMode: v?.requestMode ?? selected.requestMode,
+        technicalReviewStatus:
+          v?.technicalReviewStatus ?? selected.technicalReviewStatus,
+        alreadyHasMaterials:
+          v?.alreadyHasMaterials ?? selected.alreadyHasMaterials,
+        linkedSaleId: v?.linkedSaleId ?? selected.linkedSaleId ?? null,
+        linkedSaleCode: v?.linkedSaleCode ?? selected.linkedSaleCode ?? null,
+        purchasedMaterials:
+          v?.purchasedMaterials ?? selected.purchasedMaterials ?? [],
+        siteChecklist: v?.siteChecklist ?? selected.siteChecklist ?? null,
       };
 
       let stateIdNum =
@@ -697,7 +763,20 @@ export default function ServiceRequestsPage() {
           ? String(v?.estadoLabel ?? v?.estadoName ?? v?.estadoText ?? selected.estado)
           : selected.estado,
         stateId: stateIdNum || selected.stateId,
-        tipo: getRequestStageLabel(serviceType),
+        requestMode: v?.requestMode ?? selected.requestMode,
+        technicalReviewStatus:
+          v?.technicalReviewStatus ?? selected.technicalReviewStatus,
+        alreadyHasMaterials:
+          v?.alreadyHasMaterials ?? selected.alreadyHasMaterials,
+        linkedSaleId: v?.linkedSaleId ?? selected.linkedSaleId ?? null,
+        linkedSaleCode: v?.linkedSaleCode ?? selected.linkedSaleCode ?? null,
+        purchasedMaterials:
+          v?.purchasedMaterials ?? selected.purchasedMaterials ?? [],
+        siteChecklist: v?.siteChecklist ?? selected.siteChecklist ?? null,
+        tipo: getRequestStageLabel(
+          serviceType,
+          v?.requestMode ?? selected.requestMode,
+        ),
         tipos: String(serviceType || "").toLowerCase().includes("instal")
           ? ["Instalacion"]
           : ["Mantenimiento"],
@@ -955,6 +1034,13 @@ export default function ServiceRequestsPage() {
               clientId: Number(selected.clienteId ?? 0) || undefined,
               description: selected.descripcion ?? "",
               availabilityOptions: selected.availabilityOptions ?? [],
+              requestMode: selected.requestMode,
+              technicalReviewStatus: selected.technicalReviewStatus,
+              alreadyHasMaterials: selected.alreadyHasMaterials,
+              linkedSaleId: selected.linkedSaleId ?? null,
+              linkedSaleCode: selected.linkedSaleCode ?? null,
+              purchasedMaterials: selected.purchasedMaterials ?? [],
+              siteChecklist: selected.siteChecklist ?? null,
               direccion: selected.direccion ?? "",
               scheduledAt:
                 partsStart.date && partsStart.time
