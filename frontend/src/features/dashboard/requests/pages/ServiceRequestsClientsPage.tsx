@@ -11,11 +11,11 @@ import { showError, showSuccess } from "@/shared/utils/notifications";
 import ClientRequestModal, {
   type CreateRequestPayload,
 } from "@/features/dashboard/requests/components/ClientRequestModal";
-import EditRequestModal, {
-  type EditRequestPayload,
-} from "@/features/dashboard/requests/components/EditRequestModal";
 import { useLookups } from "@/features/dashboard/requests/hooks/useLookups";
-import { buildScheduledAt, splitDateTime } from "@/features/dashboard/requests/utils/schedule";
+import {
+  parseRequestDescriptionWithAvailability,
+  type RequestAvailabilityOption,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 import {
   cancelServiceRequest,
   createServiceRequest,
@@ -36,6 +36,7 @@ type Row = {
   fecha: string;
   direccion: string;
   descripcion: string;
+  availabilityOptions: RequestAvailabilityOption[];
   estado: string;
   estadoKey: EstadoKey;
   programada?: string | null;
@@ -151,6 +152,12 @@ function toRow(r: ServiceRequestDTO): Row {
   const apellido = anyR?.customer?.users?.lastname ?? anyR?.customer?.lastname ?? "";
   const cliente = [nombre, apellido].filter(Boolean).join(" ").trim() || "-";
   const estadoApi = String(anyR?.state?.name ?? anyR?.status ?? "").trim();
+  const parsedDescription = parseRequestDescriptionWithAvailability(
+    anyR?.descriptionPlain ?? anyR?.description ?? ""
+  );
+  const apiAvailability = Array.isArray(anyR?.clientAvailabilityOptions)
+    ? anyR.clientAvailabilityOptions
+    : [];
 
   return {
     id,
@@ -161,7 +168,11 @@ function toRow(r: ServiceRequestDTO): Row {
     tipo: mapTipo(anyR?.serviceType ?? anyR?.servicetype ?? null),
     fecha: formatDate(anyR?.createdAt ?? anyR?.createdat ?? null),
     direccion: String(anyR?.direccion ?? anyR?.address ?? anyR?.customer?.customercity ?? "-"),
-    descripcion: String(anyR?.description ?? ""),
+    descripcion: parsedDescription.descriptionPlain,
+    availabilityOptions:
+      apiAvailability.length > 0
+        ? apiAvailability
+        : parsedDescription.availabilityOptions,
     estado: estadoApi || mapEstadoKey(estadoApi),
     estadoKey: mapEstadoKey(estadoApi),
     programada: String(anyR?.scheduledAt ?? anyR?.scheduledat ?? "") || null,
@@ -200,7 +211,7 @@ export default function ServiceRequestsClientsPage() {
   const router = useRouter();
   const { user, profile, ready } = useAuth();
   const { has, canCreate, canView, canUpdate, canDelete } = usePermissions();
-  const { serviceOptions, customerOptions } = useLookups();
+  const { serviceOptions } = useLookups();
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,6 +296,7 @@ export default function ServiceRequestsClientsPage() {
         serviceId: Number(values.serviceId),
         clientId: Number(values.clientId),
         technicians: [],
+        availabilityOptions: values.availabilityOptions ?? [],
       } as any);
       setOpenCreate(false);
       await loadData();
@@ -297,36 +309,22 @@ export default function ServiceRequestsClientsPage() {
     }
   }
 
-  async function handleUpdate(values: EditRequestPayload) {
+  async function handleUpdate(values: CreateRequestPayload) {
     if (!canUpdateRequests || !selected) return;
     setActionLoading(true);
     try {
-      const startParts = splitDateTime(selected.programada ?? null);
-      const endParts = splitDateTime(selected.programadaEnd ?? null);
-      const startDate = values.programada ?? startParts.date ?? null;
-      const startTime = values.horaProgramada ?? startParts.time ?? null;
-      const endTime = values.horaFinal ?? endParts.time ?? null;
       const payload: Record<string, unknown> = {
-        serviceType: tipoToBackend(values.tipos?.[0] ?? selected.tipo),
-        description: String(values.descripcion ?? selected.descripcion ?? "").trim(),
+        serviceType: String(values.serviceType ?? tipoToBackend(selected.tipo)).trim(),
+        description: String(values.description ?? selected.descripcion ?? "").trim(),
         direccion: String(values.direccion ?? selected.direccion ?? "").trim(),
+        availabilityOptions: values.availabilityOptions ?? selected.availabilityOptions ?? [],
       };
 
-      const serviceId = Number(values.servicio ?? selected.serviceId ?? 0);
+      const serviceId = Number(values.serviceId ?? selected.serviceId ?? 0);
       if (Number.isFinite(serviceId) && serviceId > 0) payload.serviceId = serviceId;
 
-      const clientId = Number(values.cliente ?? selected.clienteId ?? 0);
+      const clientId = Number(values.clientId ?? selected.clienteId ?? 0);
       if (Number.isFinite(clientId) && clientId > 0) payload.clientId = clientId;
-
-      const stateId = Number(values.estado ?? selected.stateId ?? 0);
-      if (Number.isFinite(stateId) && stateId > 0) payload.stateId = stateId;
-
-      if (startDate && startTime) {
-        payload.scheduledAt = buildScheduledAt(startDate, startTime, null);
-      }
-      if (startDate && endTime) {
-        payload.scheduledEndAt = buildScheduledAt(startDate, endTime, null);
-      }
 
       await updateServiceRequest(selected.id, payload as any);
       setOpenEdit(false);
@@ -579,29 +577,24 @@ export default function ServiceRequestsClientsPage() {
       )}
 
       {openEdit && selected && (
-        <EditRequestModal
+        <ClientRequestModal
           key={`edit-${selected.id}`}
           isOpen={openEdit}
           onClose={() => {
             setOpenEdit(false);
             setSelected(null);
           }}
-          requestId={selected.id}
           initial={{
-            tipos: selected.tipo.includes("Instal")
-              ? ["Instalacion"]
-              : ["Mantenimiento"],
-            servicio: selected.serviceId ? String(selected.serviceId) : "",
-            cliente: selected.clienteId ? String(selected.clienteId) : "",
-            descripcion: selected.descripcion ?? "",
+            serviceType: tipoToBackend(selected.tipo),
+            serviceId: Number(selected.serviceId ?? 0) || undefined,
+            description: selected.descripcion ?? "",
             direccion: selected.direccion ?? "",
-            programada: splitDateTime(selected.programada ?? null).date,
-            horaProgramada: splitDateTime(selected.programada ?? null).time,
-            horaFinal: splitDateTime(selected.programadaEnd ?? null).time,
-            estado: selected.stateId ? String(selected.stateId) : undefined,
+            availabilityOptions: selected.availabilityOptions ?? [],
           }}
+          submitLabel="Actualizar"
           servicios={serviceOptions}
-          clientes={customerOptions}
+          clientId={clientIdFromAuth ?? Number(selected.clienteId ?? 0)}
+          clientLabel={selected.cliente}
           onSave={handleUpdate}
           title="Editar Solicitud"
         />

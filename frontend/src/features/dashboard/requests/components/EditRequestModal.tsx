@@ -15,6 +15,11 @@ import {
   buildWindowFromLocalSchedule,
   getBusyTechnicianIdsForWindow,
 } from "@/features/dashboard/shared/technicianAvailability";
+import {
+  formatRequestAvailabilityLabel,
+  normalizeRequestAvailabilityOptions,
+  type RequestAvailabilityOption,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 
 export type EditRequestPayload = {
   serviceId: number;
@@ -24,6 +29,7 @@ export type EditRequestPayload = {
   direccion: string;
   scheduledAt: string | null;
   scheduledEndAt: string | null;
+  availabilityOptions?: RequestAvailabilityOption[];
   estado?: string;
   stateId?: number;
   estadoLabel?: string;
@@ -68,6 +74,7 @@ type Props = {
           programada: string | null;
           horaProgramada: string | null;
           horaFinal: string | null;
+          availabilityOptions?: RequestAvailabilityOption[];
         }> & { technicians?: number[] })
     | null;
 };
@@ -317,6 +324,13 @@ export default function EditRequestModal({
   const selectedClient = useMemo(
     () => finalClientes.find((c) => Number(c.id) === Number(cliente)) ?? null,
     [finalClientes, cliente]
+  );
+  const clientAvailabilityOptions = useMemo(
+    () =>
+      normalizeRequestAvailabilityOptions(
+        (initial as any)?.availabilityOptions
+      ),
+    [initial]
   );
 
   const selectedTechniciansFull = useMemo(() => {
@@ -1207,6 +1221,54 @@ export default function EditRequestModal({
             </div>
           </div>
         </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Disponibilidad del cliente
+              </h4>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Usa estas opciones como guia y luego confirma abajo la cita final segun la
+                agenda real de los tecnicos.
+              </p>
+            </div>
+          </div>
+
+          {clientAvailabilityOptions.length ? (
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {clientAvailabilityOptions.map((option) => (
+                <div
+                  key={`${option.date}-${option.startTime}-${option.endTime}`}
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                >
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatRequestAvailabilityLabel(option)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProgramada(option.date);
+                      setHoraProgramada(option.startTime);
+                      setHoraFinal(option.endTime);
+                      markTouched("programada");
+                      markTouched("horaProgramada");
+                      markTouched("horaFinal");
+                    }}
+                    className="mt-2 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                    disabled={saving}
+                  >
+                    Usar este horario
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-500">
+              El cliente no propuso horarios de disponibilidad en esta solicitud.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-3">

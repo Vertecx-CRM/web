@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useState, ReactNode } from "react";
+import type { RequestAvailabilityOption } from "@/features/dashboard/requests/utils/requestAvailability";
 
 export type CartServiceDraft = {
   scheduledAt?: string | null;
@@ -9,6 +10,7 @@ export type CartServiceDraft = {
   direccion: string;
   stateId?: number;
   serviceId: number;
+  availabilityOptions?: RequestAvailabilityOption[];
 };
 
 export type CartItem = {

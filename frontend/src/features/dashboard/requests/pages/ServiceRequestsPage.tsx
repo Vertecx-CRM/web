@@ -25,6 +25,10 @@ import {
   splitDateTime,
   toLocalDateTimeValue,
 } from "@/features/dashboard/requests/utils/schedule";
+import {
+  parseRequestDescriptionWithAvailability,
+  type RequestAvailabilityOption,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 import { ToastContainer } from "react-toastify";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButton";
@@ -40,6 +44,7 @@ const MODULE_KEY = "servicesrequest";
 type Row = {
   id: number | string;
   descripcion: string;
+  availabilityOptions: RequestAvailabilityOption[];
   tipo: string;
   tipos: ("Mantenimiento" | "Instalacion")[];
   servicio: string;
@@ -351,7 +356,13 @@ export default function ServiceRequestsPage() {
         r?.customer?.users?.lastname ?? r?.customer?.lastname ?? "";
       const cliente = [nombre, apellido].filter(Boolean).join(" ");
 
-      const descripcion = r?.description ?? "";
+      const parsedDescription = parseRequestDescriptionWithAvailability(
+        r?.descriptionPlain ?? r?.description ?? ""
+      );
+      const descripcion = parsedDescription.descriptionPlain;
+      const availabilityOptions = Array.isArray(r?.clientAvailabilityOptions)
+        ? r.clientAvailabilityOptions
+        : parsedDescription.availabilityOptions;
       const direccion =
         r?.direccion ?? r?.customer?.customercity ?? r?.address ?? "";
 
@@ -395,6 +406,7 @@ export default function ServiceRequestsPage() {
       return {
         id,
         descripcion: String(descripcion),
+        availabilityOptions,
         tipo,
         tipos,
         servicio: String(servicio),
@@ -974,6 +986,7 @@ export default function ServiceRequestsPage() {
               serviceId: Number(selected.serviceId ?? 0) || undefined,
               clientId: Number(selected.clienteId ?? 0) || undefined,
               description: selected.descripcion ?? "",
+              availabilityOptions: selected.availabilityOptions ?? [],
               direccion: selected.direccion ?? "",
               scheduledAt:
                 partsStart.date && partsStart.time

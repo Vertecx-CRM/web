@@ -139,6 +139,7 @@ export default function CardServices({
       serviceId: Number(serviceId),
       clientId: Number(clientId) || 0,
       technicians: [],
+      availabilityOptions: data.availabilityOptions ?? [],
     };
 
     try {

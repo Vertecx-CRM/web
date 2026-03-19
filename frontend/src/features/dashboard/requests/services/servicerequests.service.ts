@@ -29,6 +29,12 @@ export type ServiceRequestTechnicianMapDTO = {
   technician?: TechnicianDTO | null;
 };
 
+export type RequestAvailabilityOptionDTO = {
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type ServiceRequestDTO = {
   serviceRequestId?: number;
   servicerequestid?: number;
@@ -41,6 +47,7 @@ export type ServiceRequestDTO = {
   servicetype?: string;
   direccion?: string;
   description?: string;
+  descriptionPlain?: string;
   createdAt?: string;
   createdat?: string;
   stateId?: number;
@@ -59,6 +66,7 @@ export type ServiceRequestDTO = {
   requestTechnicians?: ServiceRequestTechnicianMapDTO[];
   technicianId?: number;
   technicianid?: number;
+  clientAvailabilityOptions?: RequestAvailabilityOptionDTO[];
 };
 
 export type ServiceTypeApi = "MANTENIMIENTO" | "INSTALACION";
@@ -73,6 +81,7 @@ export type CreateServiceRequestInput = {
   serviceId: number;
   clientId?: number;
   technicians?: number[];
+  availabilityOptions?: RequestAvailabilityOptionDTO[];
 };
 
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
@@ -226,6 +235,15 @@ export async function createServiceRequest(
     typeof payload?.scheduledEndAt === "string" && payload.scheduledEndAt.trim()
       ? payload.scheduledEndAt
       : undefined;
+  const availabilityOptions = Array.isArray(payload?.availabilityOptions)
+    ? payload.availabilityOptions
+        .map((item) => ({
+          date: String(item?.date ?? "").trim(),
+          startTime: String(item?.startTime ?? "").trim(),
+          endTime: String(item?.endTime ?? "").trim(),
+        }))
+        .filter((item) => item.date && item.startTime && item.endTime)
+    : undefined;
 
   const body = hasTechnicians
     ? {
@@ -240,6 +258,9 @@ export async function createServiceRequest(
         serviceId: payload.serviceId,
         clientId: hasValidClientId ? Number(payload.clientId) : undefined,
         technicians: payload.technicians ?? [],
+        ...(availabilityOptions?.length
+          ? { availabilityOptions }
+          : {}),
       }
     : {
         ...(normalizedScheduledAt ? { scheduledAt: normalizedScheduledAt } : {}),
@@ -251,6 +272,9 @@ export async function createServiceRequest(
         address: normalizedAddress,
         stateId: payload.stateId,
         serviceId: payload.serviceId,
+        ...(availabilityOptions?.length
+          ? { availabilityOptions }
+          : {}),
       };
 
   try {

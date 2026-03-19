@@ -539,6 +539,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           direccion: String(draft.direccion || fullAddress).trim(),
           stateId: Number(draft.stateId ?? 5),
           serviceId: Number(draft.serviceId),
+          availabilityOptions: draft.availabilityOptions ?? [],
         });
 
         const requestId = getServiceRequestNumericId(createdRequest);
@@ -1251,6 +1252,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               direccion: String(payload.direccion ?? fullAddress).trim(),
               stateId: Number(payload.stateId ?? 5),
               serviceId: Number(payload.serviceId),
+              availabilityOptions: payload.availabilityOptions ?? [],
             };
 
             saveServiceDraft(selectedCartItemId, draft);

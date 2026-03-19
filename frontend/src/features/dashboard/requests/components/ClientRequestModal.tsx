@@ -8,6 +8,11 @@ import {
   ensureServiceOption,
   getServiceOptions,
 } from "@/features/dashboard/requests/services/lookups.service";
+import {
+  formatRequestAvailabilityLabel,
+  normalizeRequestAvailabilityOptions,
+  type RequestAvailabilityOption,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -18,6 +23,7 @@ export type CreateRequestPayload = {
   stateId?: number;
   serviceId: number;
   clientId: number;
+  availabilityOptions?: RequestAvailabilityOption[];
 };
 
 type ServiceOption = Option & {
@@ -37,6 +43,7 @@ type Props = {
   onClose: () => void;
   onSave: (data: CreateRequestPayload) => void | Promise<void>;
   title?: string;
+  submitLabel?: string;
   servicios?: ServiceOption[] | null;
   clientId: number;
   clientLabel?: string;
@@ -44,6 +51,7 @@ type Props = {
   initialDireccion?: string | null;
   pendingStateId?: number | null;
   scheduledStateId?: number | null;
+  initial?: Partial<CreateRequestPayload> | null;
 };
 
 type ErrorKey =
@@ -51,9 +59,13 @@ type ErrorKey =
   | "serviceId"
   | "customServiceName"
   | "description"
-  | "direccion";
+  | "direccion"
+  | "availabilityOptions";
 type Errors = Partial<Record<ErrorKey, string | null>>;
 type Touched = Partial<Record<ErrorKey, boolean>>;
+
+const SCHEDULE_MIN = 7 * 60;
+const SCHEDULE_MAX = 17 * 60;
 
 function getBackendMessage(err: unknown) {
   const anyErr = err as any;
@@ -62,11 +74,42 @@ function getBackendMessage(err: unknown) {
   return String(msg || "");
 }
 
+function timeToMinutes(value: string) {
+  const [hours, minutes] = String(value || "")
+    .split(":")
+    .map((part) => Number(part));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return NaN;
+  return hours * 60 + minutes;
+}
+
+function isAllowedSchedule(value: string) {
+  const minutes = timeToMinutes(value);
+  return Number.isFinite(minutes) && minutes >= SCHEDULE_MIN && minutes <= SCHEDULE_MAX;
+}
+
+function validateAvailabilityDraft(
+  date: string,
+  startTime: string,
+  endTime: string
+) {
+  if (!String(date || "").trim()) return "Selecciona la fecha disponible.";
+  if (!String(startTime || "").trim()) return "Selecciona la hora inicial disponible.";
+  if (!String(endTime || "").trim()) return "Selecciona la hora final disponible.";
+  if (!isAllowedSchedule(startTime) || !isAllowedSchedule(endTime)) {
+    return "Horario permitido: 07:00-17:00.";
+  }
+  if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+    return "La hora final debe ser mayor que la inicial.";
+  }
+  return null;
+}
+
 export default function ClientCreateRequestModal({
   isOpen,
   onClose,
   onSave,
   title = "Solicitar servicio",
+  submitLabel = "Guardar",
   servicios,
   clientId,
   clientLabel,
@@ -74,6 +117,7 @@ export default function ClientCreateRequestModal({
   initialDireccion,
   pendingStateId = null,
   scheduledStateId = null,
+  initial = null,
 }: Props) {
   const [serviceTypeId, setServiceTypeId] = useState<number | null>(null);
   const [serviceId, setServiceId] = useState<number | "">("");
@@ -81,6 +125,10 @@ export default function ClientCreateRequestModal({
   const [customServiceName, setCustomServiceName] = useState("");
   const [description, setDescription] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [availabilityOptions, setAvailabilityOptions] = useState<RequestAvailabilityOption[]>([]);
+  const [availabilityDate, setAvailabilityDate] = useState("");
+  const [availabilityStartTime, setAvailabilityStartTime] = useState("");
+  const [availabilityEndTime, setAvailabilityEndTime] = useState("");
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -162,6 +210,10 @@ export default function ClientCreateRequestModal({
     return value ? null : "Selecciona un tipo.";
   }
 
+  function validateAvailabilityOptions(value: RequestAvailabilityOption[]) {
+    return value.length ? null : "Agrega al menos una opcion de disponibilidad.";
+  }
+
   const errors: Errors = useMemo(() => {
     const next: Errors = {};
     next.tipo = validateTipo(serviceTypeId);
@@ -172,6 +224,7 @@ export default function ClientCreateRequestModal({
     );
     next.description = validateDescription(description);
     next.direccion = validateDireccion(direccion);
+    next.availabilityOptions = validateAvailabilityOptions(availabilityOptions);
     return next;
   }, [
     serviceTypeId,
@@ -180,6 +233,7 @@ export default function ClientCreateRequestModal({
     customServiceMode,
     description,
     direccion,
+    availabilityOptions,
   ]);
 
   function markTouched(key: ErrorKey) {
@@ -190,15 +244,53 @@ export default function ClientCreateRequestModal({
     return !!submitAttempted || !!touched[key];
   }
 
+  function resetDraftAvailability() {
+    setAvailabilityDate("");
+    setAvailabilityStartTime("");
+    setAvailabilityEndTime("");
+  }
+
   function resetForm() {
     setServiceTypeId(null);
     setServiceId("");
     setCustomServiceMode(false);
     setCustomServiceName("");
     setDescription("");
-    setDireccion("");
+    setDireccion(initialDireccion ?? "");
+    setAvailabilityOptions([]);
+    resetDraftAvailability();
     setTouched({});
     setSubmitAttempted(false);
+  }
+
+  function addAvailabilityOption() {
+    markTouched("availabilityOptions");
+    const draftError = validateAvailabilityDraft(
+      availabilityDate,
+      availabilityStartTime,
+      availabilityEndTime
+    );
+    if (draftError) {
+      showInfo(draftError);
+      return;
+    }
+
+    setAvailabilityOptions((prev) =>
+      normalizeRequestAvailabilityOptions([
+        ...prev,
+        {
+          date: availabilityDate,
+          startTime: availabilityStartTime,
+          endTime: availabilityEndTime,
+        },
+      ])
+    );
+    resetDraftAvailability();
+  }
+
+  function removeAvailabilityOption(index: number) {
+    markTouched("availabilityOptions");
+    setAvailabilityOptions((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   }
 
   useEffect(() => {
@@ -206,11 +298,6 @@ export default function ClientCreateRequestModal({
     setTouched({});
     setSubmitAttempted(false);
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !initialDireccion) return;
-    setDireccion(initialDireccion);
-  }, [isOpen, initialDireccion]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -239,22 +326,50 @@ export default function ClientCreateRequestModal({
   }, [isOpen, servicios]);
 
   useEffect(() => {
-    if (!isOpen || !initialServiceId || !finalServicios.length) return;
+    if (!isOpen) return;
 
-    const found = finalServicios.find((item) => Number(item.id) === Number(initialServiceId));
-    if (!found) return;
+    const initialAvailability = normalizeRequestAvailabilityOptions(
+      initial?.availabilityOptions
+    );
+    const initialService =
+      Number(initial?.serviceId ?? initialServiceId ?? 0) > 0
+        ? Number(initial?.serviceId ?? initialServiceId ?? 0)
+        : "";
 
-    const resolvedServiceId = Number(found.id);
-    const resolvedTypeId = Number(found.typeofserviceid);
+    setServiceId(initialService);
+    setCustomServiceMode(false);
+    setCustomServiceName("");
+    setDescription(String(initial?.description ?? "").trim());
+    setDireccion(String(initial?.direccion ?? initialDireccion ?? ""));
+    setAvailabilityOptions(initialAvailability);
+    resetDraftAvailability();
+    setTouched({});
+    setSubmitAttempted(false);
+  }, [isOpen, initial, initialDireccion, initialServiceId]);
 
-    if (Number.isFinite(resolvedServiceId) && resolvedServiceId > 0) {
-      setServiceId(resolvedServiceId);
+  useEffect(() => {
+    if (!isOpen || !finalServicios.length) return;
+
+    const desiredServiceId =
+      Number(initial?.serviceId ?? initialServiceId ?? serviceId ?? 0) > 0
+        ? Number(initial?.serviceId ?? initialServiceId ?? serviceId ?? 0)
+        : null;
+
+    if (desiredServiceId) {
+      const found = finalServicios.find((item) => Number(item.id) === desiredServiceId);
+      if (found) {
+        const resolvedTypeId = Number(found.typeofserviceid);
+        if (Number.isFinite(resolvedTypeId) && resolvedTypeId > 0) {
+          setServiceTypeId(resolvedTypeId);
+          return;
+        }
+      }
     }
 
-    if (Number.isFinite(resolvedTypeId) && resolvedTypeId > 0) {
-      setServiceTypeId(resolvedTypeId);
+    if (!serviceTypeId && serviceTypes.length) {
+      setServiceTypeId(serviceTypes[0].id);
     }
-  }, [isOpen, initialServiceId, finalServicios]);
+  }, [isOpen, finalServicios, initial, initialServiceId, serviceId, serviceTypeId, serviceTypes]);
 
   useEffect(() => {
     if (!serviceTypeId) {
@@ -325,6 +440,7 @@ export default function ClientCreateRequestModal({
         stateId: 0,
         serviceId: resolvedServiceId,
         clientId,
+        availabilityOptions: availabilityOptions,
       };
 
       const hasProgrammedDate =
@@ -351,7 +467,7 @@ export default function ClientCreateRequestModal({
       resetForm();
       onClose();
     } catch (err) {
-      showError(getBackendMessage(err) || "No se pudo crear la solicitud.");
+      showError(getBackendMessage(err) || "No se pudo guardar la solicitud.");
     } finally {
       setSaving(false);
     }
@@ -379,7 +495,7 @@ export default function ClientCreateRequestModal({
             disabled={saving || loadingLookups}
             title={loadingLookups ? "Cargando servicios..." : undefined}
           >
-            {saving ? "Enviando..." : "Guardar"}
+            {saving ? "Guardando..." : submitLabel}
           </button>
         </div>
       }
@@ -477,7 +593,7 @@ export default function ClientCreateRequestModal({
                 ))}
               </select>
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▼
+                v
               </span>
             </div>
 
@@ -554,6 +670,87 @@ export default function ClientCreateRequestModal({
               <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
             )}
           </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">Disponibilidad</h4>
+              <p className="text-[11px] text-gray-500">
+                Agrega uno o varios horarios donde puedas recibir la visita. El admin
+                vera estas opciones y luego confirmara la cita final segun la agenda de
+                los tecnicos.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto]">
+            <input
+              type="date"
+              value={availabilityDate}
+              onChange={(e) => setAvailabilityDate(e.target.value)}
+              className="h-10 rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            <input
+              type="time"
+              min="07:00"
+              max="16:59"
+              value={availabilityStartTime}
+              onChange={(e) => setAvailabilityStartTime(e.target.value)}
+              className="h-10 rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            <input
+              type="time"
+              min="07:01"
+              max="17:00"
+              value={availabilityEndTime}
+              onChange={(e) => setAvailabilityEndTime(e.target.value)}
+              className="h-10 rounded-lg border border-gray-300 bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15"
+            />
+            <button
+              type="button"
+              onClick={addAvailabilityOption}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+              disabled={saving}
+            >
+              Agregar
+            </button>
+          </div>
+
+          <p className="mt-2 text-[11px] text-gray-500">
+            Horario permitido para propuestas: 07:00-17:00.
+          </p>
+
+          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-2">
+            {availabilityOptions.length ? (
+              <div className="flex flex-wrap gap-2">
+                {availabilityOptions.map((option, index) => (
+                  <span
+                    key={`${option.date}-${option.startTime}-${option.endTime}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-900"
+                  >
+                    <span>{formatRequestAvailabilityLabel(option)}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAvailabilityOption(index)}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-100"
+                      disabled={saving}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="px-1 py-1 text-xs text-gray-500">
+                Aun no has agregado horarios disponibles.
+              </p>
+            )}
+          </div>
+
+          {shouldShowError("availabilityOptions") && errors.availabilityOptions && (
+            <p className="mt-1 text-xs text-red-600">{errors.availabilityOptions}</p>
+          )}
         </div>
 
         <div>

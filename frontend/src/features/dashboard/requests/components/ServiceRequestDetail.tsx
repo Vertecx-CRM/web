@@ -6,6 +6,10 @@ import RequireAuth from "@/features/auth/requireauth";
 import { useServiceRequest } from "../hooks/useServiceRequests";
 import type { ServiceRequestDTO } from "@/features/dashboard/requests/services/servicerequests.service";
 import { ArrowLeft } from "lucide-react";
+import {
+  formatRequestAvailabilityLabel,
+  parseRequestDescriptionWithAvailability,
+} from "@/features/dashboard/requests/utils/requestAvailability";
 
 interface Props {
   requestId: number;
@@ -85,6 +89,13 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
   const scheduled = formatDateTime(data.scheduledAt);
   const scheduledEnd = formatDateTime(data.scheduledEndAt);
   const created = formatDateTime(data.createdAt);
+  const parsedDescription = useMemo(
+    () =>
+      parseRequestDescriptionWithAvailability(
+        data.descriptionPlain ?? data.description ?? ""
+      ),
+    [data.descriptionPlain, data.description]
+  );
 
   const customerUser = data.customer?.users;
   const customerFullName = [customerUser?.name, customerUser?.lastname]
@@ -173,8 +184,29 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
           Descripcion y detalles
         </h2>
         <p className="mt-4 text-sm text-slate-700">
-          {data.description || "Sin descripcion adicional."}
+          {parsedDescription.descriptionPlain || "Sin descripcion adicional."}
         </p>
+        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            Disponibilidad propuesta por el cliente
+          </p>
+          {parsedDescription.availabilityOptions.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {parsedDescription.availabilityOptions.map((option) => (
+                <span
+                  key={`${option.date}-${option.startTime}-${option.endTime}`}
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-800"
+                >
+                  {formatRequestAvailabilityLabel(option)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">
+              El cliente no dejo horarios propuestos.
+            </p>
+          )}
+        </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Direccion</p>
