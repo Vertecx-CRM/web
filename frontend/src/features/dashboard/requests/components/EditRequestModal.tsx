@@ -5,6 +5,7 @@ import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/types/option.types";
 import { showError, showInfo, showWarning } from "@/shared/utils/notifications";
 import {
+  ensureServiceOption,
   getServiceOptions,
   getCustomerOptions,
 } from "@/features/dashboard/requests/services/lookups.service";
@@ -31,6 +32,8 @@ export type EditRequestPayload = {
 
 type ServiceOption = Option & {
   typeofserviceid?: number | null;
+  typeofservicename?: string | null;
+  serviceTypeCode?: string | null;
 };
 
 type ServiceTypeApi = {
@@ -176,6 +179,12 @@ function initials(name: string) {
   return (a + b).toUpperCase() || "T";
 }
 
+function toTitleCase(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function parseISOToLocalParts(iso: string | null | undefined) {
   if (!iso) return { date: null as string | null, time: null as string | null };
   const d = new Date(iso);
@@ -236,6 +245,8 @@ export default function EditRequestModal({
 
   const [servicio, setServicio] = useState<string>("");
   const [cliente, setCliente] = useState<string>("");
+  const [customServiceMode, setCustomServiceMode] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState("");
 
   const [descripcion, setDescripcion] = useState("");
   const [direccion, setDireccion] = useState("");
@@ -292,8 +303,10 @@ export default function EditRequestModal({
     return (techniciansRaw || [])
       .map((t: any) => {
         const u = t?.users || t?.user || t?.Users || {};
-        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `TÃ©cnico #${t?.technicianid ?? t?.id ?? "?"}`;
+        const name = toTitleCase(
+          [u?.name, u?.lastname].filter(Boolean).join(" ").trim()
+        );
+        const label = name || `Tecnico #${t?.technicianid ?? t?.id ?? "?"}`;
         return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
       })
       .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
@@ -358,17 +371,20 @@ export default function EditRequestModal({
 
   function validateDireccion(v: string) {
     const dir = (v ?? "").trim();
-    if (dir.length < 3) return "MÃ­nimo 3 caracteres.";
-    if (dir.length > 255) return "MÃ¡ximo 255 caracteres.";
+    if (dir.length < 3) return "Minimo 3 caracteres.";
+    if (dir.length > 255) return "Maximo 255 caracteres.";
     return null;
   }
 
   function validateDescripcion(v: string) {
     const d = (v ?? "").trim();
-    return d.length >= 3 ? null : "MÃ­nimo 3 caracteres.";
+    return d.length >= 3 ? null : "Minimo 3 caracteres.";
   }
 
   function validateServicio(v: string) {
+    if (customServiceMode && String(customServiceName || "").trim().length >= 3) {
+      return null;
+    }
     return String(v || "").trim() ? null : "Selecciona un servicio.";
   }
 
@@ -376,12 +392,19 @@ export default function EditRequestModal({
     return String(v || "").trim() ? null : "Selecciona un cliente.";
   }
 
+  function validateCustomServiceName(value: string) {
+    if (!customServiceMode) return null;
+    const text = String(value ?? "").trim();
+    if (text.length < 3) return "Escribe al menos 3 caracteres.";
+    if (text.length > 120) return "Maximo 120 caracteres.";
+    return null;
+  }
+
   function validateDateRequired(date: string | null) {
     if (!date) return "Selecciona la fecha.";
     const d = parseYMD(date);
-    if (!d) return "Fecha invÃ¡lida.";
-    if (isPastDateLocal(date)) return "No puedes seleccionar una fecha pasada.";
-    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sÃ¡bado).";
+    if (!d) return "Fecha invalida.";
+    if (!isAllowedDate(date)) return "No se puede agendar los domingos. Solo lunes a sabado.";
     return null;
   }
 
@@ -389,18 +412,12 @@ export default function EditRequestModal({
     if (!start) return "Selecciona la hora inicial.";
     if (!isAllowedTime(start)) return "Horario permitido: 07:00-17:00.";
     if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
-    if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, start)) {
-      return "La hora inicial no puede estar en el pasado.";
-    }
     return null;
   }
 
   function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
     if (!end) return "Selecciona la hora final.";
     if (!isAllowedTime(end)) return "Horario permitido: 07:00-17:00.";
-    if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
-      return "La hora final no puede estar en el pasado.";
-    }
     if (!start) return null;
     const s = timeToMinutes(start);
     const e = timeToMinutes(end);
@@ -418,6 +435,8 @@ export default function EditRequestModal({
     e.cliente = validateCliente(cliente);
     e.direccion = validateDireccion(direccion);
     e.descripcion = validateDescripcion(descripcion);
+    const customServiceNameError = validateCustomServiceName(customServiceName);
+    if (customServiceNameError) e.servicio = customServiceNameError;
 
     e.programada = validateDateRequired(programada);
 
@@ -426,9 +445,9 @@ export default function EditRequestModal({
     e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
 
     if (!selectedTechnicians.length) {
-      e.technicians = "Selecciona al menos un tÃ©cnico.";
+      e.technicians = "Selecciona al menos un tecnico.";
     } else if (selectedBusyTechnicianIds.length > 0) {
-      e.technicians = "Hay tÃ©cnicos seleccionados que ya estÃ¡n ocupados en ese horario.";
+      e.technicians = "Hay tecnicos seleccionados que ya estan ocupados en ese horario.";
     } else {
       e.technicians = null;
     }
@@ -438,6 +457,8 @@ export default function EditRequestModal({
     serviceTypeId,
     servicio,
     cliente,
+    customServiceMode,
+    customServiceName,
     direccion,
     descripcion,
     programada,
@@ -674,7 +695,7 @@ export default function EditRequestModal({
           : [];
         if (!cancelled) setTechniciansRaw(list);
       } catch (e: any) {
-        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando tÃ©cnicos.";
+        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando tecnicos.";
         if (!cancelled) {
           setTechError(String(msg));
           setTechniciansRaw([]);
@@ -705,6 +726,8 @@ export default function EditRequestModal({
 
     setServicio(initServiceId);
     setCliente(initClientId);
+    setCustomServiceMode(false);
+    setCustomServiceName("");
 
     setDescripcion(String(init?.descripcion ?? init?.description ?? ""));
     setDireccion(String(init?.direccion ?? ""));
@@ -805,14 +828,6 @@ export default function EditRequestModal({
   }, [clientOpen]);
 
   useEffect(() => {
-    if (!cliente) return;
-    if (!finalClientes.some((c) => Number(c.id) === Number(cliente))) {
-      setCliente("");
-      markTouched("cliente");
-    }
-  }, [finalClientes, cliente]);
-
-  useEffect(() => {
     setTechActiveIndex(0);
   }, [techQuery, techOpen]);
 
@@ -843,20 +858,12 @@ export default function EditRequestModal({
       return;
     }
 
-    if (isPastDateLocal(v)) {
-      showWarning("No puedes seleccionar una fecha pasada.");
-      return;
-    }
-
     if (!isAllowedDate(v)) {
-      showWarning("No se puede agendar los domingos. Solo lunes a sÃ¡bado.");
+      showWarning("No se puede agendar los domingos. Solo lunes a sabado.");
       return;
     }
 
     setProgramada(v);
-
-    if (horaProgramada && isPastDateTimeLocal(v, horaProgramada)) setHoraProgramada(null);
-    if (horaFinal && isPastDateTimeLocal(v, horaFinal)) setHoraFinal(null);
   }
 
   function handleHoraProgramadaChange(next: string) {
@@ -878,16 +885,11 @@ export default function EditRequestModal({
       return;
     }
 
-    if (programada && !isPastDateLocal(programada) && isPastDateTimeLocal(programada, v)) {
-      showWarning("La hora inicial no puede estar en el pasado.");
-      return;
-    }
-
     setHoraProgramada(v);
 
     if (programada && v && !horaFinal) {
       const suggested = addMinutesToTime(v, 60);
-      if (!isPastDateTimeLocal(programada, suggested) && isAllowedTime(suggested)) {
+      if (isAllowedTime(suggested)) {
         setHoraFinal(suggested);
       }
     }
@@ -907,11 +909,6 @@ export default function EditRequestModal({
       return;
     }
 
-    if (programada && !isPastDateLocal(programada) && isPastDateTimeLocal(programada, v)) {
-      showWarning("La hora final no puede estar en el pasado.");
-      return;
-    }
-
     setHoraFinal(v);
   }
 
@@ -921,7 +918,7 @@ export default function EditRequestModal({
     setSubmitAttempted(true);
 
     if (loadingLookups) {
-      showInfo("Espera a que carguen los servicios y clientes.");
+      showInfo("Espera a que carguen los servicios.");
       return;
     }
 
@@ -931,20 +928,44 @@ export default function EditRequestModal({
     }
 
     if (techLoading) {
-      showInfo("Espera a que carguen los tÃ©cnicos.");
+      showInfo("Espera a que carguen los tecnicos.");
       return;
     }
 
     if (!isValidNow()) return;
 
     if (selectedBusyTechnicianIds.length > 0) {
-      showError("Hay tÃ©cnicos ocupados en ese horario. Ajusta horario o tÃ©cnicos.");
+      showError("Hay tecnicos ocupados en ese horario. Ajusta horario o tecnicos.");
       return;
     }
 
     if (!selectedType) {
       showError("Selecciona un tipo de servicio.");
       return;
+    }
+
+    let resolvedServiceId = Number(servicio);
+
+    if (customServiceMode) {
+      const customError = validateCustomServiceName(customServiceName);
+      if (customError) {
+        showInfo("Escribe un servicio especifico valido.");
+        return;
+      }
+
+      const ensuredService = await ensureServiceOption({
+        name: customServiceName,
+        typeofserviceid: selectedType.id,
+        description: descripcion,
+      });
+
+      resolvedServiceId = Number(ensuredService.id);
+      setServiciosLocal((prev) => {
+        const exists = prev.some((item) => Number(item.id) === Number(ensuredService.id));
+        if (exists) return prev;
+        return [...prev, ensuredService as ServiceOption];
+      });
+      setServicio(String(resolvedServiceId));
     }
 
     if (!programada || !horaProgramada || !horaFinal) {
@@ -956,12 +977,12 @@ export default function EditRequestModal({
     const scheduledEndAtISO = combineDateTimeLocal(programada, horaFinal);
 
     if (!scheduledAtISO || !scheduledEndAtISO) {
-      showError("Fecha u horas invÃ¡lidas.");
+      showError("Fecha u horas invalidas.");
       return;
     }
 
     const payload: EditRequestPayload = {
-      serviceId: Number(servicio),
+      serviceId: resolvedServiceId,
       clientId: Number(cliente),
       serviceType: String(selectedType.label).trim(),
       description: String(descripcion ?? "").trim(),
@@ -1012,11 +1033,11 @@ export default function EditRequestModal({
             disabled={saving || loadingLookups || techLoading || serviceTypesLoading}
             title={
               loadingLookups
-                ? "Cargando servicios/clientes..."
+                ? "Cargando servicios..."
                 : serviceTypesLoading
                 ? "Cargando tipos..."
                 : techLoading
-                ? "Cargando tÃ©cnicos..."
+                ? "Cargando tecnicos..."
                 : undefined
             }
           >
@@ -1093,9 +1114,11 @@ export default function EditRequestModal({
                 onChange={(e) => {
                   markTouched("servicio");
                   setServicio(e.target.value);
+                  setCustomServiceMode(false);
+                  setCustomServiceName("");
                 }}
                 onBlur={() => markTouched("servicio")}
-                disabled={saving || loadingLookups || serviceTypesLoading}
+                disabled={saving || loadingLookups || serviceTypesLoading || customServiceMode}
                 className={[
                   "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                   shouldShowError("servicio") && errors.servicio ? "border-red-500" : "border-gray-300",
@@ -1123,130 +1146,65 @@ export default function EditRequestModal({
             {shouldShowError("servicio") && errors.servicio && (
               <p className="mt-1 text-xs text-red-600">{errors.servicio}</p>
             )}
+
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[11px] text-gray-500">
+                Si el servicio correcto no existe, puedes agregarlo.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomServiceMode((prev) => !prev);
+                  setServicio("");
+                  setCustomServiceName("");
+                }}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
+                disabled={saving || loadingLookups || serviceTypesLoading || !serviceTypeId}
+              >
+                {customServiceMode ? "Usar lista" : "Agregar servicio"}
+              </button>
+            </div>
+
+            {customServiceMode && (
+              <div className="mt-3">
+                <input
+                  value={customServiceName}
+                  onChange={(e) => {
+                    markTouched("servicio");
+                    setCustomServiceName(e.target.value);
+                  }}
+                  onBlur={() => markTouched("servicio")}
+                  placeholder="Ej. Instalacion de camara PTZ"
+                  className={[
+                    "h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                    shouldShowError("servicio") && errors.servicio
+                      ? "border-red-500"
+                      : "border-gray-300",
+                  ].join(" ")}
+                />
+              </div>
+            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
-            <div
-              ref={clientBoxRef}
-              className={[
-                "rounded-lg border bg-gray-50 p-2",
-                shouldShowError("cliente") && errors.cliente ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-            >
-              {selectedClient ? (
-                <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white p-2">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
-                      {initials(selectedClient.label)}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">{selectedClient.label}</p>
-                      <p className="truncate text-[11px] text-gray-500">
-                        Cliente #{selectedClient.id}
-                        {selectedClient.documentnumber ? ` - Doc ${selectedClient.documentnumber}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearClient}
-                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                    disabled={saving || loadingLookups}
-                  >
-                    Quitar
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="relative">
-                <input
-                  ref={clientInputRef}
-                  value={clientQuery}
-                  onChange={(e) => {
-                    setClientQuery(e.target.value);
-                    setClientOpen(true);
-                    markTouched("cliente");
-                  }}
-                  onFocus={() => {
-                    setClientOpen(true);
-                    markTouched("cliente");
-                  }}
-                  onBlur={() => markTouched("cliente")}
-                  onKeyDown={(e) => {
-                    if (!clientOpen) return;
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setClientActiveIndex((i) => Math.min(i + 1, Math.max(0, clientOptions.length - 1)));
-                    } else if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setClientActiveIndex((i) => Math.max(i - 1, 0));
-                    } else if (e.key === "Enter") {
-                      if (clientOptions[clientActiveIndex]) {
-                        e.preventDefault();
-                        pickClient(clientOptions[clientActiveIndex].id);
-                      }
-                    } else if (e.key === "Escape") {
-                      setClientOpen(false);
-                    }
-                  }}
-                  placeholder={
-                    loadingLookups
-                      ? "Cargando clientes..."
-                      : finalClientes.length
-                      ? "Buscar por nombre o documento"
-                      : "No hay clientes"
-                  }
-                  disabled={saving || loadingLookups || finalClientes.length === 0}
-                  className="w-full rounded-lg border border-gray-300 bg-white h-10 px-3 text-sm focus:ring-2 focus:ring-black/15 disabled:opacity-60"
-                  aria-expanded={clientOpen}
-                  aria-controls="client-suggest-edit"
-                  aria-autocomplete="list"
-                />
-
-                {clientOpen && !loadingLookups && !saving && (
-                  <div
-                    id="client-suggest-edit"
-                    className="absolute z-20 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
-                  >
-                    {clientOptions.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500">No hay coincidencias.</div>
-                    ) : (
-                      <ul className="max-h-56 overflow-auto">
-                        {clientOptions.map((c, idx) => (
-                          <li key={c.id}>
-                            <button
-                              type="button"
-                              onMouseDown={(ev) => ev.preventDefault()}
-                              onClick={() => pickClient(c.id)}
-                              onMouseEnter={() => setClientActiveIndex(idx)}
-                              className={[
-                                "w-full px-3 py-2 text-left text-sm flex items-center gap-2",
-                                idx === clientActiveIndex ? "bg-gray-100" : "bg-white",
-                              ].join(" ")}
-                            >
-                              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-gray-50 text-[11px] font-semibold text-gray-700">
-                                {initials(c.label)}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate font-medium text-gray-900">{c.label}</span>
-                                <span className="block truncate text-[11px] text-gray-500">
-                                  Cliente #{c.id}
-                                  {c.documentnumber ? ` - Doc ${c.documentnumber}` : ""}
-                                </span>
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
+            <div className="rounded-lg border border-gray-300 bg-gray-50 p-3">
+              <p className="text-sm font-medium text-gray-900">
+                {selectedClient?.label || "Cliente asociado a la solicitud"}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                {selectedClient
+                  ? `Cliente #${selectedClient.id}${
+                      selectedClient.documentnumber
+                        ? ` - Doc ${selectedClient.documentnumber}`
+                        : ""
+                    }`
+                  : "El cliente no se puede modificar desde esta vista."}
+              </p>
+              <p className="mt-2 text-[11px] text-gray-500">
+                El cliente queda fijo para mantener la trazabilidad de la solicitud.
+              </p>
             </div>
-            {shouldShowError("cliente") && errors.cliente && (
-              <p className="mt-1 text-xs text-red-600">{errors.cliente}</p>
-            )}
           </div>
         </div>
         </div>
@@ -1257,7 +1215,7 @@ export default function EditRequestModal({
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-4">
-            <label className="mb-1 block text-xs font-medium text-gray-900">DirecciÃ³n</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">Direccion</label>
             <input
               value={direccion}
               onChange={(e) => {
@@ -1280,7 +1238,6 @@ export default function EditRequestModal({
             <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
             <input
               type="date"
-              min={ymdTodayString()}
               value={programada ?? ""}
               onChange={(e) => handleProgramadaChange(e.target.value)}
               onBlur={() => markTouched("programada")}
@@ -1385,7 +1342,7 @@ export default function EditRequestModal({
             ].join(" ")}
           >
             {selectedTechniciansFull.length === 0 ? (
-              <div className="text-xs text-gray-500 px-1 py-1">No has seleccionado tÃ©cnicos.</div>
+              <div className="text-xs text-gray-500 px-1 py-1">No has seleccionado tecnicos.</div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {selectedTechniciansFull.map((t) => (
@@ -1397,7 +1354,7 @@ export default function EditRequestModal({
                       {initials(t.label)}
                     </span>
                     <span className="max-w-[220px] truncate">
-                      #{t.technicianid} â€” {t.label}
+                      #{t.technicianid} - {t.label}
                     </span>
                     <button
                       type="button"
@@ -1405,7 +1362,7 @@ export default function EditRequestModal({
                       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                       disabled={saving || techLoading}
                     >
-                      âœ•
+                      ×
                     </button>
                   </span>
                 ))}
@@ -1439,7 +1396,7 @@ export default function EditRequestModal({
                   setTechOpen(false);
                 }
               }}
-              placeholder={techLoading ? "Cargando tÃ©cnicos..." : "Buscar por nombre o ID..."}
+              placeholder={techLoading ? "Cargando tecnicos..." : "Buscar por nombre o ID..."}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                 shouldShowError("technicians") && errors.technicians
@@ -1455,7 +1412,7 @@ export default function EditRequestModal({
                 {techOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">
                     {selectedTechnicians.length === availableTechnicians.length
-                      ? "Ya seleccionaste todos los tÃ©cnicos."
+                      ? "Ya seleccionaste todos los tecnicos."
                       : "No hay coincidencias."}
                   </div>
                 ) : (
@@ -1477,7 +1434,7 @@ export default function EditRequestModal({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-medium">{t.label}</span>
-                            <span className="block text-xs text-gray-500">TÃ©cnico #{t.technicianid}</span>
+                            <span className="block text-xs text-gray-500">Tecnico #{t.technicianid}</span>
                           </span>
                           <span className="text-xs text-gray-400">Agregar</span>
                         </button>
@@ -1499,7 +1456,7 @@ export default function EditRequestModal({
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             Descripcion
           </h4>
-          <label className="mb-1 block text-xs font-medium text-gray-900">DescripciÃ³n</label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">Descripcion</label>
           <textarea
             value={descripcion}
             onChange={(e) => {
