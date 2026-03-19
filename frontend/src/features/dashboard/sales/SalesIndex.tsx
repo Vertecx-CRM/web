@@ -12,6 +12,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Colors from "@/shared/theme/colors";
 import { ISale } from "./types/sales.type";
 import { getSales, annulSale, updateEstadoPago } from "./services/sales.service";
+import { createWompiCheckoutSession } from "./api/sales.api";
 import CreateSaleForm from "./components/CreateSaleForm";
 import SaleDetailModal from "./components/SaleDetailModal";
 import { useAuth } from "@/features/auth/authcontext";
@@ -22,6 +23,43 @@ const normalizeRoleName = (role?: string | null) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+
+const redirectToWompiCheckout = (session: {
+  publicKey: string;
+  amountInCents: number;
+  reference: string;
+  redirectUrl?: string;
+  expirationTime: string;
+  signature?: { integrity?: string };
+  customerData?: { email?: string };
+}) => {
+  const form = document.createElement("form");
+  form.method = "GET";
+  form.action = "https://checkout.wompi.co/p/";
+  form.style.display = "none";
+
+  const appendField = (name: string, value: string | number | undefined | null) => {
+    if (value === undefined || value === null || `${value}`.trim() === "") return;
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = String(value);
+    form.appendChild(input);
+  };
+
+  appendField("public-key", session.publicKey);
+  appendField("currency", "COP");
+  appendField("amount-in-cents", session.amountInCents);
+  appendField("reference", session.reference);
+  appendField("signature:integrity", session.signature?.integrity);
+  appendField("redirect-url", session.redirectUrl);
+  appendField("expiration-time", session.expirationTime);
+  appendField("customer-data:email", session.customerData?.email);
+
+  document.body.appendChild(form);
+  form.submit();
+  window.setTimeout(() => form.remove(), 1000);
+};
 
 // ── Tipo de fila de tabla ────────────────────────────────────────────────────
 type SaleRow = {
@@ -106,6 +144,31 @@ export default function SalesIndex() {
       await loadSales();
     } catch {
       showError("Error al actualizar el estado de pago.");
+    } finally {
+      hideLoader();
+    }
+  };
+
+  const handlePaySale = async (row: SaleRow) => {
+    showLoader();
+    try {
+      const redirectUrl = `${window.location.origin}/payments/register?saleId=${row.id}`;
+      const session = await createWompiCheckoutSession(row.id, { redirectUrl });
+
+      localStorage.setItem(
+        "vertecx_checkout",
+        JSON.stringify({
+          saleId: row.id,
+          saleCode: row.codigo,
+          reference: session.reference,
+          total: row.total,
+        })
+      );
+
+      redirectToWompiCheckout(session);
+    } catch (error: any) {
+      console.error("Error al iniciar el pago de la venta:", error);
+      showError(error?.message ?? "No se pudo iniciar el pago con Wompi.");
     } finally {
       hideLoader();
     }
@@ -331,6 +394,14 @@ export default function SalesIndex() {
                   <line x1="15" y1="9" x2="9" y2="15" />
                   <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
+              </button>
+            ) : isClient && row.estado === "Pendiente" && !row.estadoPago ? (
+              <button
+                onClick={() => handlePaySale(row)}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                title="Pagar con Wompi"
+              >
+                Pagar
               </button>
             ) : null
           }

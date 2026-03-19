@@ -1,40 +1,35 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import Colors from "@/shared/theme/colors";
-import { showError, showSuccess } from "@/shared/utils/notifications";
-import { QuoteCreatePayload, QuoteDetailPayload } from "../types/Quote.type";
-import { api } from "@/shared/utils/apiClient";
-import { getServicesRequestsForQuote } from "../api/quotes.api";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
-import { createClient, CreateClientPayload } from "../../Clients/api/clients.api";
+import Colors from "@/shared/theme/colors";
+import { api } from "@/shared/utils/apiClient";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+import { getServicesRequestsForQuote } from "../api/quotes.api";
+import { QuoteCreatePayload } from "../types/Quote.type";
 
-/* ================================
- * TIPOS
- * ================================ */
 type ServiceRequestFromApi = {
   serviceRequestId: number;
   serviceType: string;
-  description: string;
-  direccion: string;
-  customer: {
-    customerid: number;
-    users: {
-      name: string;
-      lastname: string;
-      documentnumber: string;
-      email: string;
+  description?: string | null;
+  direccion?: string | null;
+  customer?: {
+    customerid?: number;
+    users?: {
+      name?: string;
+      lastname?: string;
+      documentnumber?: string;
+      email?: string;
     };
   };
-  techniciansMap: Array<{
-    technician: {
-      technicianid: number;
-      users: {
-        name: string;
-        lastname: string;
-        documentnumber: string;
-        email: string;
-        stateid?: number;
+  techniciansMap?: Array<{
+    technicianId?: number;
+    technician?: {
+      technicianid?: number;
+      users?: {
+        name?: string;
+        lastname?: string;
+        email?: string;
       };
     };
   }>;
@@ -49,237 +44,156 @@ type ProductFromApi = {
   isactive: boolean;
 };
 
-/* ================================
- * ESTADO DEL FORMULARIO
- * ================================ */
-interface QuoteFormState {
-  serviceRequestId: number | "";
-  statesid: number;
-  servicetype: string;
-  observation: string;
-  details: QuoteDetailPayload[];
-}
-
-type NewClientForm = {
-  tipo: string;
-  documento: string;
-  nombre: string;
-  apellido?: string;
-  telefono: string;
-  correo: string;
-  contrasena: string;
+type QuoteDetailForm = {
+  productId: number | null;
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  availability: "DISPONIBLE" | "NO_DISPONIBLE" | "SOLICITAR";
+  isBackorder?: boolean;
 };
 
-interface Props {
+type QuoteFormState = {
+  serviceRequestId: number | "";
+  statesId: number;
+  serviceType: string;
+  observation: string;
+  details: QuoteDetailForm[];
+};
+
+type Props = {
   onSave?: (payload: QuoteCreatePayload) => Promise<void>;
-}
+};
+
+const EMPTY_DETAIL: QuoteDetailForm = {
+  productId: null,
+  name: "",
+  description: "",
+  quantity: 1,
+  unitPrice: 0,
+  subtotal: 0,
+  availability: "DISPONIBLE",
+  isBackorder: false,
+};
 
 export default function RegisterQuoteForm({ onSave }: Props) {
-  /* ================================
-   * STATE PRINCIPAL
-   * ================================ */
   const [form, setForm] = useState<QuoteFormState>({
     serviceRequestId: "",
-    statesid: 5, // Estado por defecto: Pendiente
-    servicetype: "",
+    statesId: 5,
+    serviceType: "",
     observation: "",
     details: [],
   });
-
-  /* ================================
-   * SOLICITUDES DE SERVICIO
-   * ================================ */
-  const [serviceRequests, setServiceRequests] = useState<
-    ServiceRequestFromApi[]
-  >([]);
-  const [selectedServiceRequest, setSelectedServiceRequest] =
-    useState<ServiceRequestFromApi | null>(null);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequestFromApi[]>([]);
+  const [selectedServiceRequest, setSelectedServiceRequest] = useState<ServiceRequestFromApi | null>(null);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
 
-  /* ================================
-   * CLIENTE NUEVO (solo si no hay solicitud)
-   * ================================ */
-  const [createNewClientEnabled, setCreateNewClientEnabled] = useState(true);
-  const [clientForm, setClientForm] = useState<NewClientForm>({
-    tipo: "CC",
-    documento: "",
-    nombre: "",
-    apellido: "",
-    telefono: "",
-    correo: "",
-    contrasena: "",
-  });
-
-  /* ================================
-   * PRODUCTOS
-   * ================================ */
   const [products, setProducts] = useState<ProductFromApi[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [showProductList, setShowProductList] = useState(false);
   const [isManualProduct, setIsManualProduct] = useState(false);
+  const [pendingBackorderProduct, setPendingBackorderProduct] = useState<ProductFromApi | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [detailForm, setDetailForm] = useState<QuoteDetailForm>(EMPTY_DETAIL);
   const productRef = useRef<HTMLDivElement>(null);
-  const [pendingBackorderProduct, setPendingBackorderProduct] =
-    useState<ProductFromApi | null>(null);
 
-  /* ================================
-   * DETALLE ACTUAL
-   * ================================ */
-  const [detailForm, setDetailForm] = useState<QuoteDetailPayload>({
-    productid: null,
-    name: "",
-    description: "",
-    quantity: 1,
-    unitprice: 0,
-    subtotal: 0,
-    availability: "DISPONIBLE",
-    isBackorder: false,
-  });
-
-  /* ================================
-   * EFECTOS PARA CERRAR LISTAS AL HACER CLICK AFUERA
-   * ================================ */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        productRef.current &&
-        !productRef.current.contains(event.target as Node)
-      ) {
+      if (productRef.current && !productRef.current.contains(event.target as Node)) {
         setShowProductList(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /* ================================
-   * CARGA DE DATOS INICIAL
-   * ================================ */
   useEffect(() => {
+    let cancelled = false;
+
     const loadData = async () => {
       try {
-        const requests = await getServicesRequestsForQuote();
-        setServiceRequests(requests);
+        const [requests, productsResponse] = await Promise.all([
+          getServicesRequestsForQuote(),
+          api.get("/products?status=all"),
+        ]);
 
-        const productsResponse = await api.get("/products?status=all");
-        setProducts(productsResponse.data);
+        if (cancelled) return;
+        setServiceRequests(Array.isArray(requests) ? requests : []);
+        setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : []);
       } catch (error) {
-        showError("Error al cargar los datos iniciales");
         console.error(error);
+        showError("Error al cargar los datos iniciales");
       } finally {
-        setIsLoadingRequests(false);
+        if (!cancelled) setIsLoadingRequests(false);
       }
     };
 
     loadData();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  /* ================================
-   * MANEJO DE SELECCIÓN DE SERVICE REQUEST (OPCIONAL)
-   * ================================ */
-  const handleServiceRequestChange = (serviceRequestId: number) => {
-    const selected = serviceRequests.find(
-      (req) => req.serviceRequestId === serviceRequestId,
-    );
-
-    if (!selected) {
-      setSelectedServiceRequest(null);
-      setForm((prev) => ({
-        ...prev,
-        serviceRequestId: "",
-        servicetype: "",
-      }));
-      // si no hay solicitud, por defecto habilitamos creación de cliente
-      setCreateNewClientEnabled(true);
-      return;
-    }
-
-    setSelectedServiceRequest(selected);
-    setForm((prev) => ({
-      ...prev,
-      serviceRequestId: selected.serviceRequestId,
-      servicetype: selected.serviceType,
-    }));
-
-    // si hay solicitud, no necesitamos crear cliente aquí
-    setCreateNewClientEnabled(false);
-  };
-
-  /* ================================
-   * FILTROS DE PRODUCTOS
-   * ================================ */
   const filteredProducts = useMemo(() => {
-    const q = productSearch.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.productname.toLowerCase().includes(q) ||
-        p.productid.toString().includes(q),
-    );
+    const query = productSearch.toLowerCase().trim();
+    return products.filter((product) => {
+      if (!query) return true;
+      return (
+        product.productname.toLowerCase().includes(query) ||
+        String(product.productid).includes(query)
+      );
+    });
   }, [productSearch, products]);
 
-  /* ================================
-   * TOTALES
-   * ================================ */
   const subtotal = useMemo(
-    () => form.details.reduce((a, d) => a + d.subtotal, 0),
-    [form.details],
+    () => form.details.reduce((acc, detail) => acc + Number(detail.subtotal || 0), 0),
+    [form.details]
   );
   const tax = Math.round(subtotal * 0.19);
   const total = subtotal + tax;
 
-  /* ================================
-   * HANDLERS PARA PRODUCTOS
-   * ================================ */
+  const handleServiceRequestChange = (serviceRequestId: number) => {
+    const selected = serviceRequests.find((request) => request.serviceRequestId === serviceRequestId) ?? null;
+    setSelectedServiceRequest(selected);
+    setForm((prev) => ({
+      ...prev,
+      serviceRequestId: selected?.serviceRequestId ?? "",
+      serviceType: selected?.serviceType ?? "",
+    }));
+  };
+
   const handleProductModeChange = (manual: boolean) => {
     setIsManualProduct(manual);
+    setPendingBackorderProduct(null);
     setProductSearch("");
     setShowProductList(false);
-    setPendingBackorderProduct(null);
     setDetailForm({
-      productid: null,
-      name: "",
-      description: "",
-      quantity: 1,
-      unitprice: 0,
-      subtotal: 0,
+      ...EMPTY_DETAIL,
       availability: manual ? "SOLICITAR" : "DISPONIBLE",
-      isBackorder: false,
     });
   };
 
-  const applyProductSelection = (
-    product: ProductFromApi,
-    isBackorder: boolean,
-  ) => {
-    const unitprice = Number(product.productpriceofsale);
-
+  const applyProductSelection = (product: ProductFromApi, isBackorder: boolean) => {
+    const unitPrice = Number(product.productpriceofsale ?? 0);
     setDetailForm({
-      productid: product.productid,
+      productId: product.productid,
       name: product.productname,
-      description: product.productdescription ?? "",
+      description: product.productdescription ?? product.productname,
       quantity: 1,
-      unitprice,
-      subtotal: unitprice,
+      unitPrice,
+      subtotal: unitPrice,
       availability: isBackorder ? "SOLICITAR" : "DISPONIBLE",
       isBackorder,
     });
-
     setProductSearch(product.productname);
     setShowProductList(false);
     setPendingBackorderProduct(null);
   };
 
-  const handleBackorderConfirm = () => {
-    if (!pendingBackorderProduct) return;
-    applyProductSelection(pendingBackorderProduct, true);
-  };
-
-  const handleBackorderCancel = () => {
-    setPendingBackorderProduct(null);
-  };
-
   const handleSelectProduct = (product: ProductFromApi) => {
-    if (product.productstock === 0) {
+    if (Number(product.productstock ?? 0) === 0) {
       setPendingBackorderProduct(product);
       setShowProductList(false);
       return;
@@ -287,273 +201,168 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     applyProductSelection(product, false);
   };
 
-  /* ================================
-   * HANDLERS PARA DETALLES
-   * ================================ */
-  const normalizeDescription = (value: string) => value.trim().toLowerCase();
-
   const handleAddDetail = () => {
     if (!detailForm.description.trim()) {
-      showError("La descripción es obligatoria");
-      return;
-    }
-    if (detailForm.quantity <= 0 || detailForm.unitprice < 0) {
-      showError("Cantidad y precio inválidos");
+      showError("La descripcion es obligatoria");
       return;
     }
 
-    const subtotal = detailForm.quantity * detailForm.unitprice;
-
-    let availability = detailForm.availability;
-    if (isManualProduct) {
-      availability = "SOLICITAR";
-    } else if (detailForm.productid === null) {
-      availability = "NO_DISPONIBLE";
+    if (detailForm.quantity <= 0 || detailForm.unitPrice < 0) {
+      showError("Cantidad o precio invalidos");
+      return;
     }
 
-    const detailPayload: QuoteDetailPayload = {
+    const normalizedSubtotal = detailForm.quantity * detailForm.unitPrice;
+    const nextDetail: QuoteDetailForm = {
       ...detailForm,
-      productid: isManualProduct ? null : detailForm.productid,
-      subtotal,
-      availability,
-      isBackorder: detailForm.isBackorder ?? false,
+      subtotal: normalizedSubtotal,
+      availability: isManualProduct
+        ? "SOLICITAR"
+        : detailForm.productId
+          ? detailForm.availability
+          : "NO_DISPONIBLE",
     };
 
     setForm((prev) => {
-      const updatedDetails = [...prev.details];
-      const normalizedDescription = normalizeDescription(
-        detailPayload.description,
-      );
+      const nextDetails = [...prev.details];
+      const normalizedDescription = detailForm.description.trim().toLowerCase();
 
-      if (detailPayload.productid !== null) {
-        const existingIndex = updatedDetails.findIndex(
-          (d) => d.productid === detailPayload.productid,
-        );
-        if (existingIndex >= 0) {
-          const existing = updatedDetails[existingIndex];
-          const mergedQuantity = existing.quantity + detailPayload.quantity;
-          updatedDetails[existingIndex] = {
-            ...existing,
-            quantity: mergedQuantity,
-            unitprice: detailPayload.unitprice,
-            subtotal: mergedQuantity * detailPayload.unitprice,
-            availability: existing.availability,
-            isBackorder:
-              (existing.isBackorder ?? false) || detailPayload.isBackorder,
-          };
-        } else {
-          updatedDetails.push(detailPayload);
+      const existingIndex = nextDetails.findIndex((detail) => {
+        if (nextDetail.productId) {
+          return detail.productId === nextDetail.productId;
         }
+        return (
+          detail.productId === null &&
+          detail.description.trim().toLowerCase() === normalizedDescription
+        );
+      });
+
+      if (existingIndex >= 0) {
+        const current = nextDetails[existingIndex];
+        const quantity = current.quantity + nextDetail.quantity;
+        nextDetails[existingIndex] = {
+          ...current,
+          quantity,
+          unitPrice: nextDetail.unitPrice,
+          subtotal: quantity * nextDetail.unitPrice,
+          isBackorder: Boolean(current.isBackorder || nextDetail.isBackorder),
+        };
       } else {
-        const existingIndex = updatedDetails.findIndex(
-          (d) =>
-            d.productid === null &&
-            normalizeDescription(d.description) === normalizedDescription,
-        );
-        if (existingIndex >= 0) {
-          const existing = updatedDetails[existingIndex];
-          const mergedQuantity = existing.quantity + detailPayload.quantity;
-          updatedDetails[existingIndex] = {
-            ...existing,
-            quantity: mergedQuantity,
-            unitprice: detailPayload.unitprice,
-            subtotal: mergedQuantity * detailPayload.unitprice,
-            availability: existing.availability,
-            isBackorder:
-              (existing.isBackorder ?? false) || detailPayload.isBackorder,
-          };
-        } else {
-          updatedDetails.push(detailPayload);
-        }
+        nextDetails.push(nextDetail);
       }
 
-      return { ...prev, details: updatedDetails };
+      return {
+        ...prev,
+        details: nextDetails,
+      };
     });
 
     setDetailForm({
-      productid: null,
-      name: "",
-      description: "",
-      quantity: 1,
-      unitprice: 0,
-      subtotal: 0,
+      ...EMPTY_DETAIL,
       availability: isManualProduct ? "SOLICITAR" : "DISPONIBLE",
-      isBackorder: false,
     });
-
     setProductSearch("");
   };
 
   const handleRemoveDetail = (index: number) => {
     setForm((prev) => ({
       ...prev,
-      details: prev.details.filter((_, i) => i !== index),
+      details: prev.details.filter((_, currentIndex) => currentIndex !== index),
     }));
   };
 
-  const updateDetailQuantity = (index: number, newQty: number) => {
+  const updateDetailQuantity = (index: number, quantityRaw: number) => {
     setForm((prev) => {
-      const updated = [...prev.details];
-      const current = updated[index];
+      const nextDetails = [...prev.details];
+      const current = nextDetails[index];
       if (!current) return prev;
 
-      let qty = Math.max(1, Number(newQty) || 1);
-
-      const prod = products.find((p) => p.productid === current.productid);
-      if (prod && current.productid !== null && !current.isBackorder) {
-        qty = Math.min(qty, prod.productstock);
+      let quantity = Math.max(1, Number(quantityRaw) || 1);
+      const product = products.find((item) => item.productid === current.productId);
+      if (product && current.productId && !current.isBackorder) {
+        quantity = Math.min(quantity, Math.max(1, Number(product.productstock || 1)));
       }
 
-      updated[index] = {
+      nextDetails[index] = {
         ...current,
-        quantity: qty,
-        subtotal: qty * current.unitprice,
+        quantity,
+        subtotal: quantity * current.unitPrice,
       };
-      return { ...prev, details: updated };
+
+      return { ...prev, details: nextDetails };
     });
   };
 
   const changeDetailQuantityBy = (index: number, delta: number) => {
-    setForm((prev) => {
-      const updated = [...prev.details];
-      const current = updated[index];
-      if (!current) return prev;
-
-      const qty = Math.max(1, current.quantity + delta);
-      updated[index] = {
-        ...current,
-        quantity: qty,
-        subtotal: qty * current.unitprice,
-      };
-      return { ...prev, details: updated };
-    });
+    const current = form.details[index];
+    if (!current) return;
+    updateDetailQuantity(index, current.quantity + delta);
   };
 
-  /* ================================
-   * HANDLER PARA ENVIAR FORMULARIO
-   * ================================ */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
-    // 1) Ya NO exigimos solicitud. Sí exigimos tipo de servicio.
-    if (!form.servicetype) {
-      showError("Debe seleccionar el tipo de servicio");
+    if (!form.serviceRequestId || !selectedServiceRequest) {
+      showError("Debes seleccionar una solicitud de servicio");
       return;
     }
 
-    if (form.details.length === 0) {
-      showError("Agrega al menos un producto");
+    if (!form.serviceType.trim()) {
+      showError("No se pudo resolver el tipo de servicio de la solicitud");
       return;
     }
 
-    // 2) Si NO hay solicitud, exigimos crear cliente (según requerimiento)
-    const isWithoutServiceRequest = !form.serviceRequestId;
-    if (isWithoutServiceRequest) {
-      if (!createNewClientEnabled) {
-        showError("Para cotizar sin solicitud, debe crear un cliente nuevo");
-        return;
-      }
-      if (
-        !clientForm.documento.trim() ||
-        !clientForm.nombre.trim() ||
-        !clientForm.telefono.trim() ||
-        !clientForm.correo.trim() ||
-        !clientForm.contrasena.trim()
-      ) {
-        showError("Completa los datos obligatorios del cliente");
-        return;
-      }
+    if (!form.details.length) {
+      showError("Agrega al menos un producto a la cotizacion");
+      return;
     }
+
+    const clientId = Number(selectedServiceRequest.customer?.customerid ?? 0);
+    if (!clientId) {
+      showError("La solicitud seleccionada no tiene un cliente valido");
+      return;
+    }
+
+    const payload: QuoteCreatePayload = {
+      serviceRequestId: Number(form.serviceRequestId),
+      statesId: form.statesId,
+      clientId,
+      serviceType: form.serviceType,
+      observation: form.observation.trim() || undefined,
+      details: form.details.map((detail) => ({
+        productId: detail.productId ?? null,
+        description: detail.description.trim(),
+        quantity: detail.quantity,
+        unitPrice: detail.unitPrice,
+        subtotal: detail.subtotal,
+        availability: detail.availability,
+      })),
+    };
 
     try {
-      // 3) Crear cliente si aplica
-      let createdClientId: number | null = null;
-
-      if (isWithoutServiceRequest && createNewClientEnabled) {
-        const payloadClient: CreateClientPayload = {
-          tipo: clientForm.tipo,
-          documento: clientForm.documento.trim(),
-          nombre: clientForm.nombre.trim(),
-          apellido: clientForm.apellido?.trim() || null,
-          telefono: clientForm.telefono.trim(),
-          correo: clientForm.correo.trim(),
-          rol: "Cliente",
-          estado: true,
-          contrasena: clientForm.contrasena,
-        };
-
-        const created: any = await createClient(payloadClient);
-        createdClientId =
-          created?.clientid ?? created?.customerid ?? created?.id ?? null;
-
-        if (!createdClientId) {
-          showError("Cliente creado, pero no se recibió el ID del cliente");
-          return;
-        }
-      }
-
-      // 4) Crear payload de cotización
-      // NOTA: Aquí incluimos serviceRequestId como null si no hay solicitud
-      // y mandamos clientId si se creó cliente.
-      const quotePayload: any = {
-        serviceRequestId: form.serviceRequestId
-          ? Number(form.serviceRequestId)
-          : null,
-        statesid: form.statesid,
-        servicetype: form.servicetype as "MANTENIMIENTO" | "INSTALACION",
-        observation: form.observation,
-        details: form.details.map(({ isBackorder, ...detail }) => ({
-          ...detail,
-          productid: detail.productid ?? null,
-        })),
-        ...(createdClientId ? { clientId: createdClientId } : {}),
-      };
-
-      // onSave está tipado con QuoteCreatePayload (sin clientId / sin null)
-      // por eso lo casteamos: el backend debe soportar este caso “sin solicitud”.
-      await onSave?.(quotePayload as QuoteCreatePayload);
-
-      showSuccess("Cotización guardada exitosamente");
-
-      // Reset
+      setSaving(true);
+      await onSave?.(payload);
+      showSuccess("Cotizacion guardada exitosamente");
       setForm({
         serviceRequestId: "",
-        statesid: 5,
-        servicetype: "",
+        statesId: 5,
+        serviceType: "",
         observation: "",
         details: [],
       });
       setSelectedServiceRequest(null);
-      setCreateNewClientEnabled(true);
-      setClientForm({
-        tipo: "CC",
-        documento: "",
-        nombre: "",
-        apellido: "",
-        telefono: "",
-        correo: "",
-        contrasena: "",
-      });
-      setDetailForm({
-        productid: null,
-        name: "",
-        description: "",
-        quantity: 1,
-        unitprice: 0,
-        subtotal: 0,
-        availability: "DISPONIBLE",
-        isBackorder: false,
-      });
+      setDetailForm(EMPTY_DETAIL);
       setProductSearch("");
+      setIsManualProduct(false);
+      setPendingBackorderProduct(null);
     } catch (error) {
       console.error(error);
-      showError("Error al guardar la cotización");
+      showError("Error al guardar la cotizacion");
+    } finally {
+      setSaving(false);
     }
   };
 
-  /* ================================
-   * RENDER
-   * ================================ */
   if (isLoadingRequests) {
     return (
       <div className="flex items-center justify-center p-10">
@@ -562,377 +371,151 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     );
   }
 
-  const canSubmit =
-    !!form.servicetype &&
-    form.details.length > 0 &&
-    (form.serviceRequestId
-      ? true
-      : createNewClientEnabled &&
-        !!clientForm.documento.trim() &&
-        !!clientForm.nombre.trim() &&
-        !!clientForm.telefono.trim() &&
-        !!clientForm.correo.trim() &&
-        !!clientForm.contrasena.trim());
+  const customerLabel = selectedServiceRequest?.customer?.users
+    ? `${selectedServiceRequest.customer.users.name ?? ""} ${selectedServiceRequest.customer.users.lastname ?? ""}`.trim()
+    : "";
+
+  const technicianLabel =
+    selectedServiceRequest?.techniciansMap?.[0]?.technician?.users
+      ? `${selectedServiceRequest.techniciansMap[0].technician.users.name ?? ""} ${selectedServiceRequest.techniciansMap[0].technician.users.lastname ?? ""}`.trim()
+      : "";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-5 text-sm">
-      {/* SOLICITUD DE SERVICIO (OPCIONAL) */}
       <div>
-        <label className="block mb-1 font-medium">
-          Solicitud de servicio (opcional)
-        </label>
+        <label className="mb-1 block font-medium">Solicitud de servicio *</label>
         <select
           value={form.serviceRequestId}
-          onChange={(e) => handleServiceRequestChange(Number(e.target.value))}
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onChange={(event) => handleServiceRequestChange(Number(event.target.value))}
+          className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+          disabled={saving}
         >
-          <option value="">Sin solicitud (cotización directa)</option>
+          <option value="">Seleccione una solicitud</option>
           {serviceRequests.map((request) => {
-            const customerLabel = request.customer?.users
-              ? `${request.customer.users.name} ${request.customer.users.lastname}`
+            const label = request.customer?.users
+              ? `${request.customer.users.name ?? ""} ${request.customer.users.lastname ?? ""}`.trim()
               : "Cliente no disponible";
 
             return (
-              <option
-                key={request.serviceRequestId}
-                value={request.serviceRequestId}
-              >
-                #{request.serviceRequestId} - {customerLabel} -{" "}
-                {request.serviceType}
+              <option key={request.serviceRequestId} value={request.serviceRequestId}>
+                #{request.serviceRequestId} - {label} - {request.serviceType}
               </option>
             );
           })}
         </select>
+        <p className="mt-1 text-xs text-gray-500">
+          Solo aparecen solicitudes con tecnico asignado y sin una cotizacion activa.
+        </p>
       </div>
 
-      {/* INFO AUTOMÁTICA DEL SERVICE REQUEST */}
       {selectedServiceRequest && (
-        <div className="border p-4 rounded-lg bg-gray-50 space-y-3">
-          <h3 className="font-bold text-gray-700">
-            Información de la solicitud seleccionada
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-3 rounded-lg border bg-gray-50 p-4">
+          <h3 className="font-bold text-gray-700">Informacion de la solicitud</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <div className="text-xs text-gray-500">Cliente</div>
-              <div className="font-medium">
-                {selectedServiceRequest.customer.users.name}{" "}
-                {selectedServiceRequest.customer.users.lastname}
+              <div className="font-medium">{customerLabel || "Cliente no disponible"}</div>
+              <div className="text-sm text-gray-600">
+                Documento: {selectedServiceRequest.customer?.users?.documentnumber ?? "N/A"}
               </div>
               <div className="text-sm text-gray-600">
-                Documento:{" "}
-                {selectedServiceRequest.customer.users.documentnumber}
+                Email: {selectedServiceRequest.customer?.users?.email ?? "N/A"}
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs text-gray-500">Tecnico asignado</div>
+              <div className="font-medium">{technicianLabel || "Sin tecnico asignado"}</div>
               <div className="text-sm text-gray-600">
-                Email: {selectedServiceRequest.customer.users.email}
+                Direccion: {selectedServiceRequest.direccion ?? "N/A"}
               </div>
             </div>
+          </div>
 
-            <div className="space-y-1">
-              <div className="text-xs text-gray-500">Técnico asignado</div>
-              {selectedServiceRequest.techniciansMap &&
-              selectedServiceRequest.techniciansMap.length > 0 ? (
-                <>
-                  <div className="font-medium">
-                    {
-                      selectedServiceRequest.techniciansMap[0].technician.users
-                        .name
-                    }{" "}
-                    {
-                      selectedServiceRequest.techniciansMap[0].technician.users
-                        .lastname
-                    }
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Documento:{" "}
-                    {
-                      selectedServiceRequest.techniciansMap[0].technician.users
-                        .documentnumber
-                    }
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Email:{" "}
-                    {
-                      selectedServiceRequest.techniciansMap[0].technician.users
-                        .email
-                    }
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-gray-500 italic">
-                  No hay técnico asignado
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs text-gray-500">Tipo de servicio</div>
-              <div className="font-medium">
-                {selectedServiceRequest.serviceType}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-xs text-gray-500">Dirección</div>
-              <div className="font-medium">
-                {selectedServiceRequest.direccion}
-              </div>
-            </div>
-
-            <div className="space-y-1 md:col-span-2">
-              <div className="text-xs text-gray-500">
-                Descripción del servicio
-              </div>
-              <div className="font-medium">
-                {selectedServiceRequest.description}
-              </div>
-            </div>
+          <div>
+            <div className="mb-1 text-xs text-gray-500">Descripcion de la solicitud</div>
+            <p className="rounded bg-white p-3 text-sm text-gray-700">
+              {selectedServiceRequest.description ?? "Sin descripcion"}
+            </p>
           </div>
         </div>
       )}
 
-      {/* CLIENTE NUEVO (solo si NO hay solicitud seleccionada) */}
-      {!selectedServiceRequest && (
-        <div className="border p-4 rounded-lg bg-gray-50 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="font-bold text-gray-700">Cliente</h3>
-
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={createNewClientEnabled}
-                onChange={(e) => setCreateNewClientEnabled(e.target.checked)}
-              />
-              Crear cliente nuevo
-            </label>
-          </div>
-
-          {createNewClientEnabled ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block mb-1 font-medium">Tipo documento</label>
-                <select
-                  value={clientForm.tipo}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, tipo: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                >
-                  <option value="CC">CC</option>
-                  <option value="CE">CE</option>
-                  <option value="NIT">NIT</option>
-                  <option value="PAS">PAS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block mb-1 font-medium">Documento *</label>
-                <input
-                  value={clientForm.documento}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, documento: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-medium">Nombre *</label>
-                <input
-                  value={clientForm.nombre}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, nombre: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-medium">Apellido</label>
-                <input
-                  value={clientForm.apellido ?? ""}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, apellido: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-medium">Teléfono *</label>
-                <input
-                  value={clientForm.telefono}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, telefono: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1 font-medium">Correo *</label>
-                <input
-                  type="email"
-                  value={clientForm.correo}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, correo: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block mb-1 font-medium">Contraseña *</label>
-                <input
-                  type="password"
-                  value={clientForm.contrasena}
-                  onChange={(e) =>
-                    setClientForm((p) => ({ ...p, contrasena: e.target.value }))
-                  }
-                  className="w-full border rounded px-3 py-2"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Se creará el usuario con rol Cliente
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded p-3">
-              Para cotizar sin solicitud, debe crear un cliente nuevo.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TIPO DE SERVICIO (auto si hay solicitud / manual si no hay) */}
       <div>
-        <label className="block mb-1 font-medium">Tipo de servicio *</label>
-
-        {selectedServiceRequest ? (
-          <>
-            <input
-              type="text"
-              value={form.servicetype}
-              readOnly
-              className="w-full border rounded px-3 py-2 bg-gray-100"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Este campo se completa automáticamente desde la solicitud de
-              servicio
-            </p>
-          </>
-        ) : (
-          <>
-            <select
-              value={form.servicetype}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, servicetype: e.target.value }))
-              }
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Seleccione un tipo</option>
-              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
-              <option value="INSTALACION">INSTALACION</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Si no hay solicitud, debe elegir el tipo manualmente
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* OBSERVACIÓN */}
-      <div>
-        <label className="block mb-1 font-medium">Observación</label>
-        <textarea
-          placeholder="Observaciones adicionales sobre la cotización"
-          value={form.observation}
-          onChange={(e) => setForm({ ...form, observation: e.target.value })}
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows={3}
+        <label className="mb-1 block font-medium">Tipo de servicio *</label>
+        <input
+          type="text"
+          value={form.serviceType}
+          readOnly
+          className="w-full rounded border bg-gray-100 px-3 py-2"
         />
       </div>
 
-      {/* DETALLES DE PRODUCTOS */}
-      <div className="border p-4 rounded-lg bg-gray-50">
-        <h3 className="font-bold mb-3">Detalles de productos</h3>
+      <div>
+        <label className="mb-1 block font-medium">Observacion</label>
+        <textarea
+          value={form.observation}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, observation: event.target.value }))
+          }
+          className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          placeholder="Observaciones adicionales sobre la cotizacion"
+          disabled={saving}
+        />
+      </div>
 
-        {/* SELECTOR DE MODO */}
-        <div className="flex gap-2 mb-4">
+      <div className="rounded-lg border bg-gray-50 p-4">
+        <h3 className="mb-3 font-bold">Detalles de productos</h3>
+
+        <div className="mb-4 flex gap-2">
           <button
             type="button"
             onClick={() => handleProductModeChange(false)}
-            className={`px-4 py-2 rounded ${!isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            className={`rounded px-4 py-2 ${!isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            disabled={saving}
           >
             Producto existente
           </button>
           <button
             type="button"
             onClick={() => handleProductModeChange(true)}
-            className={`px-4 py-2 rounded ${isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            className={`rounded px-4 py-2 ${isManualProduct ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+            disabled={saving}
           >
-            Producto manual (para comprar)
+            Producto manual
           </button>
         </div>
 
-        {/* BUSCADOR DE PRODUCTOS EXISTENTES */}
         {!isManualProduct && (
           <div ref={productRef} className="relative mb-4">
-            <label className="block mb-1 font-medium">
-              Buscar producto existente
-            </label>
+            <label className="mb-1 block font-medium">Buscar producto existente</label>
             <input
               type="text"
-              placeholder="Escriba para buscar productos..."
+              placeholder="Escribe para buscar productos..."
               value={productSearch}
-              onChange={(e) => {
-                setProductSearch(e.target.value);
+              onChange={(event) => {
+                setProductSearch(event.target.value);
                 setShowProductList(true);
               }}
               onFocus={() => setShowProductList(true)}
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={saving}
             />
 
             {showProductList && filteredProducts.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto">
-                {filteredProducts.map((p) => (
+              <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded border bg-white shadow-lg">
+                {filteredProducts.map((product) => (
                   <div
-                    key={p.productid}
-                    onClick={() => handleSelectProduct(p)}
-                    className="cursor-pointer px-3 py-2 hover:bg-gray-100 border-b last:border-b-0"
+                    key={product.productid}
+                    onClick={() => handleSelectProduct(product)}
+                    className="cursor-pointer border-b px-3 py-2 hover:bg-gray-100 last:border-b-0"
                   >
-                    <div className="font-medium">{p.productname}</div>
-                    <div className="flex flex-col gap-1 text-sm">
-                      <div className="flex items-center gap-1">
-                        <span>Stock:</span>
-                        <span
-                          className={
-                            p.productstock === 0
-                              ? "font-semibold text-red-600"
-                              : "font-medium"
-                          }
-                        >
-                          {p.productstock === 0
-                            ? "0 (Bajo pedido)"
-                            : p.productstock}
-                        </span>
-                        {p.productstock === 0 && (
-                          <span className="px-2 py-0.5 text-[11px] font-semibold text-red-600 rounded-full border border-red-200 bg-red-50">
-                            Bajo pedido
-                          </span>
-                        )}
-                      </div>
-                      <div className="font-medium">
-                        $
-                        {Number(p.productpriceofsale ?? 0).toLocaleString(
-                          "es-CO",
-                        )}
-                      </div>
-                    </div>
+                    <div className="font-medium">{product.productname}</div>
                     <div className="text-xs text-gray-500">
-                      ID: {p.productid} | Estado:{" "}
-                      {p.isactive ? "Activo" : "Inactivo"}
+                      ID: {product.productid} - Stock: {product.productstock} - $
+                      {Number(product.productpriceofsale ?? 0).toLocaleString("es-CO")}
                     </div>
                   </div>
                 ))}
@@ -940,26 +523,25 @@ export default function RegisterQuoteForm({ onSave }: Props) {
             )}
 
             {pendingBackorderProduct && (
-              <div className="mt-3 border border-yellow-200 rounded-lg bg-yellow-50 p-3 text-sm text-gray-800">
+              <div className="mt-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-gray-800">
                 <p className="font-medium">
-                  Este producto no tiene stock disponible. ¿Desea agregarlo a la
-                  cotización como bajo pedido?
+                  Este producto no tiene stock disponible. Deseas agregarlo como bajo pedido?
                 </p>
-                <p className="text-xs text-gray-600">
-                  {pendingBackorderProduct.productname}
-                </p>
+                <p className="text-xs text-gray-600">{pendingBackorderProduct.productname}</p>
                 <div className="mt-3 flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={handleBackorderCancel}
-                    className="px-3 py-1 rounded border border-yellow-400 bg-white text-yellow-600 hover:bg-yellow-100"
+                    onClick={() => setPendingBackorderProduct(null)}
+                    className="rounded border border-yellow-400 bg-white px-3 py-1 text-yellow-700 hover:bg-yellow-100"
+                    disabled={saving}
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
-                    onClick={handleBackorderConfirm}
-                    className="px-3 py-1 rounded bg-yellow-500 text-white hover:bg-yellow-600"
+                    onClick={() => applyProductSelection(pendingBackorderProduct, true)}
+                    className="rounded bg-yellow-500 px-3 py-1 text-white hover:bg-yellow-600"
+                    disabled={saving}
                   >
                     Agregar
                   </button>
@@ -969,208 +551,153 @@ export default function RegisterQuoteForm({ onSave }: Props) {
           </div>
         )}
 
-        {/* FORMULARIO DE DETALLE */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className="block mb-1 font-medium">Nombre *</label>
+            <label className="mb-1 block font-medium">Nombre *</label>
             <input
               type="text"
-              placeholder="Nombre del producto"
               value={detailForm.name}
-              onChange={(e) =>
-                setDetailForm({ ...detailForm, name: e.target.value })
+              onChange={(event) =>
+                setDetailForm((prev) => ({ ...prev, name: event.target.value }))
               }
               readOnly={!isManualProduct}
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={saving}
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block mb-1 font-medium">Descripción *</label>
+            <label className="mb-1 block font-medium">Descripcion *</label>
             <AutoGrowTextarea
-              placeholder="Descripción del producto"
               value={detailForm.description}
-              onChange={(e) =>
-                setDetailForm({ ...detailForm, description: e.target.value })
+              onChange={(event) =>
+                setDetailForm((prev) => ({ ...prev, description: event.target.value }))
               }
               readOnly={!isManualProduct}
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Descripcion del producto"
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Cantidad *</label>
+            <label className="mb-1 block font-medium">Cantidad *</label>
             <input
               type="number"
               min="1"
               value={detailForm.quantity}
-              onChange={(e) =>
-                setDetailForm({
-                  ...detailForm,
-                  quantity: Number(e.target.value),
-                })
+              onChange={(event) =>
+                setDetailForm((prev) => ({
+                  ...prev,
+                  quantity: Math.max(1, Number(event.target.value) || 1),
+                }))
               }
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={saving}
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-medium">Precio unitario *</label>
+            <label className="mb-1 block font-medium">Precio unitario *</label>
             <input
               type="number"
               min="0"
               step="0.01"
-              value={detailForm.unitprice}
-              readOnly={!isManualProduct}
-              onChange={(e) =>
-                setDetailForm({
-                  ...detailForm,
-                  unitprice: Number(e.target.value),
-                })
+              value={detailForm.unitPrice}
+              onChange={(event) =>
+                setDetailForm((prev) => ({
+                  ...prev,
+                  unitPrice: Math.max(0, Number(event.target.value) || 0),
+                }))
               }
-              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              readOnly={!isManualProduct}
+              className="w-full rounded border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={saving}
             />
           </div>
         </div>
 
-        {/* INFORMACIÓN DEL PRODUCTO */}
-        <div className="mb-4 p-3 bg-blue-50 rounded">
-          <div className="text-sm">
-            <strong>Tipo:</strong>{" "}
-            {isManualProduct ? "Producto manual" : "Producto existente"}
-            <br />
-            <strong>Disponibilidad:</strong> {detailForm.availability}
-            {detailForm.productid && (
-              <>
-                <br />
-                <strong>ID Producto:</strong> {detailForm.productid}
-              </>
-            )}
-            <br />
-            <strong>Subtotal:</strong> $
-            {(detailForm.quantity * detailForm.unitprice).toLocaleString(
-              "es-CO",
-            )}
-          </div>
+        <div className="mb-4 rounded bg-blue-50 p-3 text-sm">
+          <strong>Disponibilidad:</strong> {detailForm.availability}
+          {detailForm.productId ? (
+            <>
+              <br />
+              <strong>ID Producto:</strong> {detailForm.productId}
+            </>
+          ) : null}
+          <br />
+          <strong>Subtotal:</strong> $
+          {(detailForm.quantity * detailForm.unitPrice).toLocaleString("es-CO")}
         </div>
 
-        {/* BOTÓN AGREGAR */}
         <button
           type="button"
           onClick={handleAddDetail}
           style={{ backgroundColor: Colors.buttons.secondary }}
-          className="text-white px-4 py-2 rounded hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="rounded px-4 py-2 text-white hover:opacity-90"
+          disabled={saving}
         >
           Agregar producto
         </button>
 
-        {/* LISTA DE PRODUCTOS AGREGADOS */}
         {form.details.length > 0 && (
-          <div className="mt-6 space-y-4">
-            <h4 className="font-bold mb-2">
-              Productos agregados ({form.details.length})
-            </h4>
-            <div className="space-y-3">
-              {form.details.map((d, i) => {
-                const availabilityLabel =
-                  d.isBackorder && d.availability !== "SOLICITAR"
-                    ? "BAJO PEDIDO"
-                    : d.availability;
-
-                return (
-                  <div
-                    key={i}
-                    className="border rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition"
+          <div className="mt-6 space-y-3">
+            <h4 className="font-bold">Productos agregados ({form.details.length})</h4>
+            {form.details.map((detail, index) => (
+              <div key={`${detail.productId ?? "manual"}-${index}`} className="rounded-lg border bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="font-medium text-gray-800">{detail.name || detail.description}</div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDetail(index)}
+                    className="cursor-pointer text-sm text-red-500 hover:text-red-700"
+                    disabled={saving}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="font-medium text-gray-800">{d.name}</div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDetail(i)}
-                        className="cursor-pointer text-red-500 hover:text-red-700 text-sm focus:outline-none"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
+                    Eliminar
+                  </button>
+                </div>
 
-                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">Cantidad:</span>
-
-                        <button
-                          type="button"
-                          onClick={() => changeDetailQuantityBy(i, -1)}
-                          className="w-8 h-8 rounded border bg-white hover:bg-gray-50"
-                          aria-label="Disminuir cantidad"
-                        >
-                          -
-                        </button>
-
-                        <input
-                          type="number"
-                          min={1}
-                          value={d.quantity}
-                          onChange={(e) =>
-                            updateDetailQuantity(i, Number(e.target.value))
-                          }
-                          className="w-16 border rounded px-2 py-1 text-center"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => changeDetailQuantityBy(i, +1)}
-                          className="w-8 h-8 rounded border bg-white hover:bg-gray-50"
-                          aria-label="Aumentar cantidad"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <div>
-                        Precio unitario: ${d.unitprice.toLocaleString("es-CO")}
-                      </div>
-                      <div>Subtotal: ${d.subtotal.toLocaleString("es-CO")}</div>
-                      <div>
-                        Tipo:{" "}
-                        {d.productid === null
-                          ? "Manual (para comprar)"
-                          : "Existente"}
-                      </div>
-                      {d.productid !== null && (
-                        <div>ID del producto: {d.productid}</div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <span>Disponibilidad:</span>
-                        <span className="font-semibold text-gray-800">
-                          {availabilityLabel}
-                        </span>
-                      </div>
-                    </div>
-
-                    {d.isBackorder && (
-                      <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 p-2 text-xs text-orange-900">
-                        <div className="flex flex-col gap-1">
-                          <span className="inline-flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-full border border-orange-300 bg-orange-100 font-semibold text-orange-800">
-                              Bajo pedido
-                            </span>
-                            Este producto no tiene stock disponible y se cotiza
-                            bajo solicitud.
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-gray-600 md:grid-cols-2">
+                  <div className="flex items-center gap-2">
+                    <span>Cantidad:</span>
+                    <button
+                      type="button"
+                      onClick={() => changeDetailQuantityBy(index, -1)}
+                      className="h-8 w-8 rounded border bg-white hover:bg-gray-50"
+                      disabled={saving}
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={detail.quantity}
+                      onChange={(event) =>
+                        updateDetailQuantity(index, Number(event.target.value))
+                      }
+                      className="w-16 rounded border px-2 py-1 text-center"
+                      disabled={saving}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => changeDetailQuantityBy(index, 1)}
+                      className="h-8 w-8 rounded border bg-white hover:bg-gray-50"
+                      disabled={saving}
+                    >
+                      +
+                    </button>
                   </div>
-                );
-              })}
-            </div>
+
+                  <div>Precio unitario: ${detail.unitPrice.toLocaleString("es-CO")}</div>
+                  <div>Subtotal: ${detail.subtotal.toLocaleString("es-CO")}</div>
+                  <div>Disponibilidad: {detail.availability}</div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* RESUMEN FINANCIERO */}
-        <div className="mt-6 border p-4 rounded-lg bg-gray-50">
-          <h3 className="font-bold mb-3">Resumen financiero</h3>
+        <div className="mt-6 rounded-lg border bg-gray-50 p-4">
+          <h3 className="mb-3 font-bold">Resumen financiero</h3>
           <div className="space-y-2">
             <div className="flex justify-between">
               <span>Subtotal:</span>
@@ -1180,7 +707,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
               <span>IVA (19%):</span>
               <span>${tax.toLocaleString("es-CO")}</span>
             </div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t">
+            <div className="flex justify-between border-t pt-2 text-lg font-bold">
               <span>Total:</span>
               <span>${total.toLocaleString("es-CO")}</span>
             </div>
@@ -1188,19 +715,13 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         </div>
       </div>
 
-      {/* BOTÓN GUARDAR */}
       <button
         type="submit"
         style={{ backgroundColor: Colors.buttons.primary }}
-        className="cursor-pointer w-full text-white px-4 py-3 rounded font-medium hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        disabled={!canSubmit}
-        title={
-          !canSubmit
-            ? "Completa tipo de servicio, productos y (si no hay solicitud) los datos del cliente"
-            : ""
-        }
+        className="w-full cursor-pointer rounded px-4 py-3 font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={saving}
       >
-        Guardar Cotización
+        {saving ? "Guardando..." : "Guardar Cotizacion"}
       </button>
     </form>
   );

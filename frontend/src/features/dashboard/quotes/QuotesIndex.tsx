@@ -1,87 +1,51 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
-import RequireAuth from "../../auth/requireauth";
-import { DataTable } from "../components/datatable/DataTable";
-import Modal from "../components/Modal";
-import { ToastContainer } from "react-toastify";
-import { Column } from "../components/datatable/types/column.types";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { ToastContainer } from "react-toastify";
 
-import ViewQuote from "./components/ViewQuote";
-
-import { updateOrderService } from "@/features/dashboard/OrdersServices/api/ordersServices.api";
-import { updateServiceRequest } from "@/features/dashboard/requests/services/servicerequests.service";
-
-import {
-  getQuotes,
-  approveQuote,
-  completeQuote,
-  cancelQuote,
-  revokeQuote,
-} from "./api/quotes.api";
-
-import { QuoteTableRow } from "./types/Quote.type";
+import RequireAuth from "../../auth/requireauth";
+import Modal from "../components/Modal";
+import { DataTable } from "../components/datatable/DataTable";
+import { Column } from "../components/datatable/types/column.types";
 import Colors from "@/shared/theme/colors";
 import { useAuth } from "@/features/auth/authcontext";
 
-/* ================================
- * NORMALIZACIÓN DE ESTADOS (VISUAL)
- * ================================ */
+import ViewQuote from "./components/ViewQuote";
+import {
+  acceptQuote,
+  approveQuote,
+  cancelQuote,
+  completeQuote,
+  getQuotes,
+  revokeQuote,
+} from "./api/quotes.api";
+import { QuoteTableRow as BaseQuoteTableRow } from "./types/Quote.type";
+
+type QuoteTableRow = BaseQuoteTableRow & {
+  clientAccepted: boolean;
+  clientAcceptedLabel: string;
+  orderId: number | null;
+  orderState: string;
+};
+
 type QuoteStatusConfig = {
   label: string;
   className: string;
   style?: React.CSSProperties;
 };
 
-const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
-  if (!status) return { label: "—", className: "text-slate-500" };
-
-  const value = String(status).toLowerCase();
-
-  if (value.includes("pend")) {
-    return { label: "Pendiente", className: "", style: { color: Colors.states.pending } };
-  }
-
-  if (value.includes("aprob") || value.includes("approved")) {
-    return { label: "Aprobada", className: "", style: { color: Colors.states.success } };
-  }
-
-  if (value.includes("finish") || value.includes("finaliz") || value.includes("complet")) {
-    return { label: "Completada", className: "", style: { color: Colors.states.completed } };
-  }
-
-  if (value.includes("cancel")) {
-    return { label: "Cancelada", className: "text-gray-600" };
-  }
-
-  if (value.includes("revoke") || value.includes("anul")) {
-    return { label: "Anulada", className: "", style: { color: Colors.states.nullable } };
-  }
-
-  return { label: status, className: "text-slate-500" };
-};
-
-/* ================================
- * ESTADO EN ESPAÑOL (BÚSQUEDA)
- * ================================ */
-const normalizeQuoteStatusText = (status?: string): string => {
-  if (!status) return "";
-  const value = String(status).toLowerCase();
-
-  if (value.includes("pend")) return "pendiente";
-  if (value.includes("aprob") || value.includes("approved")) return "aprobada";
-  if (value.includes("finish") || value.includes("finaliz") || value.includes("complet")) return "completada";
-  if (value.includes("cancel")) return "cancelada";
-  if (value.includes("revoke") || value.includes("anul")) return "anulada";
-
-  return value;
-};
-
 const normalizeRoleName = (role?: string | null) =>
   String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const normalizeText = (value?: string | null) =>
+  String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -92,6 +56,26 @@ const toPositiveInteger = (value: any): number | null => {
   if (!Number.isFinite(numeric)) return null;
   const integer = Math.trunc(numeric);
   return integer > 0 ? integer : null;
+};
+
+const getQuoteStateName = (quote?: any) =>
+  String(quote?.state?.name ?? quote?.status ?? "").trim();
+
+const getQuoteOrderServiceId = (quote?: any): number | null => {
+  if (!quote) return null;
+  const candidates = [
+    quote.ordersservices?.ordersservicesid,
+    quote.ordersservices?.id,
+    quote.ordersservicesid,
+    quote.ordersservicesId,
+    quote.order?.ordersservicesid,
+    quote.order?.id,
+  ];
+  for (const candidate of candidates) {
+    const id = toPositiveInteger(candidate);
+    if (id) return id;
+  }
+  return null;
 };
 
 const getQuoteServiceRequestId = (quote?: any): number | null => {
@@ -110,23 +94,131 @@ const getQuoteServiceRequestId = (quote?: any): number | null => {
   return null;
 };
 
-const getQuoteOrderServiceId = (quote?: any): number | null => {
-  if (!quote) return null;
-  const candidates = [
-    quote.ordersservices?.ordersservicesid,
-    quote.ordersservices?.id,
-    quote.ordersservicesid,
-    quote.ordersservicesId,
-    quote.order?.ordersservicesid,
-    quote.order?.ordersservicesId,
-    quote.order?.id,
-  ];
-  for (const candidate of candidates) {
-    const id = toPositiveInteger(candidate);
-    if (id) return id;
-  }
-  return null;
+const isPendingLike = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return normalized.includes("pend");
 };
+
+const isApprovedLike = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return normalized.includes("aprob") || normalized.includes("approved");
+};
+
+const isCompletedLike = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return (
+    normalized.includes("finish") ||
+    normalized.includes("finaliz") ||
+    normalized.includes("complet")
+  );
+};
+
+const isCanceledLike = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return (
+    normalized.includes("cancel") ||
+    normalized.includes("anul") ||
+    normalized.includes("revoke")
+  );
+};
+
+const isFinishedLike = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return normalized.includes("finish") || normalized.includes("finaliz");
+};
+
+const normalizeQuoteStatus = (status?: string): QuoteStatusConfig => {
+  if (!status) return { label: "-", className: "text-slate-500" };
+
+  if (isPendingLike(status)) {
+    return {
+      label: "Pendiente",
+      className: "",
+      style: { color: Colors.states.pending },
+    };
+  }
+
+  if (isApprovedLike(status)) {
+    return {
+      label: "Aprobada",
+      className: "",
+      style: { color: Colors.states.success },
+    };
+  }
+
+  if (isCompletedLike(status)) {
+    return {
+      label: "Completada",
+      className: "",
+      style: { color: Colors.states.completed },
+    };
+  }
+
+  if (isCanceledLike(status)) {
+    return { label: "Cancelada", className: "text-gray-600" };
+  }
+
+  return { label: status, className: "text-slate-500" };
+};
+
+const canClientAcceptQuote = (quote?: any) => {
+  const status = getQuoteStateName(quote);
+  return (
+    !Boolean(quote?.clientAccepted) &&
+    isPendingLike(status) &&
+    !isCanceledLike(status) &&
+    !isCompletedLike(status)
+  );
+};
+
+const canCreateOrderFromQuote = (quote?: any) => {
+  const status = getQuoteStateName(quote);
+  return (
+    Boolean(quote?.clientAccepted) &&
+    isApprovedLike(status) &&
+    !getQuoteOrderServiceId(quote) &&
+    !isCanceledLike(status) &&
+    !isCompletedLike(status)
+  );
+};
+
+const canManuallyCompleteQuote = (quote?: any) => {
+  const status = getQuoteStateName(quote);
+  const orderState = String(quote?.ordersservices?.state?.name ?? "").trim();
+  return (
+    isApprovedLike(status) &&
+    !isCompletedLike(status) &&
+    !isCanceledLike(status) &&
+    Boolean(getQuoteOrderServiceId(quote)) &&
+    isFinishedLike(orderState)
+  );
+};
+
+function ActionPill({
+  title,
+  onClick,
+  tone = "default",
+}: {
+  title: string;
+  onClick: () => void;
+  tone?: "default" | "success";
+}) {
+  const classes =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${classes}`}
+      title={title}
+    >
+      {title}
+    </button>
+  );
+}
 
 export default function QuotesIndex() {
   const router = useRouter();
@@ -134,43 +226,48 @@ export default function QuotesIndex() {
 
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [isDetailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<any>(null);
-
   const [isCompletingQuote, setCompletingQuote] = useState(false);
-  const [isFinalizingQuote, setFinalizingQuote] = useState(false);
+
   const isClient = useMemo(
     () => normalizeRoleName(user?.rolename) === "cliente",
     [user?.rolename]
   );
 
-  /* ================================
-   * CARGAR COTIZACIONES
-   * ================================ */
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getQuotes();
-
-      const mapped: QuoteTableRow[] = (data ?? []).map((q: any) => {
-        const rawStatus = q.state?.name ?? "";
-        const clientName = `${q.customer?.users?.name ?? ""} ${q.customer?.users?.lastname ?? ""}`.trim();
-        const techName = `${q.technician?.users?.name ?? ""} ${q.technician?.users?.lastname ?? ""}`.trim();
+      const mapped: QuoteTableRow[] = (data ?? []).map((quote: any) => {
+        const rawStatus = getQuoteStateName(quote);
+        const clientName = `${quote.customer?.users?.name ?? ""} ${quote.customer?.users?.lastname ?? ""}`.trim();
+        const techName = `${quote.technician?.users?.name ?? ""} ${quote.technician?.users?.lastname ?? ""}`.trim();
+        const orderId = getQuoteOrderServiceId(quote);
+        const clientAccepted = Boolean(quote?.clientAccepted);
 
         return {
-          id: q.quotesid,
-          client: clientName,
-          technician: techName,
+          id: Number(quote?.quotesid ?? 0),
+          client: clientName || "-",
+          technician: techName || "-",
           status: rawStatus,
-          statusSearch: normalizeQuoteStatusText(rawStatus),
-          creationDate: q.createdat,
-          amount: Number(q.total ?? 0),
-          raw: q,
+          statusSearch: normalizeText(rawStatus),
+          creationDate: String(quote?.createdat ?? ""),
+          amount: Number(quote?.total ?? 0),
+          clientAccepted,
+          clientAcceptedLabel: clientAccepted ? "Aceptada" : "Pendiente",
+          orderId,
+          orderState: String(quote?.ordersservices?.state?.name ?? "").trim(),
+          raw: quote,
         };
       });
 
       setQuotesData(mapped);
+      setSelectedQuote((current: any) => {
+        if (!current) return current;
+        const selectedId = Number(current?.quotesid ?? 0);
+        return mapped.find((row) => row.id === selectedId)?.raw ?? current;
+      });
     } finally {
       setLoading(false);
     }
@@ -180,19 +277,18 @@ export default function QuotesIndex() {
     fetchQuotes();
   }, [fetchQuotes]);
 
-  /* ================================
-   * COLUMNAS
-   * ================================ */
   const columns: Column<QuoteTableRow>[] = [
     { key: "id", header: "ID" },
     { key: "client", header: "Cliente" },
-    { key: "technician", header: "Técnico" },
+    { key: "technician", header: "Tecnico" },
     {
       key: "creationDate",
       header: "Fecha",
       render: (row) => {
-        const d = row.creationDate ? new Date(row.creationDate) : null;
-        return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("es-CO") : "—";
+        const created = row.creationDate ? new Date(row.creationDate) : null;
+        return created && !Number.isNaN(created.getTime())
+          ? created.toLocaleDateString("es-CO")
+          : "-";
       },
     },
     {
@@ -208,6 +304,20 @@ export default function QuotesIndex() {
       },
     },
     {
+      key: "clientAcceptedLabel",
+      header: "Cliente",
+      render: (row) => (
+        <span className={row.clientAccepted ? "text-emerald-700" : "text-amber-700"}>
+          {row.clientAcceptedLabel}
+        </span>
+      ),
+    },
+    {
+      key: "orderId",
+      header: "Orden",
+      render: (row) => (row.orderId ? `#${row.orderId}` : "-"),
+    },
+    {
       key: "amount",
       header: "Total",
       render: (row) =>
@@ -219,115 +329,125 @@ export default function QuotesIndex() {
     },
   ];
 
-  /* ================================
-   * APROBAR
-   * ================================ */
   const handleApproveQuote = async (row: QuoteTableRow) => {
-    const r = await Swal.fire({
-      title: "¿Aprobar cotización?",
-      text: `Total: ${Number(row.amount ?? 0).toLocaleString("es-CO", {
-        style: "currency",
-        currency: "COP",
-        minimumFractionDigits: 0,
-      })}`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Sí, aprobar",
-      cancelButtonText: "Cancelar",
-      confirmButtonColor: "#16a34a",
-    });
-
-    if (!r.isConfirmed) return;
-
-    try {
-      await approveQuote(row.id);
-    } catch (error: any) {
-      console.error("Error al aprobar la cotización:", error);
+    if (!row.clientAccepted) {
       await Swal.fire(
-        "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo aprobar la cotización.",
-        "error"
-      );
-      return;
-    }
-
-    let completionResult: any = null;
-    try {
-      completionResult = await completeQuote(row.id);
-    } catch (error: any) {
-      console.error("Error al convertir la cotización:", error);
-      await fetchQuotes();
-      await Swal.fire(
-        "Cotización aprobada",
-        "La cotización quedó en estado aprobada, pero no se pudo generar la venta.",
+        "Esperando cliente",
+        "El cliente debe aceptar la cotizacion antes de que el admin la apruebe.",
         "warning"
       );
       return;
     }
 
-    await fetchQuotes();
-
-    await Swal.fire(
-      "Cotización completada",
-      completionResult?.sale
-        ? `Venta generada: ${completionResult.sale.salecode ?? completionResult.sale.saleid}`
-        : "La cotización se completó y se creó la venta asociada.",
-      "success"
-    );
-  };
-
-  /* ================================
-   * CANCELAR (CLIENTE)
-   * ================================ */
-  const handleCancelQuote = async (row: QuoteTableRow) => {
-    const r = await Swal.fire({
-      title: "¿Cancelar cotización?",
-      text: "Esta acción no se puede deshacer",
-      icon: "warning",
+    const result = await Swal.fire({
+      title: "Aprobar cotizacion",
+      text: "La cotizacion quedara lista para crear la orden de servicio.",
+      icon: "question",
       showCancelButton: true,
-      confirmButtonText: "Sí, cancelar",
-      cancelButtonText: "Volver",
-      confirmButtonColor: "#b91c1c",
+      confirmButtonText: "Aprobar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#16a34a",
     });
 
-    if (!r.isConfirmed) return;
+    if (!result.isConfirmed) return;
 
     try {
-      await cancelQuote(row.id);
+      await approveQuote(row.id);
       await fetchQuotes();
-      await Swal.fire("Cancelada", "Cotización cancelada", "success");
+      await Swal.fire(
+        "Cotizacion aprobada",
+        "Ahora puedes crear la orden de servicio con esta cotizacion.",
+        "success"
+      );
     } catch (error: any) {
-      console.error(error);
+      console.error("Error al aprobar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo cancelar la cotización.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo aprobar la cotizacion.",
         "error"
       );
     }
   };
 
-  /* ================================
-   * ANULAR (ADMIN)
-   * ================================ */
-  const handleRevokeQuote = async (row: QuoteTableRow) => {
-    const status = row.statusSearch;
+  const handleAcceptQuote = async (row: QuoteTableRow) => {
+    const result = await Swal.fire({
+      title: "Aceptar cotizacion",
+      text: "Le avisaremos al administrador para que continue con la orden de servicio.",
+      input: "textarea",
+      inputLabel: "Observacion opcional",
+      inputPlaceholder: "Ej: Pueden continuar con la instalacion",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Aceptar",
+      cancelButtonText: "Volver",
+      confirmButtonColor: "#16a34a",
+    });
 
-    if (status !== "aprobada") {
-      await Swal.fire({
-        icon: "warning",
-        title: "Acción no permitida",
-        text: "Solo se pueden anular cotizaciones que estén aprobadas.",
-        confirmButtonText: "Entendido",
-        confirmButtonColor: "#b20000",
-      });
+    if (!result.isConfirmed) return;
+
+    try {
+      await acceptQuote(row.id, result.value);
+      await fetchQuotes();
+      await Swal.fire(
+        "Cotizacion aceptada",
+        "Tu respuesta fue registrada correctamente.",
+        "success"
+      );
+    } catch (error: any) {
+      console.error("Error al aceptar la cotizacion:", error);
+      await Swal.fire(
+        "Error",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo aceptar la cotizacion.",
+        "error"
+      );
+    }
+  };
+
+  const handleCancelQuote = async (row: QuoteTableRow) => {
+    const result = await Swal.fire({
+      title: "Cancelar cotizacion",
+      text: "La cotizacion quedara marcada como cancelada por el cliente.",
+      input: "textarea",
+      inputLabel: "Motivo opcional",
+      inputPlaceholder: "Ej: Ya no necesito la instalacion",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Cancelar cotizacion",
+      cancelButtonText: "Volver",
+      confirmButtonColor: "#b91c1c",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      await cancelQuote(row.id, result.value);
+      await fetchQuotes();
+      await Swal.fire("Cancelada", "La cotizacion fue cancelada.", "success");
+    } catch (error: any) {
+      console.error("Error al cancelar la cotizacion:", error);
+      await Swal.fire(
+        "Error",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo cancelar la cotizacion.",
+        "error"
+      );
+    }
+  };
+
+  const handleRevokeQuote = async (row: QuoteTableRow) => {
+    if (!isApprovedLike(row.status)) {
+      await Swal.fire(
+        "Accion no permitida",
+        "Solo se pueden anular cotizaciones que ya esten aprobadas.",
+        "warning"
+      );
       return;
     }
 
-    const r = await Swal.fire({
-      title: "¿Anular cotización?",
+    const result = await Swal.fire({
+      title: "Anular cotizacion",
       input: "textarea",
-      inputLabel: "Observación (opcional)",
-      inputPlaceholder: "Motivo de la anulación",
+      inputLabel: "Observacion opcional",
+      inputPlaceholder: "Motivo de la anulacion",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Anular",
@@ -335,188 +455,204 @@ export default function QuotesIndex() {
       confirmButtonColor: "#b20000",
     });
 
-    if (!r.isConfirmed) return;
+    if (!result.isConfirmed) return;
 
     try {
-      await revokeQuote(row.id, r.value);
+      await revokeQuote(row.id, result.value);
       await fetchQuotes();
-      await Swal.fire({
-        icon: "success",
-        title: "Cotización anulada",
-        text: "La cotización fue anulada correctamente.",
-      });
+      await Swal.fire(
+        "Cotizacion anulada",
+        "La cotizacion fue anulada correctamente.",
+        "success"
+      );
     } catch (error: any) {
-      console.error(error);
+      console.error("Error al anular la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo anular la cotización.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo anular la cotizacion.",
         "error"
       );
     }
   };
 
-  /* ================================
-   * COMPLETAR (desde modal detalle)
-   * ================================ */
+  const goToCreateOrder = useCallback(
+    (quote: any) => {
+      const quoteId = Number(quote?.quotesid ?? quote?.id ?? 0);
+      if (!Number.isFinite(quoteId) || quoteId <= 0) return;
+      router.push(
+        `/dashboard/orders-services/new?quotesId=${quoteId}&returnTo=${encodeURIComponent(
+          "/dashboard/quotes"
+        )}`
+      );
+    },
+    [router]
+  );
+
   const handleCompleteQuote = useCallback(async () => {
     if (!selectedQuote) return;
 
-    const quoteId = Number(selectedQuote.quotesid ?? selectedQuote.id ?? selectedQuote.quoteId ?? 0);
-
+    const quoteId = Number(selectedQuote?.quotesid ?? 0);
     if (!quoteId) {
-      await Swal.fire("Error", "ID de cotización inválido.", "error");
+      await Swal.fire("Error", "ID de cotizacion invalido.", "error");
       return;
     }
 
-    const confirm = await Swal.fire({
-      title: "¿Completar cotización?",
-      text: "Se generará la venta correspondiente y la cotización pasará a estado completado.",
+    const result = await Swal.fire({
+      title: "Generar venta desde la cotizacion",
+      text: "Usa esta opcion solo si la orden ya fue finalizada y la venta aun no se ha creado.",
       icon: "question",
       showCancelButton: true,
-      confirmButtonText: "Completar",
+      confirmButtonText: "Generar venta",
       cancelButtonText: "Cancelar",
     });
 
-    if (!confirm.isConfirmed) return;
+    if (!result.isConfirmed) return;
 
     try {
       setCompletingQuote(true);
-      await completeQuote(quoteId);
+      const completionResult = await completeQuote(quoteId);
       await fetchQuotes();
-
       setDetailModalOpen(false);
       setSelectedQuote(null);
 
       await Swal.fire(
-        "Cotización completada",
-        "Se creó la venta asociada y la cotización se actualizó.",
+        "Venta generada",
+        completionResult?.sale
+          ? `Se genero la venta ${completionResult.sale.salecode ?? completionResult.sale.saleid}.`
+          : "La cotizacion se completo y la venta quedo creada.",
         "success"
       );
     } catch (error: any) {
-      console.error(error);
+      console.error("Error al completar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo completar la cotización.",
+        error?.response?.data?.message ?? error?.message ?? "No se pudo completar la cotizacion.",
         "error"
       );
     } finally {
       setCompletingQuote(false);
     }
-  }, [selectedQuote, fetchQuotes]);
+  }, [fetchQuotes, selectedQuote]);
 
-  /* ================================
-   * FINALIZAR (actualiza orden/solicitud a estado 6)
-   * ================================ */
-  const handleFinalizeQuote = useCallback(async () => {
-    if (!selectedQuote) return;
-
-    const serviceRequestId = getQuoteServiceRequestId(selectedQuote);
-    const orderServiceId = getQuoteOrderServiceId(selectedQuote);
-
-    if (!serviceRequestId && !orderServiceId) {
-      await Swal.fire("Sin registros relacionados", "La cotización no tiene orden ni solicitud asociada.", "warning");
-      return;
-    }
-
-    const targets = [
-      serviceRequestId ? "solicitud de servicio" : null,
-      orderServiceId ? "orden de servicio" : null,
-    ].filter(Boolean) as string[];
-
-    const targetText = targets.join(" y ");
-    const verb = targets.length > 1 ? "marcarán" : "marcará";
-    const suffix = targets.length > 1 ? "finalizados" : "finalizado";
-
-    const confirm = await Swal.fire({
-      title: "¿Finalizar cotización?",
-      text: `Se ${verb} ${targetText} como ${suffix} (estado 6).`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Finalizar",
-      cancelButtonText: "Cancelar",
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      setFinalizingQuote(true);
-
-      const requests: Promise<any>[] = [];
-
-      if (serviceRequestId) requests.push(updateServiceRequest(serviceRequestId, { stateId: 6 }));
-      if (orderServiceId) requests.push(updateOrderService(orderServiceId, { stateid: 6 }));
-
-      if (requests.length) await Promise.all(requests);
-
-      await fetchQuotes();
-
-      await Swal.fire("Finalizado", `Se ${verb} ${targetText} como ${suffix} (estado 6).`, "success");
-    } catch (error: any) {
-      console.error("Error al actualizar estados:", error);
-      await Swal.fire(
-        "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudieron actualizar los registros.",
-        "error"
-      );
-    } finally {
-      setFinalizingQuote(false);
-    }
-  }, [selectedQuote, fetchQuotes]);
-
-  /* ================================
-   * RENDER
-   * ================================ */
-  const selectedQuoteStateName = selectedQuote?.state?.name ?? "";
-  const isSelectedQuoteCompleted =
-    selectedQuoteStateName
-      ? selectedQuoteStateName.toLowerCase().includes("complet") ||
-        selectedQuoteStateName.toLowerCase().includes("finish") ||
-        selectedQuoteStateName.toLowerCase().includes("finaliz")
-      : false;
-
-  const selectedServiceRequestId = getQuoteServiceRequestId(selectedQuote);
-  const selectedOrderServiceId = getQuoteOrderServiceId(selectedQuote);
-  const canFinalizeSelectedQuote = Boolean(selectedServiceRequestId || selectedOrderServiceId);
+  const selectedQuoteState = getQuoteStateName(selectedQuote);
+  const selectedQuoteCompleted = isCompletedLike(selectedQuoteState);
+  const selectedQuoteOrderId = getQuoteOrderServiceId(selectedQuote);
+  const selectedQuoteOrderState = String(selectedQuote?.ordersservices?.state?.name ?? "").trim();
+  const selectedQuoteCanCreateOrder = !isClient && canCreateOrderFromQuote(selectedQuote);
+  const selectedQuoteCanComplete =
+    !isClient &&
+    !selectedQuoteCompleted &&
+    Boolean(selectedQuoteOrderId) &&
+    isFinishedLike(selectedQuoteOrderState) &&
+    canManuallyCompleteQuote(selectedQuote);
 
   return (
     <RequireAuth>
       <div className="p-6">
         <ToastContainer position="bottom-right" />
 
-        <h1 className="text-xl font-semibold mb-4">Listado de Cotizaciones</h1>
+        <h1 className="mb-4 text-xl font-semibold">Listado de Cotizaciones</h1>
 
         <DataTable<QuoteTableRow>
           module="quotes"
           data={quotesData}
           columns={columns}
           loading={loading}
-          searchableKeys={["id", "client", "technician", "statusSearch", "amount", "creationDate"]}
+          searchableKeys={[
+            "id",
+            "client",
+            "technician",
+            "statusSearch",
+            "clientAcceptedLabel",
+            "orderState",
+            "amount",
+            "creationDate",
+          ]}
           pageSize={8}
           onView={(row) => {
             setSelectedQuote(row.raw);
             setDetailModalOpen(true);
           }}
           onCreate={isClient ? undefined : () => router.push("/dashboard/quotes/register")}
-          createButtonText="Crear Cotización"
-          onCheck={isClient ? undefined : handleApproveQuote}
+          createButtonText="Crear Cotizacion"
           onCancel={isClient ? handleCancelQuote : undefined}
-          onDelete={isClient ? undefined : handleRevokeQuote}
+          renderExtraActions={(row) => {
+            const actions: React.ReactNode[] = [];
+
+            if (isClient && canClientAcceptQuote(row.raw)) {
+              actions.push(
+                <ActionPill
+                  key={`accept-${row.id}`}
+                  title="Aceptar"
+                  tone="success"
+                  onClick={() => handleAcceptQuote(row)}
+                />
+              );
+            }
+
+            if (
+              !isClient &&
+              row.clientAccepted &&
+              isPendingLike(row.status) &&
+              !isCanceledLike(row.status) &&
+              !isCompletedLike(row.status)
+            ) {
+              actions.push(
+                <ActionPill
+                  key={`approve-${row.id}`}
+                  title="Aprobar"
+                  tone="success"
+                  onClick={() => handleApproveQuote(row)}
+                />
+              );
+            }
+
+            if (!isClient && canCreateOrderFromQuote(row.raw)) {
+              actions.push(
+                <ActionPill
+                  key={`order-${row.id}`}
+                  title="Crear orden"
+                  onClick={() => goToCreateOrder(row.raw)}
+                />
+              );
+            }
+
+            if (
+              !isClient &&
+              isApprovedLike(row.status) &&
+              !isCanceledLike(row.status) &&
+              !isCompletedLike(row.status)
+            ) {
+              actions.push(
+                <ActionPill
+                  key={`revoke-${row.id}`}
+                  title="Anular"
+                  onClick={() => handleRevokeQuote(row)}
+                />
+              );
+            }
+
+            if (!actions.length) return null;
+            return <>{actions}</>;
+          }}
           rightActions={
             isClient ? undefined : (
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#b20000] text-white text-sm font-semibold hover:bg-[#910000]"
-              onClick={() => Swal.fire("Pendiente", "Conecta aquí la descarga del reporte.", "info")}
-            >
-              <Image src="/icons/download.svg" alt="Descargar" width={16} height={16} />
-              Descargar Reporte
-            </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-md bg-[#b20000] px-4 py-2 text-sm font-semibold text-white hover:bg-[#910000]"
+                onClick={() =>
+                  Swal.fire("Pendiente", "Conecta aqui la descarga del reporte.", "info")
+                }
+              >
+                <Image src="/icons/download.svg" alt="Descargar" width={16} height={16} />
+                Descargar Reporte
+              </button>
             )
           }
         />
 
         <Modal
-          title="Detalle de Cotización"
+          title="Detalle de Cotizacion"
           isOpen={isDetailModalOpen}
           onClose={() => setDetailModalOpen(false)}
           footer={null}
@@ -524,12 +660,11 @@ export default function QuotesIndex() {
           {selectedQuote && (
             <ViewQuote
               quote={selectedQuote}
-              canComplete={!isClient && !isSelectedQuoteCompleted}
+              canCreateOrder={selectedQuoteCanCreateOrder}
+              onCreateOrder={() => goToCreateOrder(selectedQuote)}
+              canComplete={selectedQuoteCanComplete}
               isCompleting={isCompletingQuote}
               onComplete={handleCompleteQuote}
-              canFinalize={!isClient && canFinalizeSelectedQuote}
-              isFinalizing={isFinalizingQuote}
-              onFinalize={handleFinalizeQuote}
             />
           )}
         </Modal>

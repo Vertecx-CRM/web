@@ -10,6 +10,7 @@ import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 import { useOrdersServicesLookups } from "../hooks/useOrdersServicesLookups";
 import { showError, showSuccess, showWarning } from "@/shared/utils/notifications";
 import { api } from "@/lib/api";
+import { linkQuoteOrder } from "@/features/dashboard/quotes/api/quotes.api";
 import {
   SCHEDULE_MAX,
   SCHEDULE_MIN,
@@ -355,19 +356,17 @@ const {
       setQuotesLoading(true);
       setQuotesError(null);
       try {
-        const { data } = await api.get("sales");
+        const { data } = await api.get("quotes");
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data?.data)
           ? data.data
-          : Array.isArray(data?.sales)
-          ? data.sales
           : Array.isArray(data?.quotes)
           ? data.quotes
           : [];
         if (!cancelled) setQuotesRaw(list);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando ventas.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando cotizaciones.";
         if (!cancelled) {
           setQuotesError(String(msg));
           setQuotesRaw([]);
@@ -385,23 +384,40 @@ const {
   const approvedQuotes = useMemo(() => {
     return (quotesRaw || []).filter((q) => {
       const statusRaw =
-        q?.salestatus ??
-        q?.status ??
         q?.state?.name ??
         q?.state?.statename ??
+        q?.status ??
         q?.stateName ??
         q?.statename ??
         (typeof q?.state === "string" ? q.state : "");
       const normalized = normalizeText(statusRaw || "");
-      if (!normalized) return true;
-      return !normalized.includes("cancel") && !normalized.includes("anulad");
+
+      const hasApprovedStatus =
+        normalized.includes("aprob") || normalized.includes("approved");
+      const isCanceled =
+        normalized.includes("cancel") ||
+        normalized.includes("anul") ||
+        normalized.includes("revoke");
+      const isCompleted =
+        normalized.includes("finish") ||
+        normalized.includes("finaliz") ||
+        normalized.includes("complet");
+      const clientAccepted = Boolean(q?.clientAccepted);
+      const hasOrder =
+        pickNumber(
+          q?.ordersservicesid,
+          q?.ordersservices?.ordersservicesid,
+          q?.ordersservices?.id
+        ) != null;
+
+      return hasApprovedStatus && clientAccepted && !hasOrder && !isCanceled && !isCompleted;
     });
   }, [quotesRaw]);
 
   const quoteMapById = useMemo(() => {
     const m = new Map<number, any>();
     for (const q of approvedQuotes || []) {
-      const id = pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+      const id = pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (id) m.set(id, q);
     }
     return m;
@@ -412,24 +428,24 @@ const {
     for (const q of approvedQuotes || []) {
       const nq = normalizeQuote(q);
       const id =
-        nq.saleid ??
         nq.quotesid ??
-        pickNumber(q?.saleid, q?.salesid, q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
+        nq.saleid ??
+        pickNumber(q?.quotesid, q?.quotationid, q?.cotizacionid, q?.id);
       if (!id) continue;
 
       const clientLabel =
         (nq.clientid && customers.find((c) => c.customerid === nq.clientid)?.label) ||
         (nq.clientid ? `Cliente #${nq.clientid}` : "Sin cliente");
 
-      const saleCode = String(q?.salecode ?? "").trim();
-      const statusLabel = String(q?.salestatus ?? q?.status ?? "").trim();
-      const total = pickNumber(q?.totalamount, q?.total, q?.grandtotal);
+      const quoteCode = String(q?.quotecode ?? "").trim();
+      const statusLabel = String(q?.state?.name ?? q?.status ?? "").trim();
+      const total = pickNumber(q?.total, q?.totalamount, q?.grandtotal);
 
       const typeLabel =
         (nq.typeofserviceid && serviceTypes.find((t) => t.typeofserviceid === nq.typeofserviceid)?.label) || "";
       const addressLabel = String(nq.direccion || "").trim();
 
-      const parts = [saleCode ? `${saleCode} (#${id})` : `#${id}`, clientLabel];
+      const parts = [quoteCode ? `${quoteCode} (#${id})` : `Cotizacion #${id}`, clientLabel];
       if (typeLabel) parts.push(typeLabel);
       if (addressLabel) parts.push(`Dir: ${addressLabel}`);
       if (statusLabel) parts.push(statusLabel);
@@ -1580,10 +1596,10 @@ const {
 
         if (quotesIdFromUrl) {
           raw = quoteMapById.get(quotesIdFromUrl) ?? null;
-          if (!raw) throw new Error(`No se encontro la venta #${quotesIdFromUrl} en /sales`);
+          if (!raw) throw new Error(`No se encontro la cotizacion #${quotesIdFromUrl} en /quotes`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
-          if (!raw) throw new Error("No se pudo leer la venta desde la URL.");
+          if (!raw) throw new Error("No se pudo leer la cotizacion desde la URL.");
         }
 
         const nq = normalizeQuote(raw);
@@ -1597,7 +1613,7 @@ const {
         applyNormalizedQuote(nq, keyFromUrl);
         if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando venta.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando cotizacion.";
         setQuoteApplyError(String(msg));
         showError(String(msg));
       } finally {
@@ -1636,7 +1652,7 @@ const {
 
     const raw = quoteMapById.get(id);
     if (!raw) {
-      const msg = `La venta #${id} no esta disponible en el listado de ventas.`;
+      const msg = `La cotizacion #${id} no esta disponible para crear orden.`;
       setQuoteApplyError(msg);
       showError(msg);
       return;
@@ -1657,7 +1673,7 @@ const {
         applyNormalizedQuote(nq, key);
       } catch (e: any) {
         if (cancelled) return;
-        const msg = e?.response?.data?.message || e?.message || "Error aplicando venta.";
+        const msg = e?.response?.data?.message || e?.message || "Error aplicando cotizacion.";
         setQuoteApplyError(String(msg));
         showError(String(msg));
       } finally {
@@ -1818,15 +1834,33 @@ const {
       };
 
       const created: any = await createOrderService(dto);
+      const createdId = Number(
+        created?.ordersservicesid ??
+          created?.id ??
+          created?.data?.ordersservicesid ??
+          created?.data?.id
+      );
+
+      const quoteIdToLink = Number(selectedQuotesId || quotesIdFromUrl || 0);
+      if (
+        Number.isFinite(quoteIdToLink) &&
+        quoteIdToLink > 0 &&
+        Number.isFinite(createdId) &&
+        createdId > 0
+      ) {
+        try {
+          await linkQuoteOrder(quoteIdToLink, createdId);
+        } catch (linkError: any) {
+          showWarning(
+            linkError?.response?.data?.message ||
+              linkError?.message ||
+              "La orden se creo, pero no se pudo vincular con la cotizacion."
+          );
+        }
+      }
 
       try {
         if (typeof window !== "undefined") {
-          const createdId = Number(
-            created?.ordersservicesid ??
-              created?.id ??
-              created?.data?.ordersservicesid ??
-              created?.data?.id
-          );
           const message = Number.isFinite(createdId) && createdId > 0 ? `Orden #${createdId} creada correctamente.` : "Orden creada correctamente.";
           sessionStorage.setItem("flash_toast", JSON.stringify({ type: "success", message }));
         }
@@ -1921,7 +1955,7 @@ setNavigating(true);
 
             <section className="mb-4 rounded-xl border bg-white shadow-sm" id="field-quote">
               <header className="border-b px-4 py-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-800">Venta (opcional)</div>
+                <div className="text-sm font-semibold text-gray-800">Cotizacion aprobada (opcional)</div>
                 <div className="text-xs text-gray-500">
                   {quotesLoading ? "Cargando..." : quoteOptions.length ? `${quoteOptions.length} disponibles` : "-"}
                 </div>
@@ -1933,7 +1967,7 @@ setNavigating(true);
                     <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border bg-gray-50 px-3 py-2">
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-gray-900 truncate">{selectedQuoteOption.label}</div>
-                        <div className="text-xs text-gray-500">{`Venta #${selectedQuoteOption.id}`}</div>
+                        <div className="text-xs text-gray-500">{`Cotizacion #${selectedQuoteOption.id}`}</div>
                       </div>
                       <button
                         type="button"
@@ -1948,7 +1982,7 @@ setNavigating(true);
 
                   <div ref={quoteBoxRef} className="relative">
                     <label className="block text-xs text-gray-700 mb-1" htmlFor="field-quote-search">
-                      Buscar y seleccionar venta para precargar
+                      Buscar y seleccionar cotizacion para precargar
                     </label>
                     <input
                       id="field-quote-search"
@@ -1979,7 +2013,7 @@ setNavigating(true);
                         }
                       }}
                       placeholder={
-                        quotesLoading ? "Cargando ventas..." : quoteOptions.length ? "Codigo, cliente o #ID..." : "No hay ventas"
+                        quotesLoading ? "Cargando cotizaciones..." : quoteOptions.length ? "Cotizacion, cliente o #ID..." : "No hay cotizaciones"
                       }
                       className={`${inputBase} ${showFieldError("quote") ? errorRing : ""}`}
                       disabled={quotesLoading || lookupsLoading || quoteOptions.length === 0 || saving || navigating}
@@ -2005,7 +2039,7 @@ setNavigating(true);
                                   className={`w-full px-3 py-2 text-left text-sm ${idx === quoteActiveIndex ? "bg-gray-100" : "bg-white"}`}
                                 >
                                   <span className="block truncate font-medium">{q.label}</span>
-                                  <span className="block text-xs text-gray-500">{`Venta #${q.id}`}</span>
+                                  <span className="block text-xs text-gray-500">{`Cotizacion #${q.id}`}</span>
                                 </button>
                               </li>
                             ))}
@@ -2016,8 +2050,8 @@ setNavigating(true);
                   </div>
                   {quotesError && <p className={errorText}>{quotesError}</p>}
                   {quoteApplyError && <p className={errorText}>{quoteApplyError}</p>}
-                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando venta al formulario...</div>}
-                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Venta aplicada al formulario.</div>}
+                  {quoteLoadingApply && <div className="mt-2 text-xs text-gray-500">Aplicando cotizacion al formulario...</div>}
+                  {showPrefillBanner && !quoteLoadingApply && <div className="mt-2 text-xs text-emerald-700">Cotizacion aplicada al formulario.</div>}
                 </div>
 
                 <div className="md:col-span-3">
@@ -2216,7 +2250,7 @@ setNavigating(true);
                     )}
 
                     {clientLockedByQuote && (
-                      <p className="text-xs text-gray-500">Cliente bloqueado por la venta seleccionada. Quita la venta para cambiarlo.</p>
+                      <p className="text-xs text-gray-500">Cliente bloqueado por la cotizacion seleccionada. Quita la cotizacion para cambiarlo.</p>
                     )}
 
                     {createClientInlineEnabled && (

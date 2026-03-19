@@ -4,147 +4,150 @@ import { IQuote } from "../types/Quote.type";
 
 interface ViewQuoteProps {
   quote: IQuote;
+  canCreateOrder?: boolean;
+  onCreateOrder?: () => Promise<void> | void;
   canComplete?: boolean;
   isCompleting?: boolean;
   onComplete?: () => Promise<void> | void;
-  canFinalize?: boolean;
-  isFinalizing?: boolean;
-  onFinalize?: () => Promise<void> | void;
 }
 
-const formatCOP = (value: number | string) =>
+const formatCOP = (value: number | string | undefined | null) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
     minimumFractionDigits: 0,
-  }).format(Number(value));
+  }).format(Number(value ?? 0));
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleString("es-CO");
+};
 
 export default function ViewQuote({
   quote,
+  canCreateOrder = false,
+  onCreateOrder,
   canComplete = false,
   isCompleting = false,
   onComplete,
-  canFinalize = false,
-  isFinalizing = false,
-  onFinalize,
 }: ViewQuoteProps) {
   if (!quote) return null;
 
   const client = quote.customer?.users
-    ? `${quote.customer.users.name} ${quote.customer.users.lastname}`
-    : "—";
+    ? `${quote.customer.users.name ?? ""} ${quote.customer.users.lastname ?? ""}`.trim()
+    : "-";
 
   const technician = quote.technician?.users
-    ? `${quote.technician.users.name} ${quote.technician.users.lastname}`
-    : "—";
+    ? `${quote.technician.users.name ?? ""} ${quote.technician.users.lastname ?? ""}`.trim()
+    : "-";
 
-  const createdAt = quote.createdat
-    ? new Date(quote.createdat).toLocaleString("es-CO")
-    : "—";
-
-  const updatedAt = quote.updatedat
-    ? new Date(quote.updatedat).toLocaleString("es-CO")
-    : "—";
+  const orderId =
+    quote.ordersservices?.ordersservicesid ?? quote.ordersservicesid ?? null;
+  const orderState = quote.ordersservices?.state?.name ?? "-";
+  const observation = quote.observationPlain ?? quote.observation ?? "";
 
   return (
-    <div className="flex flex-col gap-5 text-sm text-gray-800 p-4 max-h-[85vh] overflow-y-hidden">
-      {/* ================================
-       * INFORMACIÓN GENERAL
-       * ================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="ID Cotización" value={quote.quotesid} />
-        <Field label="Solicitud de servicio" value={quote.serviceRequestId} />
-        <Field label="Cliente" value={client} />
-        <Field label="Técnico" value={technician} />
-        <Field label="Tipo de servicio" value={quote.servicetype ?? "—"} />
-        <Field label="Estado" value={quote.state?.name ?? "—"} />
-        <Field label="Fecha creación" value={createdAt} />
-        <Field label="Última actualización" value={updatedAt} />
+    <div className="flex max-h-[85vh] flex-col gap-5 overflow-y-auto p-4 text-sm text-gray-800">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="ID cotizacion" value={quote.quotesid} />
+        <Field label="Solicitud de servicio" value={quote.serviceRequestId ?? "-"} />
+        <Field label="Cliente" value={client || "-"} />
+        <Field label="Tecnico" value={technician || "-"} />
+        <Field label="Tipo de servicio" value={quote.servicetype ?? "-"} />
+        <Field label="Estado" value={quote.state?.name ?? "-"} />
+        <Field
+          label="Respuesta del cliente"
+          value={quote.clientAccepted ? "Aceptada" : "Pendiente"}
+        />
+        <Field
+          label="Fecha de aceptacion"
+          value={formatDateTime(quote.clientAcceptedAt)}
+        />
+        <Field label="Orden de servicio" value={orderId ? `#${orderId}` : "-"} />
+        <Field label="Estado de la orden" value={orderState} />
+        <Field label="Fecha creacion" value={formatDateTime(quote.createdat)} />
+        <Field label="Ultima actualizacion" value={formatDateTime(quote.updatedat)} />
       </div>
 
-      {/* ================================
-       * OBSERVACIÓN
-       * ================================ */}
       <div>
-        <label className="block font-medium mb-1">Observación</label>
+        <label className="mb-1 block font-medium">Observacion</label>
         <textarea
           disabled
-          value={quote.observation ?? ""}
+          value={observation}
           rows={3}
-          className="w-full border rounded-md px-3 py-2 bg-gray-100 resize-none"
+          className="w-full resize-none rounded-md border bg-gray-100 px-3 py-2"
         />
       </div>
 
-      {/* ================================
-       * DETALLES / PRODUCTOS
-       * ================================ */}
       <div>
-        <label className="block font-medium mb-2">
-          Detalles de la cotización
-        </label>
+        <label className="mb-2 block font-medium">Detalles de la cotizacion</label>
+        <div className="divide-y rounded-md border bg-gray-50">
+          {quote.details?.length ? (
+            quote.details.map((detail: any, index: number) => (
+              <div
+                key={detail.quotedetailid ?? index}
+                className="flex flex-col gap-2 p-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-gray-900">
+                    {detail.description}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                      detail.availability === "DISPONIBLE"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-yellow-100 text-yellow-700"
+                    }`}
+                  >
+                    {detail.availability}
+                  </span>
+                </div>
 
-        <div className="border rounded-md bg-gray-50 divide-y">
-          {quote.details?.map((d: any, index: number) => (
-            <div
-              key={d.quotedetailid ?? index}
-              className="p-3 flex flex-col gap-1"
-            >
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-gray-900">
-                  {d.description}
-                </span>
-                <span
-                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    d.availability === "DISPONIBLE"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-yellow-100 text-yellow-700"
-                  }`}
-                >
-                  {d.availability}
-                </span>
-              </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-700 mt-1">
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 sm:grid-cols-4">
+                  <Info label="Producto ID" value={detail.productid ?? "Manual"} />
+                  <Info label="Cantidad" value={detail.quantity} />
                   <Info
-                    label="Producto ID"
-                    value={d.productid ?? d.quotedetailid ?? "Manual"}
+                    label="Precio unitario"
+                    value={formatCOP(detail.unitprice)}
                   />
-                <Info label="Cantidad" value={d.quantity} />
-                <Info label="Precio unitario" value={formatCOP(d.unitprice)} />
-                <Info label="Subtotal" value={formatCOP(d.subtotal)} />
+                  <Info label="Subtotal" value={formatCOP(detail.subtotal)} />
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="p-4 text-center text-sm text-gray-500">
+              No hay detalles registrados.
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* ================================
-       * TOTALES
-       * ================================ */}
-      <div className="border-t pt-4 space-y-2 text-sm">
+      <div className="space-y-2 border-t pt-4 text-sm">
         <Row label="Subtotal" value={formatCOP(quote.subtotal)} />
         <Row label="IVA (19%)" value={formatCOP(quote.tax)} />
         <Row label="Total" value={formatCOP(quote.total)} bold />
       </div>
 
-      {(canComplete && onComplete) || (canFinalize && onFinalize) ? (
-        <div className="flex flex-wrap justify-end gap-2 mt-3">
-          {canFinalize && onFinalize && (
+      {(canCreateOrder && onCreateOrder) || (canComplete && onComplete) ? (
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          {canCreateOrder && onCreateOrder && (
             <button
-              onClick={onFinalize}
-              disabled={isFinalizing || isCompleting}
-              className="bg-sky-600 text-white px-5 py-2 rounded-md shadow-sm hover:bg-sky-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+              type="button"
+              onClick={onCreateOrder}
+              className="rounded-md bg-sky-600 px-5 py-2 text-white shadow-sm transition hover:bg-sky-700"
             >
-              {isFinalizing ? "Actualizando..." : "Finalizar cotización"}
+              Crear orden de servicio
             </button>
           )}
           {canComplete && onComplete && (
             <button
+              type="button"
               onClick={onComplete}
-              disabled={isCompleting || isFinalizing}
-              className="bg-emerald-600 text-white px-5 py-2 rounded-md shadow-sm hover:bg-emerald-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={isCompleting}
+              className="rounded-md bg-emerald-600 px-5 py-2 text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isCompleting ? "Generando venta..." : "Completar cotización"}
+              {isCompleting ? "Generando venta..." : "Generar venta"}
             </button>
           )}
         </div>
@@ -153,20 +156,16 @@ export default function ViewQuote({
   );
 }
 
-/* ================================
- * COMPONENTES AUXILIARES
- * ================================ */
-
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">
+      <label className="mb-1 block text-xs font-medium text-gray-600">
         {label}
       </label>
       <input
         disabled
-        value={value ?? "—"}
-        className="w-full border rounded-md px-3 py-2 bg-gray-100 text-gray-800"
+        value={value ?? "-"}
+        className="w-full rounded-md border bg-gray-100 px-3 py-2 text-gray-800"
       />
     </div>
   );

@@ -6,7 +6,7 @@ export type QuoteTableRow = {
   statusSearch: string;
   creationDate: string;
   amount: number;
-  raw: any; // quote completo para ver detalle
+  raw: any;
 };
 
 export interface QuoteDetail {
@@ -36,17 +36,30 @@ export interface ServiceRequest {
 export interface IQuote {
   quotesid: number;
   observation?: string | null;
+  observationPlain?: string | null;
+  clientAccepted?: boolean;
+  clientAcceptedAt?: string | null;
   servicetype?: string | null;
   subtotal?: number;
   tax?: number;
   total?: number;
+  createdat?: string;
+  updatedat?: string;
+  ordersservicesid?: number | null;
   state?: {
     name?: string;
     description?: string | null;
     stateid?: number;
   };
   serviceRequest?: ServiceRequest;
-  ordersservices?: any;
+  serviceRequestId?: number;
+  ordersservices?: {
+    ordersservicesid?: number;
+    state?: {
+      stateid?: number;
+      name?: string;
+    };
+  } | null;
   customer?: {
     customerid?: number;
     userid?: number;
@@ -76,11 +89,11 @@ export interface IQuote {
 }
 
 export type QuoteDetailPayload = {
-  productid: number | null;
+  productId: number | null;
   name: string;
   description: string;
   quantity: number;
-  unitprice: number;
+  unitPrice: number;
   subtotal: number;
   availability: "DISPONIBLE" | "NO_DISPONIBLE" | "SOLICITAR";
   isBackorder?: boolean;
@@ -88,13 +101,17 @@ export type QuoteDetailPayload = {
 
 export type QuoteCreatePayload = {
   serviceRequestId: number;
-  statesid: number;
-  customerid: number;
-  technicianid: number;
-  servicetype: string;
-  observation: string;
-  subtotal: number;
-  tax: number;
-  total: number;
-  details: QuoteDetailPayload[];
+  ordersServicesId?: number;
+  statesId: number;
+  clientId: number;
+  serviceType: string;
+  observation?: string;
+  details: Array<{
+    productId: number | null;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    availability: "DISPONIBLE" | "NO_DISPONIBLE" | "SOLICITAR";
+  }>;
 };
