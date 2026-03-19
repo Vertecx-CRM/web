@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Modal from "@/features/dashboard/components/Modal";
+import { getRequestStageLabel } from "@/shared/utils/requestFlow";
 
 type Tipo = "Mantenimiento" | "Instalacion";
 
@@ -75,6 +76,10 @@ export default function ViewRequestModal({
     () => (Array.isArray(data.tipos) && data.tipos.length ? data.tipos[0] : null),
     [data.tipos]
   );
+  const tipoPrincipalLabel = useMemo(
+    () => getRequestStageLabel(tipoPrincipal ?? ""),
+    [tipoPrincipal]
+  );
 
   const codigoMostrar = (data.codigo || "").trim() || "—";
 
@@ -119,7 +124,7 @@ export default function ViewRequestModal({
             </span>
 
             <span className="inline-flex items-center rounded-full bg-gray-800 px-3 py-1 text-[11px] font-medium text-white">
-              {tipoPrincipal ? `Tipo: ${tipoPrincipal}` : "Sin tipo asignado"}
+              {tipoPrincipal ? `Tipo: ${tipoPrincipalLabel}` : "Sin tipo asignado"}
             </span>
           </div>
         </div>

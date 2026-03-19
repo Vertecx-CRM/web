@@ -16,6 +16,7 @@ import {
   parseRequestDescriptionWithAvailability,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
+import { getRequestStageLabel } from "@/shared/utils/requestFlow";
 import {
   cancelServiceRequest,
   createServiceRequest,
@@ -127,10 +128,7 @@ function mapEstadoKey(name?: string | null): EstadoKey {
 }
 
 function mapTipo(input?: string | null) {
-  const n = normalizeText(input);
-  if (n.includes("instal")) return "Instalacion";
-  if (n.includes("manten")) return "Mantenimiento";
-  return String(input || "-").trim() || "-";
+  return getRequestStageLabel(input || "");
 }
 
 function formatDate(input?: string | null) {

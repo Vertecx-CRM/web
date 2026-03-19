@@ -356,7 +356,7 @@ export default function QuotesIndex() {
       await fetchQuotes();
       await Swal.fire(
         "Cotizacion aprobada",
-        "Ahora puedes crear la orden de servicio con esta cotizacion.",
+        "Ahora puedes crear la orden de servicio con los materiales cotizados.",
         "success"
       );
     } catch (error: any) {
@@ -372,10 +372,10 @@ export default function QuotesIndex() {
   const handleAcceptQuote = async (row: QuoteTableRow) => {
     const result = await Swal.fire({
       title: "Aceptar cotizacion",
-      text: "Le avisaremos al administrador para que continue con la orden de servicio.",
+      text: "Le avisaremos al administrador para que continue con la orden de servicio despues de validar esta cotizacion.",
       input: "textarea",
       inputLabel: "Observacion opcional",
-      inputPlaceholder: "Ej: Pueden continuar con la instalacion",
+      inputPlaceholder: "Ej: Pueden continuar con la instalacion con esta cotizacion",
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Aceptar",
@@ -409,7 +409,7 @@ export default function QuotesIndex() {
       text: "La cotizacion quedara marcada como cancelada por el cliente.",
       input: "textarea",
       inputLabel: "Motivo opcional",
-      inputPlaceholder: "Ej: Ya no necesito la instalacion",
+      inputPlaceholder: "Ej: Ya no deseo continuar con la instalacion",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Cancelar cotizacion",

@@ -18,6 +18,11 @@ import {
   createWompiCheckoutSession,
 } from "@/features/dashboard/sales/api/sales.api";
 import {
+  buildPreInstallationAssessmentDescription,
+  getInstallationAssessmentExplainer,
+  isInstallationServiceType,
+} from "@/shared/utils/requestFlow";
+import {
   useCart,
   type CartItem,
   type CartServiceDraft,
@@ -195,7 +200,7 @@ function buildSalePayload({
     salestatus: "Pending",
     notes: `Venta creada desde carrito. Direccion de entrega: ${deliveryAddress}. Envio: $${deliveryFee.toLocaleString(
       "es-CO",
-    )}. Visitas tecnicas: ${serviceRequestsCount} por $${serviceVisitFeeTotal.toLocaleString(
+    )}. Asesorias tecnicas previas: ${serviceRequestsCount} por $${serviceVisitFeeTotal.toLocaleString(
       "es-CO",
     )}.`,
     details: cart.map((item) => {
@@ -529,13 +534,21 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
       for (const item of configuredServiceItems) {
         const draft = item.serviceDraft as CartServiceDraft;
+        const isInstallationAssessment = isInstallationServiceType(
+          draft.serviceType,
+        );
         const createdRequest = await createServiceRequest({
           scheduledAt: draft.scheduledAt ?? null,
           scheduledEndAt: draft.scheduledEndAt ?? null,
           serviceType: draft.serviceType as any,
-          description: [draft.description, `Producto asociado: ${item.name}`]
-            .filter(Boolean)
-            .join(" | "),
+          description: isInstallationAssessment
+            ? buildPreInstallationAssessmentDescription(
+                draft.description,
+                `Producto asociado: ${item.name}`,
+              )
+            : [draft.description, `Producto asociado: ${item.name}`]
+                .filter(Boolean)
+                .join(" | "),
           direccion: String(draft.direccion || fullAddress).trim(),
           stateId: Number(draft.stateId ?? 5),
           serviceId: Number(draft.serviceId),
@@ -835,7 +848,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
                                   {item.service && (
                                     <span className="text-[11px] font-medium text-gray-500">
-                                      Visita tecnica: ${SERVICE_VISIT_FEE.toLocaleString("es-CO")}
+                                      Asesoria tecnica: ${SERVICE_VISIT_FEE.toLocaleString("es-CO")}
                                     </span>
                                   )}
 
@@ -1135,7 +1148,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                     Consejo
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                    Si el mapa no cae exacto, agrega el complemento y un barrio claro para facilitar la entrega y la visita tecnica.
+                    Si el mapa no cae exacto, agrega el complemento y un barrio claro para facilitar la entrega y la asesoria tecnica.
                   </p>
                 </div>
               </div>
@@ -1154,7 +1167,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               </p>
               <p className="flex justify-between text-base">
                 <span className="font-medium">
-                  Visita tecnica ({selectedServiceItems.length}):
+                  Asesoria tecnica previa ({selectedServiceItems.length}):
                 </span>
                 <span>${serviceVisitFeeTotal.toLocaleString("es-CO")}</span>
               </p>
@@ -1201,7 +1214,12 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                     </p>
                     {hasSelectedService && (
                       <p className="text-xs font-medium text-red-700">
-                        Cada solicitud con servicio suma ${SERVICE_VISIT_FEE.toLocaleString("es-CO")} por visita tecnica previa.
+                        Cada servicio agregado suma ${SERVICE_VISIT_FEE.toLocaleString("es-CO")} por asesoria tecnica previa.
+                      </p>
+                    )}
+                    {hasSelectedService && (
+                      <p className="text-xs text-gray-600">
+                        {getInstallationAssessmentExplainer()}
                       </p>
                     )}
                   </div>
@@ -1226,7 +1244,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
                 {isPurchasing
                   ? "Preparando checkout..."
                   : hasSelectedService
-                    ? "Comprar y pagar visita"
+                    ? "Comprar y pagar asesoria"
                     : "Comprar y pagar"}
               </button>
             </div>
@@ -1257,14 +1275,14 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
 
             saveServiceDraft(selectedCartItemId, draft);
             showSuccess(
-              "Servicio agregado al producto. Ya puedes finalizar la compra.",
+              "Asesoria tecnica agregada al producto. Ya puedes finalizar la compra.",
             );
             resetServiceModal();
           }}
           title={
             selectedCartItem
-              ? `Servicio para ${selectedCartItem.name}`
-              : "Solicitar servicio"
+              ? `Asesoria tecnica para ${selectedCartItem.name}`
+              : "Solicitar asesoria tecnica"
           }
           clientId={authUser.userid}
           clientLabel={authUser.name}

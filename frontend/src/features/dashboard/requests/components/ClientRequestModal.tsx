@@ -13,6 +13,11 @@ import {
   normalizeRequestAvailabilityOptions,
   type RequestAvailabilityOption,
 } from "@/features/dashboard/requests/utils/requestAvailability";
+import {
+  getInstallationAssessmentExplainer,
+  getRequestStageLabel,
+  isInstallationServiceType,
+} from "@/shared/utils/requestFlow";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -170,6 +175,9 @@ export default function ClientCreateRequestModal({
     () => (serviceTypeId ? serviceTypes.find((item) => item.id === serviceTypeId) || null : null),
     [serviceTypeId, serviceTypes]
   );
+  const effectiveServiceType = selectedType?.code ?? initial?.serviceType ?? "";
+  const isInstallationFlow = isInstallationServiceType(effectiveServiceType);
+  const requestStageLabel = getRequestStageLabel(effectiveServiceType);
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     if (!serviceTypeId) return finalServicios;
@@ -508,6 +516,17 @@ export default function ClientCreateRequestModal({
           </div>
         )}
 
+        {isInstallationFlow && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              {requestStageLabel}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-amber-900">
+              {getInstallationAssessmentExplainer()}
+            </p>
+          </div>
+        )}
+
         <div>
           <div className="mb-1 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
@@ -556,7 +575,7 @@ export default function ClientCreateRequestModal({
         <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">
-              Servicio especifico
+              {isInstallationFlow ? "Servicio a instalar" : "Servicio especifico"}
             </label>
             <div className="relative">
               <select
@@ -675,11 +694,13 @@ export default function ClientCreateRequestModal({
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-sm font-semibold text-gray-900">Disponibilidad</h4>
+              <h4 className="text-sm font-semibold text-gray-900">
+                {isInstallationFlow ? "Disponibilidad para la asesoria" : "Disponibilidad"}
+              </h4>
               <p className="text-[11px] text-gray-500">
-                Agrega uno o varios horarios donde puedas recibir la visita. El admin
-                vera estas opciones y luego confirmara la cita final segun la agenda de
-                los tecnicos.
+                {isInstallationFlow
+                  ? "Agrega horarios para la asesoria tecnica previa. Con esa visita definiremos materiales y luego se podra cotizar la instalacion."
+                  : "Agrega uno o varios horarios donde puedas recibir la visita. El admin vera estas opciones y luego confirmara la cita final segun la agenda de los tecnicos."}
               </p>
             </div>
           </div>
@@ -771,6 +792,11 @@ export default function ClientCreateRequestModal({
                 ? "border-red-500"
                 : "border-gray-300",
             ].join(" ")}
+            placeholder={
+              isInstallationFlow
+                ? "Ej. Quiero instalar camaras y necesito definir cableado, soportes y ubicaciones."
+                : undefined
+            }
           />
           {shouldShowError("description") && errors.description && (
             <p className="mt-1 text-xs text-red-600">{errors.description}</p>

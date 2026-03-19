@@ -36,6 +36,7 @@ import DownloadXLSXButton from "@/features/dashboard/components/DownloadXLSXButt
 import { useRequestStates } from "@/features/dashboard/requests/hooks/useRequestStates";
 import { useAuth } from "@/features/auth/authcontext";
 import { usePermissions } from "@/features/auth/hooks/usePermissions";
+import { getRequestStageLabel } from "@/shared/utils/requestFlow";
 
 const ICONS = {
   print: "/icons/printer.svg",
@@ -369,11 +370,7 @@ export default function ServiceRequestsPage() {
 
       const tipoRaw = r?.serviceType ?? r?.service?.category ?? "";
       const lower = String(tipoRaw).toLowerCase();
-      const tipo = lower.includes("instal")
-        ? "Instalacion"
-        : lower.includes("manten")
-        ? "Mantenimiento"
-        : String(tipoRaw || "");
+      const tipo = getRequestStageLabel(tipoRaw);
 
       const tipos: ("Mantenimiento" | "Instalacion")[] =
         tipo === "Mantenimiento"
@@ -700,9 +697,7 @@ export default function ServiceRequestsPage() {
           ? String(v?.estadoLabel ?? v?.estadoName ?? v?.estadoText ?? selected.estado)
           : selected.estado,
         stateId: stateIdNum || selected.stateId,
-        tipo: String(serviceType || "").toLowerCase().includes("instal")
-          ? "Instalacion"
-          : "Mantenimiento",
+        tipo: getRequestStageLabel(serviceType),
         tipos: String(serviceType || "").toLowerCase().includes("instal")
           ? ["Instalacion"]
           : ["Mantenimiento"],

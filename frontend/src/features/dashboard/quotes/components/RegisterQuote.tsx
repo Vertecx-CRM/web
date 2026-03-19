@@ -7,6 +7,11 @@ import { api } from "@/shared/utils/apiClient";
 import { showError, showSuccess } from "@/shared/utils/notifications";
 import { getServicesRequestsForQuote } from "../api/quotes.api";
 import { QuoteCreatePayload } from "../types/Quote.type";
+import {
+  getInstallationAssessmentExplainer,
+  getRequestStageLabel,
+  isInstallationServiceType,
+} from "@/shared/utils/requestFlow";
 
 type ServiceRequestFromApi = {
   serviceRequestId: number;
@@ -379,11 +384,17 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     selectedServiceRequest?.techniciansMap?.[0]?.technician?.users
       ? `${selectedServiceRequest.techniciansMap[0].technician.users.name ?? ""} ${selectedServiceRequest.techniciansMap[0].technician.users.lastname ?? ""}`.trim()
       : "";
+  const selectedRequestStageLabel = getRequestStageLabel(
+    selectedServiceRequest?.serviceType ?? "",
+  );
+  const isInstallationAssessment = isInstallationServiceType(
+    selectedServiceRequest?.serviceType ?? "",
+  );
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5 p-5 text-sm">
       <div>
-        <label className="mb-1 block font-medium">Solicitud de servicio *</label>
+        <label className="mb-1 block font-medium">Asesoria / solicitud base *</label>
         <select
           value={form.serviceRequestId}
           onChange={(event) => handleServiceRequestChange(Number(event.target.value))}
@@ -399,7 +410,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
             return (
               <option key={request.serviceRequestId} value={request.serviceRequestId}>
-                #{request.serviceRequestId} - {label} - {request.serviceType}
+                #{request.serviceRequestId} - {label} - {getRequestStageLabel(request.serviceType)}
               </option>
             );
           })}
@@ -411,7 +422,12 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
       {selectedServiceRequest && (
         <div className="space-y-3 rounded-lg border bg-gray-50 p-4">
-          <h3 className="font-bold text-gray-700">Informacion de la solicitud</h3>
+          <h3 className="font-bold text-gray-700">Informacion de la solicitud base</h3>
+          {isInstallationAssessment && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <strong>{selectedRequestStageLabel}:</strong> {getInstallationAssessmentExplainer()}
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <div className="text-xs text-gray-500">Cliente</div>
@@ -434,7 +450,11 @@ export default function RegisterQuoteForm({ onSave }: Props) {
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-gray-500">Descripcion de la solicitud</div>
+            <div className="mb-1 text-xs text-gray-500">
+              {isInstallationAssessment
+                ? "Descripcion de la asesoria tecnica"
+                : "Descripcion de la solicitud"}
+            </div>
             <p className="rounded bg-white p-3 text-sm text-gray-700">
               {selectedServiceRequest.description ?? "Sin descripcion"}
             </p>
@@ -446,7 +466,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         <label className="mb-1 block font-medium">Tipo de servicio *</label>
         <input
           type="text"
-          value={form.serviceType}
+          value={selectedRequestStageLabel}
           readOnly
           className="w-full rounded border bg-gray-100 px-3 py-2"
         />

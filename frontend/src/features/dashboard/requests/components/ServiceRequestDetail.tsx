@@ -10,6 +10,11 @@ import {
   formatRequestAvailabilityLabel,
   parseRequestDescriptionWithAvailability,
 } from "@/features/dashboard/requests/utils/requestAvailability";
+import {
+  getInstallationAssessmentExplainer,
+  getRequestStageLabel,
+  isInstallationServiceType,
+} from "@/shared/utils/requestFlow";
 
 interface Props {
   requestId: number;
@@ -109,6 +114,10 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
 
   const stateLabel = data.state?.name ?? "-";
   const stateDescription = data.state?.description ?? "Sin descripcion del estado.";
+  const requestStageLabel = getRequestStageLabel(data.serviceType ?? data.servicetype ?? "");
+  const isInstallationAssessment = isInstallationServiceType(
+    data.serviceType ?? data.servicetype ?? "",
+  );
 
   const serviceDescription = data.service?.description;
   const serviceImage = data.service?.image;
@@ -129,7 +138,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-400">
-              Solicitud de servicio
+              {requestStageLabel}
             </p>
             <h1 className="text-3xl font-semibold text-slate-900">
               SRV-{String(data.serviceRequestId).padStart(6, "0")}
@@ -139,7 +148,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="font-semibold text-slate-800">
               {data.service?.name ?? "Servicio sin nombre"}
             </p>
-            <p>{data.serviceType ?? "-"}</p>
+            <p>{requestStageLabel}</p>
             <p className="text-xs text-slate-500">Estado actual: {stateLabel}</p>
           </div>
         </div>
@@ -169,7 +178,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="mt-2 text-sm font-medium text-slate-800">
               {data.service?.name ?? "-"}
             </p>
-            <p className="text-xs text-slate-500">Tipo: {data.serviceType ?? "-"}</p>
+            <p className="text-xs text-slate-500">Tipo: {requestStageLabel}</p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-white p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Estado</p>
@@ -186,6 +195,16 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
         <p className="mt-4 text-sm text-slate-700">
           {parsedDescription.descriptionPlain || "Sin descripcion adicional."}
         </p>
+        {isInstallationAssessment && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Flujo previo a instalacion
+            </p>
+            <p className="mt-2 text-sm text-amber-900">
+              {getInstallationAssessmentExplainer()}
+            </p>
+          </div>
+        )}
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
           <p className="text-xs uppercase tracking-wide text-slate-500">
             Disponibilidad propuesta por el cliente

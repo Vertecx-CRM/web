@@ -102,12 +102,19 @@ function parseMoneyFromNotes(notes: string | null | undefined, label: string) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function parseAssessmentMoneyFromNotes(notes: string | null | undefined) {
+  return (
+    parseMoneyFromNotes(notes, "Asesorias tecnicas previas") ||
+    parseMoneyFromNotes(notes, "Visitas tecnicas")
+  );
+}
+
 function buildSnapshotFromSale(sale: ISale): CheckoutSnapshot {
   const subtotal = Number(sale?.subtotal ?? 0);
   const taxAmount = Number(sale?.taxamount ?? 0);
   const total = Number(sale?.totalamount ?? 0);
   const deliveryFee = parseMoneyFromNotes(sale?.notes, "Envio");
-  const serviceVisitFeeTotal = parseMoneyFromNotes(sale?.notes, "Visitas tecnicas");
+  const serviceVisitFeeTotal = parseAssessmentMoneyFromNotes(sale?.notes);
 
   return {
     saleId: Number(sale?.saleid ?? 0) || undefined,
@@ -285,7 +292,7 @@ export default function RegisterPaymentMarket() {
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
                   Aqui validamos la transaccion que abriste desde el carrito. Si
-                  incluiste servicio, el cobro de la visita tecnica tambien quedo
+                  incluiste servicio, el cobro de la asesoria tecnica previa tambien quedo
                   sumado en este pago.
                 </p>
               </div>
@@ -417,7 +424,7 @@ export default function RegisterPaymentMarket() {
                   <span>${Number(snapshot?.deliveryFee ?? 0).toLocaleString("es-CO")}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Visita tecnica</span>
+                  <span>Asesoria tecnica previa</span>
                   <span>
                     ${Number(snapshot?.serviceVisitFeeTotal ?? 0).toLocaleString("es-CO")}
                   </span>
