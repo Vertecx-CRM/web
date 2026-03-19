@@ -20,6 +20,7 @@ import EditRequestModal, {
 } from "@/features/dashboard/requests/components/EditRequestModal";
 import { useLookups } from "@/features/dashboard/requests/hooks/useLookups";
 import {
+  cancelServiceRequest,
   updateServiceRequest,
   type ServiceRequestDTO,
 } from "@/features/dashboard/requests/services/servicerequests.service";
@@ -443,7 +444,7 @@ export default function IndexAppointment() {
       if (!res.isConfirmed) return;
 
       try {
-        await updateServiceRequest(event.id, { stateId: 4 });
+        await cancelServiceRequest(event.id);
         await refetch();
         Swal.fire("Cancelada", "La solicitud fue cancelada.", "success");
       } catch (err: any) {

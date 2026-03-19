@@ -12,6 +12,7 @@ import {
   useCreateServiceRequest,
   useUpdateServiceRequest,
 } from "@/features/dashboard/requests/hooks/useServiceRequests";
+import { cancelServiceRequest } from "@/features/dashboard/requests/services/servicerequests.service";
 import CreateRequestModal, {
   type CreateRequestPayload,
 } from "@/features/dashboard/requests/components/CreateRequestModal";
@@ -269,7 +270,7 @@ export default function ServiceRequestsPage() {
 
   const queryClient = useQueryClient();
   const { serviceOptions, customerOptions } = useLookups();
-  const { pendingStateId, scheduledStateId } = useRequestStates();
+  const { pendingStateId, scheduledStateId, canceledStateId } = useRequestStates();
   const { user, profile } = useAuth();
   const { has, canView, canCreate, canUpdate, canDelete } = usePermissions();
   const isDesktop = useDesktopQuery();
@@ -749,34 +750,11 @@ export default function ServiceRequestsPage() {
     setActionLoading(true);
     try {
       const id = Number(row.id);
-      optimisticPatch(id, { estado: "Cancelado", stateId: 4 });
-
-      const parts = splitDateTime(row.programada ?? null);
-      const scheduledAt = buildScheduledAt(
-        parts.date,
-        parts.time,
-        row.programada ? new Date(row.programada) : new Date()
-      );
-
-      const payload: any = {
-        scheduledAt,
-        scheduledEndAt: row.programadaEnd
-          ? buildScheduledAt(
-              splitDateTime(row.programadaEnd).date,
-              splitDateTime(row.programadaEnd).time,
-              row.programadaEnd ? new Date(row.programadaEnd) : null
-            )
-          : null,
-        serviceType: tipoToBackend(row.tipos?.[0]),
-        description: row.descripcion?.trim(),
-        direccion: row.direccion?.trim(),
-        stateId: 4,
-        serviceId: parseMaybeId(String(row.serviceId ?? "")),
-        clientId: parseMaybeId(String(row.clienteId ?? "")),
-        technicians: Array.isArray(row.technicians) ? row.technicians : [],
-      };
-
-      await updateMut.mutateAsync({ id, payload });
+      optimisticPatch(id, {
+        estado: "Cancelado",
+        stateId: canceledStateId ?? row.stateId,
+      });
+      await cancelServiceRequest(id);
       await queryClient.invalidateQueries({ queryKey: ["service-requests"] });
 
       showSuccess("La solicitud fue cancelada.");

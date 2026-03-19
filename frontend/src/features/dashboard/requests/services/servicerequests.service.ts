@@ -87,6 +87,23 @@ export type CreateServiceRequestInput = {
 export type UpdateServiceRequestInput = Partial<CreateServiceRequestInput>;
 const IN_PROCESS_STATE_ID = 7;
 
+function normalizeStateName(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveCanceledStateId(states: StateDTO[]): number | null {
+  const match = states.find((state) => {
+    const name = normalizeStateName(state?.name);
+    return name.includes("cancel") || name.includes("anul");
+  });
+  const stateId = Number(match?.stateid);
+  return Number.isFinite(stateId) && stateId > 0 ? stateId : null;
+}
+
 function getServiceRequestId(row: ServiceRequestDTO): number | null {
   const rawId = row.serviceRequestId ?? row.servicerequestid ?? row.id;
   const idNum = Number(rawId);
@@ -301,7 +318,12 @@ export async function updateServiceRequest(
 }
 
 export async function cancelServiceRequest(id: number): Promise<ServiceRequestDTO> {
-  return updateServiceRequest(id, { stateId: 4 });
+  const states = await listStates();
+  const canceledStateId = resolveCanceledStateId(states);
+  if (!canceledStateId) {
+    throw new Error("No se encontro un estado cancelado para solicitudes.");
+  }
+  return updateServiceRequest(id, { stateId: canceledStateId });
 }
 
 export async function deleteServiceRequest(id: number): Promise<void> {

@@ -24,6 +24,18 @@ export function useRequestStates() {
   const stateOptions = (data ?? []).map(s => ({ id: String(s.stateid), label: s.name }));
   const pendingStateId = findStateId(data, (name) => name === "pendiente" || name.includes("pendiente"));
   const scheduledStateId = findStateId(data, (name) => name.includes("agend"));
+  const canceledStateId = findStateId(
+    data,
+    (name) => name.includes("cancel") || name.includes("anul")
+  );
 
-  return { data, isLoading, error, stateOptions, pendingStateId, scheduledStateId };
+  return {
+    data,
+    isLoading,
+    error,
+    stateOptions,
+    pendingStateId,
+    scheduledStateId,
+    canceledStateId,
+  };
 }
