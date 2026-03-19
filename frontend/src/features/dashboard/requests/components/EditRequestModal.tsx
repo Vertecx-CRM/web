@@ -238,6 +238,12 @@ function inferTypeIdFromServiceType(serviceTypes: ServiceTypeOption[], serviceTy
   return partial ? partial.id : null;
 }
 
+function toServiceTypeCode(value: string | null | undefined) {
+  const normalized = normalizeText(String(value ?? ""));
+  if (normalized.includes("instal")) return "INSTALACION";
+  return "MANTENIMIENTO";
+}
+
 export default function EditRequestModal({
   isOpen,
   onClose,
@@ -997,7 +1003,7 @@ export default function EditRequestModal({
 
     const payload: EditRequestPayload = {
       serviceId: resolvedServiceId,
-      serviceType: String(selectedType.label).trim(),
+      serviceType: toServiceTypeCode(selectedType?.label),
       description: String(descripcion ?? "").trim(),
       direccion: String(direccion ?? "").trim().slice(0, 255),
       scheduledAt: scheduledAtISO,
