@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/types/option.types";
 import { showError, showInfo } from "@/shared/utils/notifications";
@@ -23,6 +24,7 @@ import {
   isInstallationServiceType,
   normalizeRequestMode,
 } from "@/shared/utils/requestFlow";
+import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -98,6 +100,7 @@ const EMPTY_SITE_CHECKLIST: RequestSiteChecklist = {
   materialsSummary: "",
   additionalContext: "",
   evidenceNotes: "",
+  evidenceImages: [],
 };
 
 const SCHEDULE_MIN = 7 * 60;
@@ -167,10 +170,15 @@ export default function ClientCreateRequestModal({
   const [alreadyHasMaterials, setAlreadyHasMaterials] = useState(false);
   const [siteChecklist, setSiteChecklist] =
     useState<RequestSiteChecklist>(EMPTY_SITE_CHECKLIST);
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [evidencePreviewUrls, setEvidencePreviewUrls] = useState<string[]>([]);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [availabilityOptions, setAvailabilityOptions] = useState<RequestAvailabilityOption[]>([]);
   const [availabilityDate, setAvailabilityDate] = useState("");
   const [availabilityStartTime, setAvailabilityStartTime] = useState("");
   const [availabilityEndTime, setAvailabilityEndTime] = useState("");
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -223,6 +231,40 @@ export default function ClientCreateRequestModal({
   ) {
     markTouched("siteChecklist");
     setSiteChecklist((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function mergeEvidenceFiles(list: FileList | null) {
+    if (!list?.length) return;
+    const nextFiles = Array.from(list).filter((file) => file.type.startsWith("image/"));
+    if (!nextFiles.length) return;
+    markTouched("siteChecklist");
+    setEvidenceFiles((prev) => [...prev, ...nextFiles]);
+  }
+
+  function removePendingEvidence(index: number) {
+    setEvidenceFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function removeUploadedEvidence(index: number) {
+    markTouched("siteChecklist");
+    setSiteChecklist((prev) => ({
+      ...prev,
+      evidenceImages: (prev.evidenceImages ?? []).filter(
+        (_, itemIndex) => itemIndex !== index
+      ),
+    }));
+  }
+
+  async function uploadEvidenceImages(files: File[]) {
+    if (!files.length) return [];
+    const urls: string[] = [];
+    for (const file of files) {
+      const result = await uploadImageToCloudinary(file);
+      if (typeof result === "string" && result.trim()) {
+        urls.push(result.trim());
+      }
+    }
+    return urls;
   }
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
@@ -348,6 +390,7 @@ export default function ClientCreateRequestModal({
     setRequestMode("ASSESSMENT");
     setAlreadyHasMaterials(false);
     setSiteChecklist(EMPTY_SITE_CHECKLIST);
+    setEvidenceFiles([]);
     setAvailabilityOptions([]);
     resetDraftAvailability();
     setTouched({});
@@ -450,12 +493,25 @@ export default function ClientCreateRequestModal({
       hasInternetPoint:
         initial?.siteChecklist?.hasInternetPoint ??
         EMPTY_SITE_CHECKLIST.hasInternetPoint,
+      evidenceImages: Array.isArray(initial?.siteChecklist?.evidenceImages)
+        ? initial.siteChecklist.evidenceImages.filter(Boolean)
+        : [],
     });
+    setEvidenceFiles([]);
     setAvailabilityOptions(initialAvailability);
     resetDraftAvailability();
     setTouched({});
     setSubmitAttempted(false);
   }, [isOpen, initial, initialDireccion, initialServiceId]);
+
+  useEffect(() => {
+    const objectUrls = evidenceFiles.map((file) => URL.createObjectURL(file));
+    setEvidencePreviewUrls(objectUrls);
+
+    return () => {
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [evidenceFiles]);
 
   useEffect(() => {
     if (!isOpen || !finalServicios.length) return;
@@ -540,6 +596,15 @@ export default function ClientCreateRequestModal({
 
     try {
       setSaving(true);
+      setUploadingEvidence(true);
+
+      const uploadedEvidenceUrls =
+        isDirectInstallation && evidenceFiles.length
+          ? await uploadEvidenceImages(evidenceFiles)
+          : [];
+      const mergedEvidenceImages = isDirectInstallation
+        ? [...(siteChecklist.evidenceImages ?? []), ...uploadedEvidenceUrls]
+        : [];
 
       const basePayload: CreateRequestPayload = {
         scheduledAt: null,
@@ -585,6 +650,7 @@ export default function ClientCreateRequestModal({
                       evidenceNotes: String(
                         siteChecklist.evidenceNotes ?? ""
                       ).trim(),
+                      evidenceImages: mergedEvidenceImages,
                     }
                   : null,
               purchasedMaterials: initial?.purchasedMaterials ?? [],
@@ -615,11 +681,13 @@ export default function ClientCreateRequestModal({
         stateId: stateIdToSend,
       });
 
+      setEvidenceFiles([]);
       resetForm();
       onClose();
     } catch (err) {
       showError(getBackendMessage(err) || "No se pudo guardar la solicitud.");
     } finally {
+      setUploadingEvidence(false);
       setSaving(false);
     }
   }
@@ -1051,6 +1119,110 @@ export default function ClientCreateRequestModal({
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-black/15"
                   placeholder="Ej. Tengo fotos del sitio, acceso por escalera comun, requiere perforacion..."
                 />
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    mergeEvidenceFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    mergeEvidenceFiles(e.target.files);
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-800 hover:bg-gray-50"
+                    disabled={saving || uploadingEvidence}
+                  >
+                    Subir fotos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-800 hover:bg-gray-50"
+                    disabled={saving || uploadingEvidence}
+                  >
+                    Tomar foto
+                  </button>
+                  {uploadingEvidence && (
+                    <span className="inline-flex items-center rounded-full bg-sky-100 px-3 py-2 text-[11px] font-medium text-sky-800">
+                      Subiendo evidencias...
+                    </span>
+                  )}
+                </div>
+
+                {(siteChecklist.evidenceImages?.length || evidencePreviewUrls.length) ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {(siteChecklist.evidenceImages ?? []).map((url, index) => (
+                      <div
+                        key={`uploaded-${url}-${index}`}
+                        className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
+                      >
+                        <div className="relative aspect-square">
+                          <Image
+                            src={url}
+                            alt={`Evidencia ${index + 1}`}
+                            fill
+                            sizes="(max-width: 640px) 50vw, 180px"
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 p-2">
+                          <span className="text-[11px] text-gray-500">Subida</span>
+                          <button
+                            type="button"
+                            onClick={() => removeUploadedEvidence(index)}
+                            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100"
+                            disabled={saving || uploadingEvidence}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {evidencePreviewUrls.map((previewUrl, index) => (
+                      <div
+                        key={`pending-${previewUrl}-${index}`}
+                        className="overflow-hidden rounded-xl border border-dashed border-sky-300 bg-sky-50"
+                      >
+                        <div className="relative aspect-square">
+                          <Image
+                            src={previewUrl}
+                            alt={`Evidencia pendiente ${index + 1}`}
+                            fill
+                            sizes="(max-width: 640px) 50vw, 180px"
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 p-2">
+                          <span className="text-[11px] text-sky-700">Pendiente</span>
+                          <button
+                            type="button"
+                            onClick={() => removePendingEvidence(index)}
+                            className="rounded-md border border-sky-300 bg-white px-2 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100"
+                            disabled={saving || uploadingEvidence}
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/types/option.types";
@@ -1411,6 +1412,29 @@ export default function EditRequestModal({
                       {siteChecklist.evidenceNotes || "-"}
                     </p>
                   </div>
+                  {(siteChecklist.evidenceImages ?? []).length > 0 && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {(siteChecklist.evidenceImages ?? []).map((url, index) => (
+                        <a
+                          key={`${url}-${index}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                        >
+                          <div className="relative aspect-square">
+                            <Image
+                              src={url}
+                              alt={`Evidencia ${index + 1}`}
+                              fill
+                              sizes="(max-width: 640px) 50vw, 140px"
+                              className="object-cover"
+                            />
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-sky-200 bg-white p-3">

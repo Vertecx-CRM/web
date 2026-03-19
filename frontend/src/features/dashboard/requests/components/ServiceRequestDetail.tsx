@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
@@ -326,6 +327,37 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
                     "-"}
                 </p>
               </div>
+              {(
+                data.siteChecklist?.evidenceImages ??
+                flowMetadata?.siteChecklist?.evidenceImages ??
+                []
+              ).length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {(
+                    data.siteChecklist?.evidenceImages ??
+                    flowMetadata?.siteChecklist?.evidenceImages ??
+                    []
+                  ).map((url, index) => (
+                    <a
+                      key={`${url}-${index}`}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+                    >
+                      <div className="relative aspect-square">
+                        <Image
+                          src={url}
+                          alt={`Evidencia ${index + 1}`}
+                          fill
+                          sizes="(max-width: 640px) 50vw, 160px"
+                          className="object-cover"
+                        />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
