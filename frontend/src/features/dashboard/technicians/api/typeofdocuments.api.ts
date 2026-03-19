@@ -1,4 +1,4 @@
-const API_URL = "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/api/typeofdocuments";
+import { api } from "@/shared/utils/apiClient";
 
 export interface DocumentTypeResponse {
   typeofdocumentid: number;
@@ -7,13 +7,14 @@ export interface DocumentTypeResponse {
 }
 
 export const getDocumentTypes = async (): Promise<DocumentTypeResponse[]> => {
-  const response = await fetch(API_URL);
+  const { data } = await api.get<
+    | DocumentTypeResponse[]
+    | { success?: boolean; data?: DocumentTypeResponse[] }
+  >("/typeofdocuments");
 
-  if (!response.ok) {
-    throw new Error("Error al obtener los tipos de documento");
-  }
-
-  const result = await response.json();
-
-  return result.data || [];
+  return Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : [];
 };

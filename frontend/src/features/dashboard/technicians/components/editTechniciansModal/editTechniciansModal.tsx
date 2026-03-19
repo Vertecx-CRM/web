@@ -18,7 +18,13 @@ import { Upload} from "lucide-react";
 import { getDocumentTypes } from "../../api/typeofdocuments.api";
 
 const states: TechnicianState[] = ["Activo", "Inactivo"];
-const TECH_TYPES = ["Cableado estructurado", "Electricista", "Redes"];
+const TECH_TYPES = [
+  "Instalacion CCTV",
+  "Mantenimiento CCTV",
+  "Cableado estructurado",
+  "Redes y configuracion",
+  "Soporte electrico",
+];
 
 function fileNameFromUrl(u?: string) {
   if (!u) return "";
@@ -77,20 +83,27 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    getDocumentTypes().then((data) => {
-      const filtered = data.filter((d) => d.name !== "NIT");
-      setDocumentTypes(filtered);
+    getDocumentTypes()
+      .then((data) => {
+        const filtered = data.filter((d) => d.name !== "NIT");
+        setDocumentTypes(filtered);
 
-      const currentDoc = filtered.find((d) => d.name === technician.documentType);
+        const currentDoc = filtered.find((d) => d.name === technician.documentType);
 
-      if (currentDoc) {
-        setDocumentTypeId(currentDoc.typeofdocumentid);
-        setDocumentTypeName(currentDoc.name);
-      } else {
-        setDocumentTypeId(filtered[0]?.typeofdocumentid ?? 0);
-        setDocumentTypeName(filtered[0]?.name ?? "");
-      }
-    });
+        if (currentDoc) {
+          setDocumentTypeId(currentDoc.typeofdocumentid);
+          setDocumentTypeName(currentDoc.name);
+        } else {
+          setDocumentTypeId(filtered[0]?.typeofdocumentid ?? 0);
+          setDocumentTypeName(filtered[0]?.name ?? "");
+        }
+      })
+      .catch((error) => {
+        console.error("Error cargando tipos de documento para editar técnico:", error);
+        setDocumentTypes([]);
+        setDocumentTypeId(0);
+        setDocumentTypeName("");
+      });
   }, [isOpen, technician]);
 
   const resetForm = () => {
@@ -311,6 +324,7 @@ const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
             onChange={(e) => handleFieldChange("documentType", e.target.value)}
             className="w-full px-2 py-1 border rounded-md"
           >
+            <option value={0}>Selecciona el tipo de documento</option>
             {documentTypes.map((d) => (
               <option key={d.typeofdocumentid} value={d.typeofdocumentid}>{d.name}</option>
             ))}

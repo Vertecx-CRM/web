@@ -35,7 +35,13 @@ interface CreateTechnicianModalProps {
   typeOptions?: string[];
 }
 
-const TECH_TYPES = ["Cableado estructurado", "Electricista", "Redes"];
+const TECH_TYPES = [
+  "Instalacion CCTV",
+  "Mantenimiento CCTV",
+  "Cableado estructurado",
+  "Redes y configuracion",
+  "Soporte electrico",
+];
 
 const removeBtnClass =
   "text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700 flex items-center gap-1";
@@ -92,16 +98,23 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     if (!isOpen) return;
 
     resetForm();
-    
-    getDocumentTypes().then((data) => {
-      const filtered = data.filter((d) => d.name !== "NIT");
-      setDocumentTypes(filtered);
 
-      if (filtered.length > 0) {
-        setTipoDocumentoId(filtered[0].typeofdocumentid);
-        setTipoDocumento(filtered[0].name);
-      }
-    });
+    getDocumentTypes()
+      .then((data) => {
+        const filtered = data.filter((d) => d.name !== "NIT");
+        setDocumentTypes(filtered);
+
+        if (filtered.length > 0) {
+          setTipoDocumentoId(filtered[0].typeofdocumentid);
+          setTipoDocumento(filtered[0].name);
+        }
+      })
+      .catch((error) => {
+        console.error("Error cargando tipos de documento para técnicos:", error);
+        setDocumentTypes([]);
+        setTipoDocumentoId(0);
+        setTipoDocumento("");
+      });
 
   }, [isOpen]);
 
@@ -325,6 +338,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
                 borderColor: errors.documentType ? "red" : Colors.table.lines,
               }}
             >
+              <option value={0}>Selecciona el tipo de documento</option>
               {documentTypes.map((doc) => (
                 <option
                   key={doc.typeofdocumentid}
