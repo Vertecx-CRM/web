@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Swal from "sweetalert2";
 import RequireAuth from "../../auth/requireauth";
 import { DataTable } from "../components/datatable/DataTable";
@@ -25,6 +25,7 @@ import {
 
 import { QuoteTableRow } from "./types/Quote.type";
 import Colors from "@/shared/theme/colors";
+import { useAuth } from "@/features/auth/authcontext";
 
 /* ================================
  * NORMALIZACIÓN DE ESTADOS (VISUAL)
@@ -79,6 +80,13 @@ const normalizeQuoteStatusText = (status?: string): string => {
   return value;
 };
 
+const normalizeRoleName = (role?: string | null) =>
+  String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 const toPositiveInteger = (value: any): number | null => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
@@ -122,6 +130,7 @@ const getQuoteOrderServiceId = (quote?: any): number | null => {
 
 export default function QuotesIndex() {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [quotesData, setQuotesData] = useState<QuoteTableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,6 +140,10 @@ export default function QuotesIndex() {
 
   const [isCompletingQuote, setCompletingQuote] = useState(false);
   const [isFinalizingQuote, setFinalizingQuote] = useState(false);
+  const isClient = useMemo(
+    () => normalizeRoleName(user?.rolename) === "cliente",
+    [user?.rolename]
+  );
 
   /* ================================
    * CARGAR COTIZACIONES
@@ -483,12 +496,13 @@ export default function QuotesIndex() {
             setSelectedQuote(row.raw);
             setDetailModalOpen(true);
           }}
-          onCreate={() => router.push("/dashboard/quotes/register")}
+          onCreate={isClient ? undefined : () => router.push("/dashboard/quotes/register")}
           createButtonText="Crear Cotización"
-          onCheck={handleApproveQuote}
-          onCancel={handleCancelQuote}
-          onDelete={handleRevokeQuote}
+          onCheck={isClient ? undefined : handleApproveQuote}
+          onCancel={isClient ? handleCancelQuote : undefined}
+          onDelete={isClient ? undefined : handleRevokeQuote}
           rightActions={
+            isClient ? undefined : (
             <button
               type="button"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#b20000] text-white text-sm font-semibold hover:bg-[#910000]"
@@ -497,6 +511,7 @@ export default function QuotesIndex() {
               <Image src="/icons/download.svg" alt="Descargar" width={16} height={16} />
               Descargar Reporte
             </button>
+            )
           }
         />
 
@@ -509,10 +524,10 @@ export default function QuotesIndex() {
           {selectedQuote && (
             <ViewQuote
               quote={selectedQuote}
-              canComplete={!isSelectedQuoteCompleted}
+              canComplete={!isClient && !isSelectedQuoteCompleted}
               isCompleting={isCompletingQuote}
               onComplete={handleCompleteQuote}
-              canFinalize={canFinalizeSelectedQuote}
+              canFinalize={!isClient && canFinalizeSelectedQuote}
               isFinalizing={isFinalizingQuote}
               onFinalize={handleFinalizeQuote}
             />

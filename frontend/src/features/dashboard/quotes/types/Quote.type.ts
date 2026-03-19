@@ -3,6 +3,7 @@ export type QuoteTableRow = {
   client: string;
   technician: string;
   status: string;
+  statusSearch: string;
   creationDate: string;
   amount: number;
   raw: any; // quote completo para ver detalle

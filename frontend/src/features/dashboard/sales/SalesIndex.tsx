@@ -14,6 +14,14 @@ import { ISale } from "./types/sales.type";
 import { getSales, annulSale, updateEstadoPago } from "./services/sales.service";
 import CreateSaleForm from "./components/CreateSaleForm";
 import SaleDetailModal from "./components/SaleDetailModal";
+import { useAuth } from "@/features/auth/authcontext";
+
+const normalizeRoleName = (role?: string | null) =>
+  String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
 // ── Tipo de fila de tabla ────────────────────────────────────────────────────
 type SaleRow = {
@@ -29,6 +37,7 @@ type SaleRow = {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function SalesIndex() {
+  const { user } = useAuth();
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -40,6 +49,10 @@ export default function SalesIndex() {
   const [saleToAnnul, setSaleToAnnul] = useState<SaleRow | null>(null);
   const [annulReason, setAnnulReason] = useState("");
   const [annulling, setAnnulling] = useState(false);
+  const isClient = useMemo(
+    () => normalizeRoleName(user?.rolename) === "cliente",
+    [user?.rolename]
+  );
 
   // ── Cargar ventas desde la API ────────────────────────────────────────────
   const loadSales = useCallback(async () => {
@@ -231,6 +244,14 @@ export default function SalesIndex() {
       header: "Estado Pago",
       render: (row) => {
         // Si la venta está anulada o finalizada, mostrar solo el valor sin botones
+        if (isClient) {
+          return (
+            <span className="text-xs text-gray-500">
+              {row.estadoPago ?? "—"}
+            </span>
+          );
+        }
+
         if (row.estado === "Anulada" || row.estado === "Finalizada") {
           return (
             <span className="text-xs text-gray-400 italic">
@@ -299,7 +320,7 @@ export default function SalesIndex() {
           pageSize={10}
           onView={(row) => setViewSaleId(row.id)}
           renderExtraActions={(row) =>
-            row.estado === "Pendiente" ? (
+            !isClient && row.estado === "Pendiente" ? (
               <button
                 onClick={() => handleOpenAnnul(row)}
                 className="p-1 rounded-full cursor-pointer transition-all duration-300 hover:scale-110 hover:bg-red-300/60 text-red-500"
@@ -333,19 +354,21 @@ export default function SalesIndex() {
                 </button>
               ))}
               {/* Excel */}
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-300 rounded-lg transition-colors"
-                title="Exportar a Excel"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Excel
-              </button>
+              {!isClient && (
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-300 rounded-lg transition-colors"
+                  title="Exportar a Excel"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Excel
+                </button>
+              )}
             </div>
           }
-          onCreate={() => setCreateModalOpen(true)}
+          onCreate={isClient ? undefined : () => setCreateModalOpen(true)}
           createButtonText="Nueva Venta"
           module={"Sales"}
         />
