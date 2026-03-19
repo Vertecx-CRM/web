@@ -387,7 +387,7 @@ export default function EditRequestModal({
 
   function validateStartTimeRequired(date: string | null, start: string | null) {
     if (!start) return "Selecciona la hora inicial.";
-    if (!isAllowedTime(start)) return "Horario permitido: 07:00â€“17:00.";
+    if (!isAllowedTime(start)) return "Horario permitido: 07:00-17:00.";
     if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, start)) {
       return "La hora inicial no puede estar en el pasado.";
@@ -397,7 +397,7 @@ export default function EditRequestModal({
 
   function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
     if (!end) return "Selecciona la hora final.";
-    if (!isAllowedTime(end)) return "Horario permitido: 07:00â€“17:00.";
+    if (!isAllowedTime(end)) return "Horario permitido: 07:00-17:00.";
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
       return "La hora final no puede estar en el pasado.";
     }
@@ -869,7 +869,7 @@ export default function EditRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00â€“17:00.");
+      showWarning("Horario permitido: 07:00-17:00.");
       return;
     }
 
@@ -903,7 +903,7 @@ export default function EditRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00â€“17:00.");
+      showWarning("Horario permitido: 07:00-17:00.");
       return;
     }
 

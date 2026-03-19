@@ -99,7 +99,9 @@ function getRequestStateId(row: ServiceRequestDTO): number {
 
 function isFinalRequestState(row: ServiceRequestDTO): boolean {
   const stateId = getRequestStateId(row);
-  if (stateId === 4 || stateId === 6 || stateId === IN_PROCESS_STATE_ID) return true;
+  if (stateId === 4 || stateId === 6 || stateId === IN_PROCESS_STATE_ID) {
+    return true;
+  }
 
   const stateName = String(row.state?.name ?? "").toLowerCase();
   return (
@@ -111,7 +113,10 @@ function isFinalRequestState(row: ServiceRequestDTO): boolean {
   );
 }
 
-function shouldAutoMoveRequestToInProcess(row: ServiceRequestDTO, now = new Date()): boolean {
+function shouldAutoMoveRequestToInProcess(
+  row: ServiceRequestDTO,
+  now = new Date()
+): boolean {
   if (isFinalRequestState(row)) return false;
   const startsAt = parseRequestStartAt(row);
   if (!startsAt) return false;
@@ -119,7 +124,9 @@ function shouldAutoMoveRequestToInProcess(row: ServiceRequestDTO, now = new Date
 }
 
 function unwrap<T>(payload: any): T {
-  if (payload && typeof payload === "object" && "data" in payload) return (payload as any).data as T;
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as any).data as T;
+  }
   return payload as T;
 }
 
@@ -139,9 +146,14 @@ function safeJsonParse(input: string) {
 async function readAxiosErrorBody(e: AxiosError<any>) {
   const data = e.response?.data;
 
-  if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
+  if (
+    data == null ||
+    (typeof data === "object" && Object.keys(data).length === 0)
+  ) {
     const xhrText = (e.request as any)?.responseText;
-    if (typeof xhrText === "string" && xhrText.trim()) return safeJsonParse(xhrText);
+    if (typeof xhrText === "string" && xhrText.trim()) {
+      return safeJsonParse(xhrText);
+    }
     return data;
   }
 
@@ -192,21 +204,24 @@ export async function getServiceRequest(id: number): Promise<ServiceRequestDTO> 
 export async function createServiceRequest(
   payload: CreateServiceRequestInput
 ): Promise<ServiceRequestDTO> {
-  console.log("PAYLOAD ENVIADO →", payload);
-
   const hasValidClientId = Number(payload?.clientId) > 0;
-  const hasTechnicians = Array.isArray(payload?.technicians) && payload.technicians.length > 0;
+  const hasTechnicians =
+    Array.isArray(payload?.technicians) && payload.technicians.length > 0;
 
   const normalizedAddress = String(payload?.direccion ?? "").trim();
   if (hasTechnicians && !hasValidClientId) {
-    throw new Error("Se requiere un cliente valido para crear una solicitud administrativa.");
+    throw new Error(
+      "Se requiere un cliente valido para crear una solicitud administrativa."
+    );
   }
 
-  const endpoint = hasTechnicians ? "/service-requests/admin" : "/service-requests";
+  const endpoint = hasTechnicians
+    ? "/service-requests/admin"
+    : "/service-requests";
   const normalizedScheduledAt =
     typeof payload?.scheduledAt === "string" && payload.scheduledAt.trim()
       ? payload.scheduledAt
-      : new Date().toISOString();
+      : undefined;
   const normalizedScheduledEndAt =
     typeof payload?.scheduledEndAt === "string" && payload.scheduledEndAt.trim()
       ? payload.scheduledEndAt
@@ -214,7 +229,7 @@ export async function createServiceRequest(
 
   const body = hasTechnicians
     ? {
-        scheduledAt: normalizedScheduledAt,
+        ...(normalizedScheduledAt ? { scheduledAt: normalizedScheduledAt } : {}),
         ...(normalizedScheduledEndAt
           ? { scheduledEndAt: normalizedScheduledEndAt }
           : {}),
@@ -227,7 +242,7 @@ export async function createServiceRequest(
         technicians: payload.technicians ?? [],
       }
     : {
-        scheduledAt: normalizedScheduledAt,
+        ...(normalizedScheduledAt ? { scheduledAt: normalizedScheduledAt } : {}),
         ...(normalizedScheduledEndAt
           ? { scheduledEndAt: normalizedScheduledEndAt }
           : {}),
@@ -244,7 +259,11 @@ export async function createServiceRequest(
   } catch (err) {
     const e = err as AxiosError<any>;
     const bodyErr = await readAxiosErrorBody(e);
-    console.error(`ERROR POST ${endpoint} →`, e.response?.status, bodyErr ?? e.message);
+    console.error(
+      `ERROR POST ${endpoint} ->`,
+      e.response?.status,
+      bodyErr ?? e.message
+    );
     throw err;
   }
 }
