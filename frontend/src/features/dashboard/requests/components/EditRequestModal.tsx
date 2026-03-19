@@ -1374,91 +1374,149 @@ export default function EditRequestModal({
 
             {requestMode === "DIRECT_INSTALLATION" && (
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-sky-200 bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Checklist del cliente
-                  </p>
-                  <div className="mt-2 space-y-1 text-sm text-slate-700">
-                    <p>
-                      <span className="font-medium">Zona:</span>{" "}
-                      {siteChecklist.installationArea || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Altura:</span>{" "}
-                      {siteChecklist.installationHeight || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Cable estimado:</span>{" "}
-                      {siteChecklist.estimatedCableMeters || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Escalera:</span>{" "}
-                      {siteChecklist.needsLadder || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Energia:</span>{" "}
-                      {siteChecklist.hasPowerPoint || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Internet/red:</span>{" "}
-                      {siteChecklist.hasInternetPoint || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Contexto:</span>{" "}
-                      {siteChecklist.additionalContext || "-"}
-                    </p>
-                    <p>
-                      <span className="font-medium">Notas/evidencias:</span>{" "}
-                      {siteChecklist.evidenceNotes || "-"}
-                    </p>
+                <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-white via-sky-50/60 to-sky-100/40 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">
+                        Checklist del cliente
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Datos del sitio que ayudan a decidir si la instalación puede seguir sin visita previa.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold text-sky-700">
+                      Validacion tecnica
+                    </span>
                   </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {[
+                      ["Zona", siteChecklist.installationArea || "-"],
+                      ["Altura", siteChecklist.installationHeight || "-"],
+                      ["Cable estimado", siteChecklist.estimatedCableMeters || "-"],
+                      ["Escalera", siteChecklist.needsLadder || "-"],
+                      ["Energia", siteChecklist.hasPowerPoint || "-"],
+                      ["Internet/red", siteChecklist.hasInternetPoint || "-"],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-xl border border-sky-100 bg-white/90 px-3 py-2"
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          {label}
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-slate-800">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-xl border border-sky-100 bg-white/90 px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Contexto adicional
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                        {siteChecklist.additionalContext || "Sin contexto adicional."}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-sky-100 bg-white/90 px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Notas del cliente
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                        {siteChecklist.evidenceNotes || "Sin notas registradas."}
+                      </p>
+                    </div>
+                  </div>
+
                   {(siteChecklist.evidenceImages ?? []).length > 0 && (
-                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {(siteChecklist.evidenceImages ?? []).map((url, index) => (
-                        <a
-                          key={`${url}-${index}`}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
-                        >
-                          <div className="relative aspect-square">
-                            <Image
-                              src={url}
-                              alt={`Evidencia ${index + 1}`}
-                              fill
-                              sizes="(max-width: 640px) 50vw, 140px"
-                              className="object-cover"
-                            />
-                          </div>
-                        </a>
-                      ))}
+                    <div className="mt-4">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Evidencias adjuntas
+                        </p>
+                        <span className="text-[11px] text-slate-500">
+                          {(siteChecklist.evidenceImages ?? []).length} imagen(es)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {(siteChecklist.evidenceImages ?? []).map((url, index) => (
+                          <a
+                            key={`${url}-${index}`}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                          >
+                            <div className="relative aspect-square">
+                              <Image
+                                src={url}
+                                alt={`Evidencia ${index + 1}`}
+                                fill
+                                sizes="(max-width: 640px) 50vw, 160px"
+                                className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                              />
+                            </div>
+                            <div className="border-t border-sky-100 px-3 py-2 text-[11px] font-medium text-sky-700">
+                              Ver imagen {index + 1}
+                            </div>
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-lg border border-sky-200 bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Materiales reportados
-                  </p>
-                  <p className="mt-2 text-sm text-slate-700">
-                    {alreadyHasMaterials
-                      ? "El cliente indico que ya cuenta con materiales."
-                      : "El cliente no confirmo materiales propios."}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-700">
-                    {siteChecklist.materialsSummary || "Sin resumen manual de materiales."}
-                  </p>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        Materiales reportados
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Productos ya comprados o declarados por el cliente para esta instalación.
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        "rounded-full px-3 py-1 text-[11px] font-semibold",
+                        alreadyHasMaterials
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border border-amber-200 bg-amber-50 text-amber-700",
+                      ].join(" ")}
+                    >
+                      {alreadyHasMaterials ? "Cliente con materiales" : "Sin confirmar"}
+                    </span>
+                  </div>
 
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Resumen manual
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                      {siteChecklist.materialsSummary || "Sin resumen manual de materiales."}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
                     {purchasedMaterials.length ? (
                       purchasedMaterials.map((item, index) => (
                         <div
                           key={`${item.productId ?? item.name}-${index}`}
-                          className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-slate-700"
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700"
                         >
-                          <p className="font-medium text-slate-900">{item.name}</p>
-                          <p className="text-xs text-slate-600">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">{item.name}</p>
+                              <p className="mt-1 text-xs text-slate-600">
+                                {item.productId ? `Producto #${item.productId}` : "Material manual"}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+                              x{item.quantity}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-600">
                             Cantidad: {item.quantity}
                             {item.unitPrice != null ? ` - $${item.unitPrice.toLocaleString("es-CO")}` : ""}
                           </p>

@@ -283,129 +283,202 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             <p className="text-xs text-slate-500">{stateDescription}</p>
           </div>
         </div>
-        {isDirectInstallation && (
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">
-                Checklist tecnico
-              </p>
-              <div className="mt-2 space-y-1 text-sm text-slate-700">
-                <p>
-                  <span className="font-medium">Zona:</span>{" "}
-                  {data.siteChecklist?.installationArea ??
-                    flowMetadata?.siteChecklist?.installationArea ??
-                    "-"}
-                </p>
-                <p>
-                  <span className="font-medium">Altura:</span>{" "}
-                  {data.siteChecklist?.installationHeight ??
-                    flowMetadata?.siteChecklist?.installationHeight ??
-                    "-"}
-                </p>
-                <p>
-                  <span className="font-medium">Cable:</span>{" "}
-                  {data.siteChecklist?.estimatedCableMeters ??
-                    flowMetadata?.siteChecklist?.estimatedCableMeters ??
-                    "-"}
-                </p>
-                <p>
-                  <span className="font-medium">Escalera:</span>{" "}
-                  {data.siteChecklist?.needsLadder ??
-                    flowMetadata?.siteChecklist?.needsLadder ??
-                    "-"}
-                </p>
-                <p>
-                  <span className="font-medium">Energia:</span>{" "}
-                  {data.siteChecklist?.hasPowerPoint ??
-                    flowMetadata?.siteChecklist?.hasPowerPoint ??
-                    "-"}
-                </p>
-                <p>
-                  <span className="font-medium">Internet/red:</span>{" "}
-                  {data.siteChecklist?.hasInternetPoint ??
-                    flowMetadata?.siteChecklist?.hasInternetPoint ??
-                    "-"}
-                </p>
-              </div>
-              {(
-                data.siteChecklist?.evidenceImages ??
-                flowMetadata?.siteChecklist?.evidenceImages ??
-                []
-              ).length > 0 && (
-                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  {(
-                    data.siteChecklist?.evidenceImages ??
-                    flowMetadata?.siteChecklist?.evidenceImages ??
-                    []
-                  ).map((url, index) => (
-                    <a
-                      key={`${url}-${index}`}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+          {isDirectInstallation && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-white via-sky-50/60 to-sky-100/40 p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">
+                      Checklist tecnico
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Resumen visual del sitio y condiciones reportadas por el cliente.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold text-sky-700">
+                    Sitio
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    [
+                      "Zona",
+                      data.siteChecklist?.installationArea ??
+                        flowMetadata?.siteChecklist?.installationArea ??
+                        "-",
+                    ],
+                    [
+                      "Altura",
+                      data.siteChecklist?.installationHeight ??
+                        flowMetadata?.siteChecklist?.installationHeight ??
+                        "-",
+                    ],
+                    [
+                      "Cable",
+                      data.siteChecklist?.estimatedCableMeters ??
+                        flowMetadata?.siteChecklist?.estimatedCableMeters ??
+                        "-",
+                    ],
+                    [
+                      "Escalera",
+                      data.siteChecklist?.needsLadder ??
+                        flowMetadata?.siteChecklist?.needsLadder ??
+                        "-",
+                    ],
+                    [
+                      "Energia",
+                      data.siteChecklist?.hasPowerPoint ??
+                        flowMetadata?.siteChecklist?.hasPowerPoint ??
+                        "-",
+                    ],
+                    [
+                      "Internet/red",
+                      data.siteChecklist?.hasInternetPoint ??
+                        flowMetadata?.siteChecklist?.hasInternetPoint ??
+                        "-",
+                    ],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="rounded-xl border border-sky-100 bg-white/90 px-3 py-2"
                     >
-                      <div className="relative aspect-square">
-                        <Image
-                          src={url}
-                          alt={`Evidencia ${index + 1}`}
-                          fill
-                          sizes="(max-width: 640px) 50vw, 160px"
-                          className="object-cover"
-                        />
-                      </div>
-                    </a>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">{value}</p>
+                    </div>
                   ))}
                 </div>
-              )}
-            </div>
 
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-wide text-slate-500">
-                Materiales comprados / reportados
-              </p>
-              <p className="mt-2 text-sm text-slate-700">
-                {(data.alreadyHasMaterials ?? flowMetadata?.alreadyHasMaterials)
-                  ? "El cliente reporto que ya cuenta con materiales."
-                  : "No se confirmaron materiales propios."}
-              </p>
-              <p className="mt-2 text-sm text-slate-700">
-                {data.siteChecklist?.materialsSummary ??
-                  flowMetadata?.siteChecklist?.materialsSummary ??
-                  "Sin resumen manual de materiales."}
-              </p>
-              <div className="mt-3 space-y-2">
                 {(
-                  data.purchasedMaterials ??
-                  flowMetadata?.purchasedMaterials ??
+                  data.siteChecklist?.evidenceImages ??
+                  flowMetadata?.siteChecklist?.evidenceImages ??
                   []
-                ).length ? (
-                  (data.purchasedMaterials ??
-                    flowMetadata?.purchasedMaterials ??
-                    []
-                  ).map((item, index) => (
-                    <div
-                      key={`${item.productId ?? item.name}-${index}`}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                    >
-                      <p className="font-medium text-slate-900">{item.name}</p>
-                      <p className="text-xs text-slate-500">
-                        Cantidad: {item.quantity}
-                        {item.unitPrice != null
-                          ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
-                          : ""}
+                ).length > 0 && (
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Evidencias adjuntas
                       </p>
+                      <span className="text-[11px] text-slate-500">
+                        {(
+                          data.siteChecklist?.evidenceImages ??
+                          flowMetadata?.siteChecklist?.evidenceImages ??
+                          []
+                        ).length}{" "}
+                        imagen(es)
+                      </span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    No hay materiales vinculados en la solicitud.
-                  </p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {(
+                        data.siteChecklist?.evidenceImages ??
+                        flowMetadata?.siteChecklist?.evidenceImages ??
+                        []
+                      ).map((url, index) => (
+                        <a
+                          key={`${url}-${index}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                        >
+                          <div className="relative aspect-square">
+                            <Image
+                              src={url}
+                              alt={`Evidencia ${index + 1}`}
+                              fill
+                              sizes="(max-width: 640px) 50vw, 160px"
+                              className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                            />
+                          </div>
+                          <div className="border-t border-sky-100 px-3 py-2 text-[11px] font-medium text-sky-700">
+                            Abrir imagen {index + 1}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Materiales comprados / reportados
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Insumos declarados por el cliente o vinculados a la compra.
+                    </p>
+                  </div>
+                  <span
+                    className={[
+                      "rounded-full px-3 py-1 text-[11px] font-semibold",
+                      (data.alreadyHasMaterials ?? flowMetadata?.alreadyHasMaterials)
+                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border border-amber-200 bg-amber-50 text-amber-700",
+                    ].join(" ")}
+                  >
+                    {(data.alreadyHasMaterials ?? flowMetadata?.alreadyHasMaterials)
+                      ? "Con materiales"
+                      : "Sin confirmar"}
+                  </span>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Resumen manual
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-700">
+                    {data.siteChecklist?.materialsSummary ??
+                      flowMetadata?.siteChecklist?.materialsSummary ??
+                      "Sin resumen manual de materiales."}
+                  </p>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {(
+                    data.purchasedMaterials ??
+                    flowMetadata?.purchasedMaterials ??
+                    []
+                  ).length ? (
+                    (data.purchasedMaterials ??
+                      flowMetadata?.purchasedMaterials ??
+                      []
+                    ).map((item, index) => (
+                      <div
+                        key={`${item.productId ?? item.name}-${index}`}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-900">{item.name}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {item.productId ? `Producto #${item.productId}` : "Material manual"}
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+                            x{item.quantity}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          Cantidad: {item.quantity}
+                          {item.unitPrice != null
+                            ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
+                            : ""}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      No hay materiales vinculados en la solicitud.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
