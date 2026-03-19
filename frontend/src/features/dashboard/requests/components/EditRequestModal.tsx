@@ -23,7 +23,7 @@ import {
 
 export type EditRequestPayload = {
   serviceId: number;
-  clientId: number;
+  clientId?: number;
   serviceType: string;
   description: string;
   direccion: string;
@@ -997,7 +997,6 @@ export default function EditRequestModal({
 
     const payload: EditRequestPayload = {
       serviceId: resolvedServiceId,
-      clientId: Number(cliente),
       serviceType: String(selectedType.label).trim(),
       description: String(descripcion ?? "").trim(),
       direccion: String(direccion ?? "").trim().slice(0, 255),

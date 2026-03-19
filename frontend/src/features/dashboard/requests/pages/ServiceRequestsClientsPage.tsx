@@ -323,9 +323,6 @@ export default function ServiceRequestsClientsPage() {
       const serviceId = Number(values.serviceId ?? selected.serviceId ?? 0);
       if (Number.isFinite(serviceId) && serviceId > 0) payload.serviceId = serviceId;
 
-      const clientId = Number(values.clientId ?? selected.clienteId ?? 0);
-      if (Number.isFinite(clientId) && clientId > 0) payload.clientId = clientId;
-
       await updateServiceRequest(selected.id, payload as any);
       setOpenEdit(false);
       setSelected(null);

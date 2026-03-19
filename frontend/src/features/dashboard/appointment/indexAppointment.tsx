@@ -374,7 +374,6 @@ export default function IndexAppointment() {
     );
 
     const serviceId = parseMaybeNumber(payload.servicio);
-    const clientId = parseMaybeNumber(payload.cliente);
     const stateId = parseMaybeNumber(payload.estado);
 
     const payloadBody: Record<string, unknown> = {
@@ -386,7 +385,6 @@ export default function IndexAppointment() {
     };
 
     if (!Number.isNaN(serviceId) && serviceId > 0) payloadBody.serviceId = serviceId;
-    if (!Number.isNaN(clientId) && clientId > 0) payloadBody.clientId = clientId;
     if (!Number.isNaN(stateId) && stateId > 0) payloadBody.stateId = stateId;
 
     try {

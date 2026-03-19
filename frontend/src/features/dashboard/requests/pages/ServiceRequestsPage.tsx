@@ -651,10 +651,6 @@ export default function ServiceRequestsPage() {
         v?.serviceId ?? parseMaybeId(String(v?.servicio ?? selected.serviceId ?? ""))
       );
 
-      const clientId = Number(
-        v?.clientId ?? parseMaybeId(String(v?.cliente ?? selected.clienteId ?? ""))
-      );
-
       const technicians = Array.isArray(v?.technicians)
         ? v.technicians
         : Array.isArray(selected.technicians)
@@ -668,7 +664,6 @@ export default function ServiceRequestsPage() {
         description,
         direccion,
         serviceId,
-        clientId,
         technicians,
       };
 
