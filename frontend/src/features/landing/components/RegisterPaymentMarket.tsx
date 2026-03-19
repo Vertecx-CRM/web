@@ -15,10 +15,12 @@ import { useSearchParams } from "next/navigation";
 
 import Nav from "../layout/Nav";
 import {
+  getSaleById,
   syncWompiTransaction,
   type WompiTransactionSyncDTO,
 } from "@/features/dashboard/sales/api/sales.api";
 import { showError, showInfo } from "@/shared/utils/notifications";
+import type { ISale } from "@/features/dashboard/sales/types/sales.type";
 
 type CheckoutSnapshot = {
   saleId?: number;
@@ -90,6 +92,34 @@ function getFriendlyStatus(status: string) {
   return normalized || "Estado desconocido";
 }
 
+function parseMoneyFromNotes(notes: string | null | undefined, label: string) {
+  const safeNotes = String(notes ?? "");
+  const pattern = new RegExp(`${label}:\\s*\\$([\\d.,]+)`, "i");
+  const match = pattern.exec(safeNotes);
+  if (!match?.[1]) return 0;
+
+  const numeric = Number(match[1].replace(/\./g, "").replace(/,/g, "."));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function buildSnapshotFromSale(sale: ISale): CheckoutSnapshot {
+  const subtotal = Number(sale?.subtotal ?? 0);
+  const taxAmount = Number(sale?.taxamount ?? 0);
+  const total = Number(sale?.totalamount ?? 0);
+  const deliveryFee = parseMoneyFromNotes(sale?.notes, "Envio");
+  const serviceVisitFeeTotal = parseMoneyFromNotes(sale?.notes, "Visitas tecnicas");
+
+  return {
+    saleId: Number(sale?.saleid ?? 0) || undefined,
+    saleCode: String(sale?.salecode ?? "").trim() || undefined,
+    subtotal,
+    deliveryFee,
+    serviceVisitFeeTotal,
+    taxAmount,
+    total,
+  };
+}
+
 export default function RegisterPaymentMarket() {
   const searchParams = useSearchParams();
   const [snapshot, setSnapshot] = useState<CheckoutSnapshot | null>(null);
@@ -110,6 +140,38 @@ export default function RegisterPaymentMarket() {
   useEffect(() => {
     setSnapshot(readCheckoutSnapshot());
   }, []);
+
+  useEffect(() => {
+    if (!saleId) return;
+
+    const hasMeaningfulSnapshot =
+      Number(snapshot?.subtotal ?? 0) > 0 ||
+      Number(snapshot?.deliveryFee ?? 0) > 0 ||
+      Number(snapshot?.serviceVisitFeeTotal ?? 0) > 0 ||
+      Number(snapshot?.taxAmount ?? 0) > 0 ||
+      Number(snapshot?.total ?? 0) > 0;
+
+    if (hasMeaningfulSnapshot) return;
+
+    let cancelled = false;
+
+    getSaleById(saleId)
+      .then((sale) => {
+        if (cancelled) return;
+        setSnapshot((current) => ({
+          ...buildSnapshotFromSale(sale),
+          reference: current?.reference ?? reference,
+        }));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("No se pudo reconstruir el resumen del checkout:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reference, saleId, snapshot?.deliveryFee, snapshot?.serviceVisitFeeTotal, snapshot?.subtotal, snapshot?.taxAmount, snapshot?.total]);
 
   useEffect(() => {
     if (!saleId) {
