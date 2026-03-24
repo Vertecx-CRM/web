@@ -76,6 +76,8 @@ type QuoteDetailForm = {
   name: string;
   description: string;
   quantity: number;
+  laborHours?: number | null;
+  technicianCount?: number | null;
   unitPrice: number;
   subtotal: number;
   availability: "DISPONIBLE" | "NO_DISPONIBLE" | "SOLICITAR";
@@ -113,6 +115,41 @@ const LABOR_SUGGESTIONS = [
   "Visita tecnica especializada",
   "Diagnostico y ajuste tecnico",
 ];
+
+const formatCompactNumber = (value: number) =>
+  Number(value || 0).toLocaleString("es-CO", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+    maximumFractionDigits: 2,
+  });
+
+const buildLaborDescription = (
+  description: string,
+  technicianCount: number,
+  laborHours: number,
+) =>
+  `${description.trim()} (${formatCompactNumber(technicianCount)} tecnico(s) x ${formatCompactNumber(laborHours)} hora(s))`;
+
+const parseLaborBreakdown = (description?: string | null) => {
+  const match = String(description ?? "").match(
+    /\(([\d.,]+)\s+tecnico\(s\)\s+x\s+([\d.,]+)\s+hora\(s\)\)$/i,
+  );
+
+  if (!match) return null;
+
+  const technicianCount = Number(match[1].replace(",", "."));
+  const laborHours = Number(match[2].replace(",", "."));
+  if (!Number.isFinite(technicianCount) || !Number.isFinite(laborHours)) {
+    return null;
+  }
+
+  return {
+    technicianCount,
+    laborHours,
+    baseDescription: String(description ?? "")
+      .replace(match[0], "")
+      .trim(),
+  };
+};
 
 const normalizeText = (value?: string | null) =>
   String(value ?? "")
@@ -174,6 +211,34 @@ export default function RegisterQuoteForm({ onSave }: Props) {
   const productRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<HTMLDivElement>(null);
   const requestInputRef = useRef<HTMLInputElement>(null);
+
+  const getDefaultDetailForMode = (mode: DetailEntryMode): QuoteDetailForm => {
+    if (mode === "MANUAL") {
+      return {
+        ...EMPTY_DETAIL,
+        availability: "SOLICITAR",
+      };
+    }
+
+    if (mode === "LABOR") {
+      return {
+        ...EMPTY_DETAIL,
+        name: "Mano de obra",
+        description: "Servicio de mano de obra tecnica",
+        quantity: 1,
+        laborHours: 1,
+        technicianCount: 1,
+        unitPrice: 0,
+        subtotal: 0,
+        availability: "DISPONIBLE",
+      };
+    }
+
+    return {
+      ...EMPTY_DETAIL,
+      availability: "DISPONIBLE",
+    };
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -329,10 +394,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     setPendingBackorderProduct(null);
     setProductSearch("");
     setShowProductList(false);
-    setDetailForm({
-      ...EMPTY_DETAIL,
-      availability: manual ? "SOLICITAR" : "DISPONIBLE",
-    });
+    setDetailForm(getDefaultDetailForMode(nextMode));
   };
 
   const handleLaborMode = () => {
@@ -340,16 +402,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     setPendingBackorderProduct(null);
     setProductSearch("");
     setShowProductList(false);
-    setDetailForm({
-      ...EMPTY_DETAIL,
-      name: "Mano de obra",
-      description: "Servicio de mano de obra tecnica",
-      quantity: 1,
-      unitPrice: 0,
-      subtotal: 0,
-      availability: "DISPONIBLE",
-      isBackorder: false,
-    });
+    setDetailForm(getDefaultDetailForMode("LABOR"));
   };
 
   const applyProductSelection = (
@@ -362,6 +415,8 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       name: product.productname,
       description: product.productdescription ?? product.productname,
       quantity: 1,
+      laborHours: null,
+      technicianCount: null,
       unitPrice,
       subtotal: unitPrice,
       availability: isBackorder ? "SOLICITAR" : "DISPONIBLE",
@@ -387,25 +442,51 @@ export default function RegisterQuoteForm({ onSave }: Props) {
       return;
     }
 
-    if (detailForm.quantity <= 0 || detailForm.unitPrice < 0) {
+    const laborHours = Math.max(
+      0.5,
+      Number(detailForm.laborHours ?? detailForm.quantity) || 0.5,
+    );
+    const technicianCount = Math.max(
+      1,
+      Number(detailForm.technicianCount ?? 1) || 1,
+    );
+    const billedQuantity = isLaborMode
+      ? Number((laborHours * technicianCount).toFixed(2))
+      : detailForm.quantity;
+
+    if (billedQuantity <= 0 || detailForm.unitPrice < 0) {
       showError("Cantidad o precio inválidos");
       return;
     }
 
-    const normalizedSubtotal = detailForm.quantity * detailForm.unitPrice;
+    const normalizedSubtotal = billedQuantity * detailForm.unitPrice;
+    const normalizedDescription = isLaborMode
+      ? buildLaborDescription(
+          detailForm.description,
+          technicianCount,
+          laborHours,
+        )
+      : detailForm.description.trim();
+
     const nextDetail: QuoteDetailForm = {
       ...detailForm,
+      description: normalizedDescription,
+      quantity: billedQuantity,
+      laborHours: isLaborMode ? laborHours : null,
+      technicianCount: isLaborMode ? technicianCount : null,
       subtotal: normalizedSubtotal,
-      availability: isManualProduct
-        ? "SOLICITAR"
-        : detailForm.productId
-          ? detailForm.availability
-          : "NO_DISPONIBLE",
+      availability: isLaborMode
+        ? "DISPONIBLE"
+        : isManualProduct
+          ? "SOLICITAR"
+          : detailForm.productId
+            ? detailForm.availability
+            : "NO_DISPONIBLE",
     };
 
     setForm((prev) => {
       const nextDetails = [...prev.details];
-      const normalizedDescription = detailForm.description.trim().toLowerCase();
+      const normalizedDescriptionKey = normalizedDescription.toLowerCase();
 
       const existingIndex = nextDetails.findIndex((detail) => {
         if (nextDetail.productId) {
@@ -413,19 +494,25 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         }
         return (
           detail.productId === null &&
-          detail.description.trim().toLowerCase() === normalizedDescription
+          detail.description.trim().toLowerCase() === normalizedDescriptionKey
         );
       });
 
       if (existingIndex >= 0) {
         const current = nextDetails[existingIndex];
-        const quantity = current.quantity + nextDetail.quantity;
+        const quantity = Number(
+          (current.quantity + nextDetail.quantity).toFixed(2),
+        );
         nextDetails[existingIndex] = {
           ...current,
           quantity,
           unitPrice: nextDetail.unitPrice,
           subtotal: quantity * nextDetail.unitPrice,
           isBackorder: Boolean(current.isBackorder || nextDetail.isBackorder),
+          laborHours:
+            (current.laborHours ?? 0) + (nextDetail.laborHours ?? 0) || null,
+          technicianCount:
+            current.technicianCount ?? nextDetail.technicianCount ?? null,
         };
       } else {
         nextDetails.push(nextDetail);
@@ -438,14 +525,25 @@ export default function RegisterQuoteForm({ onSave }: Props) {
     });
 
     setDetailForm({
-      ...EMPTY_DETAIL,
-      availability: isManualProduct ? "SOLICITAR" : "DISPONIBLE",
+      ...getDefaultDetailForMode(detailEntryMode),
+      unitPrice: isLaborMode ? detailForm.unitPrice : 0,
     });
     setProductSearch("");
   };
 
   const isManualProduct = detailEntryMode === "MANUAL";
   const isLaborMode = detailEntryMode === "LABOR";
+  const laborHoursInput = Math.max(
+    0.5,
+    Number(detailForm.laborHours ?? detailForm.quantity) || 0.5,
+  );
+  const technicianCountInput = Math.max(
+    1,
+    Number(detailForm.technicianCount ?? 1) || 1,
+  );
+  const currentLineSubtotal = isLaborMode
+    ? laborHoursInput * technicianCountInput * detailForm.unitPrice
+    : detailForm.quantity * detailForm.unitPrice;
 
   const handleRemoveDetail = (index: number) => {
     setForm((prev) => ({
@@ -1160,8 +1258,13 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                 Cotizacion de mano de obra
               </p>
               <p className="mt-1 text-sm text-amber-900">
-                Usa horas de trabajo y tarifa por hora para cotizar solo labor
-                tecnica, sin necesidad de agregar productos.
+                Usa horas por tecnico, cantidad estimada de tecnicos y tarifa
+                por hora para cotizar solo labor tecnica, sin necesidad de
+                agregar productos.
+              </p>
+              <p className="mt-2 text-xs text-amber-800">
+                El total se calcula como: horas por tecnico x tecnicos
+                estimados x tarifa por hora.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {LABOR_SUGGESTIONS.map((suggestion) => (
@@ -1185,7 +1288,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-4 items-start">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-5 items-start">
             <div className="md:col-span-2">
               <label className="mb-2 block text-xs font-bold text-gray-700 uppercase tracking-wide">
                 {isLaborMode ? "Concepto de mano de obra" : "Item / Producto"} <span className="text-red-600">*</span>
@@ -1208,26 +1311,60 @@ export default function RegisterQuoteForm({ onSave }: Props) {
 
             <div>
               <label className="mb-2 block text-xs font-bold text-gray-700 uppercase tracking-wide">
-                {isLaborMode ? "Horas" : "Cant."} <span className="text-red-600">*</span>
+                {isLaborMode ? "Horas por tecnico" : "Cant."} <span className="text-red-600">*</span>
               </label>
               <input
                 type="number"
                 min={isLaborMode ? "0.5" : "1"}
                 step={isLaborMode ? "0.5" : "1"}
-                value={detailForm.quantity}
+                value={isLaborMode ? laborHoursInput : detailForm.quantity}
                 onChange={(event) =>
-                  setDetailForm((prev) => ({
-                    ...prev,
-                    quantity: Math.max(
+                  setDetailForm((prev) => {
+                    const nextValue = Math.max(
                       isLaborMode ? 0.5 : 1,
                       Number(event.target.value) || (isLaborMode ? 0.5 : 1),
-                    ),
-                  }))
+                    );
+                    return isLaborMode
+                      ? {
+                          ...prev,
+                          laborHours: nextValue,
+                          quantity: nextValue,
+                        }
+                      : {
+                          ...prev,
+                          quantity: nextValue,
+                        };
+                  })
                 }
                 className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-800 text-center font-mono transition-colors"
                 disabled={saving}
               />
             </div>
+
+            {isLaborMode && (
+              <div>
+                <label className="mb-2 block text-xs font-bold text-gray-700 uppercase tracking-wide">
+                  Tecnicos estimados <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={technicianCountInput}
+                  onChange={(event) =>
+                    setDetailForm((prev) => ({
+                      ...prev,
+                      technicianCount: Math.max(
+                        1,
+                        Math.round(Number(event.target.value) || 1),
+                      ),
+                    }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-gray-800 text-center font-mono transition-colors"
+                  disabled={saving}
+                />
+              </div>
+            )}
 
             <div>
               <label className="mb-2 block text-xs font-bold text-gray-700 uppercase tracking-wide">
@@ -1255,7 +1392,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
               </div>
             </div>
 
-            <div className="md:col-span-4">
+            <div className="md:col-span-5">
               <label className="mb-2 block text-xs font-bold text-gray-700 uppercase tracking-wide">
                 {isLaborMode
                   ? "Alcance del servicio (Visible en Cotización)"
@@ -1289,10 +1426,18 @@ export default function RegisterQuoteForm({ onSave }: Props) {
               </span>
               <span className="text-lg font-bold text-gray-900 font-mono">
                 {isLaborMode ? "Subtotal Mano de Obra: $" : "Subtotal Línea: $"}
-                {(detailForm.quantity * detailForm.unitPrice).toLocaleString(
-                  "es-CO",
-                )}
+                {currentLineSubtotal.toLocaleString("es-CO")}
               </span>
+              {isLaborMode && (
+                <span className="text-xs text-amber-700">
+                  {formatCompactNumber(technicianCountInput)} tecnico(s) x{" "}
+                  {formatCompactNumber(laborHoursInput)} hora(s) ={" "}
+                  {formatCompactNumber(
+                    laborHoursInput * technicianCountInput,
+                  )}{" "}
+                  hora(s)-tecnico facturables
+                </span>
+              )}
             </div>
 
             <button
@@ -1329,24 +1474,44 @@ export default function RegisterQuoteForm({ onSave }: Props) {
           </h4>
 
           <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            {form.details.map((detail, index) => (
-              <div
-                key={`${detail.productId ?? "manual"}-${index}`}
-                className="group flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
-              >
+            {form.details.map((detail, index) => {
+              const laborBreakdown = parseLaborBreakdown(detail.description);
+
+              return (
+                <div
+                  key={`${detail.productId ?? "manual"}-${index}`}
+                  className="group flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-white border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
+                >
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-gray-900 text-sm truncate">
-                      {detail.name || detail.description}
+                      {detail.name ||
+                        laborBreakdown?.baseDescription ||
+                        detail.description}
                     </span>
                     {detail.availability !== "DISPONIBLE" && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-yellow-100 text-yellow-800 tracking-wider">
                         {detail.availability}
                       </span>
                     )}
+                    {laborBreakdown && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                        Mano de obra
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 truncate">
-                    {detail.description !== detail.name && detail.description}
+                    {laborBreakdown
+                      ? `${formatCompactNumber(
+                          laborBreakdown.technicianCount,
+                        )} tecnico(s) x ${formatCompactNumber(
+                          laborBreakdown.laborHours,
+                        )} hora(s) = ${formatCompactNumber(
+                          detail.quantity,
+                        )} hora(s)-tecnico`
+                      : detail.description !== detail.name
+                        ? detail.description
+                        : ""}
                   </div>
                 </div>
 
@@ -1357,7 +1522,7 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                       type="button"
                       onClick={() => changeDetailQuantityBy(index, -1)}
                       className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center justify-center font-bold"
-                      disabled={saving}
+                      disabled={saving || Boolean(laborBreakdown)}
                     >
                       −
                     </button>
@@ -1370,13 +1535,13 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                         updateDetailQuantity(index, Number(event.target.value))
                       }
                       className="h-8 w-12 text-center text-sm font-bold font-mono text-gray-800 border-x border-gray-300 focus:outline-none"
-                      disabled={saving}
+                      disabled={saving || Boolean(laborBreakdown)}
                     />
                     <button
                       type="button"
                       onClick={() => changeDetailQuantityBy(index, 1)}
                       className="h-8 w-8 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors flex items-center justify-center font-bold"
-                      disabled={saving}
+                      disabled={saving || Boolean(laborBreakdown)}
                     >
                       +
                     </button>
@@ -1414,8 +1579,9 @@ export default function RegisterQuoteForm({ onSave }: Props) {
                     </svg>
                   </button>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

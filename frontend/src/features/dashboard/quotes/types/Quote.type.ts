@@ -20,6 +20,22 @@ export interface QuoteDetail {
   availability?: string;
 }
 
+export interface ServiceRequestMaterial {
+  productId?: number | null;
+  name: string;
+  quantity: number;
+  unitPrice?: number | null;
+}
+
+export interface ServiceRequestChecklist {
+  installationArea?: string | null;
+  installationHeight?: string | null;
+  estimatedCableMeters?: string | null;
+  materialsSummary?: string | null;
+  additionalContext?: string | null;
+  evidenceNotes?: string | null;
+}
+
 export interface ServiceRequest {
   serviceRequestId: number;
   scheduledAt?: string;
@@ -32,25 +48,15 @@ export interface ServiceRequest {
     | "ASSESSMENT_REQUIRED"
     | "READY_TO_QUOTE"
     | null;
+  descriptionPlain?: string;
+  clientAvailabilityOptions?: string[];
   direccion?: string;
   description?: string;
   alreadyHasMaterials?: boolean;
   linkedSaleId?: number | null;
   linkedSaleCode?: string | null;
-  purchasedMaterials?: Array<{
-    productId?: number | null;
-    name: string;
-    quantity: number;
-    unitPrice?: number | null;
-  }>;
-  siteChecklist?: {
-    installationArea?: string | null;
-    installationHeight?: string | null;
-    estimatedCableMeters?: string | null;
-    materialsSummary?: string | null;
-    additionalContext?: string | null;
-    evidenceNotes?: string | null;
-  } | null;
+  purchasedMaterials?: ServiceRequestMaterial[];
+  siteChecklist?: ServiceRequestChecklist | null;
   createdAt?: string;
   stateId?: number;
   serviceId?: number;
