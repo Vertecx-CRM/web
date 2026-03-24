@@ -117,9 +117,9 @@ type PrefilledRequestContext = {
     installationArea?: string | null;
     installationHeight?: string | null;
     estimatedCableMeters?: string | null;
-    needsLadder?: "YES" | "NO" | "UNKNOWN" | null;
-    hasPowerPoint?: "YES" | "NO" | "UNKNOWN" | null;
-    hasInternetPoint?: "YES" | "NO" | "UNKNOWN" | null;
+    needsLadder?: "SI" | "NO" | "DESCONOCIDO" | null;
+    hasPowerPoint?: "SI" | "NO" | "DESCONOCIDO" | null;
+    hasInternetPoint?: "SI" | "NO" | "DESCONOCIDO" | null;
     materialsSummary?: string | null;
     additionalContext?: string | null;
     evidenceNotes?: string | null;

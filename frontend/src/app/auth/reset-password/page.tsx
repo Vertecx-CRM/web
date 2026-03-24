@@ -41,7 +41,9 @@ function ResetPasswordContent() {
     setLoading(true);
     try {
       await api.post("/auth/reset-password", { token: safeToken, password });
-      showSuccess("Contraseña actualizada correctamente. Ahora puedes iniciar sesión.");
+      showSuccess(
+        "Contraseña actualizada correctamente. Ahora puedes iniciar sesión.",
+      );
       router.push(routes.auth.login);
     } catch (err: any) {
       const msg =
@@ -130,14 +132,15 @@ function ResetPasswordContent() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition
+              className="cursor-pointer w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition
                          hover:bg-red-700 active:bg-red-800 disabled:opacity-60 disabled:hover:bg-red-600"
             >
               {loading ? "Guardando..." : "Guardar contraseña"}
             </button>
 
             <p className="text-xs text-neutral-500 leading-relaxed">
-              Si el enlace expiró, solicita uno nuevo desde “Recuperar contraseña”.
+              Si el enlace expiró, solicita uno nuevo desde “Recuperar
+              contraseña”.
             </p>
           </form>
 

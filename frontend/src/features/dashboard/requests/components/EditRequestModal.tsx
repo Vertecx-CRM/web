@@ -116,7 +116,8 @@ type Touched = Partial<Record<ErrorKey, boolean>>;
 
 function parseYMD(ymd: string) {
   const [y, m, d] = (ymd || "").split("-").map((x) => Number(x));
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d))
+    return null;
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
@@ -203,7 +204,7 @@ function initials(name: string) {
     .split(/\s+/)
     .filter(Boolean);
   const a = parts[0]?.[0] ?? "";
-  const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  const b = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return (a + b).toUpperCase() || "T";
 }
 
@@ -236,7 +237,10 @@ function combineDateTimeLocal(ymd: string, hm: string) {
   return dt.toISOString();
 }
 
-function inferTypeIdFromServiceType(serviceTypes: ServiceTypeOption[], serviceType: string) {
+function inferTypeIdFromServiceType(
+  serviceTypes: ServiceTypeOption[],
+  serviceType: string,
+) {
   const st = normalizeText(serviceType);
   if (!st) return null;
 
@@ -247,11 +251,15 @@ function inferTypeIdFromServiceType(serviceTypes: ServiceTypeOption[], serviceTy
   const hasMant = st.includes("manten");
 
   if (hasInst) {
-    const m = serviceTypes.find((t) => normalizeText(t.label).includes("instal"));
+    const m = serviceTypes.find((t) =>
+      normalizeText(t.label).includes("instal"),
+    );
     if (m) return m.id;
   }
   if (hasMant) {
-    const m = serviceTypes.find((t) => normalizeText(t.label).includes("manten"));
+    const m = serviceTypes.find((t) =>
+      normalizeText(t.label).includes("manten"),
+    );
     if (m) return m.id;
   }
 
@@ -300,7 +308,10 @@ export default function EditRequestModal({
     "ASSESSMENT" | "DIRECT_INSTALLATION"
   >("ASSESSMENT");
   const [technicalReviewStatus, setTechnicalReviewStatus] = useState<
-    "NOT_APPLICABLE" | "PENDING_REVIEW" | "ASSESSMENT_REQUIRED" | "READY_TO_QUOTE"
+    | "NOT_APPLICABLE"
+    | "PENDING_REVIEW"
+    | "ASSESSMENT_REQUIRED"
+    | "READY_TO_QUOTE"
   >("NOT_APPLICABLE");
   const [alreadyHasMaterials, setAlreadyHasMaterials] = useState(false);
   const [purchasedMaterials, setPurchasedMaterials] = useState<
@@ -314,7 +325,7 @@ export default function EditRequestModal({
   const [horaFinal, setHoraFinal] = useState<string | null>(null);
 
   const [estado, setEstado] = useState<string>(
-    String((initial as any)?.estado ?? (initial as any)?.stateId ?? "").trim()
+    String((initial as any)?.estado ?? (initial as any)?.stateId ?? "").trim(),
   );
   const { stateOptions, isLoading: statesLoading } = useRequestStates();
 
@@ -331,7 +342,9 @@ export default function EditRequestModal({
   const [serviceTypesLoading, setServiceTypesLoading] = useState(false);
 
   const finalServicios = useMemo<ServiceOption[]>(() => {
-    const fromProps = (Array.isArray(servicios) ? servicios : []) as ServiceOption[];
+    const fromProps = (
+      Array.isArray(servicios) ? servicios : []
+    ) as ServiceOption[];
     return fromProps.length ? fromProps : serviciosLocal;
   }, [servicios, serviciosLocal]);
 
@@ -341,8 +354,11 @@ export default function EditRequestModal({
   }, [clientes, clientesLocal]);
 
   const selectedType = useMemo(
-    () => (serviceTypeId ? serviceTypes.find((t) => t.id === serviceTypeId) || null : null),
-    [serviceTypeId, serviceTypes]
+    () =>
+      serviceTypeId
+        ? serviceTypes.find((t) => t.id === serviceTypeId) || null
+        : null,
+    [serviceTypeId, serviceTypes],
   );
   const effectiveServiceType = selectedType
     ? toServiceTypeCode(selectedType.label)
@@ -350,13 +366,19 @@ export default function EditRequestModal({
       ? String(initial.serviceType)
       : "";
   const isInstallationFlow = isInstallationServiceType(effectiveServiceType);
-  const isDirectInstallation = isInstallationFlow && requestMode === "DIRECT_INSTALLATION";
-  const requestStageLabel = getRequestStageLabel(effectiveServiceType, requestMode);
+  const isDirectInstallation =
+    isInstallationFlow && requestMode === "DIRECT_INSTALLATION";
+  const requestStageLabel = getRequestStageLabel(
+    effectiveServiceType,
+    requestMode,
+  );
 
   const filteredServicios = useMemo<ServiceOption[]>(() => {
     const list = finalServicios || [];
     if (!serviceTypeId) return list;
-    return list.filter((s) => Number(s.typeofserviceid) === Number(serviceTypeId));
+    return list.filter(
+      (s) => Number(s.typeofserviceid) === Number(serviceTypeId),
+    );
   }, [finalServicios, serviceTypeId]);
 
   const [techniciansRaw, setTechniciansRaw] = useState<any[]>([]);
@@ -370,54 +392,73 @@ export default function EditRequestModal({
       .map((t: any) => {
         const u = t?.users || t?.user || t?.Users || {};
         const name = toTitleCase(
-          [u?.name, u?.lastname].filter(Boolean).join(" ").trim()
+          [u?.name, u?.lastname].filter(Boolean).join(" ").trim(),
         );
         const label = name || `Tecnico #${t?.technicianid ?? t?.id ?? "?"}`;
-        return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
+        return {
+          technicianid: Number(t?.technicianid ?? t?.id),
+          label,
+        } as TechnicianOption;
       })
       .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
   }, [techniciansRaw]);
 
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
-  const selectedTechSet = useMemo(() => new Set(selectedTechnicians), [selectedTechnicians]);
+  const selectedTechSet = useMemo(
+    () => new Set(selectedTechnicians),
+    [selectedTechnicians],
+  );
   const selectedClient = useMemo(
     () => finalClientes.find((c) => Number(c.id) === Number(cliente)) ?? null,
-    [finalClientes, cliente]
+    [finalClientes, cliente],
   );
   const clientAvailabilityOptions = useMemo(
     () =>
       normalizeRequestAvailabilityOptions(
-        (initial as any)?.availabilityOptions
+        (initial as any)?.availabilityOptions,
       ),
-    [initial]
+    [initial],
   );
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
-    return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
+    return selectedTechnicians
+      .map((id) => map.get(id))
+      .filter(Boolean) as TechnicianOption[];
   }, [technicians, selectedTechnicians]);
 
   const selectedWindow = useMemo(
-    () => buildWindowFromLocalSchedule(programada, horaProgramada, programada, horaFinal),
-    [programada, horaProgramada, horaFinal]
+    () =>
+      buildWindowFromLocalSchedule(
+        programada,
+        horaProgramada,
+        programada,
+        horaFinal,
+      ),
+    [programada, horaProgramada, horaFinal],
   );
 
   const busyTechnicianIds = useMemo(
     () =>
-      getBusyTechnicianIdsForWindow(scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, {
-        excludeRequestId: requestId,
-      }),
-    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, requestId]
+      getBusyTechnicianIdsForWindow(
+        scheduledOrdersRaw,
+        scheduledRequestsRaw,
+        selectedWindow,
+        {
+          excludeRequestId: requestId,
+        },
+      ),
+    [scheduledOrdersRaw, scheduledRequestsRaw, selectedWindow, requestId],
   );
 
   const availableTechnicians = useMemo(
     () => technicians.filter((t) => !busyTechnicianIds.has(t.technicianid)),
-    [technicians, busyTechnicianIds]
+    [technicians, busyTechnicianIds],
   );
 
   const selectedBusyTechnicianIds = useMemo(
     () => selectedTechnicians.filter((id) => busyTechnicianIds.has(id)),
-    [selectedTechnicians, busyTechnicianIds]
+    [selectedTechnicians, busyTechnicianIds],
   );
 
   const [clientQuery, setClientQuery] = useState("");
@@ -455,7 +496,10 @@ export default function EditRequestModal({
   }
 
   function validateServicio(v: string) {
-    if (customServiceMode && String(customServiceName || "").trim().length >= 3) {
+    if (
+      customServiceMode &&
+      String(customServiceName || "").trim().length >= 3
+    ) {
       return null;
     }
     return String(v || "").trim() ? null : "Selecciona un servicio.";
@@ -477,18 +521,27 @@ export default function EditRequestModal({
     if (!date) return "Selecciona la fecha.";
     const d = parseYMD(date);
     if (!d) return "Fecha invalida.";
-    if (!isAllowedDate(date)) return "No se puede agendar los domingos. Solo lunes a sabado.";
+    if (!isAllowedDate(date))
+      return "No se puede agendar los domingos. Solo lunes a sabado.";
     return null;
   }
 
-  function validateStartTimeRequired(date: string | null, start: string | null) {
+  function validateStartTimeRequired(
+    date: string | null,
+    start: string | null,
+  ) {
     if (!start) return "Selecciona la hora inicial.";
     if (!isAllowedTime(start)) return "Horario permitido: 07:00-17:00.";
-    if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
+    if (timeToMinutes(start) === SCHEDULE_MAX)
+      return "La hora de inicio no puede ser 17:00.";
     return null;
   }
 
-  function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
+  function validateEndTimeRequired(
+    date: string | null,
+    start: string | null,
+    end: string | null,
+  ) {
     if (!end) return "Selecciona la hora final.";
     if (!isAllowedTime(end)) return "Horario permitido: 07:00-17:00.";
     if (!start) return null;
@@ -514,13 +567,18 @@ export default function EditRequestModal({
     e.programada = validateDateRequired(programada);
 
     const needsTime = !e.programada;
-    e.horaProgramada = needsTime ? validateStartTimeRequired(programada, horaProgramada) : null;
-    e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
+    e.horaProgramada = needsTime
+      ? validateStartTimeRequired(programada, horaProgramada)
+      : null;
+    e.horaFinal = needsTime
+      ? validateEndTimeRequired(programada, horaProgramada, horaFinal)
+      : null;
 
     if (!selectedTechnicians.length) {
       e.technicians = "Selecciona al menos un tecnico.";
     } else if (selectedBusyTechnicianIds.length > 0) {
-      e.technicians = "Hay tecnicos seleccionados que ya estan ocupados en ese horario.";
+      e.technicians =
+        "Hay tecnicos seleccionados que ya estan ocupados en ese horario.";
     } else {
       e.technicians = null;
     }
@@ -547,7 +605,9 @@ export default function EditRequestModal({
 
   const techOptions = useMemo(() => {
     const q = normalizeText(techQuery);
-    const list = availableTechnicians.filter((t) => !selectedTechSet.has(t.technicianid));
+    const list = availableTechnicians.filter(
+      (t) => !selectedTechSet.has(t.technicianid),
+    );
     if (!q) return list.slice(0, 10);
     const scored = list
       .map((t) => {
@@ -608,7 +668,9 @@ export default function EditRequestModal({
       return;
     }
     markTouched("technicians");
-    setSelectedTechnicians((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setSelectedTechnicians((prev) =>
+      prev.includes(id) ? prev : [...prev, id],
+    );
     setTechQuery("");
     setTechOpen(false);
     techInputRef.current?.focus();
@@ -641,20 +703,23 @@ export default function EditRequestModal({
       setLoadingLookups(true);
 
       const [sr, cr] = await Promise.allSettled([
-        hasServicios ? Promise.resolve(servicios as ServiceOption[]) : getServiceOptions(),
+        hasServicios
+          ? Promise.resolve(servicios as ServiceOption[])
+          : getServiceOptions(),
         hasClientes ? Promise.resolve(clientes!) : getCustomerOptions(),
       ]);
 
       if (!alive) return;
 
-      if (sr.status === "fulfilled") setServiciosLocal(sr.value as ServiceOption[]);
+      if (sr.status === "fulfilled")
+        setServiciosLocal(sr.value as ServiceOption[]);
       else {
         setServiciosLocal([]);
         const status = (sr.reason as any)?.response?.status;
         showError(
           status
             ? `No se pudieron cargar los servicios (${status}).`
-            : "No se pudieron cargar los servicios."
+            : "No se pudieron cargar los servicios.",
         );
       }
 
@@ -665,7 +730,7 @@ export default function EditRequestModal({
         showError(
           status
             ? `No se pudieron cargar los clientes (${status}).`
-            : "No se pudieron cargar los clientes."
+            : "No se pudieron cargar los clientes.",
         );
       }
 
@@ -689,8 +754,8 @@ export default function EditRequestModal({
         const list: ServiceTypeApi[] = Array.isArray(data)
           ? data
           : Array.isArray((data as any)?.data)
-          ? (data as any).data
-          : [];
+            ? (data as any).data
+            : [];
         const mapped = list
           .map((x) => ({
             id: Number(x.typeofserviceid),
@@ -731,11 +796,13 @@ export default function EditRequestModal({
       if (cancelled) return;
 
       const ordersData =
-        ordersRes.status === "fulfilled" && Array.isArray((ordersRes.value as any)?.data)
+        ordersRes.status === "fulfilled" &&
+        Array.isArray((ordersRes.value as any)?.data)
           ? (ordersRes.value as any).data
           : [];
       const requestsData =
-        requestsRes.status === "fulfilled" && Array.isArray((requestsRes.value as any)?.data)
+        requestsRes.status === "fulfilled" &&
+        Array.isArray((requestsRes.value as any)?.data)
           ? (requestsRes.value as any).data
           : [];
 
@@ -762,13 +829,16 @@ export default function EditRequestModal({
         const list = Array.isArray(data)
           ? data
           : Array.isArray((data as any)?.data)
-          ? (data as any).data
-          : Array.isArray((data as any)?.technicians)
-          ? (data as any).technicians
-          : [];
+            ? (data as any).data
+            : Array.isArray((data as any)?.technicians)
+              ? (data as any).technicians
+              : [];
         if (!cancelled) setTechniciansRaw(list);
       } catch (e: any) {
-        const msg = (e as any)?.response?.data?.message || (e as any)?.message || "Error cargando tecnicos.";
+        const msg =
+          (e as any)?.response?.data?.message ||
+          (e as any)?.message ||
+          "Error cargando tecnicos.";
         if (!cancelled) {
           setTechError(String(msg));
           setTechniciansRaw([]);
@@ -791,11 +861,9 @@ export default function EditRequestModal({
     const init = initial as any;
 
     const initServiceId = String(
-      init?.servicio ?? init?.serviceId ?? ""
+      init?.servicio ?? init?.serviceId ?? "",
     ).trim();
-    const initClientId = String(
-      init?.cliente ?? init?.clientId ?? ""
-    ).trim();
+    const initClientId = String(init?.cliente ?? init?.clientId ?? "").trim();
 
     setServicio(initServiceId);
     setCliente(initClientId);
@@ -807,18 +875,20 @@ export default function EditRequestModal({
     setRequestMode(
       normalizeRequestMode(init?.requestMode) === "DIRECT_INSTALLATION"
         ? "DIRECT_INSTALLATION"
-        : "ASSESSMENT"
+        : "ASSESSMENT",
     );
     setTechnicalReviewStatus(
-      (String(init?.technicalReviewStatus ?? "").trim().toUpperCase() as
+      (String(init?.technicalReviewStatus ?? "")
+        .trim()
+        .toUpperCase() as
         | "NOT_APPLICABLE"
         | "PENDING_REVIEW"
         | "ASSESSMENT_REQUIRED"
-        | "READY_TO_QUOTE") || "NOT_APPLICABLE"
+        | "READY_TO_QUOTE") || "NOT_APPLICABLE",
     );
     setAlreadyHasMaterials(Boolean(init?.alreadyHasMaterials));
     setPurchasedMaterials(
-      Array.isArray(init?.purchasedMaterials) ? init.purchasedMaterials : []
+      Array.isArray(init?.purchasedMaterials) ? init.purchasedMaterials : [],
     );
     setSiteChecklist({
       ...EMPTY_SITE_CHECKLIST,
@@ -838,10 +908,9 @@ export default function EditRequestModal({
         ? { date: init?.programada ?? null, time: init?.horaProgramada ?? null }
         : parseISOToLocalParts(init?.scheduledAt ?? null);
 
-    const partsEnd =
-      init?.horaFinal
-        ? { date: partsStart.date, time: init?.horaFinal ?? null }
-        : parseISOToLocalParts(init?.scheduledEndAt ?? null);
+    const partsEnd = init?.horaFinal
+      ? { date: partsStart.date, time: init?.horaFinal ?? null }
+      : parseISOToLocalParts(init?.scheduledEndAt ?? null);
 
     setProgramada(partsStart.date);
     setHoraProgramada(partsStart.time);
@@ -849,7 +918,9 @@ export default function EditRequestModal({
 
     const initTechs = Array.isArray(init?.technicians) ? init.technicians : [];
     setSelectedTechnicians(
-      initTechs.map((x: any) => Number(x)).filter((x: number) => Number.isFinite(x) && x > 0)
+      initTechs
+        .map((x: any) => Number(x))
+        .filter((x: number) => Number.isFinite(x) && x > 0),
     );
 
     setClientQuery("");
@@ -877,11 +948,16 @@ export default function EditRequestModal({
 
     const init = initial as any;
 
-    const initServiceId = String(init?.servicio ?? init?.serviceId ?? "").trim();
-    const svc = initServiceId ? finalServicios.find((s) => String(s.id) === initServiceId) : null;
+    const initServiceId = String(
+      init?.servicio ?? init?.serviceId ?? "",
+    ).trim();
+    const svc = initServiceId
+      ? finalServicios.find((s) => String(s.id) === initServiceId)
+      : null;
 
     const fromService =
-      svc?.typeofserviceid != null && Number.isFinite(Number(svc.typeofserviceid))
+      svc?.typeofserviceid != null &&
+      Number.isFinite(Number(svc.typeofserviceid))
         ? Number(svc.typeofserviceid)
         : null;
 
@@ -899,7 +975,14 @@ export default function EditRequestModal({
 
     setServiceTypeId(serviceTypes[0].id);
     setHasAppliedInitialType(true);
-  }, [isOpen, hasAppliedInitialType, serviceTypesLoading, serviceTypes, finalServicios, initial]);
+  }, [
+    isOpen,
+    hasAppliedInitialType,
+    serviceTypesLoading,
+    serviceTypes,
+    finalServicios,
+    initial,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -911,7 +994,13 @@ export default function EditRequestModal({
       setServicio("");
       markTouched("servicio");
     }
-  }, [isOpen, hasAppliedInitialType, serviceTypeId, filteredServicios, servicio]);
+  }, [
+    isOpen,
+    hasAppliedInitialType,
+    serviceTypeId,
+    filteredServicios,
+    servicio,
+  ]);
 
   useEffect(() => {
     setClientActiveIndex(0);
@@ -1036,7 +1125,9 @@ export default function EditRequestModal({
     if (!isValidNow()) return;
 
     if (selectedBusyTechnicianIds.length > 0) {
-      showError("Hay tecnicos ocupados en ese horario. Ajusta horario o tecnicos.");
+      showError(
+        "Hay tecnicos ocupados en ese horario. Ajusta horario o tecnicos.",
+      );
       return;
     }
 
@@ -1062,7 +1153,9 @@ export default function EditRequestModal({
 
       resolvedServiceId = Number(ensuredService.id);
       setServiciosLocal((prev) => {
-        const exists = prev.some((item) => Number(item.id) === Number(ensuredService.id));
+        const exists = prev.some(
+          (item) => Number(item.id) === Number(ensuredService.id),
+        );
         if (exists) return prev;
         return [...prev, ensuredService as ServiceOption];
       });
@@ -1086,7 +1179,9 @@ export default function EditRequestModal({
       serviceId: resolvedServiceId,
       serviceType: toServiceTypeCode(selectedType?.label),
       description: String(descripcion ?? "").trim(),
-      direccion: String(direccion ?? "").trim().slice(0, 255),
+      direccion: String(direccion ?? "")
+        .trim()
+        .slice(0, 255),
       scheduledAt: scheduledAtISO,
       scheduledEndAt: scheduledEndAtISO,
       requestMode: isInstallationFlow ? requestMode : undefined,
@@ -1102,7 +1197,8 @@ export default function EditRequestModal({
       siteChecklist: isDirectInstallation ? siteChecklist : null,
       estado: estado || undefined,
       stateId: estado ? Number(estado) : undefined,
-      estadoLabel: stateOptions.find((s) => String(s.id) === String(estado))?.label,
+      estadoLabel: stateOptions.find((s) => String(s.id) === String(estado))
+        ?.label,
       technicians: selectedTechnicians,
     };
 
@@ -1127,6 +1223,7 @@ export default function EditRequestModal({
       title={title}
       isOpen={isOpen}
       onClose={onClose}
+      widthClass="w-full max-w-4xl"
       footer={
         <div className="flex items-center justify-end gap-2">
           <button
@@ -1141,15 +1238,17 @@ export default function EditRequestModal({
             type="button"
             onClick={submit}
             className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
-            disabled={saving || loadingLookups || techLoading || serviceTypesLoading}
+            disabled={
+              saving || loadingLookups || techLoading || serviceTypesLoading
+            }
             title={
               loadingLookups
                 ? "Cargando servicios..."
                 : serviceTypesLoading
-                ? "Cargando tipos..."
-                : techLoading
-                ? "Cargando tecnicos..."
-                : undefined
+                  ? "Cargando tipos..."
+                  : techLoading
+                    ? "Cargando tecnicos..."
+                    : undefined
             }
           >
             {saving ? "Actualizando..." : "Actualizar"}
@@ -1160,13 +1259,15 @@ export default function EditRequestModal({
       <div className="grid gap-4">
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-1 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">Tipo de servicio</h3>
+            <h3 className="text-sm font-semibold text-gray-900">
+              Tipo de servicio
+            </h3>
             <span className="text-[11px] text-gray-500">
               {serviceTypesLoading
                 ? "Cargando tipos..."
                 : serviceTypes.length
-                ? "Selecciona uno"
-                : "No hay tipos disponibles"}
+                  ? "Selecciona uno"
+                  : "No hay tipos disponibles"}
             </span>
           </div>
 
@@ -1180,13 +1281,18 @@ export default function EditRequestModal({
                     markTouched("tipo");
                     setServiceTypeId(t.id);
                     setHasAppliedInitialType(true);
-                    if (servicio && !finalServicios.some((s) => String(s.id) === String(servicio))) {
+                    if (
+                      servicio &&
+                      !finalServicios.some(
+                        (s) => String(s.id) === String(servicio),
+                      )
+                    ) {
                       setServicio("");
                     } else {
                       const ok = finalServicios.some(
                         (s) =>
                           String(s.id) === String(servicio) &&
-                          Number(s.typeofserviceid) === Number(t.id)
+                          Number(s.typeofserviceid) === Number(t.id),
                       );
                       if (servicio && !ok) setServicio("");
                     }
@@ -1204,7 +1310,9 @@ export default function EditRequestModal({
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-500">No hay tipos de servicio configurados.</p>
+            <p className="text-xs text-gray-500">
+              No hay tipos de servicio configurados.
+            </p>
           )}
 
           {shouldShowError("tipo") && errors.tipo && (
@@ -1217,107 +1325,124 @@ export default function EditRequestModal({
             Datos basicos
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Servicio</label>
-            <div className="relative">
-              <select
-                value={servicio || ""}
-                onChange={(e) => {
-                  markTouched("servicio");
-                  setServicio(e.target.value);
-                  setCustomServiceMode(false);
-                  setCustomServiceName("");
-                }}
-                onBlur={() => markTouched("servicio")}
-                disabled={saving || loadingLookups || serviceTypesLoading || customServiceMode}
-                className={[
-                  "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                  shouldShowError("servicio") && errors.servicio ? "border-red-500" : "border-gray-300",
-                ].join(" ")}
-              >
-                <option value="">
-                  {loadingLookups
-                    ? "Cargando servicios..."
-                    : filteredServicios.length
-                    ? "Selecciona el servicio"
-                    : serviceTypeId
-                    ? "No hay servicios para este tipo"
-                    : "No hay servicios"}
-                </option>
-                {filteredServicios.map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                v
-              </span>
-            </div>
-            {shouldShowError("servicio") && errors.servicio && (
-              <p className="mt-1 text-xs text-red-600">{errors.servicio}</p>
-            )}
-
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <p className="text-[11px] text-gray-500">
-                Si el servicio correcto no existe, puedes agregarlo.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomServiceMode((prev) => !prev);
-                  setServicio("");
-                  setCustomServiceName("");
-                }}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
-                disabled={saving || loadingLookups || serviceTypesLoading || !serviceTypeId}
-              >
-                {customServiceMode ? "Usar lista" : "Agregar servicio"}
-              </button>
-            </div>
-
-            {customServiceMode && (
-              <div className="mt-3">
-                <input
-                  value={customServiceName}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Servicio
+              </label>
+              <div className="relative">
+                <select
+                  value={servicio || ""}
                   onChange={(e) => {
                     markTouched("servicio");
-                    setCustomServiceName(e.target.value);
+                    setServicio(e.target.value);
+                    setCustomServiceMode(false);
+                    setCustomServiceName("");
                   }}
                   onBlur={() => markTouched("servicio")}
-                  placeholder="Ej. Instalacion de camara PTZ"
+                  disabled={
+                    saving ||
+                    loadingLookups ||
+                    serviceTypesLoading ||
+                    customServiceMode
+                  }
                   className={[
-                    "h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                    "w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                     shouldShowError("servicio") && errors.servicio
                       ? "border-red-500"
                       : "border-gray-300",
                   ].join(" ")}
-                />
+                >
+                  <option value="">
+                    {loadingLookups
+                      ? "Cargando servicios..."
+                      : filteredServicios.length
+                        ? "Selecciona el servicio"
+                        : serviceTypeId
+                          ? "No hay servicios para este tipo"
+                          : "No hay servicios"}
+                  </option>
+                  {filteredServicios.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                  v
+                </span>
               </div>
-            )}
-          </div>
+              {shouldShowError("servicio") && errors.servicio && (
+                <p className="mt-1 text-xs text-red-600">{errors.servicio}</p>
+              )}
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Cliente</label>
-            <div className="rounded-lg border border-gray-300 bg-gray-50 p-3">
-              <p className="text-sm font-medium text-gray-900">
-                {selectedClient?.label || "Cliente asociado a la solicitud"}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                {selectedClient
-                  ? `Cliente #${selectedClient.id}${
-                      selectedClient.documentnumber
-                        ? ` - Doc ${selectedClient.documentnumber}`
-                        : ""
-                    }`
-                  : "El cliente no se puede modificar desde esta vista."}
-              </p>
-              <p className="mt-2 text-[11px] text-gray-500">
-                El cliente queda fijo para mantener la trazabilidad de la solicitud.
-              </p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-gray-500">
+                  Si el servicio correcto no existe, puedes agregarlo.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomServiceMode((prev) => !prev);
+                    setServicio("");
+                    setCustomServiceName("");
+                  }}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
+                  disabled={
+                    saving ||
+                    loadingLookups ||
+                    serviceTypesLoading ||
+                    !serviceTypeId
+                  }
+                >
+                  {customServiceMode ? "Usar lista" : "Agregar servicio"}
+                </button>
+              </div>
+
+              {customServiceMode && (
+                <div className="mt-3">
+                  <input
+                    value={customServiceName}
+                    onChange={(e) => {
+                      markTouched("servicio");
+                      setCustomServiceName(e.target.value);
+                    }}
+                    onBlur={() => markTouched("servicio")}
+                    placeholder="Ej. Instalacion de camara PTZ"
+                    className={[
+                      "h-10 w-full rounded-lg border bg-gray-50 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                      shouldShowError("servicio") && errors.servicio
+                        ? "border-red-500"
+                        : "border-gray-300",
+                    ].join(" ")}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Cliente
+              </label>
+              <div className="rounded-lg border border-gray-300 bg-gray-50 p-3">
+                <p className="text-sm font-medium text-gray-900">
+                  {selectedClient?.label || "Cliente asociado a la solicitud"}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {selectedClient
+                    ? `Cliente #${selectedClient.id}${
+                        selectedClient.documentnumber
+                          ? ` - Doc ${selectedClient.documentnumber}`
+                          : ""
+                      }`
+                    : "El cliente no se puede modificar desde esta vista."}
+                </p>
+                <p className="mt-2 text-[11px] text-gray-500">
+                  El cliente queda fijo para mantener la trazabilidad de la
+                  solicitud.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         {isInstallationFlow && (
@@ -1328,7 +1453,9 @@ export default function EditRequestModal({
                   Flujo de instalacion
                 </p>
                 <div className="rounded-lg border border-sky-200 bg-white px-3 py-2">
-                  <p className="text-sm font-semibold text-slate-900">{requestStageLabel}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {requestStageLabel}
+                  </p>
                   <p className="mt-1 text-xs text-slate-600">
                     {requestMode === "DIRECT_INSTALLATION"
                       ? "El cliente pidio una instalacion directa sujeta a validacion tecnica."
@@ -1349,7 +1476,7 @@ export default function EditRequestModal({
                         e.target.value as
                           | "PENDING_REVIEW"
                           | "ASSESSMENT_REQUIRED"
-                          | "READY_TO_QUOTE"
+                          | "READY_TO_QUOTE",
                       )
                     }
                     className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm"
@@ -1381,7 +1508,8 @@ export default function EditRequestModal({
                         Checklist del cliente
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Datos del sitio que ayudan a decidir si la instalación puede seguir sin visita previa.
+                        Datos del sitio que ayudan a decidir si la instalación
+                        puede seguir sin visita previa.
                       </p>
                     </div>
                     <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-[11px] font-semibold text-sky-700">
@@ -1393,7 +1521,10 @@ export default function EditRequestModal({
                     {[
                       ["Zona", siteChecklist.installationArea || "-"],
                       ["Altura", siteChecklist.installationHeight || "-"],
-                      ["Cable estimado", siteChecklist.estimatedCableMeters || "-"],
+                      [
+                        "Cable estimado",
+                        siteChecklist.estimatedCableMeters || "-",
+                      ],
                       ["Escalera", siteChecklist.needsLadder || "-"],
                       ["Energia", siteChecklist.hasPowerPoint || "-"],
                       ["Internet/red", siteChecklist.hasInternetPoint || "-"],
@@ -1405,7 +1536,9 @@ export default function EditRequestModal({
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                           {label}
                         </p>
-                        <p className="mt-1 text-sm font-medium text-slate-800">{value}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-800">
+                          {value}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1416,7 +1549,8 @@ export default function EditRequestModal({
                         Contexto adicional
                       </p>
                       <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                        {siteChecklist.additionalContext || "Sin contexto adicional."}
+                        {siteChecklist.additionalContext ||
+                          "Sin contexto adicional."}
                       </p>
                     </div>
                     <div className="rounded-xl border border-sky-100 bg-white/90 px-3 py-3">
@@ -1424,7 +1558,8 @@ export default function EditRequestModal({
                         Notas del cliente
                       </p>
                       <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                        {siteChecklist.evidenceNotes || "Sin notas registradas."}
+                        {siteChecklist.evidenceNotes ||
+                          "Sin notas registradas."}
                       </p>
                     </div>
                   </div>
@@ -1436,32 +1571,35 @@ export default function EditRequestModal({
                           Evidencias adjuntas
                         </p>
                         <span className="text-[11px] text-slate-500">
-                          {(siteChecklist.evidenceImages ?? []).length} imagen(es)
+                          {(siteChecklist.evidenceImages ?? []).length}{" "}
+                          imagen(es)
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {(siteChecklist.evidenceImages ?? []).map((url, index) => (
-                          <a
-                            key={`${url}-${index}`}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="group overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                          >
-                            <div className="relative aspect-square">
-                              <Image
-                                src={url}
-                                alt={`Evidencia ${index + 1}`}
-                                fill
-                                sizes="(max-width: 640px) 50vw, 160px"
-                                className="object-cover transition duration-300 group-hover:scale-[1.03]"
-                              />
-                            </div>
-                            <div className="border-t border-sky-100 px-3 py-2 text-[11px] font-medium text-sky-700">
-                              Ver imagen {index + 1}
-                            </div>
-                          </a>
-                        ))}
+                        {(siteChecklist.evidenceImages ?? []).map(
+                          (url, index) => (
+                            <a
+                              key={`${url}-${index}`}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="group overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                            >
+                              <div className="relative aspect-square">
+                                <Image
+                                  src={url}
+                                  alt={`Evidencia ${index + 1}`}
+                                  fill
+                                  sizes="(max-width: 640px) 50vw, 160px"
+                                  className="object-cover transition duration-300 group-hover:scale-[1.03]"
+                                />
+                              </div>
+                              <div className="border-t border-sky-100 px-3 py-2 text-[11px] font-medium text-sky-700">
+                                Ver imagen {index + 1}
+                              </div>
+                            </a>
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
@@ -1474,7 +1612,8 @@ export default function EditRequestModal({
                         Materiales reportados
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Productos ya comprados o declarados por el cliente para esta instalación.
+                        Productos ya comprados o declarados por el cliente para
+                        esta instalación.
                       </p>
                     </div>
                     <span
@@ -1485,7 +1624,9 @@ export default function EditRequestModal({
                           : "border border-amber-200 bg-amber-50 text-amber-700",
                       ].join(" ")}
                     >
-                      {alreadyHasMaterials ? "Cliente con materiales" : "Sin confirmar"}
+                      {alreadyHasMaterials
+                        ? "Cliente con materiales"
+                        : "Sin confirmar"}
                     </span>
                   </div>
 
@@ -1494,7 +1635,8 @@ export default function EditRequestModal({
                       Resumen manual
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-slate-700">
-                      {siteChecklist.materialsSummary || "Sin resumen manual de materiales."}
+                      {siteChecklist.materialsSummary ||
+                        "Sin resumen manual de materiales."}
                     </p>
                   </div>
 
@@ -1507,9 +1649,13 @@ export default function EditRequestModal({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="font-semibold text-slate-900">{item.name}</p>
+                              <p className="font-semibold text-slate-900">
+                                {item.name}
+                              </p>
                               <p className="mt-1 text-xs text-slate-600">
-                                {item.productId ? `Producto #${item.productId}` : "Material manual"}
+                                {item.productId
+                                  ? `Producto #${item.productId}`
+                                  : "Material manual"}
                               </p>
                             </div>
                             <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
@@ -1518,7 +1664,9 @@ export default function EditRequestModal({
                           </div>
                           <p className="mt-2 text-xs text-slate-600">
                             Cantidad: {item.quantity}
-                            {item.unitPrice != null ? ` - $${item.unitPrice.toLocaleString("es-CO")}` : ""}
+                            {item.unitPrice != null
+                              ? ` - $${item.unitPrice.toLocaleString("es-CO")}`
+                              : ""}
                           </p>
                         </div>
                       ))
@@ -1541,8 +1689,8 @@ export default function EditRequestModal({
                 Disponibilidad del cliente
               </h4>
               <p className="mt-1 text-[11px] text-gray-500">
-                Usa estas opciones como guia y luego confirma abajo la cita final segun la
-                agenda real de los tecnicos.
+                Usa estas opciones como guia y luego confirma abajo la cita
+                final segun la agenda real de los tecnicos.
               </p>
             </div>
           </div>
@@ -1577,7 +1725,8 @@ export default function EditRequestModal({
             </div>
           ) : (
             <p className="text-xs text-gray-500">
-              El cliente no propuso horarios de disponibilidad en esta solicitud.
+              El cliente no propuso horarios de disponibilidad en esta
+              solicitud.
             </p>
           )}
         </div>
@@ -1587,108 +1736,132 @@ export default function EditRequestModal({
             Programacion y estado
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-4">
-            <label className="mb-1 block text-xs font-medium text-gray-900">Direccion</label>
-            <input
-              value={direccion}
-              onChange={(e) => {
-                markTouched("direccion");
-                setDireccion(e.target.value);
-              }}
-              onBlur={() => markTouched("direccion")}
-              placeholder="Ej. Calle 123 #45-67"
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-                shouldShowError("direccion") && errors.direccion ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-            />
-            {shouldShowError("direccion") && errors.direccion && (
-              <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
-            )}
-          </div>
+            <div className="md:col-span-4">
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Direccion
+              </label>
+              <input
+                value={direccion}
+                onChange={(e) => {
+                  markTouched("direccion");
+                  setDireccion(e.target.value);
+                }}
+                onBlur={() => markTouched("direccion")}
+                placeholder="Ej. Calle 123 #45-67"
+                className={[
+                  "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                  shouldShowError("direccion") && errors.direccion
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
+              />
+              {shouldShowError("direccion") && errors.direccion && (
+                <p className="mt-1 text-xs text-red-600">{errors.direccion}</p>
+              )}
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Programada</label>
-            <input
-              type="date"
-              value={programada ?? ""}
-              onChange={(e) => handleProgramadaChange(e.target.value)}
-              onBlur={() => markTouched("programada")}
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-                shouldShowError("programada") && errors.programada ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-              required
-            />
-            {shouldShowError("programada") && errors.programada && (
-              <p className="mt-1 text-xs text-red-600">{errors.programada}</p>
-            )}
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Programada
+              </label>
+              <input
+                type="date"
+                value={programada ?? ""}
+                onChange={(e) => handleProgramadaChange(e.target.value)}
+                onBlur={() => markTouched("programada")}
+                className={[
+                  "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
+                  shouldShowError("programada") && errors.programada
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
+                required
+              />
+              {shouldShowError("programada") && errors.programada && (
+                <p className="mt-1 text-xs text-red-600">{errors.programada}</p>
+              )}
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Hora (inicio)</label>
-            <input
-              type="time"
-              min={timeMin}
-              max={timeStartMax}
-              value={horaProgramada ?? ""}
-              onChange={(e) => handleHoraProgramadaChange(e.target.value)}
-              onBlur={() => markTouched("horaProgramada")}
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaProgramada") && errors.horaProgramada ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-              disabled={!programada}
-              required
-            />
-            {shouldShowError("horaProgramada") && errors.horaProgramada && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaProgramada}</p>
-            )}
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Hora (inicio)
+              </label>
+              <input
+                type="time"
+                min={timeMin}
+                max={timeStartMax}
+                value={horaProgramada ?? ""}
+                onChange={(e) => handleHoraProgramadaChange(e.target.value)}
+                onBlur={() => markTouched("horaProgramada")}
+                className={[
+                  "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  shouldShowError("horaProgramada") && errors.horaProgramada
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
+                disabled={!programada}
+                required
+              />
+              {shouldShowError("horaProgramada") && errors.horaProgramada && (
+                <p className="mt-1 text-xs text-red-600">
+                  {errors.horaProgramada}
+                </p>
+              )}
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Hora final</label>
-            <input
-              type="time"
-              min={timeMin}
-              max={timeMax}
-              value={horaFinal ?? ""}
-              onChange={(e) => handleHoraFinalChange(e.target.value)}
-              onBlur={() => markTouched("horaFinal")}
-              className={[
-                "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
-                shouldShowError("horaFinal") && errors.horaFinal ? "border-red-500" : "border-gray-300",
-              ].join(" ")}
-              disabled={!programada}
-              required
-            />
-            {shouldShowError("horaFinal") && errors.horaFinal && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
-            )}
-          </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Hora final
+              </label>
+              <input
+                type="time"
+                min={timeMin}
+                max={timeMax}
+                value={horaFinal ?? ""}
+                onChange={(e) => handleHoraFinalChange(e.target.value)}
+                onBlur={() => markTouched("horaFinal")}
+                className={[
+                  "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
+                  shouldShowError("horaFinal") && errors.horaFinal
+                    ? "border-red-500"
+                    : "border-gray-300",
+                ].join(" ")}
+                disabled={!programada}
+                required
+              />
+              {shouldShowError("horaFinal") && errors.horaFinal && (
+                <p className="mt-1 text-xs text-red-600">{errors.horaFinal}</p>
+              )}
+            </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Estado</label>
-            <div className="relative">
-              <select
-                value={estado}
-                onChange={(e) => setEstado(e.target.value)}
-                disabled={saving || statesLoading}
-                className="w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60 border-gray-300"
-              >
-                <option value="">{statesLoading ? "Cargando estados..." : "Selecciona estado"}</option>
-                {stateOptions.map((s) => (
-                  <option key={s.id} value={String(s.id)}>
-                    {s.label}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Estado
+              </label>
+              <div className="relative">
+                <select
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value)}
+                  disabled={saving || statesLoading}
+                  className="w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60 border-gray-300"
+                >
+                  <option value="">
+                    {statesLoading
+                      ? "Cargando estados..."
+                      : "Selecciona estado"}
                   </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                v
-              </span>
+                  {stateOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                  v
+                </span>
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-3">
@@ -1700,7 +1873,9 @@ export default function EditRequestModal({
               type="button"
               onClick={clearTechnicians}
               className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-              disabled={saving || techLoading || selectedTechnicians.length === 0}
+              disabled={
+                saving || techLoading || selectedTechnicians.length === 0
+              }
             >
               Limpiar
             </button>
@@ -1715,7 +1890,9 @@ export default function EditRequestModal({
             ].join(" ")}
           >
             {selectedTechniciansFull.length === 0 ? (
-              <div className="text-xs text-gray-500 px-1 py-1">No has seleccionado tecnicos.</div>
+              <div className="text-xs text-gray-500 px-1 py-1">
+                No has seleccionado tecnicos.
+              </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {selectedTechniciansFull.map((t) => (
@@ -1756,7 +1933,9 @@ export default function EditRequestModal({
                 if (!techOpen) return;
                 if (e.key === "ArrowDown") {
                   e.preventDefault();
-                  setTechActiveIndex((i) => Math.min(i + 1, Math.max(0, techOptions.length - 1)));
+                  setTechActiveIndex((i) =>
+                    Math.min(i + 1, Math.max(0, techOptions.length - 1)),
+                  );
                 } else if (e.key === "ArrowUp") {
                   e.preventDefault();
                   setTechActiveIndex((i) => Math.max(i - 1, 0));
@@ -1769,7 +1948,11 @@ export default function EditRequestModal({
                   setTechOpen(false);
                 }
               }}
-              placeholder={techLoading ? "Cargando tecnicos..." : "Buscar por nombre o ID..."}
+              placeholder={
+                techLoading
+                  ? "Cargando tecnicos..."
+                  : "Buscar por nombre o ID..."
+              }
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                 shouldShowError("technicians") && errors.technicians
@@ -1799,15 +1982,21 @@ export default function EditRequestModal({
                           onMouseEnter={() => setTechActiveIndex(idx)}
                           className={[
                             "w-full px-3 py-2 text-left text-sm flex items-center gap-2",
-                            idx === techActiveIndex ? "bg-gray-100" : "bg-white",
+                            idx === techActiveIndex
+                              ? "bg-gray-100"
+                              : "bg-white",
                           ].join(" ")}
                         >
                           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border bg-gray-50 text-xs font-semibold">
                             {initials(t.label)}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">{t.label}</span>
-                            <span className="block text-xs text-gray-500">Tecnico #{t.technicianid}</span>
+                            <span className="block truncate font-medium">
+                              {t.label}
+                            </span>
+                            <span className="block text-xs text-gray-500">
+                              Tecnico #{t.technicianid}
+                            </span>
                           </span>
                           <span className="text-xs text-gray-400">Agregar</span>
                         </button>
@@ -1819,7 +2008,9 @@ export default function EditRequestModal({
             )}
           </div>
 
-          {techError && <p className="mt-1 text-xs text-red-600">{techError}</p>}
+          {techError && (
+            <p className="mt-1 text-xs text-red-600">{techError}</p>
+          )}
           {shouldShowError("technicians") && errors.technicians && (
             <p className="mt-1 text-xs text-red-600">{errors.technicians}</p>
           )}
@@ -1829,7 +2020,9 @@ export default function EditRequestModal({
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             Descripcion
           </h4>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Descripcion</label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">
+            Descripcion
+          </label>
           <textarea
             value={descripcion}
             onChange={(e) => {
@@ -1841,7 +2034,9 @@ export default function EditRequestModal({
             placeholder="Describe brevemente la solicitud"
             className={[
               "w-full rounded-lg border bg-gray-50 px-3 py-2 text-sm focus:bg-white focus:ring-2 focus:ring-black/15",
-              shouldShowError("descripcion") && errors.descripcion ? "border-red-500" : "border-gray-300",
+              shouldShowError("descripcion") && errors.descripcion
+                ? "border-red-500"
+                : "border-gray-300",
             ].join(" ")}
           />
           {shouldShowError("descripcion") && errors.descripcion && (
@@ -1852,4 +2047,3 @@ export default function EditRequestModal({
     </Modal>
   );
 }
-
