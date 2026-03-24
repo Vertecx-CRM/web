@@ -35,9 +35,21 @@ type CheckoutSnapshot = {
 
 type ViewState =
   | { kind: "loading"; message: string }
-  | { kind: "success"; message: string; payment: WompiTransactionSyncDTO | null }
-  | { kind: "pending"; message: string; payment: WompiTransactionSyncDTO | null }
-  | { kind: "failed"; message: string; payment: WompiTransactionSyncDTO | null };
+  | {
+      kind: "success";
+      message: string;
+      payment: WompiTransactionSyncDTO | null;
+    }
+  | {
+      kind: "pending";
+      message: string;
+      payment: WompiTransactionSyncDTO | null;
+    }
+  | {
+      kind: "failed";
+      message: string;
+      payment: WompiTransactionSyncDTO | null;
+    };
 
 const STATUS_STYLES = {
   loading: {
@@ -83,7 +95,9 @@ function readCheckoutSnapshot(): CheckoutSnapshot | null {
 }
 
 function getFriendlyStatus(status: string) {
-  const normalized = String(status || "").trim().toUpperCase();
+  const normalized = String(status || "")
+    .trim()
+    .toUpperCase();
   if (normalized === "APPROVED") return "Pago aprobado";
   if (normalized === "PENDING") return "Pago pendiente";
   if (normalized === "DECLINED") return "Pago rechazado";
@@ -178,7 +192,15 @@ export default function RegisterPaymentMarket() {
     return () => {
       cancelled = true;
     };
-  }, [reference, saleId, snapshot?.deliveryFee, snapshot?.serviceVisitFeeTotal, snapshot?.subtotal, snapshot?.taxAmount, snapshot?.total]);
+  }, [
+    reference,
+    saleId,
+    snapshot?.deliveryFee,
+    snapshot?.serviceVisitFeeTotal,
+    snapshot?.subtotal,
+    snapshot?.taxAmount,
+    snapshot?.total,
+  ]);
 
   useEffect(() => {
     if (!saleId) {
@@ -292,8 +314,8 @@ export default function RegisterPaymentMarket() {
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
                   Aqui validamos la transaccion que abriste desde el carrito. Si
-                  incluiste servicio, el cobro de la asesoria tecnica previa tambien quedo
-                  sumado en este pago.
+                  incluiste servicio, el cobro de la asesoria tecnica previa
+                  tambien quedo sumado en este pago.
                 </p>
               </div>
 
@@ -344,7 +366,8 @@ export default function RegisterPaymentMarket() {
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="w-fit rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                {" "}
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Venta
                 </p>
@@ -417,25 +440,37 @@ export default function RegisterPaymentMarket() {
               <div className="mt-5 space-y-3 text-sm text-slate-700">
                 <div className="flex items-center justify-between">
                   <span>Subtotal productos</span>
-                  <span>${Number(snapshot?.subtotal ?? 0).toLocaleString("es-CO")}</span>
+                  <span>
+                    ${Number(snapshot?.subtotal ?? 0).toLocaleString("es-CO")}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Envio</span>
-                  <span>${Number(snapshot?.deliveryFee ?? 0).toLocaleString("es-CO")}</span>
+                  <span>
+                    $
+                    {Number(snapshot?.deliveryFee ?? 0).toLocaleString("es-CO")}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Asesoria tecnica previa</span>
                   <span>
-                    ${Number(snapshot?.serviceVisitFeeTotal ?? 0).toLocaleString("es-CO")}
+                    $
+                    {Number(snapshot?.serviceVisitFeeTotal ?? 0).toLocaleString(
+                      "es-CO",
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>IVA</span>
-                  <span>${Number(snapshot?.taxAmount ?? 0).toLocaleString("es-CO")}</span>
+                  <span>
+                    ${Number(snapshot?.taxAmount ?? 0).toLocaleString("es-CO")}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-bold text-slate-900">
                   <span>Total</span>
-                  <span>${Number(snapshot?.total ?? 0).toLocaleString("es-CO")}</span>
+                  <span>
+                    ${Number(snapshot?.total ?? 0).toLocaleString("es-CO")}
+                  </span>
                 </div>
               </div>
             </section>

@@ -16,6 +16,7 @@ import {
 import { showWarning } from "@/shared/utils/notifications";
 import { Upload, X } from "lucide-react";
 import { getDocumentTypes } from "../../api/typeofdocuments.api";
+import { checkUserDuplicates } from "../../api/technicians.api";
 
 type TechnicianField =
   | "documentType"
@@ -46,6 +47,14 @@ const TECH_TYPES = [
 const removeBtnClass =
   "text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700 flex items-center gap-1";
 
+type DuplicateField = "documentNumber" | "phone" | "email";
+
+const duplicateFieldMessages: Record<DuplicateField, string> = {
+  documentNumber: "Ya existe un usuario con este número de documento",
+  phone: "Ya existe un usuario con este teléfono",
+  email: "Ya existe un usuario con este correo",
+};
+
 const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   isOpen,
   onClose,
@@ -70,11 +79,19 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
   const [resumeName, setResumeName] = useState<string>("");
 
   const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
+  const [duplicateErrors, setDuplicateErrors] = useState<
+    Partial<Pick<TechnicianErrors, DuplicateField>>
+  >({});
   const [imageError, setImageError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
   const imgInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const duplicateRequestRef = useRef<Record<DuplicateField, number>>({
+    documentNumber: 0,
+    phone: 0,
+    email: 0,
+  });
 
   const resetForm = () => {
     setNombre("");
@@ -90,6 +107,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     setResumePdf(null);
     setResumeName("");
     setErrors({});
+    setDuplicateErrors({});
     setImageError(null);
     setPdfError(null);
   };
@@ -118,6 +136,73 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
 
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fields: Array<{
+      key: DuplicateField;
+      value: string;
+      queryKey: "documentnumber" | "phone" | "email";
+    }> = [
+      {
+        key: "documentNumber",
+        value: numeroDocumento,
+        queryKey: "documentnumber",
+      },
+      {
+        key: "phone",
+        value: telefono,
+        queryKey: "phone",
+      },
+      {
+        key: "email",
+        value: correo,
+        queryKey: "email",
+      },
+    ];
+
+    const timeouts = fields.map(({ key, value, queryKey }) => {
+      const localError = validateTechnicianField(key, value, technicians, {
+        documentType: tipoDocumento,
+      });
+
+      if (!String(value || "").trim() || localError) {
+        setDuplicateErrors((prev) =>
+          prev[key] ? { ...prev, [key]: undefined } : prev
+        );
+        return null;
+      }
+
+      return window.setTimeout(async () => {
+        const requestId = duplicateRequestRef.current[key] + 1;
+        duplicateRequestRef.current[key] = requestId;
+
+        try {
+          const result = await checkUserDuplicates({ [queryKey]: value.trim() });
+
+          if (duplicateRequestRef.current[key] !== requestId) return;
+
+          setDuplicateErrors((prev) => ({
+            ...prev,
+            [key]: result[queryKey] ? duplicateFieldMessages[key] : undefined,
+          }));
+        } catch (error) {
+          console.error(`Error validando duplicado de ${key}:`, error);
+        }
+      }, 400);
+    });
+
+    return () => {
+      timeouts.forEach((timeoutId) => {
+        if (timeoutId) window.clearTimeout(timeoutId);
+      });
+    };
+  }, [isOpen, numeroDocumento, telefono, correo, tipoDocumento, technicians]);
+
+  const getFieldError = (field: keyof TechnicianErrors) =>
+    errors[field] ||
+    duplicateErrors[field as DuplicateField];
+
   const handleFieldChange = (field: TechnicianField, rawValue: any) => {
     let value = rawValue;
     const hasDigits = typeof rawValue === "string" && /\d/.test(rawValue);
@@ -136,6 +221,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         { documentType: doc?.name ?? "" }
       );
       setErrors((prev) => ({ ...prev, documentType: docTypeError }));
+      setDuplicateErrors((prev) => ({ ...prev, documentNumber: undefined }));
 
       return;
     }
@@ -164,12 +250,18 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
         break;
       case "documentNumber":
         setNumeroDocumento(value);
+        duplicateRequestRef.current.documentNumber += 1;
+        setDuplicateErrors((prev) => ({ ...prev, documentNumber: undefined }));
         break;
       case "phone":
         setTelefono(value);
+        duplicateRequestRef.current.phone += 1;
+        setDuplicateErrors((prev) => ({ ...prev, phone: undefined }));
         break;
       case "email":
         setCorreo(value);
+        duplicateRequestRef.current.email += 1;
+        setDuplicateErrors((prev) => ({ ...prev, email: undefined }));
         break;
       case "types":
         setTypes(value as string[]);
@@ -260,7 +352,7 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData: CreateTechnicianData = {
       name: nombre,
@@ -277,9 +369,41 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
     };
 
     const formErrors = validateTechnicianForm(formData, technicians);
-    setErrors(formErrors);
+    const nextDuplicateErrors: Partial<Pick<TechnicianErrors, DuplicateField>> =
+      {};
 
-    if (Object.keys(formErrors).length > 0 || imageError || pdfError) {
+    try {
+      const duplicateCheck = await checkUserDuplicates({
+        documentnumber: numeroDocumento.trim(),
+        phone: telefono.trim(),
+        email: correo.trim(),
+      });
+
+      if (duplicateCheck.documentnumber) {
+        nextDuplicateErrors.documentNumber =
+          duplicateFieldMessages.documentNumber;
+      }
+
+      if (duplicateCheck.phone) {
+        nextDuplicateErrors.phone = duplicateFieldMessages.phone;
+      }
+
+      if (duplicateCheck.email) {
+        nextDuplicateErrors.email = duplicateFieldMessages.email;
+      }
+    } catch (error) {
+      console.error("Error validando duplicados antes de crear técnico:", error);
+    }
+
+    setErrors(formErrors);
+    setDuplicateErrors(nextDuplicateErrors);
+
+    if (
+      Object.keys(formErrors).length > 0 ||
+      Object.keys(nextDuplicateErrors).length > 0 ||
+      imageError ||
+      pdfError
+    ) {
       showWarning("Por favor completa los campos obligatorios correctamente");
       return;
     }
@@ -375,14 +499,14 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               }
               className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               style={{
-                borderColor: errors.documentNumber
+                borderColor: getFieldError("documentNumber")
                   ? "red"
                   : Colors.table.lines,
               }}
             />
-            {errors.documentNumber && (
+            {getFieldError("documentNumber") && (
               <p className="mt-1 text-xs text-red-600">
-                {errors.documentNumber}
+                {getFieldError("documentNumber")}
               </p>
             )}
           </div>
@@ -448,11 +572,11 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               onBlur={() => handleFieldChange("phone", telefono)}
               className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               style={{
-                borderColor: errors.phone ? "red" : Colors.table.lines,
+                borderColor: getFieldError("phone") ? "red" : Colors.table.lines,
               }}
             />
-            {errors.phone && (
-              <p className="mt-1 text-xs text-red-600">{errors.phone}</p>
+            {getFieldError("phone") && (
+              <p className="mt-1 text-xs text-red-600">{getFieldError("phone")}</p>
             )}
           </div>
 
@@ -471,11 +595,11 @@ const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
               onBlur={() => handleFieldChange("email", correo)}
               className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
               style={{
-                borderColor: errors.email ? "red" : Colors.table.lines,
+                borderColor: getFieldError("email") ? "red" : Colors.table.lines,
               }}
             />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+            {getFieldError("email") && (
+              <p className="mt-1 text-xs text-red-600">{getFieldError("email")}</p>
             )}
           </div>
 

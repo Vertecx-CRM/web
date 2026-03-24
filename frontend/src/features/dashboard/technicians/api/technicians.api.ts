@@ -11,6 +11,18 @@ export type TechnicianTypeApi = {
   name: string;
 };
 
+export type UserDuplicatesCheckParams = {
+  documentnumber?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type UserDuplicatesCheckResponse = {
+  documentnumber: boolean;
+  email: boolean;
+  phone: boolean;
+};
+
 type TechnicianTypesEnvelope =
   | TechnicianTypeApi[]
   | { data?: TechnicianTypeApi[] }
@@ -80,6 +92,16 @@ export const getTechnicianTypes = async (): Promise<TechnicianTypeApi[]> => {
       : [];
 
   return list;
+};
+
+export const checkUserDuplicates = async (
+  params: UserDuplicatesCheckParams
+): Promise<UserDuplicatesCheckResponse> => {
+  const { data } = await api.get<UserDuplicatesCheckResponse>("/users/check", {
+    params,
+  });
+
+  return data;
 };
 
 export type CreateTechnicianPayload = {
