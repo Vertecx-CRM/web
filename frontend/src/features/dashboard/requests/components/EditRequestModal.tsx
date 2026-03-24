@@ -85,6 +85,7 @@ type Props = {
   onClose: () => void;
   onSave: (data: EditRequestPayload) => void | Promise<void>;
   title?: string;
+  stateOnly?: boolean;
   requestId?: number | null;
   servicios?: ServiceOption[] | null;
   clientes?: Option[] | null;
@@ -293,6 +294,7 @@ export default function EditRequestModal({
   onClose,
   onSave,
   title = "Editar Solicitud",
+  stateOnly = false,
   requestId = null,
   servicios,
   clientes,
@@ -708,6 +710,7 @@ export default function EditRequestModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (stateOnly) return;
 
     let alive = true;
 
@@ -760,10 +763,11 @@ export default function EditRequestModal({
     return () => {
       alive = false;
     };
-  }, [isOpen, servicios, clientes]);
+  }, [isOpen, servicios, clientes, stateOnly]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (stateOnly) return;
 
     let cancelled = false;
 
@@ -801,10 +805,11 @@ export default function EditRequestModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, stateOnly]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (stateOnly) return;
     let cancelled = false;
 
     async function run() {
@@ -834,10 +839,11 @@ export default function EditRequestModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, stateOnly]);
 
   useEffect(() => {
     if (!isOpen) return;
+    if (stateOnly) return;
 
     let cancelled = false;
 
@@ -873,7 +879,7 @@ export default function EditRequestModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, stateOnly]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1209,6 +1215,54 @@ export default function EditRequestModal({
 
     setSubmitAttempted(true);
 
+    if (stateOnly) {
+      const nextStateId = Number(estado);
+      if (!Number.isFinite(nextStateId) || nextStateId <= 0) {
+        showInfo("Selecciona un estado.");
+        return;
+      }
+
+      const fallbackServiceId = Number(
+        servicio || (initial as any)?.serviceId || (initial as any)?.servicio || 0,
+      );
+
+      const payload: EditRequestPayload = {
+        serviceId: Number.isFinite(fallbackServiceId) ? fallbackServiceId : 0,
+        serviceType: String(
+          (initial as any)?.serviceType ?? (initial as any)?.tipo ?? "MANTENIMIENTO",
+        ),
+        description: String(descripcion ?? ""),
+        direccion: String(direccion ?? ""),
+        scheduledAt: null,
+        scheduledEndAt: null,
+        availabilityOptions: clientAvailabilityOptions,
+        requestMode: isInstallationFlow ? requestMode : undefined,
+        technicalReviewStatus: isInstallationFlow ? technicalReviewStatus : undefined,
+        alreadyHasMaterials: isInstallationFlow ? alreadyHasMaterials : undefined,
+        linkedSaleId: (initial as any)?.linkedSaleId ?? null,
+        linkedSaleCode: (initial as any)?.linkedSaleCode ?? null,
+        purchasedMaterials,
+        siteChecklist: isDirectInstallation ? siteChecklist : null,
+        estado,
+        stateId: nextStateId,
+        estadoLabel: stateOptions.find((s) => String(s.id) === String(estado))
+          ?.label,
+        technicians: selectedTechnicians,
+      };
+
+      setSaving(true);
+      try {
+        await onSave(payload);
+        onClose();
+      } catch (err: any) {
+        const msg = getBackendMessage(err);
+        showError(msg || "No se pudo actualizar la solicitud.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     if (loadingLookups) {
       showInfo("Espera a que carguen los servicios.");
       return;
@@ -1341,23 +1395,80 @@ export default function EditRequestModal({
             onClick={submit}
             className="rounded-lg bg-black px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60"
             disabled={
-              saving || loadingLookups || techLoading || serviceTypesLoading
+              stateOnly
+                ? saving || statesLoading
+                : saving || loadingLookups || techLoading || serviceTypesLoading
             }
             title={
-              loadingLookups
-                ? "Cargando servicios..."
-                : serviceTypesLoading
-                  ? "Cargando tipos..."
-                  : techLoading
-                    ? "Cargando tecnicos..."
-                    : undefined
+              stateOnly
+                ? statesLoading
+                  ? "Cargando estados..."
+                  : undefined
+                : loadingLookups
+                  ? "Cargando servicios..."
+                  : serviceTypesLoading
+                    ? "Cargando tipos..."
+                    : techLoading
+                      ? "Cargando tecnicos..."
+                      : undefined
             }
           >
-            {saving ? "Actualizando..." : "Actualizar"}
+            {saving
+              ? stateOnly
+                ? "Actualizando estado..."
+                : "Actualizando..."
+              : stateOnly
+                ? "Actualizar estado"
+                : "Actualizar"}
           </button>
         </div>
       }
     >
+      {stateOnly ? (
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Edicion restringida
+            </p>
+            <p className="mt-1 text-sm text-amber-900">
+              Como tecnico solo puedes cambiar el estado de la cita.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Estado de la cita
+            </h4>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-900">
+                Estado
+              </label>
+              <div className="relative">
+                <select
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value)}
+                  disabled={saving || statesLoading}
+                  className="w-full appearance-none rounded-lg border bg-gray-50 h-10 px-3 pr-8 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60 border-gray-300"
+                >
+                  <option value="">
+                    {statesLoading
+                      ? "Cargando estados..."
+                      : "Selecciona estado"}
+                  </option>
+                  {stateOptions.map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
+                  v
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="grid gap-4">
         <div className="rounded-xl border border-gray-200 bg-white p-3">
           <div className="mb-1 flex items-center justify-between">
@@ -2146,6 +2257,7 @@ export default function EditRequestModal({
           )}
         </div>
       </div>
+      )}
     </Modal>
   );
 }

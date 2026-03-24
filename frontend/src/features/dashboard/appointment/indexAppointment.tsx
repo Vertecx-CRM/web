@@ -361,6 +361,26 @@ export default function IndexAppointment() {
   const handleRequestSave = async (payload: EditRequestPayload) => {
     if (!editingRequest) return;
 
+    const isTechnician = tokenRoleNormalized === "tecnico";
+    const stateId = parseMaybeNumber(payload.estado);
+
+    if (isTechnician) {
+      const payloadBody: Record<string, unknown> = {};
+      if (!Number.isNaN(stateId) && stateId > 0) payloadBody.stateId = stateId;
+
+      try {
+        await updateRequestMutation.mutateAsync({
+          id: editingRequest.serviceRequestId,
+          payload: payloadBody,
+        });
+        await refetch();
+      } catch (err) {
+        showError("No se pudo actualizar el estado de la solicitud.");
+        throw err;
+      }
+      return;
+    }
+
     const scheduledAt = buildScheduledAt(
       payload.programada ?? null,
       payload.horaProgramada ?? null,
@@ -374,7 +394,6 @@ export default function IndexAppointment() {
     );
 
     const serviceId = parseMaybeNumber(payload.servicio);
-    const stateId = parseMaybeNumber(payload.estado);
 
     const payloadBody: Record<string, unknown> = {
       serviceType: tipoToBackend(payload.tipos?.[0] ?? editingRequest.serviceType),
@@ -709,7 +728,12 @@ export default function IndexAppointment() {
             initial={requestEditInitial}
             servicios={serviceOptions}
             clientes={customerOptions}
-            title="Editar Solicitud"
+            stateOnly={tokenRoleNormalized === "tecnico"}
+            title={
+              tokenRoleNormalized === "tecnico"
+                ? "Actualizar estado de la cita"
+                : "Editar Solicitud"
+            }
           />
         )}
       </div>
