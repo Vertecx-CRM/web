@@ -366,16 +366,16 @@ export default function RegisterPaymentMarket() {
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="w-fit rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                {" "}
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Venta
                 </p>
-                <p className="mt-2 text-lg font-bold text-slate-900">
+                <p className="mt-2 break-all text-lg font-bold text-slate-900">
                   #{paymentDetails?.saleCode || saleId}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Metodo
                 </p>
@@ -383,7 +383,8 @@ export default function RegisterPaymentMarket() {
                   {paymentDetails?.paymentMethod || "Wompi"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Transaccion
                 </p>
@@ -391,7 +392,8 @@ export default function RegisterPaymentMarket() {
                   {transactionId || "Pendiente"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Estado Wompi
                 </p>

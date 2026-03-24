@@ -4,6 +4,7 @@ import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "@/features/dashboard/components/Modal";
 import type { Option } from "@/features/dashboard/requests/types/option.types";
+import { useServiceRequest } from "@/features/dashboard/requests/hooks/useServiceRequests";
 import { showError, showInfo, showWarning } from "@/shared/utils/notifications";
 import {
   ensureServiceOption,
@@ -18,6 +19,7 @@ import {
 } from "@/features/dashboard/shared/technicianAvailability";
 import {
   formatRequestAvailabilityLabel,
+  parseRequestDescriptionWithAvailability,
   normalizeRequestAvailabilityOptions,
   type RequestPurchasedMaterial,
   type RequestSiteChecklist,
@@ -283,6 +285,7 @@ const EMPTY_SITE_CHECKLIST: RequestSiteChecklist = {
   materialsSummary: "",
   additionalContext: "",
   evidenceNotes: "",
+  evidenceImages: [],
 };
 
 export default function EditRequestModal({
@@ -328,6 +331,10 @@ export default function EditRequestModal({
     String((initial as any)?.estado ?? (initial as any)?.stateId ?? "").trim(),
   );
   const { stateOptions, isLoading: statesLoading } = useRequestStates();
+  const detailQuery = useServiceRequest(
+    Number(requestId ?? 0),
+    isOpen && Number(requestId ?? 0) > 0,
+  );
 
   const [touched, setTouched] = useState<Touched>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -368,6 +375,19 @@ export default function EditRequestModal({
   const isInstallationFlow = isInstallationServiceType(effectiveServiceType);
   const isDirectInstallation =
     isInstallationFlow && requestMode === "DIRECT_INSTALLATION";
+  const hasClientChecklist = useMemo(
+    () =>
+      Boolean(
+        siteChecklist.installationArea ||
+          siteChecklist.installationHeight ||
+          siteChecklist.estimatedCableMeters ||
+          siteChecklist.materialsSummary ||
+          siteChecklist.additionalContext ||
+          siteChecklist.evidenceNotes ||
+          (siteChecklist.evidenceImages ?? []).length,
+      ),
+    [siteChecklist],
+  );
   const requestStageLabel = getRequestStageLabel(
     effectiveServiceType,
     requestMode,
@@ -942,6 +962,88 @@ export default function EditRequestModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (!detailQuery.data) return;
+
+    const detail = detailQuery.data as any;
+    const parsedDetail = parseRequestDescriptionWithAvailability(
+      detail?.descriptionPlain ?? detail?.description ?? "",
+    );
+    const detailFlow = parsedDetail.flowMetadata;
+    const detailChecklist =
+      detail?.siteChecklist ?? detailFlow?.siteChecklist ?? null;
+    const detailEvidenceImages = Array.isArray(detailChecklist?.evidenceImages)
+      ? detailChecklist.evidenceImages
+          .map((item: unknown) => String(item ?? "").trim())
+          .filter(Boolean)
+      : [];
+
+    if (detailChecklist) {
+      setSiteChecklist((prev) => ({
+        ...prev,
+        ...detailChecklist,
+        needsLadder:
+          detailChecklist.needsLadder ?? prev.needsLadder ?? "UNKNOWN",
+        hasPowerPoint:
+          detailChecklist.hasPowerPoint ?? prev.hasPowerPoint ?? "UNKNOWN",
+        hasInternetPoint:
+          detailChecklist.hasInternetPoint ?? prev.hasInternetPoint ?? "UNKNOWN",
+        evidenceImages:
+          (Array.isArray(prev.evidenceImages) && prev.evidenceImages.length > 0)
+            ? prev.evidenceImages
+            : detailEvidenceImages,
+      }));
+    }
+
+    if (
+      !Array.isArray((initial as any)?.purchasedMaterials) ||
+      !(initial as any).purchasedMaterials.length
+    ) {
+      const detailMaterials = Array.isArray(detail?.purchasedMaterials)
+        ? detail.purchasedMaterials
+        : Array.isArray(detailFlow?.purchasedMaterials)
+          ? detailFlow.purchasedMaterials
+          : [];
+      if (detailMaterials.length) setPurchasedMaterials(detailMaterials);
+    }
+
+    if ((initial as any)?.requestMode == null) {
+      const detailRequestMode = normalizeRequestMode(
+        detail?.requestMode ?? detailFlow?.requestMode,
+      );
+      if (detailRequestMode === "DIRECT_INSTALLATION") {
+        setRequestMode("DIRECT_INSTALLATION");
+      }
+    }
+
+    if ((initial as any)?.technicalReviewStatus == null) {
+      const detailStatus = String(
+        detail?.technicalReviewStatus ?? detailFlow?.technicalReviewStatus ?? "",
+      )
+        .trim()
+        .toUpperCase();
+      if (
+        detailStatus === "NOT_APPLICABLE" ||
+        detailStatus === "PENDING_REVIEW" ||
+        detailStatus === "ASSESSMENT_REQUIRED" ||
+        detailStatus === "READY_TO_QUOTE"
+      ) {
+        setTechnicalReviewStatus(detailStatus);
+      }
+    }
+
+    if (typeof (initial as any)?.alreadyHasMaterials !== "boolean") {
+      const detailHasMaterials =
+        typeof detail?.alreadyHasMaterials === "boolean"
+          ? detail.alreadyHasMaterials
+          : detailFlow?.alreadyHasMaterials;
+      if (typeof detailHasMaterials === "boolean") {
+        setAlreadyHasMaterials(detailHasMaterials);
+      }
+    }
+  }, [detailQuery.data, initial, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     if (hasAppliedInitialType) return;
     if (serviceTypesLoading) return;
     if (!serviceTypes.length) return;
@@ -1464,7 +1566,7 @@ export default function EditRequestModal({
                 </div>
               </div>
 
-              {requestMode === "DIRECT_INSTALLATION" && (
+              {(requestMode === "DIRECT_INSTALLATION" || hasClientChecklist) && (
                 <div className="w-full max-w-xs">
                   <label className="mb-1 block text-xs font-medium text-gray-900">
                     Revision tecnica
@@ -1499,7 +1601,7 @@ export default function EditRequestModal({
               )}
             </div>
 
-            {requestMode === "DIRECT_INSTALLATION" && (
+            {(requestMode === "DIRECT_INSTALLATION" || hasClientChecklist) && (
               <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-white via-sky-50/60 to-sky-100/40 p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">

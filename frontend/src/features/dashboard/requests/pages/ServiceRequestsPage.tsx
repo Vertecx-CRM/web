@@ -1076,6 +1076,7 @@ export default function ServiceRequestsPage() {
             key={`view-${selected.id}`}
             isOpen={openView}
             onClose={() => setOpenView(false)}
+            requestId={Number(selected.id)}
             data={{
               tipos: selected.tipos,
               servicio: selected.servicio,
@@ -1087,6 +1088,14 @@ export default function ServiceRequestsPage() {
               codigo: `SRV-${String(selected.id).padStart(6, "0")}`,
               programada: selected.programada ?? null,
               programadaEnd: selected.programadaEnd ?? null,
+              requestMode: selected.requestMode,
+              technicalReviewStatus: selected.technicalReviewStatus,
+              alreadyHasMaterials: selected.alreadyHasMaterials,
+              linkedSaleId: selected.linkedSaleId ?? null,
+              linkedSaleCode: selected.linkedSaleCode ?? null,
+              purchasedMaterials: selected.purchasedMaterials ?? [],
+              availabilityOptions: selected.availabilityOptions ?? [],
+              siteChecklist: selected.siteChecklist ?? null,
               tecnicos: selected.technicianNames ?? [],
             }}
             title="Detalle de la Solicitud"
