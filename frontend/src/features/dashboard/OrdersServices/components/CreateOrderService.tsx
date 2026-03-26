@@ -1675,6 +1675,15 @@ const {
       ? `url:param:${String(quoteDataParam).slice(0, 32)}`
       : null;
     if (!keyFromUrl) return;
+    if (
+      quotesIdFromUrl &&
+      Number(selectedQuotesId || 0) === quotesIdFromUrl &&
+      typeof quoteAppliedKey === "string" &&
+      (quoteAppliedKey === `url:id:${quotesIdFromUrl}` ||
+        quoteAppliedKey === `select:id:${quotesIdFromUrl}`)
+    ) {
+      return;
+    }
     if (quoteAppliedKey === keyFromUrl) return;
 
     let cancelled = false;
@@ -1735,6 +1744,7 @@ const {
     servicesCatalog,
     quotesIdFromUrl,
     quoteDataParam,
+    selectedQuotesId,
     quoteAppliedKey,
     quoteMapById,
   ]);
@@ -1748,6 +1758,13 @@ const {
     if (!Number.isFinite(id) || id <= 0) return;
 
     const key = `select:id:${id}`;
+    if (
+      quotesIdFromUrl &&
+      id === quotesIdFromUrl &&
+      quoteAppliedKey === `url:id:${quotesIdFromUrl}`
+    ) {
+      return;
+    }
     if (quoteAppliedKey === key) return;
 
     let cancelled = false;
@@ -2107,6 +2124,7 @@ setNavigating(true);
                     </label>
                     <input
                       id="field-quote-search"
+                      name="quoteSearch"
                       ref={quoteInputRef}
                       value={quoteQuery}
                       onChange={(e) => {
