@@ -54,8 +54,22 @@ import {
   isInstallationServiceType,
 } from "@/shared/utils/requestFlow";
 
-type ServiceLineItem = { id: string; nombre: string; precio: number; tipoId: number };
-type MaterialLineItem = { id: string; nombre: string; precio: number; cantidad: number };
+type ServiceLineItem = {
+  id: string;
+  serviceid?: number | null;
+  nombre: string;
+  precio: number;
+  tipoId: number;
+  source?: "quoted" | "manual";
+};
+type MaterialLineItem = {
+  id: string;
+  nombre: string;
+  precio: number;
+  cantidad: number;
+  stock?: number | null;
+  source?: "quoted" | "additional";
+};
 
 type CustomerOption = {
   customerid: number;
@@ -75,6 +89,7 @@ type ProductOption = {
   productid: number;
   productname: string;
   productpriceofsale: number;
+  productstock?: number | null;
 };
 
 type ServiceTypeOption = {
@@ -95,6 +110,8 @@ type ServiceOption = {
 type PrefilledRequestContext = {
   serviceRequestId?: number;
   serviceType?: string;
+  serviceId?: number | null;
+  serviceid?: number | null;
   requestMode?: "ASSESSMENT" | "DIRECT_INSTALLATION" | null;
   technicalReviewStatus?:
     | "NOT_APPLICABLE"
@@ -106,6 +123,21 @@ type PrefilledRequestContext = {
   description?: string | null;
   alreadyHasMaterials?: boolean;
   linkedSaleCode?: string | null;
+  service?: {
+    serviceid?: number | null;
+    id?: number | null;
+    name?: string | null;
+    typeofserviceid?: number | null;
+    typeOfServiceId?: number | null;
+    typeofserviceId?: number | null;
+    typeofservice?: {
+      typeofserviceid?: number | null;
+    } | null;
+    servicepriceofsale?: number | null;
+    serviceprice?: number | null;
+    price?: number | null;
+    precio?: number | null;
+  } | null;
   purchasedMaterials?: Array<{
     productId?: number | null;
     name: string;
@@ -334,7 +366,8 @@ const {
         const productid = Number(p?.productid ?? p?.id);
         const productname = (p?.productname ?? p?.name ?? `Producto #${productid}`).toString();
         const productpriceofsale = Number(p?.productpriceofsale ?? p?.priceofsale ?? p?.price ?? 0);
-        return { productid, productname, productpriceofsale } as ProductOption;
+        const productstock = Number(p?.productstock ?? p?.stock ?? 0);
+        return { productid, productname, productpriceofsale, productstock } as ProductOption;
       })
       .filter((x) => Number.isFinite(x.productid) && x.productid > 0);
   }, [productsRaw]);
@@ -789,6 +822,10 @@ const {
   }
 
   function addServiceRow() {
+    if (servicesLockedByQuote) {
+      showWarning("Los servicios de una cotizacion aplicada no se modifican desde la orden.");
+      return;
+    }
     if (!tipoId) return;
     const opts = serviceOptionsForRow(tipoId, "");
     const first = opts[0];
@@ -796,7 +833,10 @@ const {
       showWarning("Ya agregaste todos los servicios disponibles para este tipo.");
       return;
     }
-    setServicios((prev) => [...prev, { id: uid(), nombre: first.name, precio: 0, tipoId }]);
+    setServicios((prev) => [
+      ...prev,
+      { id: uid(), serviceid: first.serviceid, nombre: first.name, precio: 0, tipoId, source: "manual" },
+    ]);
     setErrors((prev) => ({ ...prev, servicios: undefined }));
   }
 
@@ -901,19 +941,61 @@ const {
     return Array.from(map.values());
   }, [materiales]);
 
+  const quotedServices = useMemo(
+    () => servicios.filter((s) => s.source === "quoted"),
+    [servicios]
+  );
+  const quotedMaterials = useMemo(
+    () => materiales.filter((m) => m.source === "quoted"),
+    [materiales]
+  );
+  const additionalMaterials = useMemo(
+    () => materiales.filter((m) => m.source !== "quoted"),
+    [materiales]
+  );
+  const subtotalQuotedMaterials = useMemo(
+    () => quotedMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [quotedMaterials]
+  );
+  const subtotalAdditionalMaterials = useMemo(
+    () => additionalMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [additionalMaterials]
+  );
+  const servicesLockedByQuote = !!quoteAppliedKey && quotedServices.length > 0;
+  const showQuotedMaterials = !!quoteAppliedKey && quotedMaterials.length > 0;
+  const materialRows = showQuotedMaterials ? additionalMaterials : materiales;
+
   const materialesSelectedNames = useMemo(
     () => new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean)),
     [materiales]
   );
 
   const availableProducts = useMemo(() => {
-    return productsCatalog.filter((p) => !materialesSelectedNames.has(p.productname));
+    return productsCatalog.filter(
+      (p) =>
+        !materialesSelectedNames.has(p.productname) &&
+        Number(p.productstock ?? 0) > 0
+    );
   }, [productsCatalog, materialesSelectedNames]);
 
   function findProductByName(nombre: string) {
     const q = normalizeText(nombre);
     if (!q) return null;
     return productsCatalog.find((x) => normalizeText(x.productname) === q) || null;
+  }
+
+  function getMaterialStock(item: MaterialLineItem) {
+    const direct = Number(item.stock);
+    if (Number.isFinite(direct) && direct >= 0) {
+      return Math.max(0, Math.round(direct));
+    }
+    const rec = findProductByName(item.nombre);
+    const stock = Number(rec?.productstock ?? 0);
+    return Number.isFinite(stock) ? Math.max(0, Math.round(stock)) : 0;
+  }
+
+  function isInventoryManagedMaterial(item: MaterialLineItem) {
+    return !quoteAppliedKey || item.source !== "quoted";
   }
 
   function isProductAlreadyAdded(rowId: string, productName: string) {
@@ -925,7 +1007,13 @@ const {
   function materialOptionsForRow(currentName: string, query = "") {
     const used = new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean));
     if (currentName) used.delete(currentName);
-    const base = productsCatalog.filter((p) => !used.has(p.productname));
+    const currentNorm = normalizeText(currentName);
+    const base = productsCatalog.filter((p) => {
+      if (used.has(p.productname)) return false;
+      const stock = Number(p.productstock ?? 0);
+      if (Number.isFinite(stock) && stock > 0) return true;
+      return !!currentNorm && normalizeText(p.productname) === currentNorm;
+    });
     const q = normalizeText(query);
     // If the input currently matches an existing product exactly, show full list.
     // This keeps the dropdown useful after selecting an item.
@@ -949,9 +1037,19 @@ const {
       showWarning(`El producto "${product.productname}" ya esta agregado.`);
       return;
     }
+    const stock = Math.max(0, Math.round(Number(product.productstock ?? 0)));
+    if (stock <= 0) {
+      showWarning(`El producto "${product.productname}" no tiene stock disponible.`);
+      return;
+    }
     patchItem<MaterialLineItem>(
       rowId,
-      { nombre: product.productname, precio: product.productpriceofsale },
+      {
+        nombre: product.productname,
+        precio: product.productpriceofsale,
+        stock,
+        source: "additional",
+      },
       setMateriales
     );
     setErrors((prev) => ({ ...prev, materiales: undefined }));
@@ -966,7 +1064,14 @@ const {
     }
     setMateriales((prev) => [
       ...prev,
-      { id: uid(), nombre: first.productname, precio: first.productpriceofsale, cantidad: 1 },
+      {
+        id: uid(),
+        nombre: first.productname,
+        precio: first.productpriceofsale,
+        cantidad: 1,
+        stock: first.productstock ?? 0,
+        source: "additional",
+      },
     ]);
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
@@ -1377,7 +1482,8 @@ const {
 
     skipClearOnTipoChangeRef.current = true;
     setTipoId(typeId);
-    // Si la venta/cotizacion viene asociada a una solicitud, precarga el servicio de esa solicitud
+    // Si la venta/cotizacion viene asociada a una solicitud, precarga el contexto
+    // para mantener el servicio aprobado sin rearmarlo manualmente desde la orden.
     if (nq?.serviceRequestId) {
       let sr = prefilledRequest ?? null;
       if (!sr) {
@@ -1391,8 +1497,7 @@ const {
       }
       setPrefilledRequestContext(sr ?? null);
       if (sr) {
-        const srv = (sr as any)?.service ?? null;
-        const srvId = pickNumber((sr as any)?.serviceId, (sr as any)?.serviceid, srv?.serviceid);
+        const srv = sr.service ?? null;
         const srvTypeId = pickNumber(
           srv?.typeofserviceid,
           srv?.typeOfServiceId,
@@ -1400,28 +1505,6 @@ const {
         );
 
         if (typeof srvTypeId === "number") setTipoId(srvTypeId);
-
-        const name = String(srv?.name ?? "").trim();
-        const price =
-          pickNumber(
-            srv?.servicepriceofsale,
-            srv?.serviceprice,
-            srv?.price,
-            srv?.precio
-          ) ?? 0;
-
-        if (srvId && name) {
-          setServicios((prev) => {
-            const exists = prev.some(
-              (x: any) => pickNumber(x?.serviceid, x?.id) === srvId
-            );
-            if (exists) return prev;
-            return [
-              ...prev,
-              { id: `sr-${srvId}`, nombre: name, precio: price, tipoId: srvTypeId ?? typeId },
-            ];
-          });
-        }
       }
     } else {
       setPrefilledRequestContext(null);
@@ -1463,24 +1546,81 @@ const {
     setDescripcion(freeText);
     setDireccion(String(nq.direccion || "").trim());
 
+    const requestService = prefilledRequest?.service ?? null;
+    const requestServiceId = pickNumber(
+      prefilledRequest?.serviceId,
+      prefilledRequest?.serviceid,
+      requestService?.serviceid,
+      requestService?.id
+    );
+    const requestServiceName = String(
+      requestService?.name ?? ""
+    ).trim();
+    const requestServiceTypeId = pickNumber(
+      requestService?.typeofserviceid,
+      requestService?.typeOfServiceId,
+      requestService?.typeofservice?.typeofserviceid,
+      typeId
+    );
+    const requestServicePrice =
+      pickNumber(
+        requestService?.servicepriceofsale,
+        requestService?.serviceprice,
+        requestService?.price
+      ) ?? 0;
+
     const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(nq.services) && nq.services.length) {
+      let resolvedCount = 0;
+      let manualQuotedTotal = 0;
+
       for (const s of nq.services) {
         const rec =
           (s.serviceid
             ? servicesCatalog.find((x) => x.serviceid === s.serviceid)
             : servicesCatalog.find((x) => normalizeKey(x.name) === normalizeKey(s.name || ""))) || null;
-        const nombre =
-          rec?.name || String(s.name || "").trim() || (s.serviceid ? `Servicio #${s.serviceid}` : "");
         const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
-        const tid = rec?.typeofserviceid ?? typeId ?? 0;
-        if (!nombre) continue;
-        if (!tid) continue;
         const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
-        for (let index = 0; index < cantidad; index += 1) {
-          svcItems.push({ id: uid(), nombre, precio, tipoId: tid });
+
+        if (rec) {
+          const tid = rec.typeofserviceid ?? typeId ?? 0;
+          if (!tid) continue;
+          resolvedCount += cantidad;
+          for (let index = 0; index < cantidad; index += 1) {
+            svcItems.push({
+              id: uid(),
+              serviceid: rec.serviceid,
+              nombre: rec.name,
+              precio,
+              tipoId: tid,
+              source: "quoted",
+            });
+          }
+          continue;
         }
+
+        manualQuotedTotal += precio * cantidad;
       }
+
+      if (!resolvedCount && requestServiceId && requestServiceName && requestServiceTypeId) {
+        svcItems.push({
+          id: uid(),
+          serviceid: requestServiceId,
+          nombre: requestServiceName,
+          precio: manualQuotedTotal > 0 ? manualQuotedTotal : requestServicePrice,
+          tipoId: requestServiceTypeId,
+          source: "quoted",
+        });
+      }
+    } else if (requestServiceId && requestServiceName && requestServiceTypeId) {
+      svcItems.push({
+        id: uid(),
+        serviceid: requestServiceId,
+        nombre: requestServiceName,
+        precio: requestServicePrice,
+        tipoId: requestServiceTypeId,
+        source: "quoted",
+      });
     }
     setServicios(svcItems);
 
@@ -1496,7 +1636,14 @@ const {
         if (!rec) continue;
         const precio = p.unitprice != null ? Math.max(0, Math.round(Number(p.unitprice))) : rec.productpriceofsale ?? 0;
         const cantidad = Math.max(1, Math.round(Number(p.cantidad ?? 1)));
-        matItems.push({ id: uid(), nombre: rec.productname, precio, cantidad });
+        matItems.push({
+          id: uid(),
+          nombre: rec.productname,
+          precio,
+          cantidad,
+          stock: rec.productstock ?? 0,
+          source: "quoted",
+        });
       }
     }
     setMateriales(matItems);
@@ -1719,7 +1866,7 @@ const {
         }
         if (cancelled) return;
 
-        await applyNormalizedQuote(nq, keyFromUrl, requestData);
+        await applyNormalizedQuote(nq, String(keyFromUrl), requestData);
         if (quotesIdFromUrl) setSelectedQuotesId(quotesIdFromUrl);
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.message || "Error cargando cotizacion.";
@@ -1901,6 +2048,31 @@ const {
         return;
       }
       const qty = Math.max(1, Math.round(Number(m.cantidad || 1)));
+      if (isInventoryManagedMaterial(m)) {
+        const stock = Math.max(0, Math.round(Number(rec.productstock ?? m.stock ?? 0)));
+        if (stock <= 0) {
+          const next = {
+            ...er,
+            materiales: `El producto "${m.nombre}" ya no tiene stock disponible en inventario.`,
+          };
+          setErrors(next);
+          showError(next.materiales || "Stock insuficiente.");
+          focusFirstError(next);
+          submitLockRef.current = false;
+          return;
+        }
+        if (qty > stock) {
+          const next = {
+            ...er,
+            materiales: `La cantidad de "${m.nombre}" supera el stock disponible (${stock}).`,
+          };
+          setErrors(next);
+          showError(next.materiales || "Stock insuficiente.");
+          focusFirstError(next);
+          submitLockRef.current = false;
+          return;
+        }
+      }
       productQtyById.set(rec.productid, (productQtyById.get(rec.productid) || 0) + qty);
     }
 
@@ -1911,11 +2083,13 @@ const {
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
-      const serviceName = normalizeText(s.nombre);
+      const serviceIdFromRow = Number(s.serviceid ?? 0);
       const rec =
-        servicesCatalog.find(
-          (x) => normalizeText(x.name) === serviceName && x.typeofserviceid === s.tipoId
-        ) || null;
+        (serviceIdFromRow > 0
+          ? servicesCatalog.find((x) => x.serviceid === serviceIdFromRow)
+          : servicesCatalog.find(
+              (x) => normalizeText(x.name) === normalizeText(s.nombre) && x.typeofserviceid === s.tipoId
+            )) || null;
       if (!rec) {
         const next = {
           ...er,
@@ -2941,7 +3115,7 @@ setNavigating(true);
                                 }}
                                 onBlur={() => runBlurValidation("tipo")}
                                 className="h-4 w-4"
-                                disabled={saving || navigating || lookupsLoading}
+                                disabled={servicesLockedByQuote || saving || navigating || lookupsLoading}
                               />
                               <span className="text-sm font-medium text-gray-900">{t.label}</span>
                             </label>
@@ -2955,17 +3129,34 @@ setNavigating(true);
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div>
                           <div className="text-xs text-gray-700">Servicios</div>
-                          <div className="text-xs text-gray-500">Agrega los servicios a realizar. La cantidad es 1 fija.</div>
+                          <div className="text-xs text-gray-500">
+                            {servicesLockedByQuote
+                              ? "Tomados de la cotizacion. Para cambiarlos primero quita la cotizacion aplicada."
+                              : "Agrega los servicios a realizar. La cantidad es 1 fija."}
+                          </div>
                         </div>
                         <button
                           type="button"
                           onClick={addServiceRow}
                           className="h-8 rounded-md border bg-white px-3 text-xs hover:bg-gray-50 disabled:opacity-60"
-                          disabled={!tipoId || lookupsLoading || saving || navigating || serviceOptionsForRow(tipoId, "").length === 0}
+                          disabled={
+                            servicesLockedByQuote ||
+                            !tipoId ||
+                            lookupsLoading ||
+                            saving ||
+                            navigating ||
+                            serviceOptionsForRow(tipoId, "").length === 0
+                          }
                         >
                           Anadir servicio
                         </button>
                       </div>
+
+                      {servicesLockedByQuote && (
+                        <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          La orden mantiene el servicio aprobado en la cotizacion. Aqui solo se visualiza.
+                        </div>
+                      )}
 
                       <div className={`rounded-lg border overflow-hidden bg-white ${showFieldError("servicios") ? errorRing : ""}`}>
                         <table className="w-full text-xs md:text-sm">
@@ -2977,7 +3168,7 @@ setNavigating(true);
                             </tr>
                           </thead>
                           <tbody>
-                            {servicios.map((it) => {
+                            {(servicesLockedByQuote ? quotedServices : servicios).map((it) => {
                               const opts = serviceOptionsForRow(it.tipoId, it.nombre);
                               const hasCurrent = it.nombre && getServicesForTipo(it.tipoId).some((o) => o.name === it.nombre);
                               const safeOpts = hasCurrent ? [{ serviceid: -1, name: it.nombre, typeofserviceid: it.tipoId } as any, ...opts] : opts;
@@ -2985,72 +3176,96 @@ setNavigating(true);
                               return (
                                 <tr key={it.id} className="border-t">
                                   <td className="px-3 py-2">
-                                    <select
-                                      value={it.nombre}
-                                      onChange={(e) => {
-                                        const n = e.target.value;
-                                        patchItem<ServiceLineItem>(it.id, { nombre: n }, setServicios);
-                                        if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                      }}
-                                      onBlur={() => runBlurValidation("servicios")}
-                                      className="w-full h-9 rounded-md border px-2"
-                                      disabled={lookupsLoading || saving || navigating || safeOpts.length === 0}
-                                    >
-                                      {safeOpts.map((opt: any, idx: number) => (
-                                        <option key={`${it.id}-${opt.serviceid}-${idx}`} value={opt.name}>
-                                          {opt.name}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {servicesLockedByQuote ? (
+                                      <div className="flex h-9 items-center rounded-md border bg-gray-50 px-2 text-sm text-gray-900">
+                                        {it.nombre}
+                                      </div>
+                                    ) : (
+                                      <select
+                                        value={it.nombre}
+                                        onChange={(e) => {
+                                          const n = e.target.value;
+                                          const opt =
+                                            safeOpts.find((item: any) => item.name === n) ?? null;
+                                          patchItem<ServiceLineItem>(
+                                            it.id,
+                                            {
+                                              nombre: n,
+                                              serviceid: Number(opt?.serviceid ?? 0) > 0 ? Number(opt?.serviceid) : undefined,
+                                              source: "manual",
+                                            },
+                                            setServicios
+                                          );
+                                          if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                        }}
+                                        onBlur={() => runBlurValidation("servicios")}
+                                        className="w-full h-9 rounded-md border px-2"
+                                        disabled={lookupsLoading || saving || navigating || safeOpts.length === 0}
+                                      >
+                                        {safeOpts.map((opt: any, idx: number) => (
+                                          <option key={`${it.id}-${opt.serviceid}-${idx}`} value={opt.name}>
+                                            {opt.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
                                   </td>
 
                                   <td className="px-3 py-2 text-right">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      step={1000}
-                                      value={it.precio}
-                                      onChange={(e) => {
-                                        const n = Number(e.target.value || 0);
-                                        patchItem<ServiceLineItem>(
-                                          it.id,
-                                          { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
-                                          setServicios
-                                        );
-                                        if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
-                                      }}
-                                      onBlur={() => runBlurValidation("servicios")}
-                                      className="h-9 w-32 rounded-md border px-2 text-right"
-                                      disabled={lookupsLoading || saving || navigating}
-                                    />
-                                  </td>
-
-                                  <td className="px-3 py-2 text-right">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        removeItem<ServiceLineItem>(it.id, setServicios);
-                                        setErrors((p) => ({ ...p, servicios: undefined }));
-                                      }}
-                                      className="h-9 w-9 rounded-md hover:bg-gray-100"
-                                      disabled={lookupsLoading || saving || navigating}
-                                      aria-label="Quitar servicio"
-                                      title="Quitar"
-                                    >
-                                      <Image
-                                        src="/icons/delete.svg"
-                                        alt="Quitar servicio"
-                                        width={16}
-                                        height={16}
-                                        className="mx-auto h-4 w-4 opacity-80"
+                                    {servicesLockedByQuote ? (
+                                      <div className="flex h-9 items-center justify-end rounded-md border bg-gray-50 px-2 text-sm font-medium text-gray-900">
+                                        {formatCOP(it.precio)}
+                                      </div>
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step={1000}
+                                        value={it.precio}
+                                        onChange={(e) => {
+                                          const n = Number(e.target.value || 0);
+                                          patchItem<ServiceLineItem>(
+                                            it.id,
+                                            { precio: Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0 },
+                                            setServicios
+                                          );
+                                          if (errors.servicios) setErrors((prev) => ({ ...prev, servicios: undefined }));
+                                        }}
+                                        onBlur={() => runBlurValidation("servicios")}
+                                        className="h-9 w-32 rounded-md border px-2 text-right"
+                                        disabled={lookupsLoading || saving || navigating}
                                       />
-                                    </button>
+                                    )}
+                                  </td>
+
+                                  <td className="px-3 py-2 text-right">
+                                    {servicesLockedByQuote ? null : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          removeItem<ServiceLineItem>(it.id, setServicios);
+                                          setErrors((p) => ({ ...p, servicios: undefined }));
+                                        }}
+                                        className="h-9 w-9 rounded-md hover:bg-gray-100"
+                                        disabled={lookupsLoading || saving || navigating}
+                                        aria-label="Quitar servicio"
+                                        title="Quitar"
+                                      >
+                                        <Image
+                                          src="/icons/delete.svg"
+                                          alt="Quitar servicio"
+                                          width={16}
+                                          height={16}
+                                          className="mx-auto h-4 w-4 opacity-80"
+                                        />
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               );
                             })}
 
-                            {servicios.length === 0 && (
+                            {(servicesLockedByQuote ? quotedServices.length : servicios.length) === 0 && (
                               <tr>
                                 <td colSpan={3} className="px-3 py-6 text-center text-gray-500">
                                   {tipoId ? "Aun no has anadido servicios." : "Selecciona primero el tipo de servicio."}
@@ -3176,20 +3391,67 @@ setNavigating(true);
                 >
                   <header className="border-b px-3 py-2 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
-                      <div className="text-xs text-gray-500">Agrega los materiales consumidos. Puedes ajustar la cantidad.</div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {showQuotedMaterials ? "Materiales y productos de inventario" : "Productos y materiales"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {showQuotedMaterials
+                          ? "La cotizacion queda separada de los materiales/productos adicionales que tomas del inventario."
+                          : "Agrega los productos y materiales consumidos. Puedes ajustar la cantidad."}
+                      </div>
                     </div>
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
 
                   <div className="p-3">
+                    {showQuotedMaterials && (
+                      <div className="mb-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-gray-600">
+                          Productos cotizados
+                        </div>
+                        <div className="space-y-2">
+                          {quotedMaterials.map((m) => (
+                            <div
+                              key={m.id}
+                              className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-medium text-gray-900">
+                                    {m.nombre}
+                                  </div>
+                                  <div className="text-xs text-gray-600">
+                                    Cotizado · Cantidad {m.cantidad}
+                                  </div>
+                                </div>
+                                <div className="text-right text-xs text-gray-700">
+                                  <div>{formatCOP(m.precio)}</div>
+                                  <div className="text-[11px] text-gray-500">
+                                    Stock actual: {getMaterialStock(m)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {showQuotedMaterials && (
+                      <div className="mb-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        Materiales/productos adicionales de inventario. Usa esta seccion para items extra como cable, escaleras u otros productos con stock disponible.
+                      </div>
+                    )}
+
                     <div className={`rounded-lg border bg-white p-2.5 space-y-2 ${showFieldError("materiales") ? errorRing : ""}`}>
-                      {materiales.length === 0 ? (
+                      {materialRows.length === 0 ? (
                         <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
-                          Aun no has anadido productos.
+                          {showQuotedMaterials
+                            ? "Aun no has anadido materiales o productos adicionales."
+                            : "Aun no has anadido productos."}
                         </div>
                       ) : (
-                        materiales.map((m) => {
+                        materialRows.map((m) => {
                           const rowMaterialOptions = materialOptionsForRow(m.nombre, m.nombre);
                           return (
                             <div key={m.id} className="rounded-md border bg-gray-50 p-2 space-y-1.5">
@@ -3202,7 +3464,22 @@ setNavigating(true);
                                   const match = findProductByName(m.nombre);
                                   if (match && isProductAlreadyAdded(m.id, match.productname)) {
                                     showWarning(`El producto "${match.productname}" ya esta agregado.`);
-                                    patchItem<MaterialLineItem>(m.id, { nombre: "", precio: 0 }, setMateriales);
+                                    patchItem<MaterialLineItem>(
+                                      m.id,
+                                      { nombre: "", precio: 0, stock: 0, source: "additional" },
+                                      setMateriales
+                                    );
+                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                                    runBlurValidation("materiales");
+                                    return;
+                                  }
+                                  if (match && Number(match.productstock ?? 0) <= 0) {
+                                    showWarning(`El producto "${match.productname}" no tiene stock disponible.`);
+                                    patchItem<MaterialLineItem>(
+                                      m.id,
+                                      { nombre: "", precio: 0, stock: 0, source: "additional" },
+                                      setMateriales
+                                    );
                                     setMaterialOpenId((curr) => (curr === m.id ? null : curr));
                                     runBlurValidation("materiales");
                                     return;
@@ -3212,6 +3489,8 @@ setNavigating(true);
                                     {
                                       nombre: match?.productname ?? String(m.nombre || "").trim(),
                                       precio: match?.productpriceofsale ?? 0,
+                                      stock: match?.productstock ?? 0,
+                                      source: "additional",
                                     },
                                     setMateriales
                                   );
@@ -3258,7 +3537,9 @@ setNavigating(true);
                                           className="w-full border-b border-gray-100 px-2.5 py-1.5 text-left last:border-b-0 hover:bg-gray-50"
                                         >
                                           <span className="block truncate text-xs text-gray-900">{opt.productname}</span>
-                                          <span className="block text-[11px] text-gray-500">{formatCOP(opt.productpriceofsale)}</span>
+                                          <span className="block text-[11px] text-gray-500">
+                                            {formatCOP(opt.productpriceofsale)} · Stock {Math.max(0, Math.round(Number(opt.productstock ?? 0)))}
+                                          </span>
                                         </button>
                                       ))
                                     )}
@@ -3272,13 +3553,24 @@ setNavigating(true);
                                   <input
                                     type="number"
                                     min={1}
+                                    max={getMaterialStock(m) || undefined}
                                     step={1}
                                     value={m.cantidad}
                                     onChange={(e) => {
                                       const n = Number(e.target.value || 1);
+                                      const stock = getMaterialStock(m);
+                                      const nextQty =
+                                        Number.isFinite(n) && n > 0
+                                          ? Math.max(
+                                              1,
+                                              isInventoryManagedMaterial(m) && stock > 0
+                                                ? Math.min(Math.round(n), stock)
+                                                : Math.round(n)
+                                            )
+                                          : 1;
                                       patchItem<MaterialLineItem>(
                                         m.id,
-                                        { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
+                                        { cantidad: nextQty },
                                         setMateriales
                                       );
                                       if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
@@ -3293,6 +3585,9 @@ setNavigating(true);
                                   <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
                                   <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
                                     {formatCOP(m.precio)}
+                                  </div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500">
+                                    Stock: {getMaterialStock(m)}
                                   </div>
                                 </div>
 
@@ -3330,9 +3625,9 @@ setNavigating(true);
                         onClick={addMaterialRow}
                         className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
                         disabled={!availableProducts.length || lookupsLoading || saving || navigating}
-                        title={!availableProducts.length ? "Ya agregaste todos los productos disponibles." : undefined}
+                        title={!availableProducts.length ? "No hay mas productos de inventario con stock disponible para agregar." : undefined}
                       >
-                        {!availableProducts.length ? "No hay mas productos disponibles" : "Anadir producto"}
+                        {!availableProducts.length ? "No hay mas productos con stock disponible" : "Anadir producto del inventario"}
                       </button>
                     </div>
                   </div>
@@ -3404,6 +3699,18 @@ setNavigating(true);
                         <span className="text-gray-600">Subtotal productos</span>
                         <span className="font-medium">{formatCOP(subtotalMateriales)}</span>
                       </div>
+                      {showQuotedMaterials && (
+                        <div className="mt-2 space-y-1 text-xs text-gray-500">
+                          <div className="flex justify-between gap-2">
+                            <span>Productos cotizados</span>
+                            <span>{formatCOP(subtotalQuotedMaterials)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>Materiales adicionales de inventario</span>
+                            <span>{formatCOP(subtotalAdditionalMaterials)}</span>
+                          </div>
+                        </div>
+                      )}
                       {materialesMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {materialesMiniLista.map((m) => (
