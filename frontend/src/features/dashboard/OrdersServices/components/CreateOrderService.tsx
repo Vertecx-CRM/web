@@ -1576,6 +1576,20 @@ const {
     return list;
   }
 
+  async function getQuoteById(quoteId: number): Promise<any | null> {
+    if (!Number.isFinite(quoteId) || quoteId <= 0) return null;
+
+    const fromMap = quoteMapById.get(quoteId);
+    if (fromMap) return fromMap;
+
+    try {
+      const { data } = await api.get(`quotes/${quoteId}`);
+      return data ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   async function resolveServiceRequestIdFromSale(rawSale: any, nq: QuoteNormalized): Promise<number | null> {
     const current = pickNumber(
       nq?.serviceRequestId,
@@ -1664,7 +1678,7 @@ const {
         let raw: any = null;
 
         if (quotesIdFromUrl) {
-          raw = quoteMapById.get(quotesIdFromUrl) ?? null;
+          raw = await getQuoteById(quotesIdFromUrl);
           if (!raw) throw new Error(`No se encontro la cotizacion #${quotesIdFromUrl} en /quotes`);
         } else if (quoteDataParam) {
           raw = parseQuoteParam(String(quoteDataParam || ""));
