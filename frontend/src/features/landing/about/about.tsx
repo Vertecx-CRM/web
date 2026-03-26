@@ -72,8 +72,8 @@ export default function About() {
                 <div className="absolute -inset-4 bg-white/10 rounded-3xl blur-3xl"></div>
                 <div className="relative aspect-video rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl">
                   <Image
-                    src="/assets/imgs/about-main.png"
-                    alt="Infraestructura Tecnológica"
+                    src="/assets/imgs/about.png"
+                    alt="Equipo tecnico y soluciones tecnologicas de Vertecx"
                     fill
                     className="object-cover"
                     priority

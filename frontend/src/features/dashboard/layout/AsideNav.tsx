@@ -20,6 +20,18 @@ import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
 import { canViewModule, type AuthzModule } from "@/features/auth/authz";
 
+const normalizeRoleName = (role?: string | null) =>
+  String(role ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const ROLE_VISIBLE_MODULES: Partial<Record<string, AuthzModule[]>> = {
+  tecnico: ["servicesRequest", "orderServices", "appointments"],
+  cliente: ["servicesRequest", "orderServices", "appointments", "quotes", "sales"],
+};
+
 // --- COMPONENTE: ITEM DE MENÚ ---
 const MenuItem = React.memo(
   ({
@@ -171,6 +183,20 @@ const AsideNav = ({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const pathname = usePathname();
   const { user } = useAuth();
+  const normalizedRole = useMemo(
+    () =>
+      normalizeRoleName(
+        user?.rolename ||
+          (user as any)?.role?.name ||
+          (user as any)?.roles?.name ||
+          null,
+      ),
+    [user],
+  );
+  const roleVisibleModules = useMemo(() => {
+    const allowed = ROLE_VISIBLE_MODULES[normalizedRole];
+    return allowed ? new Set<AuthzModule>(allowed) : null;
+  }, [normalizedRole]);
 
   const permissions = useMemo(
     () => ((user as any)?.permissions || []) as string[],
@@ -179,6 +205,14 @@ const AsideNav = ({
   const canView = useCallback(
     (module: AuthzModule) => canViewModule(permissions, module),
     [permissions],
+  );
+  const canRenderModule = useCallback(
+    (module: AuthzModule) => {
+      if (!canView(module)) return false;
+      if (!roleVisibleModules) return true;
+      return roleVisibleModules.has(module);
+    },
+    [canView, roleVisibleModules],
   );
   const toggleMenu = useCallback(
     (menu: string) => setOpenMenu((prev) => (prev === menu ? null : menu)),
@@ -340,7 +374,7 @@ const AsideNav = ({
         icon: Globe,
       },
     ],
-    [canView],
+    [],
   );
 
   return (
@@ -395,7 +429,7 @@ const AsideNav = ({
           <div className="space-y-0.5">
             {menuConfig.map((item, idx) =>
               item.type === "link" ? (
-                (!item.module || canView(item.module)) && (
+                (!item.module || canRenderModule(item.module)) && (
                   <MenuItem
                     key={idx}
                     href={item.href}
@@ -404,19 +438,25 @@ const AsideNav = ({
                     isActive={isLinkActive(item.href)}
                   />
                 )
-              ) : (
-                <SubMenu
-                  key={idx}
-                  parent={item.parent}
-                  icon={item.icon}
-                  label={item.label}
-                  childrenRoutes={item.childrenRoutes}
-                  pathname={pathname}
-                  openMenu={openMenu}
-                  toggleMenu={toggleMenu}
-                  items={item.items.filter((i) => canView(i.module))}
-                />
-              ),
+              ) : (() => {
+                  const visibleItems = item.items.filter((i) =>
+                    canRenderModule(i.module),
+                  );
+                  if (!visibleItems.length) return null;
+                  return (
+                    <SubMenu
+                      key={idx}
+                      parent={item.parent}
+                      icon={item.icon}
+                      label={item.label}
+                      childrenRoutes={item.childrenRoutes}
+                      pathname={pathname}
+                      openMenu={openMenu}
+                      toggleMenu={toggleMenu}
+                      items={visibleItems}
+                    />
+                  );
+                })(),
             )}
           </div>
         </nav>
