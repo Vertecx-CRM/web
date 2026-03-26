@@ -69,7 +69,7 @@ export default function Modal({
             </div>
 
             {/* Content con scroll si se desborda */}
-            <div className="p-4 overflow-y-auto flex-1">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
 
             {/* Footer */}
             {footer && (

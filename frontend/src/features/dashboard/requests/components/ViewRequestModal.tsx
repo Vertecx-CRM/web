@@ -317,7 +317,7 @@ export default function ViewRequestModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-900">
-              Fecha y hora programada
+              Fecha y hora confirmada por Vertecx
             </label>
             <div className="flex min-h-10 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900">
               <span>{programadaDate || "—"}</span>
@@ -391,7 +391,7 @@ export default function ViewRequestModal({
 
         <div>
           <label className="mb-1 block text-xs font-medium text-gray-900">
-            Disponibilidad del cliente
+            Horarios propuestos por el cliente
           </label>
           {availabilityOptions.length ? (
             <div className="flex flex-wrap gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">

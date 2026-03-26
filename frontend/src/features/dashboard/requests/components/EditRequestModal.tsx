@@ -1,4 +1,4 @@
-ï»¿"use client";
+"use client";
 
 import Image from "next/image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +17,11 @@ import {
   buildWindowFromLocalSchedule,
   getBusyTechnicianIdsForWindow,
 } from "@/features/dashboard/shared/technicianAvailability";
+import TechnicianProfilePreview from "@/features/dashboard/requests/components/TechnicianProfilePreview";
+import {
+  normalizeTechnicianProfile,
+  type TechnicianProfileOption,
+} from "@/features/dashboard/requests/utils/technicianProfiles";
 import {
   formatRequestAvailabilityLabel,
   parseRequestDescriptionWithAvailability,
@@ -72,11 +77,6 @@ type ServiceTypeApi = {
 
 type ServiceTypeOption = {
   id: number;
-  label: string;
-};
-
-type TechnicianOption = {
-  technicianid: number;
   label: string;
 };
 
@@ -409,20 +409,10 @@ export default function EditRequestModal({
   const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
   const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
-  const technicians = useMemo<TechnicianOption[]>(() => {
+  const technicians = useMemo<TechnicianProfileOption[]>(() => {
     return (techniciansRaw || [])
-      .map((t: any) => {
-        const u = t?.users || t?.user || t?.Users || {};
-        const name = toTitleCase(
-          [u?.name, u?.lastname].filter(Boolean).join(" ").trim(),
-        );
-        const label = name || `Tecnico #${t?.technicianid ?? t?.id ?? "?"}`;
-        return {
-          technicianid: Number(t?.technicianid ?? t?.id),
-          label,
-        } as TechnicianOption;
-      })
-      .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
+      .map((t: any) => normalizeTechnicianProfile(t))
+      .filter((x): x is TechnicianProfileOption => Boolean(x));
   }, [techniciansRaw]);
 
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
@@ -446,7 +436,7 @@ export default function EditRequestModal({
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
     return selectedTechnicians
       .map((id) => map.get(id))
-      .filter(Boolean) as TechnicianOption[];
+      .filter(Boolean) as TechnicianProfileOption[];
   }, [technicians, selectedTechnicians]);
 
   const selectedWindow = useMemo(
@@ -639,12 +629,25 @@ export default function EditRequestModal({
         if (idStr.startsWith(q)) score += 3;
         if (label.includes(q)) score += 2;
         if (label.startsWith(q)) score += 1;
+        if (t.searchText.includes(q)) score += 2;
         return { t, score };
       })
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
   }, [availableTechnicians, techQuery, selectedTechSet]);
+
+  const previewTechnician = useMemo(() => {
+    if (techOpen && techOptions.length > 0) {
+      return techOptions[Math.min(techActiveIndex, techOptions.length - 1)] ?? techOptions[0];
+    }
+
+    if (selectedTechniciansFull.length > 0) {
+      return selectedTechniciansFull[selectedTechniciansFull.length - 1];
+    }
+
+    return null;
+  }, [techActiveIndex, techOpen, techOptions, selectedTechniciansFull]);
 
   const clientOptions = useMemo(() => {
     const q = normalizeText(clientQuery);
@@ -686,7 +689,7 @@ export default function EditRequestModal({
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
     if (busyTechnicianIds.has(id)) {
-      showWarning("Este tÃ©cnico ya estÃ¡ ocupado en el horario seleccionado.");
+      showWarning("Este técnico ya está ocupado en el horario seleccionado.");
       return;
     }
     markTouched("technicians");
@@ -1721,7 +1724,7 @@ export default function EditRequestModal({
                         Checklist del cliente
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Datos del sitio que ayudan a decidir si la instalaciÃ³n
+                        Datos del sitio que ayudan a decidir si la instalación
                         puede seguir sin visita previa.
                       </p>
                     </div>
@@ -1826,7 +1829,7 @@ export default function EditRequestModal({
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
                         Productos ya comprados o declarados por el cliente para
-                        esta instalaciÃ³n.
+                        esta instalación.
                       </p>
                     </div>
                     <span
@@ -2125,7 +2128,7 @@ export default function EditRequestModal({
                       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                       disabled={saving || techLoading}
                     >
-                      Ã—
+                      ×
                     </button>
                   </span>
                 ))}
@@ -2220,6 +2223,31 @@ export default function EditRequestModal({
               </div>
             )}
           </div>
+
+          {previewTechnician ? (
+            <div className="mt-3">
+              <TechnicianProfilePreview
+                technician={previewTechnician}
+                heading={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "Tecnico seleccionado"
+                    : "Perfil antes de reasignar"
+                }
+                helperText={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "Estas viendo el tecnico mas reciente que dejaste en la solicitud."
+                    : "Revisa habilidades, contacto y CV antes de confirmar el cambio de tecnico."
+                }
+                availability={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "selected"
+                    : busyTechnicianIds.has(previewTechnician.technicianid)
+                    ? "busy"
+                    : "available"
+                }
+              />
+            </div>
+          ) : null}
 
           {techError && (
             <p className="mt-1 text-xs text-red-600">{techError}</p>

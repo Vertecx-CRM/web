@@ -137,6 +137,10 @@ export default function ProductsLanding() {
                         image={product.image}
                         price={product.price}
                         stock={product.stock}
+                        quantityInCart={
+                          cart.find((item) => String(item.id) === String(product.id))
+                            ?.quantity ?? 0
+                        }
                         onAddToCart={() => handleAddToCart(product)}
                       />
                     ))}

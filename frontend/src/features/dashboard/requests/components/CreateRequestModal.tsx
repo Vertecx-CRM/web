@@ -13,6 +13,11 @@ import {
   buildWindowFromLocalSchedule,
   getBusyTechnicianIdsForWindow,
 } from "@/features/dashboard/shared/technicianAvailability";
+import TechnicianProfilePreview from "@/features/dashboard/requests/components/TechnicianProfilePreview";
+import {
+  normalizeTechnicianProfile,
+  type TechnicianProfileOption,
+} from "@/features/dashboard/requests/utils/technicianProfiles";
 
 export type CreateRequestPayload = {
   scheduledAt?: string | null;
@@ -36,11 +41,6 @@ type ServiceTypeOption = {
   id: number;
   label: string;
   code: string;
-};
-
-type TechnicianOption = {
-  technicianid: number;
-  label: string;
 };
 
 type Props = {
@@ -249,15 +249,10 @@ export default function CreateRequestModal({
   const [scheduledOrdersRaw, setScheduledOrdersRaw] = useState<any[]>([]);
   const [scheduledRequestsRaw, setScheduledRequestsRaw] = useState<any[]>([]);
 
-  const technicians = useMemo<TechnicianOption[]>(() => {
+  const technicians = useMemo<TechnicianProfileOption[]>(() => {
     return (techniciansRaw || [])
-      .map((t: any) => {
-        const u = t?.users || t?.user || t?.Users || {};
-        const name = [u?.name, u?.lastname].filter(Boolean).join(" ").trim();
-        const label = name || `Técnico #${t?.technicianid ?? t?.id ?? "?"}`;
-        return { technicianid: Number(t?.technicianid ?? t?.id), label } as TechnicianOption;
-      })
-      .filter((x) => Number.isFinite(x.technicianid) && x.technicianid > 0);
+      .map((t: any) => normalizeTechnicianProfile(t))
+      .filter((x): x is TechnicianProfileOption => Boolean(x));
   }, [techniciansRaw]);
 
   const [selectedTechnicians, setSelectedTechnicians] = useState<number[]>([]);
@@ -269,7 +264,9 @@ export default function CreateRequestModal({
 
   const selectedTechniciansFull = useMemo(() => {
     const map = new Map(technicians.map((t) => [t.technicianid, t]));
-    return selectedTechnicians.map((id) => map.get(id)).filter(Boolean) as TechnicianOption[];
+    return selectedTechnicians
+      .map((id) => map.get(id))
+      .filter(Boolean) as TechnicianProfileOption[];
   }, [technicians, selectedTechnicians]);
 
   const selectedWindow = useMemo(
@@ -319,14 +316,14 @@ export default function CreateRequestModal({
 
   function validateDireccion(v: string) {
     const dir = (v ?? "").trim();
-    if (dir.length < 3) return "Mínimo 3 caracteres.";
-    if (dir.length > 255) return "Máximo 255 caracteres.";
+    if (dir.length < 3) return "MÃ­nimo 3 caracteres.";
+    if (dir.length > 255) return "MÃ¡ximo 255 caracteres.";
     return null;
   }
 
   function validateDescription(v: string) {
     const d = (v ?? "").trim();
-    return d.length >= 3 ? null : "Mínimo 3 caracteres.";
+    return d.length >= 3 ? null : "MÃ­nimo 3 caracteres.";
   }
 
   function validateServiceId(v: number | "") {
@@ -340,15 +337,15 @@ export default function CreateRequestModal({
   function validateDateRequired(date: string | null) {
     if (!date) return "Selecciona la fecha.";
     const d = parseYMD(date);
-    if (!d) return "Fecha inválida.";
+    if (!d) return "Fecha invÃ¡lida.";
     if (isPastDateLocal(date)) return "No puedes seleccionar una fecha pasada.";
-    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sábado).";
+    if (!isAllowedDate(date)) return "No se puede agendar los domingos (solo lunes a sÃ¡bado).";
     return null;
   }
 
   function validateStartTimeRequired(date: string | null, start: string | null) {
     if (!start) return "Selecciona la hora inicial.";
-    if (!isAllowedTime(start)) return "Horario permitido: 07:00–17:00.";
+    if (!isAllowedTime(start)) return "Horario permitido: 07:00â€“17:00.";
     if (timeToMinutes(start) === SCHEDULE_MAX) return "La hora de inicio no puede ser 17:00.";
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, start)) {
       return "La hora inicial no puede estar en el pasado.";
@@ -358,7 +355,7 @@ export default function CreateRequestModal({
 
   function validateEndTimeRequired(date: string | null, start: string | null, end: string | null) {
     if (!end) return "Selecciona la hora final.";
-    if (!isAllowedTime(end)) return "Horario permitido: 07:00–17:00.";
+    if (!isAllowedTime(end)) return "Horario permitido: 07:00â€“17:00.";
 
     if (date && !isPastDateLocal(date) && isPastDateTimeLocal(date, end)) {
       return "La hora final no puede estar en el pasado.";
@@ -389,9 +386,9 @@ export default function CreateRequestModal({
     e.horaFinal = needsTime ? validateEndTimeRequired(programada, horaProgramada, horaFinal) : null;
 
     if (!selectedTechnicians.length) {
-      e.technicians = "Selecciona al menos un técnico.";
+      e.technicians = "Selecciona al menos un tÃ©cnico.";
     } else if (selectedBusyTechnicianIds.length > 0) {
-      e.technicians = "Hay técnicos seleccionados que ya están ocupados en ese horario.";
+      e.technicians = "Hay tÃ©cnicos seleccionados que ya estÃ¡n ocupados en ese horario.";
     } else {
       e.technicians = null;
     }
@@ -426,12 +423,25 @@ export default function CreateRequestModal({
         if (idStr.startsWith(q)) score += 3;
         if (label.includes(q)) score += 2;
         if (label.startsWith(q)) score += 1;
+        if (t.searchText.includes(q)) score += 2;
         return { t, score };
       })
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.t.label.localeCompare(b.t.label));
     return scored.slice(0, 10).map((x) => x.t);
   }, [availableTechnicians, techQuery, selectedTechSet]);
+
+  const previewTechnician = useMemo(() => {
+    if (techOpen && techOptions.length > 0) {
+      return techOptions[Math.min(techActiveIndex, techOptions.length - 1)] ?? techOptions[0];
+    }
+
+    if (selectedTechniciansFull.length > 0) {
+      return selectedTechniciansFull[selectedTechniciansFull.length - 1];
+    }
+
+    return null;
+  }, [techActiveIndex, techOpen, techOptions, selectedTechniciansFull]);
 
   const clientOptions = useMemo(() => {
     const q = normalizeText(clientQuery);
@@ -473,7 +483,7 @@ export default function CreateRequestModal({
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
     if (busyTechnicianIds.has(id)) {
-      showWarning("Este técnico ya está ocupado en el horario seleccionado.");
+      showWarning("Este tÃ©cnico ya estÃ¡ ocupado en el horario seleccionado.");
       return;
     }
     markTouched("technicians");
@@ -525,7 +535,7 @@ export default function CreateRequestModal({
             ? `No se pudieron cargar los servicios (${status}).`
             : "No se pudieron cargar los servicios."
         );
-        console.error("LOOKUP services ERROR →", sr.reason);
+        console.error("LOOKUP services ERROR â†’", sr.reason);
       }
 
       if (cr.status === "fulfilled") setClientesLocal(cr.value as Option[]);
@@ -537,7 +547,7 @@ export default function CreateRequestModal({
             ? `No se pudieron cargar los clientes (${status}).`
             : "No se pudieron cargar los clientes."
         );
-        console.error("LOOKUP customers ERROR →", cr.reason);
+        console.error("LOOKUP customers ERROR â†’", cr.reason);
       }
 
       setLoadingLookups(false);
@@ -567,7 +577,7 @@ export default function CreateRequestModal({
           : [];
         if (!cancelled) setTechniciansRaw(list);
       } catch (e: any) {
-        const msg = e?.response?.data?.message || e?.message || "Error cargando técnicos.";
+        const msg = e?.response?.data?.message || e?.message || "Error cargando tÃ©cnicos.";
         if (!cancelled) {
           setTechError(String(msg));
           setTechniciansRaw([]);
@@ -718,7 +728,7 @@ export default function CreateRequestModal({
     }
 
     if (!isAllowedDate(v)) {
-      showWarning("No se puede agendar los domingos. Solo lunes a sábado.");
+      showWarning("No se puede agendar los domingos. Solo lunes a sÃ¡bado.");
       return;
     }
 
@@ -738,7 +748,7 @@ export default function CreateRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00–17:00.");
+      showWarning("Horario permitido: 07:00â€“17:00.");
       return;
     }
 
@@ -765,7 +775,7 @@ export default function CreateRequestModal({
     }
 
     if (!isAllowedTime(v)) {
-      showWarning("Horario permitido: 07:00–17:00.");
+      showWarning("Horario permitido: 07:00â€“17:00.");
       return;
     }
 
@@ -788,14 +798,14 @@ export default function CreateRequestModal({
     }
 
     if (techLoading) {
-      showInfo("Espera a que carguen los técnicos.");
+      showInfo("Espera a que carguen los tÃ©cnicos.");
       return;
     }
 
     if (!isValidNow()) return;
 
     if (selectedBusyTechnicianIds.length > 0) {
-      showError("Hay técnicos ocupados en ese horario. Ajusta horario o técnicos.");
+      showError("Hay tÃ©cnicos ocupados en ese horario. Ajusta horario o tÃ©cnicos.");
       return;
     }
 
@@ -871,7 +881,7 @@ export default function CreateRequestModal({
               loadingLookups
                 ? "Cargando servicios/clientes..."
                 : techLoading
-                ? "Cargando técnicos..."
+                ? "Cargando tÃ©cnicos..."
                 : undefined
             }
           >
@@ -917,7 +927,7 @@ export default function CreateRequestModal({
             </div>
           ) : (
             <p className="text-xs text-gray-500">
-              Configura tipos de servicio en el catálogo de servicios.
+              Configura tipos de servicio en el catÃ¡logo de servicios.
             </p>
           )}
 
@@ -961,7 +971,7 @@ export default function CreateRequestModal({
                 ))}
               </select>
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-500">
-                ▾
+                â–¾
               </span>
             </div>
             {shouldShowError("serviceId") && errors.serviceId && (
@@ -1096,7 +1106,7 @@ export default function CreateRequestModal({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-900">Dirección</label>
+            <label className="mb-1 block text-xs font-medium text-gray-900">DirecciÃ³n</label>
             <input
               value={direccion}
               onChange={(e) => {
@@ -1187,7 +1197,7 @@ export default function CreateRequestModal({
 
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <label className="block text-xs font-medium text-gray-900">Técnicos</label>
+            <label className="block text-xs font-medium text-gray-900">TÃ©cnicos</label>
             <button
               type="button"
               onClick={clearTechnicians}
@@ -1208,7 +1218,7 @@ export default function CreateRequestModal({
           >
             {selectedTechniciansFull.length === 0 ? (
               <div className="text-xs text-gray-500 px-1 py-1">
-                No has seleccionado técnicos.
+                No has seleccionado tÃ©cnicos.
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -1221,7 +1231,7 @@ export default function CreateRequestModal({
                       {initials(t.label)}
                     </span>
                     <span className="max-w-[220px] truncate">
-                      #{t.technicianid} — {t.label}
+                      #{t.technicianid} â€” {t.label}
                     </span>
                     <button
                       type="button"
@@ -1229,7 +1239,7 @@ export default function CreateRequestModal({
                       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                       disabled={saving || techLoading}
                     >
-                      ✕
+                      âœ•
                     </button>
                   </span>
                 ))}
@@ -1263,7 +1273,7 @@ export default function CreateRequestModal({
                   setTechOpen(false);
                 }
               }}
-              placeholder={techLoading ? "Cargando técnicos..." : "Buscar por nombre o ID..."}
+              placeholder={techLoading ? "Cargando tÃ©cnicos..." : "Buscar por nombre o ID..."}
               className={[
                 "w-full rounded-lg border bg-gray-50 h-10 px-3 text-sm focus:bg-white focus:ring-2 focus:ring-black/15 disabled:opacity-60",
                 shouldShowError("technicians") && errors.technicians
@@ -1279,7 +1289,7 @@ export default function CreateRequestModal({
                 {techOptions.length === 0 ? (
                   <div className="px-3 py-2 text-xs text-gray-500">
                     {selectedTechnicians.length === availableTechnicians.length
-                      ? "Ya seleccionaste todos los técnicos."
+                      ? "Ya seleccionaste todos los tÃ©cnicos."
                       : "No hay coincidencias."}
                   </div>
                 ) : (
@@ -1302,7 +1312,7 @@ export default function CreateRequestModal({
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-medium">{t.label}</span>
                             <span className="block text-xs text-gray-500">
-                              Técnico #{t.technicianid}
+                              TÃ©cnico #{t.technicianid}
                             </span>
                           </span>
                           <span className="text-xs text-gray-400">Agregar</span>
@@ -1315,6 +1325,31 @@ export default function CreateRequestModal({
             )}
           </div>
 
+          {previewTechnician ? (
+            <div className="mt-3">
+              <TechnicianProfilePreview
+                technician={previewTechnician}
+                heading={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "Tecnico seleccionado"
+                    : "Perfil antes de asignar"
+                }
+                helperText={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "Estas viendo el tecnico mas reciente que agregaste a la solicitud."
+                    : "Revisa habilidades, contacto y CV antes de agregarlo a la solicitud."
+                }
+                availability={
+                  selectedTechSet.has(previewTechnician.technicianid)
+                    ? "selected"
+                    : busyTechnicianIds.has(previewTechnician.technicianid)
+                    ? "busy"
+                    : "available"
+                }
+              />
+            </div>
+          ) : null}
+
           {techError && <p className="mt-1 text-xs text-red-600">{techError}</p>}
           {shouldShowError("technicians") && errors.technicians && (
             <p className="mt-1 text-xs text-red-600">{errors.technicians}</p>
@@ -1322,7 +1357,7 @@ export default function CreateRequestModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-900">Descripción</label>
+          <label className="mb-1 block text-xs font-medium text-gray-900">DescripciÃ³n</label>
           <textarea
             value={description}
             onChange={(e) => {

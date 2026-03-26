@@ -8,8 +8,10 @@ import {
   Package,
   CheckCircle2,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { openLandingCart } from "@/features/landing/utils/cartEvents";
 
 interface CardProductProps {
   id: string;
@@ -19,6 +21,7 @@ interface CardProductProps {
   image?: string;
   price?: number;
   stock?: number;
+  quantityInCart?: number;
   onAddToCart?: () => void;
 }
 
@@ -30,10 +33,12 @@ export default function CardProduct({
   image,
   price,
   stock = 0,
+  quantityInCart = 0,
   onAddToCart,
 }: CardProductProps) {
   const router = useRouter();
   const inStock = stock > 0;
+  const hasInCart = quantityInCart > 0;
 
   return (
     <motion.div
@@ -128,6 +133,29 @@ export default function CardProduct({
               Detalles
             </button>
           </div>
+
+          {hasInCart ? (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">
+                Listo para comprar
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-emerald-900">
+                Ya tienes {quantityInCart} unidad(es) en el carrito. Abre el carrito para continuar la compra o agregar servicio.
+              </p>
+              <button
+                type="button"
+                onClick={openLandingCart}
+                className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-800 transition hover:bg-emerald-100"
+              >
+                Abrir carrito
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 text-[11px] font-semibold text-[#717680]">
+              Después de añadirlo, abre el carrito para continuar la compra.
+            </p>
+          )}
         </div>
       </div>
     </motion.div>

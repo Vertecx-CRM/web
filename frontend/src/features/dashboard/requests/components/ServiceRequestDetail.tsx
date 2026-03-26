@@ -106,6 +106,10 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
     [data.descriptionPlain, data.description]
   );
   const flowMetadata = parsedDescription.flowMetadata;
+  const availabilityOptions =
+    data.clientAvailabilityOptions ??
+    parsedDescription.availabilityOptions ??
+    [];
 
   const customerUser = data.customer?.users;
   const customerFullName = [customerUser?.name, customerUser?.lastname]
@@ -173,7 +177,7 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
             </p>
           </div>
           <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Programada</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Programada por Vertecx</p>
             <p className="mt-2 text-sm font-medium text-slate-800">{scheduled}</p>
             <p className="text-xs text-slate-500">Fin estimado: {scheduledEnd}</p>
           </div>
@@ -251,11 +255,11 @@ const ServiceRequestDetailContent = ({ data }: { data: ServiceRequestDTO }) => {
         )}
         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            Disponibilidad propuesta por el cliente
+            Horarios propuestos por el cliente
           </p>
-          {parsedDescription.availabilityOptions.length ? (
+          {availabilityOptions.length ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {parsedDescription.availabilityOptions.map((option) => (
+              {availabilityOptions.map((option) => (
                 <span
                   key={`${option.date}-${option.startTime}-${option.endTime}`}
                   className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-800"

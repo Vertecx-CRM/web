@@ -9,6 +9,7 @@ import CartModal from "../components/CartModal";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "@/features/auth/authcontext";
 import ProfileModal from "@/features/auth/porfile/porfilemodal";
+import { OPEN_CART_EVENT } from "@/features/landing/utils/cartEvents";
 
 const Nav = () => {
   const router = useRouter();
@@ -72,6 +73,14 @@ const Nav = () => {
       document.removeEventListener("keydown", onKey);
     };
   }, [profileMenuOpen]);
+
+  useEffect(() => {
+    const handleOpenCart = () => setIsCartOpen(true);
+    window.addEventListener(OPEN_CART_EVENT, handleOpenCart);
+    return () => {
+      window.removeEventListener(OPEN_CART_EVENT, handleOpenCart);
+    };
+  }, []);
 
   const handleLogout = async () => {
     setProfileMenuOpen(false);

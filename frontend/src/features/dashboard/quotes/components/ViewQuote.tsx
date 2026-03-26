@@ -1,15 +1,12 @@
 "use client";
 
 import { ReactNode } from "react";
-import {
-  IQuote,
-  QuoteDetail,
-  ServiceRequest,
-} from "../types/Quote.type";
+import { IQuote, QuoteDetail, ServiceRequest } from "../types/Quote.type";
 import {
   getRequestStageLabel,
   getTechnicalReviewStatusLabel,
 } from "@/shared/utils/requestFlow";
+import { formatRequestAvailabilityLabel } from "@/features/dashboard/requests/utils/requestAvailability";
 
 interface ViewQuoteProps {
   quote: IQuote;
@@ -104,14 +101,18 @@ export default function ViewQuote({
   const technicalReview = request?.technicalReviewStatus
     ? getTechnicalReviewStatusLabel(request.technicalReviewStatus)
     : "-";
+  const availabilityLabels =
+    request?.clientAvailabilityOptions?.map((option) =>
+      formatRequestAvailabilityLabel(option),
+    ) ?? [];
 
   const showActions =
     (canCreateOrder && onCreateOrder) || (canComplete && onComplete);
 
   return (
-    <div className="flex max-h-[85vh] flex-col gap-6 overflow-y-auto bg-slate-50 p-4 text-sm text-slate-800">
+    <div className="flex w-full flex-col gap-6 bg-slate-50 p-4 text-sm text-slate-800">
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-slate-900 px-5 py-4 text-white">
+        <div className="border-b border-slate-200 bg-red-800 px-5 py-4 text-white">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-300">
             Cotizacion
           </p>
@@ -138,7 +139,10 @@ export default function ViewQuote({
 
         <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Estado cotizacion" value={quote.state?.name ?? "-"} />
-          <Field label="Orden vinculada" value={orderId ? `#${orderId}` : "-"} />
+          <Field
+            label="Orden vinculada"
+            value={orderId ? `#${orderId}` : "-"}
+          />
           <Field label="Estado orden" value={orderState} />
           <Field
             label="Respuesta del cliente"
@@ -153,13 +157,9 @@ export default function ViewQuote({
             label="Ultima actualizacion"
             value={formatDateTime(quote.updatedat)}
           />
-          <Field
-            label="Resumen solicitud"
-            value={requestSummary}
-          />
+          <Field label="Resumen solicitud" value={requestSummary} />
         </div>
       </section>
-
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
           <Card title="Detalle de la Cotizacion">
@@ -186,7 +186,9 @@ export default function ViewQuote({
                                 : "Linea manual"}
                           </p>
                         </div>
-                        <StatusPill value={detail.availability ?? "DISPONIBLE"} />
+                        <StatusPill
+                          value={detail.availability ?? "DISPONIBLE"}
+                        />
                       </div>
 
                       {labor && (
@@ -215,7 +217,10 @@ export default function ViewQuote({
                           label={labor ? "Cantidad facturable" : "Cantidad"}
                           value={formatNumber(detail.quantity)}
                         />
-                        <MiniStat label="Subtotal" value={formatCOP(detail.subtotal)} />
+                        <MiniStat
+                          label="Subtotal"
+                          value={formatCOP(detail.subtotal)}
+                        />
                         <MiniStat
                           label="Tipo de linea"
                           value={
@@ -240,12 +245,20 @@ export default function ViewQuote({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field
                 label="Solicitud de servicio"
-                value={request?.serviceRequestId ?? quote.serviceRequestId ?? "-"}
+                value={
+                  request?.serviceRequestId ?? quote.serviceRequestId ?? "-"
+                }
               />
               <Field label="Tipo de flujo" value={requestSummary} />
-              <Field label="Tipo de servicio" value={request?.serviceType ?? quote.servicetype ?? "-"} />
+              <Field
+                label="Tipo de servicio"
+                value={request?.serviceType ?? quote.servicetype ?? "-"}
+              />
               <Field label="Revision tecnica" value={technicalReview} />
-              <Field label="Fecha programada" value={formatDateTime(request?.scheduledAt)} />
+              <Field
+                label="Fecha programada"
+                value={formatDateTime(request?.scheduledAt)}
+              />
               <Field
                 label="Fecha fin programada"
                 value={formatDateTime(request?.scheduledEndAt)}
@@ -282,10 +295,10 @@ export default function ViewQuote({
               value={requestDescription}
             />
 
-            {!!request?.clientAvailabilityOptions?.length && (
+            {!!availabilityLabels.length && (
               <TagGroup
                 label="Disponibilidad del cliente"
-                values={request.clientAvailabilityOptions}
+                values={availabilityLabels}
               />
             )}
 
@@ -381,7 +394,6 @@ export default function ViewQuote({
           </Card>
         </div>
       </section>
-
       {showActions && (
         <div className="mt-1 flex flex-wrap justify-end gap-2">
           {canCreateOrder && onCreateOrder && (
@@ -551,7 +563,13 @@ function Row({
       <span className={bold ? "font-bold text-slate-900" : "text-slate-600"}>
         {label}
       </span>
-      <span className={bold ? "text-lg font-black text-slate-900" : "font-semibold text-slate-800"}>
+      <span
+        className={
+          bold
+            ? "text-lg font-black text-slate-900"
+            : "font-semibold text-slate-800"
+        }
+      >
         {value}
       </span>
     </div>

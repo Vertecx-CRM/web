@@ -11,11 +11,13 @@ import {
   CreditCard,
   Landmark,
   LoaderCircle,
-  LockKeyhole,
   MapPin,
   ReceiptText,
   ShieldCheck,
+  ShoppingBag,
   Smartphone,
+  Truck,
+  Wrench,
 } from "lucide-react";
 
 import {
@@ -26,9 +28,7 @@ import {
 
 function formatCOP(value?: number | null) {
   const amount = Number(value ?? 0);
-  return amount > 0
-    ? `$${amount.toLocaleString("es-CO")}`
-    : "$0";
+  return amount > 0 ? `$${amount.toLocaleString("es-CO")}` : "$0";
 }
 
 function formatExpiration(value?: string) {
@@ -47,6 +47,37 @@ const PAYMENT_METHODS = [
   { label: "Bancolombia", icon: Building2 },
   { label: "Tarjetas", icon: CreditCard },
 ];
+
+type CheckoutCartItem = {
+  id?: string | number;
+  name?: string;
+  quantity?: number;
+  price?: number;
+  service?: boolean;
+};
+
+type CheckoutAddress = {
+  city?: string;
+  zone?: string;
+  streetType?: string;
+  streetNumber?: string;
+  secondaryNumber?: string;
+  complement?: string;
+};
+
+function formatAddress(address?: CheckoutAddress | null) {
+  if (!address) return "Direccion pendiente por confirmar";
+  const text = [
+    [address.streetType, address.streetNumber].filter(Boolean).join(" ").trim(),
+    address.secondaryNumber ? `#${address.secondaryNumber}` : "",
+    [address.zone, address.city].filter(Boolean).join(", ").trim(),
+    address.complement ? `(${address.complement})` : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return text || "Direccion pendiente por confirmar";
+}
 
 export default function WompiPaymentMethod() {
   const searchParams = useSearchParams();
@@ -102,6 +133,38 @@ export default function WompiPaymentMethod() {
     if (Number.isFinite(cents) && cents > 0) return cents / 100;
     return Number(checkout?.total ?? 0);
   }, [checkout?.total, session?.amountInCents]);
+
+  const checkoutCart = useMemo(
+    () =>
+      Array.isArray((checkout as any)?.cart)
+        ? (((checkout as any).cart as CheckoutCartItem[]) ?? [])
+        : [],
+    [checkout],
+  );
+
+  const checkoutAddress = useMemo(
+    () => ((checkout as any)?.address as CheckoutAddress | undefined) ?? null,
+    [checkout],
+  );
+
+  const formattedAddress = useMemo(
+    () => formatAddress(checkoutAddress),
+    [checkoutAddress],
+  );
+
+  const productsCount = useMemo(
+    () =>
+      checkoutCart.reduce(
+        (sum, item) => sum + Math.max(0, Number(item.quantity ?? 0)),
+        0,
+      ),
+    [checkoutCart],
+  );
+
+  const serviceCount = useMemo(
+    () => checkoutCart.filter((item) => Boolean(item.service)).length,
+    [checkoutCart],
+  );
 
   const backHref =
     checkout?.returnUrl ||
@@ -167,13 +230,11 @@ export default function WompiPaymentMethod() {
               </div>
 
               <h1 className="mt-5 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
-                Paga con la identidad de Vertecx, finaliza con Wompi.
+                Confirma tu pedido Vertecx y sigue al pago.
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-red-50/90 sm:text-base">
-                Esta pantalla conserva el estilo del proyecto y te resume el pedido
-                antes de abrir la pasarela oficial de Wompi. El cobro final se hace
-                en el checkout seguro externo.
+                Estas a un paso de pagar tu compra o la visita tecnica asociada. Aqui te mostramos el resumen real del pedido, la referencia de la venta y los datos que enviaremos a Wompi.
               </p>
 
               <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -204,23 +265,19 @@ export default function WompiPaymentMethod() {
               <div className="mt-8 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-3xl border border-white/15 bg-slate-950/20 p-5 backdrop-blur-sm">
                   <div className="flex items-center gap-2 text-red-50">
-                    <LockKeyhole className="h-5 w-5" />
+                    <ShoppingBag className="h-5 w-5" />
                     <p className="text-sm font-bold uppercase tracking-[0.18em]">
-                      Que sigue
+                      Pedido actual
                     </p>
                   </div>
                   <div className="mt-4 space-y-3 text-sm text-red-50/90">
+                    <p>{productsCount} producto(s) cargados en esta venta.</p>
                     <p>
-                      1. Revisa el resumen del pago y el vencimiento de la sesion.
+                      {serviceCount
+                        ? `${serviceCount} producto(s) con servicio tecnico asociado.`
+                        : "Sin servicios tecnicos adicionales en este checkout."}
                     </p>
-                    <p>
-                      2. Continúa al checkout oficial de Wompi para elegir tu medio
-                      de pago.
-                    </p>
-                    <p>
-                      3. Regresas a Vertecx para confirmar el resultado de la
-                      transaccion.
-                    </p>
+                    <p>Entrega o atencion en: {formattedAddress}</p>
                   </div>
                 </div>
 
@@ -248,6 +305,12 @@ export default function WompiPaymentMethod() {
                         {formatExpiration(session?.expirationTime)}
                       </span>
                     </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Canal</span>
+                      <span className="font-semibold">
+                        {checkout?.origin === "dashboard_sales" ? "Ventas" : "Carrito web"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -262,7 +325,7 @@ export default function WompiPaymentMethod() {
                     Metodo de pago
                   </p>
                   <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
-                    Checkout oficial de Wompi
+                    Pago seguro en Wompi
                   </h2>
                 </div>
                 <div className="rounded-2xl bg-red-50 px-4 py-3 text-right">
@@ -300,11 +363,9 @@ export default function WompiPaymentMethod() {
                 <div className="flex items-start gap-3">
                   <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                   <div>
-                    <p className="font-bold">Datos precargados para un checkout mas limpio</p>
+                    <p className="font-bold">Datos de Vertecx listos para el pago</p>
                     <p className="mt-1 leading-relaxed">
-                      Estamos enviando a Wompi el correo del cliente y, cuando existe,
-                      tambien la informacion basica de entrega para que la experiencia
-                      quede mas consistente con tu compra.
+                      Enviamos a Wompi la referencia de esta venta, el correo del cliente y la informacion basica de entrega para que el checkout salga alineado con tu pedido real.
                     </p>
                   </div>
                 </div>
@@ -345,16 +406,14 @@ export default function WompiPaymentMethod() {
               </div>
 
               <p className="mt-4 text-xs leading-relaxed text-slate-500">
-                La pantalla final de cobro pertenece a Wompi y mantiene sus propios
-                componentes de seguridad. Aqui personalizamos la experiencia previa
-                con el estilo de Vertecx.
+                El cobro final sucede en la pagina oficial de Wompi. Vertecx solo prepara el resumen y transfiere los datos de esta venta.
               </p>
             </section>
 
             <section className="rounded-[32px] border border-white bg-white/95 p-6 shadow-[0_24px_64px_rgba(15,23,42,0.10)]">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-slate-100 p-2.5 text-slate-700">
-                  <MapPin className="h-5 w-5" />
+                  <Truck className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Resumen de la venta</p>
@@ -387,10 +446,52 @@ export default function WompiPaymentMethod() {
                 </div>
               </div>
 
-              {(session?.customerData?.email || session?.shippingAddress?.city) && (
+              {checkoutCart.length > 0 && (
+                <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-red-700" />
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Productos del pedido
+                    </p>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {checkoutCart.slice(0, 4).map((item, index) => (
+                      <div
+                        key={`${item.id ?? item.name}-${index}`}
+                        className="flex items-start justify-between gap-3 rounded-2xl border border-white bg-white px-3 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {item.name || `Producto ${index + 1}`}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Cantidad: {Number(item.quantity ?? 0) || 1}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {formatCOP(
+                              (Number(item.price ?? 0) || 0) *
+                                (Number(item.quantity ?? 0) || 1),
+                            )}
+                          </p>
+                          {item.service && (
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700">
+                              <Wrench className="h-3 w-3" />
+                              Servicio
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(session?.customerData?.email || session?.shippingAddress?.city || formattedAddress) && (
                 <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Datos precargados
+                    Datos del pedido
                   </p>
                   <div className="mt-3 space-y-2">
                     {session?.customerData?.email && (
@@ -406,6 +507,16 @@ export default function WompiPaymentMethod() {
                         <span>Ciudad</span>
                         <span className="font-semibold text-slate-900">
                           {session.shippingAddress.city}
+                        </span>
+                      </div>
+                    )}
+                    {formattedAddress && (
+                      <div className="flex items-start justify-between gap-3">
+                        <span>
+                          <MapPin className="mt-0.5 h-4 w-4 text-slate-500" />
+                        </span>
+                        <span className="max-w-[16rem] text-right font-semibold text-slate-900">
+                          {formattedAddress}
                         </span>
                       </div>
                     )}

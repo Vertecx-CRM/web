@@ -146,6 +146,11 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+const STREET_TYPE_LOOKUP = STREET_TYPES.map((type) => ({
+  value: type.value,
+  normalized: normalizeText(type.value),
+}));
+
 const COLOMBIA_CITY_NAMES: string[] = (() => {
   const list = City.getCitiesOfCountry("CO") ?? [];
   const seen = new Set<string>();
@@ -230,6 +235,65 @@ function buildPurchasedMaterialsFromCart(cart: CartItem[]) {
     unitPrice: item.price,
     source: "Compra del carrito",
   }));
+}
+
+function parseCartAddressFromText(rawAddress: string): Partial<CartAddress> | null {
+  const source = String(rawAddress || "").trim();
+  if (!source) return null;
+
+  const segments = source
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const citySegment = [...segments]
+    .reverse()
+    .find((segment) => COLOMBIA_CITY_SET.has(normalizeText(segment)));
+
+  const city = citySegment ?? "";
+  const nonCitySegments = city
+    ? segments.filter((segment) => normalizeText(segment) !== normalizeText(city))
+    : segments;
+
+  const streetSegment = nonCitySegments[0] ?? source;
+  const zoneSegment =
+    nonCitySegments.length > 1 ? nonCitySegments[nonCitySegments.length - 1] : "";
+
+  const normalizedStreet = normalizeText(streetSegment);
+  const matchedStreetType = STREET_TYPE_LOOKUP.find((type) =>
+    normalizedStreet.startsWith(type.normalized),
+  );
+
+  let streetType = "";
+  let streetNumber = "";
+  let secondaryNumber = "";
+  let complement = "";
+
+  if (matchedStreetType) {
+    streetType = matchedStreetType.value;
+    const remainder = streetSegment.slice(matchedStreetType.value.length).trim();
+    const streetMatch = remainder.match(/^([^#,(]+?)\s*#\s*([^,(]+)(?:[\s,(]+(.+))?$/i);
+
+    if (streetMatch) {
+      streetNumber = String(streetMatch[1] || "").trim();
+      secondaryNumber = String(streetMatch[2] || "").trim();
+      complement = String(streetMatch[3] || "").replace(/^\(|\)$/g, "").trim();
+    } else {
+      streetNumber = remainder;
+    }
+  } else {
+    complement = streetSegment;
+  }
+
+  const parsed: Partial<CartAddress> = {};
+  if (city) parsed.city = city;
+  if (zoneSegment) parsed.zone = zoneSegment;
+  if (streetType) parsed.streetType = streetType;
+  if (streetNumber) parsed.streetNumber = streetNumber;
+  if (secondaryNumber) parsed.secondaryNumber = secondaryNumber;
+  if (complement) parsed.complement = complement;
+
+  return Object.keys(parsed).length ? parsed : null;
 }
 
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
@@ -1329,6 +1393,14 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
               purchasedMaterials: payload.purchasedMaterials ?? [],
               siteChecklist: payload.siteChecklist ?? null,
             };
+
+            const parsedAddress = parseCartAddressFromText(draft.direccion);
+            if (parsedAddress) {
+              setAddress((prev) => ({
+                ...prev,
+                ...parsedAddress,
+              }));
+            }
 
             saveServiceDraft(selectedCartItemId, draft);
             showSuccess(

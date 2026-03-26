@@ -1,3 +1,5 @@
+import type { RequestAvailabilityOption } from "@/features/dashboard/requests/utils/requestAvailability";
+
 export type QuoteTableRow = {
   id: number;
   client: string;
@@ -49,7 +51,7 @@ export interface ServiceRequest {
     | "READY_TO_QUOTE"
     | null;
   descriptionPlain?: string;
-  clientAvailabilityOptions?: string[];
+  clientAvailabilityOptions?: RequestAvailabilityOption[];
   direccion?: string;
   description?: string;
   alreadyHasMaterials?: boolean;

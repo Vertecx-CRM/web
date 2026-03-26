@@ -13,6 +13,7 @@ import type { Product } from "../hooks/useProducts";
 import { getLandingProductById } from "../api/products.api";
 
 import { showSuccess, showError } from "@/shared/utils/notifications";
+import { openLandingCart } from "@/features/landing/utils/cartEvents";
 
 const DEFAULT_IMG = "/assets/imgs/default-product.png";
 
@@ -299,6 +300,25 @@ export default function ProductDetailPage() {
                       <FaShoppingCart />
                       {inStock ? "Agregar al carrito" : "Sin stock"}
                     </motion.button>
+
+                    {qtyInCart > 0 && (
+                      <button
+                        type="button"
+                        onClick={openLandingCart}
+                        className="cursor-pointer rounded-full border border-[#B20000]/20 bg-white px-5 py-3 text-sm font-semibold text-[#8e0000] shadow-sm transition hover:bg-red-50"
+                      >
+                        Ir al carrito y continuar compra
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/70 px-4 py-3 text-sm text-gray-700">
+                    <p className="font-semibold text-[#8e0000]">
+                      Flujo de compra Vertecx
+                    </p>
+                    <p className="mt-1 leading-relaxed">
+                      Agrega el producto, abre el carrito para revisar cantidades, dirección y, si aplica, asociar el servicio técnico antes del pago.
+                    </p>
                   </div>
 
                   <div className="mt-10">
