@@ -232,7 +232,7 @@ export default function QuotesIndex() {
 
   const isClient = useMemo(
     () => normalizeRoleName(user?.rolename) === "cliente",
-    [user?.rolename]
+    [user?.rolename],
   );
 
   const fetchQuotes = useCallback(async () => {
@@ -241,8 +241,10 @@ export default function QuotesIndex() {
       const data = await getQuotes();
       const mapped: QuoteTableRow[] = (data ?? []).map((quote: any) => {
         const rawStatus = getQuoteStateName(quote);
-        const clientName = `${quote.customer?.users?.name ?? ""} ${quote.customer?.users?.lastname ?? ""}`.trim();
-        const techName = `${quote.technician?.users?.name ?? ""} ${quote.technician?.users?.lastname ?? ""}`.trim();
+        const clientName =
+          `${quote.customer?.users?.name ?? ""} ${quote.customer?.users?.lastname ?? ""}`.trim();
+        const techName =
+          `${quote.technician?.users?.name ?? ""} ${quote.technician?.users?.lastname ?? ""}`.trim();
         const orderId = getQuoteOrderServiceId(quote);
         const clientAccepted = Boolean(quote?.clientAccepted);
 
@@ -307,7 +309,9 @@ export default function QuotesIndex() {
       key: "clientAcceptedLabel",
       header: "Cliente",
       render: (row) => (
-        <span className={row.clientAccepted ? "text-emerald-700" : "text-amber-700"}>
+        <span
+          className={row.clientAccepted ? "text-emerald-700" : "text-amber-700"}
+        >
           {row.clientAcceptedLabel}
         </span>
       ),
@@ -334,7 +338,7 @@ export default function QuotesIndex() {
       await Swal.fire(
         "Esperando cliente",
         "El cliente debe aceptar la cotizacion antes de que el admin la apruebe.",
-        "warning"
+        "warning",
       );
       return;
     }
@@ -357,14 +361,16 @@ export default function QuotesIndex() {
       await Swal.fire(
         "Cotizacion aprobada",
         "Ahora puedes crear la orden de servicio con los materiales cotizados.",
-        "success"
+        "success",
       );
     } catch (error: any) {
       console.error("Error al aprobar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo aprobar la cotizacion.",
-        "error"
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo aprobar la cotizacion.",
+        "error",
       );
     }
   };
@@ -372,10 +378,11 @@ export default function QuotesIndex() {
   const handleAcceptQuote = async (row: QuoteTableRow) => {
     const result = await Swal.fire({
       title: "Aceptar cotizacion",
-      text: "Le avisaremos al administrador para que continue con la orden de servicio despues de validar esta cotizacion.",
+      text: "Al aceptarla notificaremos al administrador y la cotizacion quedara aprobada para continuar con la orden de servicio.",
       input: "textarea",
       inputLabel: "Observacion opcional",
-      inputPlaceholder: "Ej: Pueden continuar con la instalacion con esta cotizacion",
+      inputPlaceholder:
+        "Ej: Pueden continuar con la instalacion con esta cotizacion",
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Aceptar",
@@ -390,15 +397,17 @@ export default function QuotesIndex() {
       await fetchQuotes();
       await Swal.fire(
         "Cotizacion aceptada",
-        "Tu respuesta fue registrada correctamente.",
-        "success"
+        "Tu respuesta fue registrada, la cotizacion quedo aprobada y el administrador fue notificado.",
+        "success",
       );
     } catch (error: any) {
       console.error("Error al aceptar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo aceptar la cotizacion.",
-        "error"
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo aceptar la cotizacion.",
+        "error",
       );
     }
   };
@@ -427,8 +436,10 @@ export default function QuotesIndex() {
       console.error("Error al cancelar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo cancelar la cotizacion.",
-        "error"
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo cancelar la cotizacion.",
+        "error",
       );
     }
   };
@@ -438,7 +449,7 @@ export default function QuotesIndex() {
       await Swal.fire(
         "Accion no permitida",
         "Solo se pueden anular cotizaciones que ya esten aprobadas.",
-        "warning"
+        "warning",
       );
       return;
     }
@@ -463,14 +474,16 @@ export default function QuotesIndex() {
       await Swal.fire(
         "Cotizacion anulada",
         "La cotizacion fue anulada correctamente.",
-        "success"
+        "success",
       );
     } catch (error: any) {
       console.error("Error al anular la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo anular la cotizacion.",
-        "error"
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo anular la cotizacion.",
+        "error",
       );
     }
   };
@@ -481,11 +494,11 @@ export default function QuotesIndex() {
       if (!Number.isFinite(quoteId) || quoteId <= 0) return;
       router.push(
         `/dashboard/orders-services/new?quotesId=${quoteId}&returnTo=${encodeURIComponent(
-          "/dashboard/quotes"
-        )}`
+          "/dashboard/quotes",
+        )}`,
       );
     },
-    [router]
+    [router],
   );
 
   const handleCompleteQuote = useCallback(async () => {
@@ -520,14 +533,16 @@ export default function QuotesIndex() {
         completionResult?.sale
           ? `Se genero la venta ${completionResult.sale.salecode ?? completionResult.sale.saleid}.`
           : "La cotizacion se completo y la venta quedo creada.",
-        "success"
+        "success",
       );
     } catch (error: any) {
       console.error("Error al completar la cotizacion:", error);
       await Swal.fire(
         "Error",
-        error?.response?.data?.message ?? error?.message ?? "No se pudo completar la cotizacion.",
-        "error"
+        error?.response?.data?.message ??
+          error?.message ??
+          "No se pudo completar la cotizacion.",
+        "error",
       );
     } finally {
       setCompletingQuote(false);
@@ -537,8 +552,11 @@ export default function QuotesIndex() {
   const selectedQuoteState = getQuoteStateName(selectedQuote);
   const selectedQuoteCompleted = isCompletedLike(selectedQuoteState);
   const selectedQuoteOrderId = getQuoteOrderServiceId(selectedQuote);
-  const selectedQuoteOrderState = String(selectedQuote?.ordersservices?.state?.name ?? "").trim();
-  const selectedQuoteCanCreateOrder = !isClient && canCreateOrderFromQuote(selectedQuote);
+  const selectedQuoteOrderState = String(
+    selectedQuote?.ordersservices?.state?.name ?? "",
+  ).trim();
+  const selectedQuoteCanCreateOrder =
+    !isClient && canCreateOrderFromQuote(selectedQuote);
   const selectedQuoteCanComplete =
     !isClient &&
     !selectedQuoteCompleted &&
@@ -573,7 +591,11 @@ export default function QuotesIndex() {
             setSelectedQuote(row.raw);
             setDetailModalOpen(true);
           }}
-          onCreate={isClient ? undefined : () => router.push("/dashboard/quotes/register")}
+          onCreate={
+            isClient
+              ? undefined
+              : () => router.push("/dashboard/quotes/register")
+          }
           createButtonText="Crear Cotizacion"
           onCancel={isClient ? handleCancelQuote : undefined}
           renderExtraActions={(row) => {
@@ -586,7 +608,7 @@ export default function QuotesIndex() {
                   title="Aceptar"
                   tone="success"
                   onClick={() => handleAcceptQuote(row)}
-                />
+                />,
               );
             }
 
@@ -603,7 +625,7 @@ export default function QuotesIndex() {
                   title="Aprobar"
                   tone="success"
                   onClick={() => handleApproveQuote(row)}
-                />
+                />,
               );
             }
 
@@ -613,7 +635,7 @@ export default function QuotesIndex() {
                   key={`order-${row.id}`}
                   title="Crear orden"
                   onClick={() => goToCreateOrder(row.raw)}
-                />
+                />,
               );
             }
 
@@ -628,7 +650,7 @@ export default function QuotesIndex() {
                   key={`revoke-${row.id}`}
                   title="Anular"
                   onClick={() => handleRevokeQuote(row)}
-                />
+                />,
               );
             }
 
@@ -641,10 +663,19 @@ export default function QuotesIndex() {
                 type="button"
                 className="inline-flex items-center gap-2 rounded-md bg-[#b20000] px-4 py-2 text-sm font-semibold text-white hover:bg-[#910000]"
                 onClick={() =>
-                  Swal.fire("Pendiente", "Conecta aqui la descarga del reporte.", "info")
+                  Swal.fire(
+                    "Pendiente",
+                    "Conecta aqui la descarga del reporte.",
+                    "info",
+                  )
                 }
               >
-                <Image src="/icons/download.svg" alt="Descargar" width={16} height={16} />
+                <Image
+                  src="/icons/download.svg"
+                  alt="Descargar"
+                  width={16}
+                  height={16}
+                />
                 Descargar Reporte
               </button>
             )
@@ -656,6 +687,7 @@ export default function QuotesIndex() {
           isOpen={isDetailModalOpen}
           onClose={() => setDetailModalOpen(false)}
           footer={null}
+          widthClass="w-full max-w-8xl overflow-y-hidden"
         >
           {selectedQuote && (
             <ViewQuote
