@@ -19,7 +19,7 @@ export type QuoteNormalized = {
   direccion?: string;
   technicians?: number[];
   description?: string;
-  services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+  services?: Array<{ serviceid?: number; name?: string; cantidad: number; unitprice: number }>;
   products?: Array<{ productid: number; cantidad: number; unitprice?: number }>;
 };
 
@@ -297,6 +297,32 @@ export function normalizeQuote(q: QuoteLike): QuoteNormalized {
       ? root.quoteDetails
       : [];
 
+  const detailServices = rawDetails
+    .map((detail: any) => {
+      const productid = pickNumber(
+        detail?.productid,
+        detail?.productId,
+        detail?.product?.productid,
+        detail?.product?.id
+      );
+      if (productid) return null;
+
+      const description = pickString(detail?.description, detail?.name, detail?.label);
+      if (!description) return null;
+
+      const cantidad = pickNumber(detail?.cantidad, detail?.quantity, detail?.qty) ?? 1;
+      const unitprice =
+        pickNumber(detail?.unitprice, detail?.price, detail?.unitPrice, detail?.valor) ??
+        pickNumber(detail?.subtotal);
+
+      return {
+        name: description,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        unitprice: Math.max(0, Math.round(Number(unitprice ?? 0))),
+      };
+    })
+    .filter(Boolean) as Array<{ name?: string; cantidad: number; unitprice: number }>;
+
   const rawProducts =
     root?.products ??
     root?.materials ??
@@ -337,19 +363,21 @@ export function normalizeQuote(q: QuoteLike): QuoteNormalized {
 
   const mergedProducts = [...productsArr, ...rawDetails];
 
-  const services = servicesArr
+  const services = [...servicesArr, ...detailServices]
     .map((s: any) => {
       const serviceid = pickNumber(s?.serviceid, s?.id, s?.service?.serviceid, s?.service?.id);
+      const name = pickString(s?.name, s?.description, s?.label, s?.service?.name);
       const cantidad = pickNumber(s?.cantidad, s?.quantity, s?.qty) ?? 1;
       const unitprice = pickNumber(s?.unitprice, s?.price, s?.unitPrice, s?.valor) ?? 0;
-      if (!serviceid) return null;
+      if (!serviceid && !name) return null;
       return {
         serviceid,
+        name,
         cantidad: Math.max(1, Math.round(cantidad)),
         unitprice: Math.max(0, Math.round(unitprice)),
       };
     })
-    .filter(Boolean) as Array<{ serviceid: number; cantidad: number; unitprice: number }>;
+    .filter(Boolean) as Array<{ serviceid?: number; name?: string; cantidad: number; unitprice: number }>;
 
   const products = mergedProducts
     .map((p: any) => {

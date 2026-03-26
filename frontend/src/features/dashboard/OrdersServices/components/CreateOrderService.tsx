@@ -1466,12 +1466,20 @@ const {
     const svcItems: ServiceLineItem[] = [];
     if (Array.isArray(nq.services) && nq.services.length) {
       for (const s of nq.services) {
-        const rec = servicesCatalog.find((x) => x.serviceid === s.serviceid) || null;
-        const nombre = rec?.name || `Servicio #${s.serviceid}`;
+        const rec =
+          (s.serviceid
+            ? servicesCatalog.find((x) => x.serviceid === s.serviceid)
+            : servicesCatalog.find((x) => normalizeKey(x.name) === normalizeKey(s.name || ""))) || null;
+        const nombre =
+          rec?.name || String(s.name || "").trim() || (s.serviceid ? `Servicio #${s.serviceid}` : "");
         const precio = Math.max(0, Math.round(Number(s.unitprice || 0)));
         const tid = rec?.typeofserviceid ?? typeId ?? 0;
+        if (!nombre) continue;
         if (!tid) continue;
-        svcItems.push({ id: uid(), nombre, precio, tipoId: tid });
+        const cantidad = Math.max(1, Math.round(Number(s.cantidad || 1)));
+        for (let index = 0; index < cantidad; index += 1) {
+          svcItems.push({ id: uid(), nombre, precio, tipoId: tid });
+        }
       }
     }
     setServicios(svcItems);
@@ -1742,19 +1750,19 @@ const {
     const key = `select:id:${id}`;
     if (quoteAppliedKey === key) return;
 
-    const raw = quoteMapById.get(id);
-    if (!raw) {
-      const msg = `La cotizacion #${id} no esta disponible para crear orden.`;
-      setQuoteApplyError(msg);
-      showError(msg);
-      return;
-    }
-
     let cancelled = false;
     async function run() {
       setQuoteApplyError(null);
       setQuoteLoadingApply(true);
       try {
+        const raw = await getQuoteById(id);
+        if (!raw) {
+          const msg = `La cotizacion #${id} no esta disponible para crear orden.`;
+          setQuoteApplyError(msg);
+          showError(msg);
+          return;
+        }
+
         const nq = normalizeQuote(raw);
         const srId = await resolveServiceRequestIdFromSale(raw, nq);
         let requestData: PrefilledRequestContext | null = null;
