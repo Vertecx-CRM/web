@@ -53,6 +53,11 @@ import {
   getTechnicalReviewStatusLabel,
   isInstallationServiceType,
 } from "@/shared/utils/requestFlow";
+import {
+  getInventoryCategoryScope,
+  getInventoryCategoryScopeLabel,
+  type InventoryCategoryScope,
+} from "@/shared/utils/productInventory";
 
 type ServiceLineItem = {
   id: string;
@@ -69,6 +74,8 @@ type MaterialLineItem = {
   cantidad: number;
   stock?: number | null;
   source?: "quoted" | "additional";
+  categoryScope?: InventoryCategoryScope;
+  categoryName?: string | null;
 };
 
 type CustomerOption = {
@@ -90,6 +97,9 @@ type ProductOption = {
   productname: string;
   productpriceofsale: number;
   productstock?: number | null;
+  categoryid?: number | null;
+  categoryname?: string | null;
+  scope: InventoryCategoryScope;
 };
 
 type ServiceTypeOption = {
@@ -367,7 +377,20 @@ const {
         const productname = (p?.productname ?? p?.name ?? `Producto #${productid}`).toString();
         const productpriceofsale = Number(p?.productpriceofsale ?? p?.priceofsale ?? p?.price ?? 0);
         const productstock = Number(p?.productstock ?? p?.stock ?? 0);
-        return { productid, productname, productpriceofsale, productstock } as ProductOption;
+        const categoryid = Number(p?.categoryid ?? p?.category?.id ?? 0);
+        const categoryname = String(
+          p?.category?.name ?? p?.category?.categoryname ?? p?.categoryname ?? ""
+        ).trim();
+        const scope = getInventoryCategoryScope(categoryname);
+        return {
+          productid,
+          productname,
+          productpriceofsale,
+          productstock,
+          categoryid: Number.isFinite(categoryid) && categoryid > 0 ? categoryid : null,
+          categoryname: categoryname || null,
+          scope,
+        } as ProductOption;
       })
       .filter((x) => Number.isFinite(x.productid) && x.productid > 0);
   }, [productsRaw]);
@@ -953,35 +976,92 @@ const {
     () => materiales.filter((m) => m.source !== "quoted"),
     [materiales]
   );
+  const additionalSellableMaterials = useMemo(
+    () => additionalMaterials.filter((m) => (m.categoryScope ?? "sellable") === "sellable"),
+    [additionalMaterials]
+  );
+  const additionalServiceMaterials = useMemo(
+    () => additionalMaterials.filter((m) => m.categoryScope === "service_material"),
+    [additionalMaterials]
+  );
+  const additionalToolMaterials = useMemo(
+    () => additionalMaterials.filter((m) => m.categoryScope === "tool"),
+    [additionalMaterials]
+  );
   const subtotalQuotedMaterials = useMemo(
     () => quotedMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
     [quotedMaterials]
   );
-  const subtotalAdditionalMaterials = useMemo(
-    () => additionalMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
-    [additionalMaterials]
+  const subtotalAdditionalSellableMaterials = useMemo(
+    () =>
+      additionalSellableMaterials.reduce(
+        (a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0),
+        0
+      ),
+    [additionalSellableMaterials]
+  );
+  const subtotalAdditionalServiceMaterials = useMemo(
+    () =>
+      additionalServiceMaterials.reduce(
+        (a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0),
+        0
+      ),
+    [additionalServiceMaterials]
+  );
+  const subtotalAdditionalToolMaterials = useMemo(
+    () =>
+      additionalToolMaterials.reduce(
+        (a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0),
+        0
+      ),
+    [additionalToolMaterials]
   );
   const servicesLockedByQuote = !!quoteAppliedKey && quotedServices.length > 0;
   const showQuotedMaterials = !!quoteAppliedKey && quotedMaterials.length > 0;
-  const materialRows = showQuotedMaterials ? additionalMaterials : materiales;
 
   const materialesSelectedNames = useMemo(
     () => new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean)),
     [materiales]
   );
 
-  const availableProducts = useMemo(() => {
+  function availableProductsByScope(scope: InventoryCategoryScope, keepName?: string) {
+    const used = new Set(materialesSelectedNames);
+    if (keepName) used.delete(String(keepName || "").trim());
     return productsCatalog.filter(
       (p) =>
-        !materialesSelectedNames.has(p.productname) &&
+        p.scope === scope &&
+        !used.has(p.productname) &&
         Number(p.productstock ?? 0) > 0
     );
-  }, [productsCatalog, materialesSelectedNames]);
+  }
+
+  const availableSellableProducts = useMemo(
+    () => availableProductsByScope("sellable"),
+    [productsCatalog, materialesSelectedNames]
+  );
+  const availableServiceMaterialProducts = useMemo(
+    () => availableProductsByScope("service_material"),
+    [productsCatalog, materialesSelectedNames]
+  );
+  const availableToolProducts = useMemo(
+    () => availableProductsByScope("tool"),
+    [productsCatalog, materialesSelectedNames]
+  );
 
   function findProductByName(nombre: string) {
     const q = normalizeText(nombre);
     if (!q) return null;
     return productsCatalog.find((x) => normalizeText(x.productname) === q) || null;
+  }
+
+  function findProductByNameInScope(nombre: string, scope: InventoryCategoryScope) {
+    const q = normalizeText(nombre);
+    if (!q) return null;
+    return (
+      productsCatalog.find(
+        (x) => x.scope === scope && normalizeText(x.productname) === q
+      ) || null
+    );
   }
 
   function getMaterialStock(item: MaterialLineItem) {
@@ -1004,11 +1084,16 @@ const {
     return materiales.some((m) => m.id !== rowId && normalizeText(String(m.nombre || "")) === nameNorm);
   }
 
-  function materialOptionsForRow(currentName: string, query = "") {
+  function materialOptionsForRow(
+    currentName: string,
+    query = "",
+    scope: InventoryCategoryScope = "sellable"
+  ) {
     const used = new Set(materiales.map((m) => String(m.nombre || "").trim()).filter(Boolean));
     if (currentName) used.delete(currentName);
     const currentNorm = normalizeText(currentName);
     const base = productsCatalog.filter((p) => {
+      if (p.scope !== scope) return false;
       if (used.has(p.productname)) return false;
       const stock = Number(p.productstock ?? 0);
       if (Number.isFinite(stock) && stock > 0) return true;
@@ -1049,6 +1134,8 @@ const {
         precio: product.productpriceofsale,
         stock,
         source: "additional",
+        categoryScope: product.scope,
+        categoryName: product.categoryname ?? null,
       },
       setMateriales
     );
@@ -1056,10 +1143,16 @@ const {
     setMaterialOpenId(null);
   }
 
-  function addMaterialRow() {
-    const first = availableProducts[0];
+  function addMaterialRow(scope: InventoryCategoryScope = "sellable") {
+    const first = availableProductsByScope(scope)[0];
     if (!first) {
-      showWarning("Ya agregaste todos los productos disponibles.");
+      const scopeLabel =
+        scope === "tool"
+          ? "herramientas"
+          : scope === "service_material"
+          ? "materiales de servicio"
+          : "productos";
+      showWarning(`Ya agregaste todos los ${scopeLabel} disponibles.`);
       return;
     }
     setMateriales((prev) => [
@@ -1071,6 +1164,8 @@ const {
         cantidad: 1,
         stock: first.productstock ?? 0,
         source: "additional",
+        categoryScope: first.scope,
+        categoryName: first.categoryname ?? null,
       },
     ]);
     setErrors((prev) => ({ ...prev, materiales: undefined }));
@@ -1643,6 +1738,8 @@ const {
           cantidad,
           stock: rec.productstock ?? 0,
           source: "quoted",
+          categoryScope: rec.scope,
+          categoryName: rec.categoryname ?? null,
         });
       }
     }
@@ -2203,6 +2300,232 @@ setNavigating(true);
   function handleTimeEndChange(next: string) {
     setTimeEnd(next);
     if (errors.schedule) setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function renderInventoryRows(rows: MaterialLineItem[], scope: InventoryCategoryScope) {
+    if (rows.length === 0) return null;
+
+    return rows.map((m) => {
+      const rowMaterialOptions = materialOptionsForRow(m.nombre, m.nombre, scope);
+      const scopeLabel = getInventoryCategoryScopeLabel(scope);
+
+      return (
+        <div key={m.id} className="rounded-md border bg-gray-50 p-2 space-y-1.5">
+          <label className="block text-[10px] text-gray-600">{scopeLabel}</label>
+          <div
+            className="relative"
+            onBlurCapture={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+              const match = findProductByNameInScope(m.nombre, scope);
+              if (match && isProductAlreadyAdded(m.id, match.productname)) {
+                showWarning(`El producto "${match.productname}" ya esta agregado.`);
+                patchItem<MaterialLineItem>(
+                  m.id,
+                  { nombre: "", precio: 0, stock: 0, source: "additional", categoryScope: scope, categoryName: null },
+                  setMateriales
+                );
+                setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                runBlurValidation("materiales");
+                return;
+              }
+              if (match && Number(match.productstock ?? 0) <= 0) {
+                showWarning(`El producto "${match.productname}" no tiene stock disponible.`);
+                patchItem<MaterialLineItem>(
+                  m.id,
+                  { nombre: "", precio: 0, stock: 0, source: "additional", categoryScope: scope, categoryName: null },
+                  setMateriales
+                );
+                setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                runBlurValidation("materiales");
+                return;
+              }
+              patchItem<MaterialLineItem>(
+                m.id,
+                {
+                  nombre: match?.productname ?? String(m.nombre || "").trim(),
+                  precio: match?.productpriceofsale ?? 0,
+                  stock: match?.productstock ?? 0,
+                  source: "additional",
+                  categoryScope: match?.scope ?? scope,
+                  categoryName: match?.categoryname ?? null,
+                },
+                setMateriales
+              );
+              setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+              runBlurValidation("materiales");
+            }}
+          >
+            <input
+              type="text"
+              value={m.nombre}
+              onFocus={() => setMaterialOpenId(m.id)}
+              onChange={(e) => {
+                const n = e.target.value;
+                patchItem<MaterialLineItem>(
+                  m.id,
+                  { nombre: n, categoryScope: scope },
+                  setMateriales
+                );
+                setMaterialOpenId(m.id);
+                if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
+              }}
+              className="w-full h-9 rounded-md border bg-white px-2.5 pr-8 text-xs"
+              placeholder={`Buscar ${scopeLabel.toLowerCase()} por nombre`}
+              disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
+            />
+            <button
+              type="button"
+              onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
+              className="absolute inset-y-0 right-0 px-2 text-gray-500"
+              title="Mostrar productos"
+              aria-label="Mostrar productos"
+              disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
+            >
+              v
+            </button>
+
+            {materialOpenId === m.id && (
+              <div className="absolute left-0 right-0 z-30 mt-1 max-h-44 overflow-auto rounded-md border bg-white shadow-lg">
+                {rowMaterialOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-gray-500">No hay productos disponibles.</div>
+                ) : (
+                  rowMaterialOptions.map((opt) => (
+                    <button
+                      key={opt.productid}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectMaterialForRow(m.id, opt)}
+                      className="w-full border-b border-gray-100 px-2.5 py-1.5 text-left last:border-b-0 hover:bg-gray-50"
+                    >
+                      <span className="block truncate text-xs text-gray-900">{opt.productname}</span>
+                      <span className="block text-[11px] text-gray-500">
+                        {formatCOP(opt.productpriceofsale)} · Stock {Math.max(0, Math.round(Number(opt.productstock ?? 0)))}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-end gap-1.5">
+            <div className="w-20 shrink-0">
+              <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
+              <input
+                type="number"
+                min={1}
+                max={getMaterialStock(m) || undefined}
+                step={1}
+                value={m.cantidad}
+                onChange={(e) => {
+                  const n = Number(e.target.value || 1);
+                  const stock = getMaterialStock(m);
+                  const nextQty =
+                    Number.isFinite(n) && n > 0
+                      ? Math.max(
+                          1,
+                          isInventoryManagedMaterial(m) && stock > 0
+                            ? Math.min(Math.round(n), stock)
+                            : Math.round(n)
+                        )
+                      : 1;
+                  patchItem<MaterialLineItem>(
+                    m.id,
+                    { cantidad: nextQty, categoryScope: scope },
+                    setMateriales
+                  );
+                  if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
+                }}
+                onBlur={() => runBlurValidation("materiales")}
+                className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
+                disabled={lookupsLoading || saving || navigating}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
+              <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
+                {formatCOP(m.precio)}
+              </div>
+              <div className="mt-1 text-right text-[10px] text-gray-500">
+                Stock: {getMaterialStock(m)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                removeItem<MaterialLineItem>(m.id, setMateriales);
+                setErrors((p) => ({ ...p, materiales: undefined }));
+              }}
+              className="h-9 w-9 shrink-0 rounded-md border bg-white hover:bg-gray-100"
+              disabled={lookupsLoading || saving || navigating}
+              aria-label="Quitar producto"
+              title="Quitar"
+            >
+              <Image
+                src="/icons/delete.svg"
+                alt="Quitar producto"
+                width={16}
+                height={16}
+                className="mx-auto h-4 w-4 opacity-80"
+              />
+            </button>
+          </div>
+        </div>
+      );
+    });
+  }
+
+  function renderInventoryGroup({
+    title,
+    helper,
+    scope,
+    rows,
+    available,
+    subtotalValue,
+  }: {
+    title: string;
+    helper: string;
+    scope: InventoryCategoryScope;
+    rows: MaterialLineItem[];
+    available: ProductOption[];
+    subtotalValue: number;
+  }) {
+    return (
+      <div className="mt-3 rounded-lg border bg-white p-2.5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">{title}</div>
+            <div className="text-[11px] text-gray-500">{helper}</div>
+          </div>
+          <div className="text-[11px] text-gray-500">Subtotal: {formatCOP(subtotalValue)}</div>
+        </div>
+
+        <div className={`space-y-2 ${showFieldError("materiales") ? errorRing : ""}`}>
+          {rows.length === 0 ? (
+            <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
+              Aun no has anadido {title.toLowerCase()}.
+            </div>
+          ) : (
+            renderInventoryRows(rows, scope)
+          )}
+        </div>
+
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => addMaterialRow(scope)}
+            className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
+            disabled={!available.length || lookupsLoading || saving || navigating}
+            title={!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible.` : undefined}
+          >
+            {!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible` : `Anadir ${title.toLowerCase()}`}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const StickyFooter = () => (
@@ -3392,12 +3715,14 @@ setNavigating(true);
                   <header className="border-b px-3 py-2 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-gray-800">
-                        {showQuotedMaterials ? "Materiales y productos de inventario" : "Productos y materiales"}
+                        {showQuotedMaterials
+                          ? "Cotizados, productos y herramientas de inventario"
+                          : "Productos, materiales y herramientas"}
                       </div>
                       <div className="text-xs text-gray-500">
                         {showQuotedMaterials
-                          ? "La cotizacion queda separada de los materiales/productos adicionales que tomas del inventario."
-                          : "Agrega los productos y materiales consumidos. Puedes ajustar la cantidad."}
+                          ? "La cotizacion queda separada de los productos adicionales, los materiales de servicio y las herramientas de inventario."
+                          : "Registra por separado productos adicionales, materiales de servicio y herramientas."}
                       </div>
                     </div>
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
@@ -3439,197 +3764,38 @@ setNavigating(true);
 
                     {showQuotedMaterials && (
                       <div className="mb-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                        Materiales/productos adicionales de inventario. Usa esta seccion para items extra como cable, escaleras u otros productos con stock disponible.
+                        Usa las secciones siguientes para separar productos adicionales, materiales de servicio y herramientas segun la categoria del inventario.
                       </div>
                     )}
 
-                    <div className={`rounded-lg border bg-white p-2.5 space-y-2 ${showFieldError("materiales") ? errorRing : ""}`}>
-                      {materialRows.length === 0 ? (
-                        <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
-                          {showQuotedMaterials
-                            ? "Aun no has anadido materiales o productos adicionales."
-                            : "Aun no has anadido productos."}
-                        </div>
-                      ) : (
-                        materialRows.map((m) => {
-                          const rowMaterialOptions = materialOptionsForRow(m.nombre, m.nombre);
-                          return (
-                            <div key={m.id} className="rounded-md border bg-gray-50 p-2 space-y-1.5">
-                              <label className="block text-[10px] text-gray-600">Producto</label>
-                              <div
-                                className="relative"
-                                onBlurCapture={(e) => {
-                                  const next = e.relatedTarget as Node | null;
-                                  if (next && (e.currentTarget as HTMLElement).contains(next)) return;
-                                  const match = findProductByName(m.nombre);
-                                  if (match && isProductAlreadyAdded(m.id, match.productname)) {
-                                    showWarning(`El producto "${match.productname}" ya esta agregado.`);
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { nombre: "", precio: 0, stock: 0, source: "additional" },
-                                      setMateriales
-                                    );
-                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
-                                    runBlurValidation("materiales");
-                                    return;
-                                  }
-                                  if (match && Number(match.productstock ?? 0) <= 0) {
-                                    showWarning(`El producto "${match.productname}" no tiene stock disponible.`);
-                                    patchItem<MaterialLineItem>(
-                                      m.id,
-                                      { nombre: "", precio: 0, stock: 0, source: "additional" },
-                                      setMateriales
-                                    );
-                                    setMaterialOpenId((curr) => (curr === m.id ? null : curr));
-                                    runBlurValidation("materiales");
-                                    return;
-                                  }
-                                  patchItem<MaterialLineItem>(
-                                    m.id,
-                                    {
-                                      nombre: match?.productname ?? String(m.nombre || "").trim(),
-                                      precio: match?.productpriceofsale ?? 0,
-                                      stock: match?.productstock ?? 0,
-                                      source: "additional",
-                                    },
-                                    setMateriales
-                                  );
-                                  setMaterialOpenId((curr) => (curr === m.id ? null : curr));
-                                  runBlurValidation("materiales");
-                                }}
-                              >
-                                <input
-                                  type="text"
-                                  value={m.nombre}
-                                  onFocus={() => setMaterialOpenId(m.id)}
-                                  onChange={(e) => {
-                                    const n = e.target.value;
-                                    patchItem<MaterialLineItem>(m.id, { nombre: n }, setMateriales);
-                                    setMaterialOpenId(m.id);
-                                    if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                  }}
-                                  className="w-full h-9 rounded-md border bg-white px-2.5 pr-8 text-xs"
-                                  placeholder="Buscar producto por nombre"
-                                  disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
-                                  className="absolute inset-y-0 right-0 px-2 text-gray-500"
-                                  title="Mostrar productos"
-                                  aria-label="Mostrar productos"
-                                  disabled={!productsCatalog.length || lookupsLoading || saving || navigating}
-                                >
-                                  v
-                                </button>
+                    {renderInventoryGroup({
+                      title: "Productos adicionales",
+                      helper: "Productos comerciales extra que el cliente solicito aparte de la cotizacion.",
+                      scope: "sellable",
+                      rows: additionalSellableMaterials,
+                      available: availableSellableProducts,
+                      subtotalValue: subtotalAdditionalSellableMaterials,
+                    })}
 
-                                {materialOpenId === m.id && (
-                                  <div className="absolute left-0 right-0 z-30 mt-1 max-h-44 overflow-auto rounded-md border bg-white shadow-lg">
-                                    {rowMaterialOptions.length === 0 ? (
-                                      <div className="px-3 py-2 text-xs text-gray-500">No hay productos disponibles.</div>
-                                    ) : (
-                                      rowMaterialOptions.map((opt) => (
-                                        <button
-                                          key={opt.productid}
-                                          type="button"
-                                          onMouseDown={(e) => e.preventDefault()}
-                                          onClick={() => selectMaterialForRow(m.id, opt)}
-                                          className="w-full border-b border-gray-100 px-2.5 py-1.5 text-left last:border-b-0 hover:bg-gray-50"
-                                        >
-                                          <span className="block truncate text-xs text-gray-900">{opt.productname}</span>
-                                          <span className="block text-[11px] text-gray-500">
-                                            {formatCOP(opt.productpriceofsale)} · Stock {Math.max(0, Math.round(Number(opt.productstock ?? 0)))}
-                                          </span>
-                                        </button>
-                                      ))
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                    {renderInventoryGroup({
+                      title: "Materiales de servicio",
+                      helper: "Material consumible del inventario tecnico para ejecutar la orden.",
+                      scope: "service_material",
+                      rows: additionalServiceMaterials,
+                      available: availableServiceMaterialProducts,
+                      subtotalValue: subtotalAdditionalServiceMaterials,
+                    })}
 
-                              <div className="flex items-end gap-1.5">
-                                <div className="w-20 shrink-0">
-                                  <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={getMaterialStock(m) || undefined}
-                                    step={1}
-                                    value={m.cantidad}
-                                    onChange={(e) => {
-                                      const n = Number(e.target.value || 1);
-                                      const stock = getMaterialStock(m);
-                                      const nextQty =
-                                        Number.isFinite(n) && n > 0
-                                          ? Math.max(
-                                              1,
-                                              isInventoryManagedMaterial(m) && stock > 0
-                                                ? Math.min(Math.round(n), stock)
-                                                : Math.round(n)
-                                            )
-                                          : 1;
-                                      patchItem<MaterialLineItem>(
-                                        m.id,
-                                        { cantidad: nextQty },
-                                        setMateriales
-                                      );
-                                      if (errors.materiales) setErrors((prev) => ({ ...prev, materiales: undefined }));
-                                    }}
-                                    onBlur={() => runBlurValidation("materiales")}
-                                    className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
-                                    disabled={lookupsLoading || saving || navigating}
-                                  />
-                                </div>
-
-                                <div className="flex-1 min-w-0">
-                                  <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
-                                  <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
-                                    {formatCOP(m.precio)}
-                                  </div>
-                                  <div className="mt-1 text-right text-[10px] text-gray-500">
-                                    Stock: {getMaterialStock(m)}
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    removeItem<MaterialLineItem>(m.id, setMateriales);
-                                    setErrors((p) => ({ ...p, materiales: undefined }));
-                                  }}
-                                  className="h-9 w-9 shrink-0 rounded-md border bg-white hover:bg-gray-100"
-                                  disabled={lookupsLoading || saving || navigating}
-                                  aria-label="Quitar producto"
-                                  title="Quitar"
-                                >
-                                  <Image
-                                    src="/icons/delete.svg"
-                                    alt="Quitar producto"
-                                    width={16}
-                                    height={16}
-                                    className="mx-auto h-4 w-4 opacity-80"
-                                  />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
+                    {renderInventoryGroup({
+                      title: "Herramientas",
+                      helper: "Herramientas o equipos del inventario tecnico asignados a la orden.",
+                      scope: "tool",
+                      rows: additionalToolMaterials,
+                      available: availableToolProducts,
+                      subtotalValue: subtotalAdditionalToolMaterials,
+                    })}
 
                     {showFieldError("materiales") && errors.materiales && <p className={errorText}>{errors.materiales}</p>}
-
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={addMaterialRow}
-                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
-                        disabled={!availableProducts.length || lookupsLoading || saving || navigating}
-                        title={!availableProducts.length ? "No hay mas productos de inventario con stock disponible para agregar." : undefined}
-                      >
-                        {!availableProducts.length ? "No hay mas productos con stock disponible" : "Anadir producto del inventario"}
-                      </button>
-                    </div>
                   </div>
                 </section>
 
@@ -3706,8 +3872,16 @@ setNavigating(true);
                             <span>{formatCOP(subtotalQuotedMaterials)}</span>
                           </div>
                           <div className="flex justify-between gap-2">
-                            <span>Materiales adicionales de inventario</span>
-                            <span>{formatCOP(subtotalAdditionalMaterials)}</span>
+                            <span>Productos adicionales</span>
+                            <span>{formatCOP(subtotalAdditionalSellableMaterials)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>Materiales de servicio</span>
+                            <span>{formatCOP(subtotalAdditionalServiceMaterials)}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>Herramientas</span>
+                            <span>{formatCOP(subtotalAdditionalToolMaterials)}</span>
                           </div>
                         </div>
                       )}

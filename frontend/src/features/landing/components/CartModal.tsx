@@ -232,41 +232,6 @@ function buildPurchasedMaterialsFromCart(cart: CartItem[]) {
   }));
 }
 
-function submitWompiWebCheckout(session: Record<string, any>) {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    throw new Error("El checkout de Wompi solo puede abrirse desde el navegador.");
-  }
-
-  const form = document.createElement("form");
-  form.method = "GET";
-  form.action = "https://checkout.wompi.co/p/";
-  form.style.display = "none";
-
-  const appendField = (name: string, value: string | number | undefined | null) => {
-    if (value === undefined || value === null || `${value}`.trim() === "") return;
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = String(value);
-    form.appendChild(input);
-  };
-
-  appendField("public-key", session.publicKey);
-  appendField("currency", session.currency);
-  appendField("amount-in-cents", session.amountInCents);
-  appendField("reference", session.reference);
-  appendField("signature:integrity", session.signature?.integrity);
-  appendField("redirect-url", session.redirectUrl);
-  appendField("expiration-time", session.expirationTime);
-  appendField("customer-data:email", session.customerData?.email);
-
-  document.body.appendChild(form);
-  form.submit();
-  window.setTimeout(() => {
-    form.remove();
-  }, 1000);
-}
-
 export default function CartModal({ isOpen, onClose }: CartModalProps) {
   const [openProducts, setOpenProducts] = useState<Set<string>>(new Set());
   const [addressError, setAddressError] = useState("");
@@ -653,6 +618,7 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
       );
 
       const redirectUrl = `${window.location.origin}/payments/register?saleId=${createdSaleId}`;
+      const paymentMethodUrl = `${window.location.origin}/payments/payment-method?saleId=${createdSaleId}`;
       const wompiSession = await createWompiCheckoutSession(createdSaleId, {
         redirectUrl,
       });
@@ -676,14 +642,17 @@ export default function CartModal({ isOpen, onClose }: CartModalProps) {
           total: checkoutTotal,
           hasService: configuredServiceItems.length > 0,
           serviceRequestIds: Object.fromEntries(createdRequestIds),
+          origin: "landing_cart",
+          returnUrl: "/landing/products",
+          wompiSession,
           savedAt: new Date().toISOString(),
         }),
       );
 
-      showSuccess("Te estamos redirigiendo al checkout seguro de Wompi.");
+      showSuccess("Te estamos llevando al checkout seguro de Vertecx.");
       clearCart();
       onClose();
-      submitWompiWebCheckout(wompiSession);
+      window.location.assign(paymentMethodUrl);
     } catch (err) {
       if (!createdSaleId && createdRequestOrder.length) {
         await Promise.allSettled(

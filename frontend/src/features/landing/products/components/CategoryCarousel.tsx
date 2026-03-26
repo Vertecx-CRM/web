@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 
 import { Monitor, Camera, HardDrive, Cpu, Router } from "lucide-react";
 import { getCategories } from "@/features/dashboard/CategoryProducts/connection/categoryApi";
+import { isLandingVisibleProductCategory } from "@/shared/utils/productInventory";
 
 const iconMap: Record<string, JSX.Element> = {
   monitor: <Monitor className="w-6 h-6 text-[#B20000]" />,
@@ -38,7 +39,9 @@ const CategoryCarousel: React.FC = () => {
       try {
         const data = await getCategories();
         if (Array.isArray(data)) {
-          const active = data.filter((c) => c.status === true);
+          const active = data.filter(
+            (c) => c.status === true && isLandingVisibleProductCategory(c.name),
+          );
 
           setCategories(active);
 

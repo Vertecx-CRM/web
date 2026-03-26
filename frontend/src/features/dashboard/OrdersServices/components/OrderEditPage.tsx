@@ -13,6 +13,11 @@ import {
   getBusyTechnicianIdsForWindow,
 } from "@/features/dashboard/shared/technicianAvailability";
 import type { UpdateOrdersServiceDto } from "../types/ordersServices.types";
+import {
+  getInventoryCategoryScope,
+  getInventoryCategoryScopeLabel,
+  type InventoryCategoryScope,
+} from "@/shared/utils/productInventory";
 
 type ServiceLineItem = {
   id: string;
@@ -27,6 +32,9 @@ type MaterialLineItem = {
   nombre: string;
   cantidad: number;
   precio: number;
+  stock?: number | null;
+  categoryScope?: InventoryCategoryScope;
+  categoryName?: string | null;
 };
 
 type CustomerOption = {
@@ -47,6 +55,10 @@ type ProductOption = {
   productid: number;
   productname: string;
   productpriceofsale: number;
+  productstock?: number | null;
+  categoryid?: number | null;
+  categoryname?: string | null;
+  scope: InventoryCategoryScope;
 };
 
 type ServiceTypeOption = {
@@ -320,7 +332,7 @@ function normalizeOrder(order: any): OrderNormalized {
 
   const technicians = techniciansArr
     .map((t: any) => pickNumber(t?.technicianid, t?.id))
-    .filter((id): id is number => typeof id === "number" && Number.isFinite(id) && id > 0);
+    .filter((id: number | undefined): id is number => typeof id === "number" && Number.isFinite(id) && id > 0);
 
   const typeofserviceid =
     pickNumber(
@@ -438,7 +450,21 @@ const {
         const productid = Number(p?.productid ?? p?.id);
         const productname = (p?.productname ?? p?.name ?? `Producto #${productid}`).toString();
         const productpriceofsale = Number(p?.productpriceofsale ?? p?.priceofsale ?? p?.price ?? 0);
-        return { productid, productname, productpriceofsale } as ProductOption;
+        const productstock = Number(p?.productstock ?? p?.stock ?? 0);
+        const categoryid = Number(p?.categoryid ?? p?.category?.id ?? 0);
+        const categoryname = String(
+          p?.category?.name ?? p?.category?.categoryname ?? p?.categoryname ?? ""
+        ).trim();
+        const scope = getInventoryCategoryScope(categoryname);
+        return {
+          productid,
+          productname,
+          productpriceofsale,
+          productstock,
+          categoryid: Number.isFinite(categoryid) && categoryid > 0 ? categoryid : null,
+          categoryname: categoryname || null,
+          scope,
+        } as ProductOption;
       })
       .filter((x) => Number.isFinite(x.productid) && x.productid > 0);
   }, [productsRaw]);
@@ -840,18 +866,36 @@ const {
   // -------- Productos disponibles (excluye los ya agregados) --------
   const usedProductNames = useMemo(() => new Set(materiales.map((m) => m.nombre).filter(Boolean)), [materiales]);
 
-  function availableProducts(keepName?: string) {
+  function availableProducts(scope: InventoryCategoryScope, keepName?: string) {
     const used = new Set(Array.from(usedProductNames));
     if (keepName) used.delete(keepName);
-    return productsCatalog.filter((p) => !used.has(p.productname));
+    return productsCatalog.filter(
+      (p) => p.scope === scope && !used.has(p.productname) && Number(p.productstock ?? 0) > 0
+    );
   }
 
-  function precioMaterialPorNombre(nombre: string) {
-    return productsCatalog.find((x) => x.productname === nombre)?.productpriceofsale ?? 0;
+  function findProductByName(nombre: string) {
+    const normalized = normalizeText(nombre);
+    if (!normalized) return null;
+    return productsCatalog.find((x) => normalizeText(x.productname) === normalized) ?? null;
   }
 
-  function addMaterialRow() {
-    const opts = availableProducts();
+  function findProductByNameInScope(nombre: string, scope: InventoryCategoryScope) {
+    const normalized = normalizeText(nombre);
+    if (!normalized) return null;
+    return productsCatalog.find((x) => x.scope === scope && normalizeText(x.productname) === normalized) ?? null;
+  }
+
+  function getMaterialStock(item: MaterialLineItem) {
+    const direct = Number(item.stock);
+    if (Number.isFinite(direct) && direct >= 0) return Math.max(0, Math.round(direct));
+    const rec = findProductByName(item.nombre);
+    const stock = Number(rec?.productstock ?? 0);
+    return Number.isFinite(stock) ? Math.max(0, Math.round(stock)) : 0;
+  }
+
+  function addMaterialRow(scope: InventoryCategoryScope = "sellable") {
+    const opts = availableProducts(scope);
     const first = opts[0];
     if (!first) {
       setErrors((p) => ({ ...p, materiales: "No hay productos disponibles (ya fueron agregados o no existen)." }));
@@ -860,7 +904,15 @@ const {
     }
     setMateriales((prev) => [
       ...prev,
-      { id: uid(), nombre: first.productname, cantidad: 1, precio: first.productpriceofsale },
+      {
+        id: uid(),
+        nombre: first.productname,
+        cantidad: 1,
+        precio: first.productpriceofsale,
+        stock: first.productstock ?? 0,
+        categoryScope: first.scope,
+        categoryName: first.categoryname ?? null,
+      },
     ]);
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
@@ -934,6 +986,36 @@ const {
     () => materiales.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
     [materiales]
   );
+  const additionalSellableMaterials = useMemo(
+    () => materiales.filter((m) => (m.categoryScope ?? "sellable") === "sellable"),
+    [materiales]
+  );
+  const additionalServiceMaterials = useMemo(
+    () => materiales.filter((m) => m.categoryScope === "service_material"),
+    [materiales]
+  );
+  const additionalToolMaterials = useMemo(
+    () => materiales.filter((m) => m.categoryScope === "tool"),
+    [materiales]
+  );
+  const subtotalAdditionalSellableMaterials = useMemo(
+    () => additionalSellableMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [additionalSellableMaterials]
+  );
+  const subtotalAdditionalServiceMaterials = useMemo(
+    () => additionalServiceMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [additionalServiceMaterials]
+  );
+  const subtotalAdditionalToolMaterials = useMemo(
+    () => additionalToolMaterials.reduce((a, i) => a + (Number(i.cantidad) || 0) * (Number(i.precio) || 0), 0),
+    [additionalToolMaterials]
+  );
+  const availableSellableProducts = useMemo(() => availableProducts("sellable"), [productsCatalog, usedProductNames]);
+  const availableServiceMaterialProducts = useMemo(
+    () => availableProducts("service_material"),
+    [productsCatalog, usedProductNames]
+  );
+  const availableToolProducts = useMemo(() => availableProducts("tool"), [productsCatalog, usedProductNames]);
 
   const subtotal = subtotalServicios + subtotalMateriales;
 
@@ -963,16 +1045,26 @@ const {
   }, [servicios]);
 
   const materialesMiniLista = useMemo(() => {
-    const map = new Map<string, { nombre: string; cantidad: number; total: number }>();
+    const map = new Map<
+      string,
+      { nombre: string; cantidad: number; total: number; scope: InventoryCategoryScope }
+    >();
     materiales.forEach((m) => {
       if (!m.nombre) return;
       const t = (Number(m.cantidad) || 0) * (Number(m.precio) || 0);
-      const prev = map.get(m.nombre);
+      const scope = m.categoryScope ?? "sellable";
+      const key = `${scope}::${m.nombre}`;
+      const prev = map.get(key);
       if (prev) {
         prev.cantidad += Number(m.cantidad) || 0;
         prev.total += t;
       } else {
-        map.set(m.nombre, { nombre: m.nombre, cantidad: Number(m.cantidad) || 0, total: t });
+        map.set(key, {
+          nombre: m.nombre,
+          cantidad: Number(m.cantidad) || 0,
+          total: t,
+          scope,
+        });
       }
     });
     return Array.from(map.values());
@@ -1046,7 +1138,7 @@ const {
 
     if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
     if (materiales.length === 0) errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
-    if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
+    if (materiales.some((m) => !findProductByName(m.nombre))) {
       errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
     }
     const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
@@ -1158,7 +1250,15 @@ const {
         const nombre = rec?.productname || `Producto #${p.productid}`;
         const cantidad = Math.max(1, Math.round(Number(p.cantidad || 1)));
         const precio = rec?.productpriceofsale ?? 0;
-        matItems.push({ id: uid(), nombre, cantidad, precio });
+        matItems.push({
+          id: uid(),
+          nombre,
+          cantidad,
+          precio,
+          stock: rec?.productstock ?? 0,
+          categoryScope: rec?.scope ?? "sellable",
+          categoryName: rec?.categoryname ?? null,
+        });
       }
     }
     setMateriales(matItems);
@@ -1229,6 +1329,27 @@ const {
         return;
       }
       const qty = Math.max(1, Number(m.cantidad || 1));
+      const stock = Math.max(0, Math.round(Number(rec.productstock ?? m.stock ?? 0)));
+      if (stock <= 0) {
+        const next = {
+          ...er,
+          materiales: `El producto "${m.nombre}" ya no tiene stock disponible en inventario.`,
+        };
+        setErrors(next);
+        showError(next.materiales || "Stock insuficiente.");
+        focusFirstError(next);
+        return;
+      }
+      if (qty > stock) {
+        const next = {
+          ...er,
+          materiales: `La cantidad de "${m.nombre}" supera el stock disponible (${stock}).`,
+        };
+        setErrors(next);
+        showError(next.materiales || "Stock insuficiente.");
+        focusFirstError(next);
+        return;
+      }
       const prev = productMap.get(rec.productid);
       if (prev) prev.cantidad += qty;
       else productMap.set(rec.productid, { productid: rec.productid, cantidad: qty });
@@ -1404,6 +1525,194 @@ const {
     }
     setTimeEnd(next);
     setErrors((p) => ({ ...p, schedule: undefined }));
+  }
+
+  function renderInventoryRows(rows: MaterialLineItem[], scope: InventoryCategoryScope) {
+    if (rows.length === 0) return null;
+
+    return rows.map((m) => {
+      const options = availableProducts(scope, m.nombre);
+      const fallbackCurrent =
+        !options.some((opt) => opt.productname === m.nombre) && m.nombre
+          ? ([
+              {
+                productid: -1,
+                productname: m.nombre,
+                productpriceofsale: m.precio,
+                productstock: getMaterialStock(m),
+                categoryid: null,
+                categoryname: m.categoryName ?? null,
+                scope,
+              } satisfies ProductOption,
+              ...options,
+            ] as ProductOption[])
+          : options;
+
+      return (
+        <div key={m.id} className="rounded-md border bg-gray-50 p-2.5">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] text-gray-600">{getInventoryCategoryScopeLabel(scope)}</div>
+              <div className="text-[10px] text-gray-500">
+                {m.categoryName ? `Categoria: ${m.categoryName}` : "Sin categoria informada"}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                removeItem<MaterialLineItem>(m.id, setMateriales);
+                setErrors((prev) => ({ ...prev, materiales: undefined }));
+                setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border bg-white hover:bg-gray-100"
+              disabled={lookupsLoading || saving}
+              aria-label="Quitar producto"
+              title="Quitar"
+            >
+              <Image
+                src="/icons/delete.svg"
+                alt="Quitar producto"
+                width={12}
+                height={12}
+                className="h-3 w-3 opacity-80"
+              />
+            </button>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
+              className="flex h-9 w-full items-center justify-between rounded-md border bg-white px-2.5 text-xs"
+              disabled={!productsCatalog.length || lookupsLoading || saving}
+              title={m.nombre || "Seleccionar producto"}
+            >
+              <span className="truncate pr-2">{m.nombre || "Seleccionar producto"}</span>
+              <span className="text-[10px] text-gray-400">{materialOpenId === m.id ? "^" : "v"}</span>
+            </button>
+
+            {materialOpenId === m.id && (
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-auto rounded-md border bg-white shadow-sm">
+                {fallbackCurrent.length === 0 ? (
+                  <div className="px-3 py-2 text-[11px] text-gray-500">No hay mas items disponibles.</div>
+                ) : (
+                  fallbackCurrent.map((opt) => (
+                    <button
+                      key={`${m.id}-${opt.productid}-${opt.productname}`}
+                      type="button"
+                      onClick={() => {
+                        patchItem<MaterialLineItem>(
+                          m.id,
+                          {
+                            nombre: opt.productname,
+                            precio: opt.productpriceofsale,
+                            stock: opt.productstock ?? 0,
+                            categoryScope: opt.scope,
+                            categoryName: opt.categoryname ?? null,
+                          },
+                          setMateriales
+                        );
+                        setErrors((prev) => ({ ...prev, materiales: undefined }));
+                        setMaterialOpenId(null);
+                      }}
+                      className="block w-full border-b px-3 py-2 text-left text-xs last:border-b-0 hover:bg-gray-50"
+                    >
+                      <span className="block truncate font-medium">{opt.productname}</span>
+                      <span className="block text-[11px] text-gray-500">
+                        {formatCOP(opt.productpriceofsale)} · Stock {Math.max(0, Math.round(Number(opt.productstock ?? 0)))}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 flex items-end gap-1.5">
+            <div className="w-20 shrink-0">
+              <label className="mb-1 block text-[10px] text-gray-600">Cant.</label>
+              <input
+                type="number"
+                min={1}
+                max={getMaterialStock(m) || undefined}
+                step={1}
+                value={m.cantidad}
+                onChange={(e) => {
+                  const n = Number(e.target.value || 1);
+                  const stock = getMaterialStock(m);
+                  const nextQty =
+                    Number.isFinite(n) && n > 0
+                      ? Math.max(1, stock > 0 ? Math.min(Math.round(n), stock) : Math.round(n))
+                      : 1;
+                  patchItem<MaterialLineItem>(m.id, { cantidad: nextQty }, setMateriales);
+                  setErrors((prev) => ({ ...prev, materiales: undefined }));
+                }}
+                className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
+                disabled={lookupsLoading || saving}
+              />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <span className="mb-1 block text-[10px] text-gray-600">Precio</span>
+              <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
+                {formatCOP(m.precio)}
+              </div>
+              <div className="mt-1 text-right text-[10px] text-gray-500">Stock: {getMaterialStock(m)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  }
+
+  function renderInventoryGroup({
+    title,
+    helper,
+    scope,
+    rows,
+    available,
+    subtotalValue,
+  }: {
+    title: string;
+    helper: string;
+    scope: InventoryCategoryScope;
+    rows: MaterialLineItem[];
+    available: ProductOption[];
+    subtotalValue: number;
+  }) {
+    return (
+      <div className="mt-3 rounded-lg border bg-white p-2.5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">{title}</div>
+            <div className="text-[11px] text-gray-500">{helper}</div>
+          </div>
+          <div className="text-[11px] text-gray-500">Subtotal: {formatCOP(subtotalValue)}</div>
+        </div>
+
+        <div className={`space-y-2 ${errors.materiales ? errorRing : ""}`}>
+          {rows.length === 0 ? (
+            <div className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-gray-500">
+              Aun no has anadido {title.toLowerCase()}.
+            </div>
+          ) : (
+            renderInventoryRows(rows, scope)
+          )}
+        </div>
+
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => addMaterialRow(scope)}
+            className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
+            disabled={!available.length || !productsCatalog.length || lookupsLoading || saving}
+            title={!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible.` : undefined}
+          >
+            {!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible` : `Anadir ${title.toLowerCase()}`}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const StickyFooter = () => (
@@ -2196,27 +2505,77 @@ const {
                 <section className="rounded-xl border bg-white shadow-sm" id="field-materiales">
                   <header className="border-b px-4 py-3 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">Productos (Materiales)</div>
-                      <div className="text-xs text-gray-500">Agrega los materiales consumidos.</div>
+                      <div className="text-sm font-semibold text-gray-800">Inventario de la orden</div>
+                      <div className="text-xs text-gray-500">Diferencia productos vendibles, materiales de servicio y herramientas.</div>
                     </div>
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
                   <div className="p-4">
+                    <div className="mb-3 grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => addMaterialRow("sellable")}
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
+                        disabled={!productsCatalog.length || lookupsLoading || availableSellableProducts.length === 0}
+                        title={availableSellableProducts.length === 0 ? "No hay mas productos adicionales con stock." : undefined}
+                      >
+                        {availableSellableProducts.length === 0 ? "Sin mas productos adicionales" : "Anadir producto adicional"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMaterialRow("service_material")}
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
+                        disabled={!productsCatalog.length || lookupsLoading || availableServiceMaterialProducts.length === 0}
+                        title={availableServiceMaterialProducts.length === 0 ? "No hay mas materiales de servicio con stock." : undefined}
+                      >
+                        {availableServiceMaterialProducts.length === 0
+                          ? "Sin mas materiales de servicio"
+                          : "Anadir material de servicio"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addMaterialRow("tool")}
+                        className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
+                        disabled={!productsCatalog.length || lookupsLoading || availableToolProducts.length === 0}
+                        title={availableToolProducts.length === 0 ? "No hay mas herramientas con stock." : undefined}
+                      >
+                        {availableToolProducts.length === 0 ? "Sin mas herramientas" : "Anadir herramienta"}
+                      </button>
+                    </div>
                     <div className={`space-y-2 rounded-lg border bg-white p-2.5 ${errors.materiales ? errorRing : ""}`}>
                       {materiales.length === 0 ? (
                         <div className="px-2 py-3 text-xs text-gray-500">Aún no has añadido productos.</div>
                       ) : (
                         materiales.map((m) => {
-                          const opts = availableProducts(m.nombre);
+                          const scope = m.categoryScope ?? "sellable";
+                          const opts = availableProducts(scope, m.nombre);
                           const fallbackCurrent =
                             !opts.some((o) => o.productname === m.nombre) && m.nombre
-                              ? [{ productid: -1, productname: m.nombre, productpriceofsale: m.precio } as any, ...opts]
+                              ? [
+                                  {
+                                    productid: -1,
+                                    productname: m.nombre,
+                                    productpriceofsale: m.precio,
+                                    productstock: getMaterialStock(m),
+                                    categoryid: null,
+                                    categoryname: m.categoryName ?? null,
+                                    scope,
+                                  } as ProductOption,
+                                  ...opts,
+                                ]
                               : opts;
 
                           return (
                             <div key={m.id} className="rounded-md border bg-gray-50 p-2.5">
                               <div className="mb-2 flex items-center justify-between gap-2">
-                                <div className="text-[11px] text-gray-600">Producto</div>
+                                <div>
+                                  <div className="text-[11px] text-gray-600">
+                                    {getInventoryCategoryScopeLabel(m.categoryScope ?? "sellable")}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    {m.categoryName ? `Categoria: ${m.categoryName}` : "Sin categoria informada"}
+                                  </div>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2263,7 +2622,13 @@ const {
                                           onClick={() => {
                                             patchItem<MaterialLineItem>(
                                               m.id,
-                                              { nombre: opt.productname, precio: precioMaterialPorNombre(opt.productname) },
+                                              {
+                                                nombre: opt.productname,
+                                                precio: opt.productpriceofsale,
+                                                stock: opt.productstock ?? 0,
+                                                categoryScope: opt.scope,
+                                                categoryName: opt.categoryname ?? null,
+                                              },
                                               setMateriales
                                             );
                                             setErrors((prev) => ({ ...prev, materiales: undefined }));
@@ -2286,13 +2651,20 @@ const {
                                   <input
                                     type="number"
                                     min={1}
+                                    max={getMaterialStock(m) || undefined}
                                     step={1}
                                     value={m.cantidad}
                                     onChange={(e) => {
                                       const n = Number(e.target.value || 1);
+                                      const stock = getMaterialStock(m);
                                       patchItem<MaterialLineItem>(
                                         m.id,
-                                        { cantidad: Number.isFinite(n) ? Math.max(1, Math.round(n)) : 1 },
+                                        {
+                                          cantidad:
+                                            Number.isFinite(n) && n > 0
+                                              ? Math.max(1, stock > 0 ? Math.min(Math.round(n), stock) : Math.round(n))
+                                              : 1,
+                                        },
                                         setMateriales
                                       );
                                       setErrors((prev) => ({ ...prev, materiales: undefined }));
@@ -2307,6 +2679,7 @@ const {
                                   <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
                                     {formatCOP(m.precio)}
                                   </div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500">Stock: {getMaterialStock(m)}</div>
                                 </div>
                               </div>
                             </div>
@@ -2317,15 +2690,15 @@ const {
 
                     {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
 
-                    <div className="mt-2">
+                    <div className="hidden">
                       <button
                         type="button"
-                        onClick={addMaterialRow}
+                        onClick={() => addMaterialRow("sellable")}
                         className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
-                        disabled={!productsCatalog.length || lookupsLoading || availableProducts().length === 0}
-                        title={availableProducts().length === 0 ? "Ya agregaste todos los productos disponibles." : undefined}
+                        disabled={!productsCatalog.length || lookupsLoading || availableSellableProducts.length === 0}
+                        title={availableSellableProducts.length === 0 ? "No hay mas productos adicionales con stock." : undefined}
                       >
-                        {availableProducts().length === 0 ? "No hay más productos disponibles" : "Añadir producto"}
+                        {availableSellableProducts.length === 0 ? "Sin mas productos adicionales" : "Anadir producto adicional"}
                       </button>
                     </div>
                   </div>
@@ -2393,13 +2766,27 @@ const {
 
                     <div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Subtotal productos</span>
+                        <span className="text-gray-600">Subtotal inventario</span>
                         <span className="font-medium">{formatCOP(subtotalMateriales)}</span>
+                      </div>
+                      <div className="mt-2 space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between gap-2">
+                          <span>Productos adicionales</span>
+                          <span>{formatCOP(subtotalAdditionalSellableMaterials)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>Materiales de servicio</span>
+                          <span>{formatCOP(subtotalAdditionalServiceMaterials)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>Herramientas</span>
+                          <span>{formatCOP(subtotalAdditionalToolMaterials)}</span>
+                        </div>
                       </div>
                       {materialesMiniLista.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-gray-600">
                           {materialesMiniLista.map((m) => (
-                            <li key={m.nombre} className="flex justify-between gap-2">
+                            <li key={`${m.scope}-${m.nombre}`} className="flex justify-between gap-2">
                               <span className="truncate">
                                 {m.nombre} × {m.cantidad}
                               </span>

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import RequireAuth from "@/features/auth/requireauth";
 import { OrderServiceDTO, useOrderServiceDetail } from "../hooks/useOrderServices";
+import { getInventoryCategoryScope, getInventoryCategoryScopeLabel } from "@/shared/utils/productInventory";
 
 const IVA_RATE = 0.19;
 const IVA_LABEL = `${Math.round(IVA_RATE * 100)}%`;
@@ -125,7 +126,9 @@ const FilesGrid: React.FC<{ files: string[] }> = ({ files }) => {
   );
 };
 
-const TechnicianCard: React.FC<{ tech: OrderServiceDTO["technicians"][0] }> = ({ tech }) => {
+type TechnicianCardData = NonNullable<OrderServiceDTO["technicians"]>[number];
+
+const TechnicianCard: React.FC<{ tech: TechnicianCardData }> = ({ tech }) => {
   const name = tech?.users
     ? [tech.users.name ?? "", tech.users.lastname ?? ""].filter(Boolean).join(" ").trim()
     : `Técnico ${tech?.technicianid ?? "N/A"}`;
@@ -349,6 +352,18 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO; embedded?: b
     () => order.products?.reduce((sum, item) => sum + safeNumber(item.subtotal), 0) ?? 0,
     [order.products]
   );
+  const productTotalsByScope = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const item of order.products ?? []) {
+      const scope = getInventoryCategoryScope(item.product?.category?.name);
+      totals.set(scope, (totals.get(scope) ?? 0) + safeNumber(item.subtotal));
+    }
+    return Array.from(totals.entries()).map(([scope, amount]) => ({
+      scope,
+      label: getInventoryCategoryScopeLabel(scope as any),
+      amount,
+    }));
+  }, [order.products]);
 
   const totalServices = useMemo(() => {
     return serviceItems.reduce((sum, item) => {
@@ -454,6 +469,16 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO; embedded?: b
                 <span className="text-slate-600">Productos</span>
                 <span className="font-semibold text-slate-900">{formatCurrency(totalProducts)}</span>
               </div>
+              {productTotalsByScope.length > 0 ? (
+                <div className="mt-2 space-y-1 text-xs text-slate-500">
+                  {productTotalsByScope.map((entry) => (
+                    <div key={entry.scope} className="flex items-center justify-between gap-2">
+                      <span>{entry.label}</span>
+                      <span>{formatCurrency(entry.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <div className="mt-2 flex items-center justify-between text-sm">
                 <span className="text-slate-600">Servicios</span>
                 <span className="font-semibold text-slate-900">{formatCurrency(totalServices)}</span>
@@ -490,6 +515,12 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO; embedded?: b
                           <td className="px-4 py-3">
                             <p className="text-sm font-medium text-slate-900">
                               {item.product?.productname ?? "Producto sin nombre"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {getInventoryCategoryScopeLabel(
+                                getInventoryCategoryScope(item.product?.category?.name)
+                              )}
+                              {item.product?.category?.name ? ` · ${item.product.category.name}` : ""}
                             </p>
                           </td>
                           <td className="px-4 py-3 text-center text-slate-700">{item.cantidad}</td>

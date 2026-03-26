@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import RegisterPaymentMarket from "@/features/landing/components/RegisterPaymentMarket";
+import WompiPaymentMethod from "@/features/landing/components/WompiPaymentMethod";
 
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <RegisterPaymentMarket />
+      <WompiPaymentMethod />
     </Suspense>
   );
 }

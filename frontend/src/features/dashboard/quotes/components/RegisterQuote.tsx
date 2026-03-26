@@ -14,6 +14,7 @@ import {
   getRequestStageLabel,
   isInstallationServiceType,
 } from "@/shared/utils/requestFlow";
+import { isQuoteSelectableProductCategory } from "@/shared/utils/productInventory";
 
 type ServiceRequestFromApi = {
   serviceRequestId: number;
@@ -62,6 +63,11 @@ type ServiceRequestFromApi = {
   }>;
 };
 
+type ProductCategoryFromApi = {
+  name?: string;
+  categoryname?: string;
+};
+
 type ProductFromApi = {
   productid: number;
   productname: string;
@@ -69,6 +75,7 @@ type ProductFromApi = {
   productpriceofsale: number;
   productstock: number;
   isactive: boolean;
+  category?: ProductCategoryFromApi | null;
 };
 
 type QuoteDetailForm = {
@@ -157,6 +164,15 @@ const normalizeText = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+
+const getCategoryName = (category?: ProductCategoryFromApi | null) => {
+  if (!category) return "";
+  if (typeof category.name === "string" && category.name.trim()) return category.name.trim();
+  if (typeof category.categoryname === "string" && category.categoryname.trim()) {
+    return category.categoryname.trim();
+  }
+  return "";
+};
 
 const getRequestCustomerLabel = (request: ServiceRequestFromApi) =>
   request.customer?.users
@@ -279,7 +295,10 @@ export default function RegisterQuoteForm({ onSave }: Props) {
         if (cancelled) return;
         setServiceRequests(Array.isArray(requests) ? requests : []);
         setProducts(
-          Array.isArray(productsResponse.data) ? productsResponse.data : [],
+          (Array.isArray(productsResponse.data) ? productsResponse.data : []).filter(
+            (product) =>
+              isQuoteSelectableProductCategory(getCategoryName(product.category)),
+          ),
         );
       } catch (error) {
         console.error(error);

@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@/shared/utils/apiClient";
+import { isLandingVisibleProductCategory } from "@/shared/utils/productInventory";
 import type { Product } from "../hooks/useProducts";
 
 type ProductCategoryFromApi = {
@@ -63,11 +64,17 @@ export const getLandingProducts = async (): Promise<Product[]> => {
   });
 
   return (data ?? [])
-    .filter((product) => product.isactive !== false)
+    .filter((product) => {
+      if (product.isactive === false) return false;
+      return isLandingVisibleProductCategory(getCategoryName(product.category));
+    })
     .map(toLanding);
 };
 
 export const getLandingProductById = async (id: string | number): Promise<Product> => {
   const { data } = await api.get<ProductFromApi>(`/products/${id}`);
+  if (!isLandingVisibleProductCategory(getCategoryName(data?.category))) {
+    throw new Error("Producto no disponible en el catalogo publico.");
+  }
   return toLanding(data);
 };

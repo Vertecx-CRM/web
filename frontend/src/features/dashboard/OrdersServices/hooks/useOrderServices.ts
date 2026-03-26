@@ -58,6 +58,10 @@ export interface OrderServiceDTO {
       productcode?: string;
       productdescription?: string;
       image?: string | null;
+      category?: {
+        id?: number;
+        name?: string | null;
+      } | null;
     };
   }>;
   files?: string[];

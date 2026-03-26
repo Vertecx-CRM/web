@@ -24,42 +24,6 @@ const normalizeRoleName = (role?: string | null) =>
     .toLowerCase()
     .trim();
 
-const redirectToWompiCheckout = (session: {
-  publicKey: string;
-  amountInCents: number;
-  reference: string;
-  redirectUrl?: string;
-  expirationTime: string;
-  signature?: { integrity?: string };
-  customerData?: { email?: string };
-}) => {
-  const form = document.createElement("form");
-  form.method = "GET";
-  form.action = "https://checkout.wompi.co/p/";
-  form.style.display = "none";
-
-  const appendField = (name: string, value: string | number | undefined | null) => {
-    if (value === undefined || value === null || `${value}`.trim() === "") return;
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = String(value);
-    form.appendChild(input);
-  };
-
-  appendField("public-key", session.publicKey);
-  appendField("currency", "COP");
-  appendField("amount-in-cents", session.amountInCents);
-  appendField("reference", session.reference);
-  appendField("signature:integrity", session.signature?.integrity);
-  appendField("redirect-url", session.redirectUrl);
-  appendField("expiration-time", session.expirationTime);
-  appendField("customer-data:email", session.customerData?.email);
-
-  document.body.appendChild(form);
-  form.submit();
-  window.setTimeout(() => form.remove(), 1000);
-};
 
 // ── Tipo de fila de tabla ────────────────────────────────────────────────────
 type SaleRow = {
@@ -153,6 +117,7 @@ export default function SalesIndex() {
     showLoader();
     try {
       const redirectUrl = `${window.location.origin}/payments/register?saleId=${row.id}`;
+      const paymentMethodUrl = `${window.location.origin}/payments/payment-method?saleId=${row.id}`;
       const session = await createWompiCheckoutSession(row.id, { redirectUrl });
 
       localStorage.setItem(
@@ -162,10 +127,14 @@ export default function SalesIndex() {
           saleCode: row.codigo,
           reference: session.reference,
           total: row.total,
+          origin: "dashboard_sales",
+          returnUrl: "/dashboard/sales",
+          wompiSession: session,
         })
       );
 
-      redirectToWompiCheckout(session);
+      showSuccess("Te estamos llevando al checkout seguro de Vertecx.");
+      window.location.assign(paymentMethodUrl);
     } catch (error: any) {
       console.error("Error al iniciar el pago de la venta:", error);
       showError(error?.message ?? "No se pudo iniciar el pago con Wompi.");
