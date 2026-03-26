@@ -1,4 +1,6 @@
 import { isAllowedDate, isAllowedTime, parseYMD, timeToMinutes } from "./CreateOrderService.utils";
+import type { InventoryCategoryScope } from "@/shared/utils/productInventory";
+import { supportsOrderBackorder } from "@/shared/utils/orderMaterialPlanning";
 
 export const DESC_MIN = 5;
 export const DESC_MAX = 500;
@@ -17,9 +19,19 @@ export type OrderServiceFormErrors = Partial<{
 }>;
 
 type ServiceLineItemInput = { nombre: string; precio: number; tipoId: number };
-type MaterialLineItemInput = { nombre: string; cantidad: number };
+type MaterialLineItemInput = {
+  nombre: string;
+  cantidad: number;
+  productid?: number | null;
+  categoryScope?: InventoryCategoryScope;
+};
 type ServiceOptionInput = { name: string; typeofserviceid: number };
-type ProductOptionInput = { productname: string };
+type ProductOptionInput = {
+  productid?: number | null;
+  productname: string;
+  scope?: InventoryCategoryScope;
+  productstock?: number | null;
+};
 
 type ValidationContext = {
   clientId: number | string;
@@ -129,9 +141,26 @@ function collectMaterialErrors(
     materiales.length > 1 && new Set(materiales.map((m) => String(m.nombre || "").trim())).size !== materiales.length;
   if (dupMat) errors.push("No puedes repetir el mismo producto.");
 
-  if (materiales.some((m) => !productsCatalog.some((p) => p.productname === m.nombre))) {
-    errors.push("Hay productos invalidos. Vuelve a seleccionarlos.");
-  }
+  const invalidMaterial = materiales.some((m) => {
+    const name = String(m.nombre || "").trim();
+    if (!name) return true;
+    const productId = Number(m.productid ?? 0);
+    const matchById =
+      Number.isFinite(productId) && productId > 0
+        ? productsCatalog.some((p) => Number(p.productid ?? 0) === productId)
+        : false;
+    const matchByName =
+      matchById ||
+      productsCatalog.some((p) => {
+        if (p.productname !== name) return false;
+        if (m.categoryScope && p.scope && p.scope !== m.categoryScope) return false;
+        return true;
+      });
+
+    if (matchByName) return false;
+    return !supportsOrderBackorder(m.categoryScope);
+  });
+  if (invalidMaterial) errors.push("Hay productos invalidos. Vuelve a seleccionarlos.");
 
   if (materiales.some((m) => !Number.isFinite(Number(m.cantidad)) || Number(m.cantidad) < 1)) {
     errors.push("Corrige cantidades (minimo 1).");

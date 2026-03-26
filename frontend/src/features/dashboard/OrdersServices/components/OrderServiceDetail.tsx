@@ -522,6 +522,22 @@ const OrderServiceDetailContent: React.FC<{ order: OrderServiceDTO; embedded?: b
                               )}
                               {item.product?.category?.name ? ` · ${item.product.category.name}` : ""}
                             </p>
+                            {(item.availability === "SOLICITAR" ||
+                              Number(item.backorderquantity ?? 0) > 0 ||
+                              Number(item.stockcoveredquantity ?? 0) > 0 ||
+                              item.specification) && (
+                              <div className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                                {item.availability === "SOLICITAR" ? (
+                                  <div className="font-medium text-amber-700">
+                                    Bajo pedido: {Math.max(0, safeNumber(item.backorderquantity))}
+                                  </div>
+                                ) : null}
+                                {Number(item.stockcoveredquantity ?? 0) > 0 ? (
+                                  <div>Inventario cubre: {Math.max(0, safeNumber(item.stockcoveredquantity))}</div>
+                                ) : null}
+                                {item.specification ? <div>Referencia: {item.specification}</div> : null}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center text-slate-700">{item.cantidad}</td>
                           <td className="px-4 py-3 text-right font-semibold text-slate-900">

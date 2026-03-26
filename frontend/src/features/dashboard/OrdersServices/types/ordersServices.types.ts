@@ -37,6 +37,11 @@ export type OrderProductLineDTO = {
   ordersservicesproductsid: number;
   cantidad: number;
   subtotal: number;
+  availability?: "DISPONIBLE" | "SOLICITAR";
+  stockcoveredquantity?: number;
+  backorderquantity?: number;
+  specification?: string | null;
+  manualentry?: boolean;
   product: ProductDTO;
 };
 
@@ -91,8 +96,15 @@ export type OrderServiceDTO = {
 };
 
 export type CreateOrderProductDto = {
-  productid: number;
+  productid?: number;
+  nombre?: string;
+  categoryScope?: "sellable" | "service_material" | "tool";
   cantidad: number;
+  availability?: "DISPONIBLE" | "SOLICITAR";
+  stockcoveredquantity?: number;
+  backorderquantity?: number;
+  specification?: string;
+  manualentry?: boolean;
 };
 
 export type CreateOrderServiceLineDto = {
@@ -133,12 +145,24 @@ export type UpdateOrdersServiceDto = {
 };
 
 export type AddProductToOrderDto = {
-  productid: number;
+  productid?: number;
+  nombre?: string;
+  categoryScope?: "sellable" | "service_material" | "tool";
   cantidad: number;
+  availability?: "DISPONIBLE" | "SOLICITAR";
+  stockcoveredquantity?: number;
+  backorderquantity?: number;
+  specification?: string;
+  manualentry?: boolean;
 };
 
 export type UpdateProductLineDto = {
   cantidad: number;
+  availability?: "DISPONIBLE" | "SOLICITAR";
+  stockcoveredquantity?: number;
+  backorderquantity?: number;
+  specification?: string;
+  manualentry?: boolean;
 };
 
 export type AddServiceToOrderDto = {

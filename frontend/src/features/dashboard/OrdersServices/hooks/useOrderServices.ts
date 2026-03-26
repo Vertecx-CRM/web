@@ -51,6 +51,11 @@ export interface OrderServiceDTO {
     ordersservicesproductsid: number;
     cantidad: number;
     subtotal?: number;
+    availability?: "DISPONIBLE" | "SOLICITAR";
+    stockcoveredquantity?: number;
+    backorderquantity?: number;
+    specification?: string | null;
+    manualentry?: boolean;
     product?: {
       productid: number;
       productname: string;

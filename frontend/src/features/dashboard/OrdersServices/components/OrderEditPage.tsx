@@ -18,6 +18,11 @@ import {
   getInventoryCategoryScopeLabel,
   type InventoryCategoryScope,
 } from "@/shared/utils/productInventory";
+import {
+  computeOrderMaterialPlan,
+  supportsOrderBackorder,
+  type OrderMaterialAvailability,
+} from "@/shared/utils/orderMaterialPlanning";
 
 type ServiceLineItem = {
   id: string;
@@ -29,12 +34,18 @@ type ServiceLineItem = {
 
 type MaterialLineItem = {
   id: string;
+  productid?: number | null;
   nombre: string;
   cantidad: number;
   precio: number;
   stock?: number | null;
   categoryScope?: InventoryCategoryScope;
   categoryName?: string | null;
+  availability?: OrderMaterialAvailability;
+  stockCoveredQty?: number;
+  backorderQty?: number;
+  specification?: string;
+  manualEntry?: boolean;
 };
 
 type CustomerOption = {
@@ -278,7 +289,15 @@ type OrderNormalized = {
   direccion?: string;
   description?: string;
   services?: Array<{ serviceid: number; cantidad: number; unitprice: number }>;
-  products?: Array<{ productid: number; cantidad: number }>;
+  products?: Array<{
+    productid: number;
+    cantidad: number;
+    availability?: "DISPONIBLE" | "SOLICITAR";
+    stockcoveredquantity?: number;
+    backorderquantity?: number;
+    specification?: string | null;
+    manualentry?: boolean;
+  }>;
   files?: string[];
   stateid?: number;
 };
@@ -326,9 +345,25 @@ function normalizeOrder(order: any): OrderNormalized {
       const productid = pickNumber(p?.product?.productid, p?.productid, p?.id);
       const cantidad = pickNumber(p?.cantidad, p?.quantity, p?.qty) ?? 1;
       if (!productid) return null;
-      return { productid, cantidad: Math.max(1, Math.round(cantidad)) };
+      return {
+        productid,
+        cantidad: Math.max(1, Math.round(cantidad)),
+        availability: String(p?.availability ?? "").trim() === "SOLICITAR" ? "SOLICITAR" : "DISPONIBLE",
+        stockcoveredquantity: pickNumber(p?.stockcoveredquantity, p?.stockCoveredQuantity) ?? undefined,
+        backorderquantity: pickNumber(p?.backorderquantity, p?.backorderQuantity) ?? undefined,
+        specification: pickString(p?.specification) || null,
+        manualentry: !!p?.manualentry,
+      };
     })
-    .filter(Boolean) as Array<{ productid: number; cantidad: number }>;
+    .filter(Boolean) as Array<{
+      productid: number;
+      cantidad: number;
+      availability?: "DISPONIBLE" | "SOLICITAR";
+      stockcoveredquantity?: number;
+      backorderquantity?: number;
+      specification?: string | null;
+      manualentry?: boolean;
+    }>;
 
   const technicians = techniciansArr
     .map((t: any) => pickNumber(t?.technicianid, t?.id))
@@ -870,7 +905,11 @@ const {
     const used = new Set(Array.from(usedProductNames));
     if (keepName) used.delete(keepName);
     return productsCatalog.filter(
-      (p) => p.scope === scope && !used.has(p.productname) && Number(p.productstock ?? 0) > 0
+      (p) => {
+        if (p.scope !== scope || used.has(p.productname)) return false;
+        if (supportsOrderBackorder(scope)) return true;
+        return Number(p.productstock ?? 0) > 0;
+      }
     );
   }
 
@@ -886,34 +925,120 @@ const {
     return productsCatalog.find((x) => x.scope === scope && normalizeText(x.productname) === normalized) ?? null;
   }
 
+  function resolveMaterialProduct(item: Pick<MaterialLineItem, "productid" | "nombre" | "categoryScope">) {
+    const productId = Number(item.productid ?? 0);
+    if (Number.isFinite(productId) && productId > 0) {
+      return productsCatalog.find((x) => x.productid === productId) ?? null;
+    }
+    if (!item.nombre) return null;
+    const scope = item.categoryScope ?? undefined;
+    return scope ? findProductByNameInScope(item.nombre, scope) : findProductByName(item.nombre);
+  }
+
+  function deriveMaterialRow(next: MaterialLineItem): MaterialLineItem {
+    const resolved = resolveMaterialProduct(next);
+    const scope = next.categoryScope ?? resolved?.scope ?? "sellable";
+    const stockRaw = next.stock ?? resolved?.productstock ?? 0;
+    const stock = Number.isFinite(Number(stockRaw)) ? Math.max(0, Math.round(Number(stockRaw))) : 0;
+    const plan = computeOrderMaterialPlan({
+      requestedQty: Number(next.cantidad || 1),
+      stock,
+      scope,
+      manualEntry: !!next.manualEntry,
+      forcedAvailability: next.availability ?? null,
+    });
+
+    return {
+      ...next,
+      productid: resolved?.productid ?? next.productid ?? null,
+      precio:
+        next.precio != null && Number.isFinite(Number(next.precio))
+          ? Number(next.precio)
+          : resolved?.productpriceofsale ?? 0,
+      stock,
+      categoryScope: scope,
+      categoryName: next.categoryName ?? resolved?.categoryname ?? null,
+      availability: plan.availability,
+      stockCoveredQty: plan.stockCoveredQty,
+      backorderQty: plan.backorderQty,
+      manualEntry: !!next.manualEntry,
+    };
+  }
+
+  function patchMaterialRow(id: string, patch: Partial<MaterialLineItem>) {
+    setMateriales((prev) =>
+      prev.map((item) => (item.id === id ? deriveMaterialRow({ ...item, ...patch }) : item))
+    );
+  }
+
+  function pushMaterialRow(item: MaterialLineItem) {
+    setMateriales((prev) => [...prev, deriveMaterialRow(item)]);
+  }
+
   function getMaterialStock(item: MaterialLineItem) {
     const direct = Number(item.stock);
     if (Number.isFinite(direct) && direct >= 0) return Math.max(0, Math.round(direct));
-    const rec = findProductByName(item.nombre);
+    const rec = resolveMaterialProduct(item);
     const stock = Number(rec?.productstock ?? 0);
     return Number.isFinite(stock) ? Math.max(0, Math.round(stock)) : 0;
   }
 
-  function addMaterialRow(scope: InventoryCategoryScope = "sellable") {
+  function addMaterialRow(
+    scope: InventoryCategoryScope = "sellable",
+    mode: "inventory" | "manual" = "inventory"
+  ) {
     const opts = availableProducts(scope);
     const first = opts[0];
-    if (!first) {
+    if (!first && mode === "inventory" && !supportsOrderBackorder(scope)) {
       setErrors((p) => ({ ...p, materiales: "No hay productos disponibles (ya fueron agregados o no existen)." }));
       showWarning("No hay productos disponibles para agregar.");
       return;
     }
-    setMateriales((prev) => [
-      ...prev,
-      {
+
+    if (mode === "manual") {
+      pushMaterialRow({
         id: uid(),
-        nombre: first.productname,
+        nombre: "",
         cantidad: 1,
-        precio: first.productpriceofsale,
-        stock: first.productstock ?? 0,
-        categoryScope: first.scope,
-        categoryName: first.categoryname ?? null,
-      },
-    ]);
+        precio: 0,
+        stock: 0,
+        categoryScope: scope,
+        categoryName: null,
+        manualEntry: true,
+        specification: "",
+      });
+      setErrors((prev) => ({ ...prev, materiales: undefined }));
+      return;
+    }
+
+    if (!first && supportsOrderBackorder(scope)) {
+      pushMaterialRow({
+        id: uid(),
+        nombre: "",
+        cantidad: 1,
+        precio: 0,
+        stock: 0,
+        categoryScope: scope,
+        categoryName: null,
+        manualEntry: true,
+        specification: "",
+      });
+      setErrors((prev) => ({ ...prev, materiales: undefined }));
+      return;
+    }
+
+    pushMaterialRow({
+      id: uid(),
+      productid: first?.productid ?? null,
+      nombre: first?.productname ?? "",
+      cantidad: 1,
+      precio: first?.productpriceofsale ?? 0,
+      stock: first?.productstock ?? 0,
+      categoryScope: first?.scope ?? scope,
+      categoryName: first?.categoryname ?? null,
+      manualEntry: false,
+      specification: "",
+    });
     setErrors((prev) => ({ ...prev, materiales: undefined }));
   }
 
@@ -1138,7 +1263,26 @@ const {
 
     if (!productsCatalog.length) errs.materiales = "No hay productos cargados desde la BD.";
     if (materiales.length === 0) errs.materiales = errs.materiales ? errs.materiales : "Debes añadir al menos un producto (material).";
-    if (materiales.some((m) => !findProductByName(m.nombre))) {
+    const invalidMaterial = materiales.some((m) => {
+      const name = String(m.nombre || "").trim();
+      if (!name) return true;
+      const productId = Number(m.productid ?? 0);
+      const matchById =
+        Number.isFinite(productId) && productId > 0
+          ? productsCatalog.some((p) => p.productid === productId)
+          : false;
+      const matchByName =
+        matchById ||
+        productsCatalog.some((p) => {
+          if (p.productname !== name) return false;
+          if (m.categoryScope && p.scope && p.scope !== m.categoryScope) return false;
+          return true;
+        });
+
+      if (matchByName) return false;
+      return !supportsOrderBackorder(m.categoryScope);
+    });
+    if (invalidMaterial) {
       errs.materiales = (errs.materiales ? errs.materiales + " " : "") + "Hay productos inválidos. Vuelve a seleccionarlos.";
     }
     const badQtyMat = materiales.some((m) => !m.cantidad || m.cantidad < 1);
@@ -1252,16 +1396,22 @@ const {
         const precio = rec?.productpriceofsale ?? 0;
         matItems.push({
           id: uid(),
+          productid: rec?.productid ?? p.productid,
           nombre,
           cantidad,
           precio,
           stock: rec?.productstock ?? 0,
           categoryScope: rec?.scope ?? "sellable",
           categoryName: rec?.categoryname ?? null,
+          availability: p.availability,
+          stockCoveredQty: p.stockcoveredquantity,
+          backorderQty: p.backorderquantity,
+          specification: p.specification ?? "",
+          manualEntry: !!p.manualentry,
         });
       }
     }
-    setMateriales(matItems);
+    setMateriales(matItems.map((item) => deriveMaterialRow(item)));
 
     const urls = Array.isArray(n.files) ? n.files.map((u) => String(u || "").trim()).filter((u) => !!u) : [];
     setExistingFiles(urls);
@@ -1318,43 +1468,106 @@ const {
       return;
     }
 
-    const productMap = new Map<number, { productid: number; cantidad: number }>();
+    const products: Array<{
+      productid?: number;
+      nombre?: string;
+      categoryScope?: "sellable" | "service_material" | "tool";
+      cantidad: number;
+      availability?: "DISPONIBLE" | "SOLICITAR";
+      stockcoveredquantity?: number;
+      backorderquantity?: number;
+      specification?: string;
+      manualentry?: boolean;
+    }> = [];
+    const seenProductKeys = new Set<string>();
     for (const m of materiales) {
-      const rec = productsCatalog.find((p) => p.productname === m.nombre);
-      if (!rec) {
-        const next = { ...er, materiales: `El producto "${m.nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
+      const nombre = String(m.nombre || "").trim();
+      const scope = m.categoryScope ?? "sellable";
+      const rec = resolveMaterialProduct(m);
+      const productid =
+        Number.isFinite(Number(m.productid ?? rec?.productid ?? 0)) &&
+        Number(m.productid ?? rec?.productid ?? 0) > 0
+          ? Number(m.productid ?? rec?.productid ?? 0)
+          : undefined;
+      const qty = Math.max(1, Math.round(Number(m.cantidad || 1)));
+      const stock = Math.max(0, Math.round(Number(rec?.productstock ?? m.stock ?? 0)));
+      const allowsBackorder = supportsOrderBackorder(scope);
+      const manualEntry = !productid;
+
+      if (!nombre) {
+        const next = { ...er, materiales: "Completa el nombre de todos los materiales y herramientas." };
+        setErrors(next);
+        showError(next.materiales || "Material inválido.");
+        focusFirstError(next);
+        return;
+      }
+
+      if (!productid && !allowsBackorder) {
+        const next = { ...er, materiales: `El producto "${nombre}" no existe en la BD. Vuelve a seleccionarlo.` };
         setErrors(next);
         showError(next.materiales || "Producto inválido.");
         focusFirstError(next);
         return;
       }
-      const qty = Math.max(1, Number(m.cantidad || 1));
-      const stock = Math.max(0, Math.round(Number(rec.productstock ?? m.stock ?? 0)));
-      if (stock <= 0) {
+
+      if (!allowsBackorder) {
+        if (stock <= 0) {
+          const next = {
+            ...er,
+            materiales: `El producto "${nombre}" ya no tiene stock disponible en inventario.`,
+          };
+          setErrors(next);
+          showError(next.materiales || "Stock insuficiente.");
+          focusFirstError(next);
+          return;
+        }
+        if (qty > stock) {
+          const next = {
+            ...er,
+            materiales: `La cantidad de "${nombre}" supera el stock disponible (${stock}).`,
+          };
+          setErrors(next);
+          showError(next.materiales || "Stock insuficiente.");
+          focusFirstError(next);
+          return;
+        }
+      }
+
+      const plan = computeOrderMaterialPlan({
+        requestedQty: qty,
+        stock,
+        scope,
+        manualEntry,
+        forcedAvailability: m.availability ?? null,
+      });
+
+      const productKey = productid
+        ? `id:${productid}`
+        : `manual:${scope}:${normalizeText(nombre)}`;
+      if (seenProductKeys.has(productKey)) {
         const next = {
           ...er,
-          materiales: `El producto "${m.nombre}" ya no tiene stock disponible en inventario.`,
+          materiales: `El material "${nombre}" está repetido en la orden.`,
         };
         setErrors(next);
-        showError(next.materiales || "Stock insuficiente.");
+        showError(next.materiales || "Material repetido.");
         focusFirstError(next);
         return;
       }
-      if (qty > stock) {
-        const next = {
-          ...er,
-          materiales: `La cantidad de "${m.nombre}" supera el stock disponible (${stock}).`,
-        };
-        setErrors(next);
-        showError(next.materiales || "Stock insuficiente.");
-        focusFirstError(next);
-        return;
-      }
-      const prev = productMap.get(rec.productid);
-      if (prev) prev.cantidad += qty;
-      else productMap.set(rec.productid, { productid: rec.productid, cantidad: qty });
+      seenProductKeys.add(productKey);
+
+      products.push({
+        productid,
+        nombre: productid ? undefined : nombre,
+        categoryScope: scope,
+        cantidad: qty,
+        availability: plan.availability,
+        stockcoveredquantity: plan.stockCoveredQty,
+        backorderquantity: plan.backorderQty,
+        specification: String(m.specification || "").trim() || undefined,
+        manualentry: manualEntry,
+      });
     }
-    const products = Array.from(productMap.values());
 
     const serviceMap = new Map<string, { serviceid: number; cantidad: number; unitprice: number }>();
     for (const s of servicios) {
@@ -1408,27 +1621,11 @@ const {
       };
 
       await api.patch(`orders-services/${orderId}`, updateDto);
-
-      const existingProducts = orderNormalized?.products ?? [];
       const existingServices = orderNormalized?.services ?? [];
-
-      const desiredProductMap = new Map<number, number>();
-      for (const p of products) desiredProductMap.set(Number(p.productid), Number(p.cantidad));
-
-      for (const ex of existingProducts) {
-        if (!desiredProductMap.has(Number(ex.productid))) {
-          await api.delete(`orders-services/${orderId}/products/${Number(ex.productid)}`);
-        }
-      }
-
-      for (const [productid, cantidad] of desiredProductMap.entries()) {
-        const ex = existingProducts.find((x) => Number(x.productid) === Number(productid));
-        if (!ex) {
-          await api.post(`orders-services/${orderId}/products`, { productid, cantidad });
-        } else if (Number(ex.cantidad) !== Number(cantidad)) {
-          await api.patch(`orders-services/${orderId}/products/${productid}`, { cantidad });
-        }
-      }
+      await api.patch(`orders-services/${orderId}/products`, {
+        items: products,
+        replace: true,
+      });
 
       const desiredServiceMap = new Map<number, { cantidad: number; unitprice: number }>();
       for (const sLine of services) {
@@ -1532,21 +1729,11 @@ const {
 
     return rows.map((m) => {
       const options = availableProducts(scope, m.nombre);
-      const fallbackCurrent =
-        !options.some((opt) => opt.productname === m.nombre) && m.nombre
-          ? ([
-              {
-                productid: -1,
-                productname: m.nombre,
-                productpriceofsale: m.precio,
-                productstock: getMaterialStock(m),
-                categoryid: null,
-                categoryname: m.categoryName ?? null,
-                scope,
-              } satisfies ProductOption,
-              ...options,
-            ] as ProductOption[])
-          : options;
+      const stockValue = getMaterialStock(m);
+      const stockCoveredQty = Math.max(0, Math.round(Number(m.stockCoveredQty ?? 0)));
+      const backorderQty = Math.max(0, Math.round(Number(m.backorderQty ?? 0)));
+      const allowsBackorder = supportsOrderBackorder(scope);
+      const isManualBackorder = allowsBackorder && !!m.manualEntry && !m.productid;
 
       return (
         <div key={m.id} className="rounded-md border bg-gray-50 p-2.5">
@@ -1579,39 +1766,107 @@ const {
             </button>
           </div>
 
-          <div className="relative">
+          <div
+            className="relative"
+            onBlurCapture={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+              const match = findProductByNameInScope(m.nombre, scope);
+              if (match && usedProductNames.has(match.productname) && match.productname !== m.nombre) {
+                showWarning(`El producto "${match.productname}" ya está agregado.`);
+                patchMaterialRow(m.id, {
+                  productid: null,
+                  nombre: "",
+                  precio: 0,
+                  stock: 0,
+                  categoryScope: scope,
+                  categoryName: null,
+                  manualEntry: allowsBackorder,
+                });
+                setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                return;
+              }
+              if (match && Number(match.productstock ?? 0) <= 0 && !allowsBackorder) {
+                showWarning(`El producto "${match.productname}" no tiene stock disponible.`);
+                patchMaterialRow(m.id, {
+                  productid: null,
+                  nombre: "",
+                  precio: 0,
+                  stock: 0,
+                  categoryScope: scope,
+                  categoryName: null,
+                  manualEntry: false,
+                });
+                setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+                return;
+              }
+
+              const typedName = String(m.nombre || "").trim();
+              patchMaterialRow(m.id, {
+                productid: match?.productid ?? null,
+                nombre: match?.productname ?? typedName,
+                precio: match?.productpriceofsale ?? 0,
+                stock: match?.productstock ?? 0,
+                categoryScope: match?.scope ?? scope,
+                categoryName: match?.categoryname ?? null,
+                manualEntry: match ? false : allowsBackorder && !!typedName,
+              });
+              setMaterialOpenId((curr) => (curr === m.id ? null : curr));
+            }}
+          >
+            <input
+              type="text"
+              value={m.nombre}
+              onFocus={() => setMaterialOpenId(m.id)}
+              onChange={(e) => {
+                const value = e.target.value;
+                patchMaterialRow(m.id, {
+                  nombre: value,
+                  productid: null,
+                  categoryScope: scope,
+                  manualEntry: allowsBackorder && !!String(value || "").trim(),
+                });
+                setMaterialOpenId(m.id);
+                setErrors((prev) => ({ ...prev, materiales: undefined }));
+              }}
+              className="h-9 w-full rounded-md border bg-white px-2.5 pr-8 text-xs"
+              placeholder={
+                allowsBackorder
+                  ? `Buscar o escribir ${getInventoryCategoryScopeLabel(scope).toLowerCase()}`
+                  : "Seleccionar producto"
+              }
+              disabled={lookupsLoading || saving}
+            />
             <button
               type="button"
               onClick={() => setMaterialOpenId((curr) => (curr === m.id ? null : m.id))}
-              className="flex h-9 w-full items-center justify-between rounded-md border bg-white px-2.5 text-xs"
-              disabled={!productsCatalog.length || lookupsLoading || saving}
-              title={m.nombre || "Seleccionar producto"}
+              className="absolute inset-y-0 right-0 px-2 text-gray-500"
+              disabled={lookupsLoading || saving}
             >
-              <span className="truncate pr-2">{m.nombre || "Seleccionar producto"}</span>
-              <span className="text-[10px] text-gray-400">{materialOpenId === m.id ? "^" : "v"}</span>
+              {materialOpenId === m.id ? "^" : "v"}
             </button>
 
             {materialOpenId === m.id && (
               <div className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-auto rounded-md border bg-white shadow-sm">
-                {fallbackCurrent.length === 0 ? (
-                  <div className="px-3 py-2 text-[11px] text-gray-500">No hay mas items disponibles.</div>
+                {options.length === 0 ? (
+                  <div className="px-3 py-2 text-[11px] text-gray-500">
+                    {allowsBackorder ? "Puedes escribirlo manualmente como bajo pedido." : "No hay mas items disponibles."}
+                  </div>
                 ) : (
-                  fallbackCurrent.map((opt) => (
+                  options.map((opt) => (
                     <button
                       key={`${m.id}-${opt.productid}-${opt.productname}`}
                       type="button"
                       onClick={() => {
-                        patchItem<MaterialLineItem>(
-                          m.id,
-                          {
-                            nombre: opt.productname,
-                            precio: opt.productpriceofsale,
-                            stock: opt.productstock ?? 0,
-                            categoryScope: opt.scope,
-                            categoryName: opt.categoryname ?? null,
-                          },
-                          setMateriales
-                        );
+                        patchMaterialRow(m.id, {
+                          productid: opt.productid,
+                          nombre: opt.productname,
+                          precio: opt.productpriceofsale,
+                          stock: opt.productstock ?? 0,
+                          categoryScope: opt.scope,
+                          categoryName: opt.categoryname ?? null,
+                          manualEntry: false,
+                        });
                         setErrors((prev) => ({ ...prev, materiales: undefined }));
                         setMaterialOpenId(null);
                       }}
@@ -1620,6 +1875,9 @@ const {
                       <span className="block truncate font-medium">{opt.productname}</span>
                       <span className="block text-[11px] text-gray-500">
                         {formatCOP(opt.productpriceofsale)} · Stock {Math.max(0, Math.round(Number(opt.productstock ?? 0)))}
+                        {supportsOrderBackorder(scope) && Number(opt.productstock ?? 0) <= 0
+                          ? " · Bajo pedido"
+                          : ""}
                       </span>
                     </button>
                   ))
@@ -1634,17 +1892,20 @@ const {
               <input
                 type="number"
                 min={1}
-                max={getMaterialStock(m) || undefined}
                 step={1}
                 value={m.cantidad}
                 onChange={(e) => {
                   const n = Number(e.target.value || 1);
-                  const stock = getMaterialStock(m);
                   const nextQty =
                     Number.isFinite(n) && n > 0
-                      ? Math.max(1, stock > 0 ? Math.min(Math.round(n), stock) : Math.round(n))
+                      ? Math.max(
+                          1,
+                          !supportsOrderBackorder(scope) && stockValue > 0
+                            ? Math.min(Math.round(n), stockValue)
+                            : Math.round(n)
+                        )
                       : 1;
-                  patchItem<MaterialLineItem>(m.id, { cantidad: nextQty }, setMateriales);
+                  patchMaterialRow(m.id, { cantidad: nextQty, categoryScope: scope });
                   setErrors((prev) => ({ ...prev, materiales: undefined }));
                 }}
                 className="h-9 w-full rounded-md border bg-white px-2 text-xs text-center"
@@ -1657,9 +1918,42 @@ const {
               <div className="flex h-9 items-center justify-end rounded-md border bg-white px-2.5 text-xs font-medium text-gray-900">
                 {formatCOP(m.precio)}
               </div>
-              <div className="mt-1 text-right text-[10px] text-gray-500">Stock: {getMaterialStock(m)}</div>
+              <div className="mt-1 text-right text-[10px] text-gray-500 space-y-0.5">
+                <div>Stock: {stockValue}</div>
+                {allowsBackorder ? (
+                  <div className={m.availability === "SOLICITAR" ? "text-amber-700" : "text-emerald-700"}>
+                    {isManualBackorder
+                      ? `Bajo pedido total: ${backorderQty || m.cantidad}`
+                      : backorderQty > 0
+                      ? `Inventario ${stockCoveredQty} · Bajo pedido ${backorderQty}`
+                      : `Inventario cubre ${stockCoveredQty || m.cantidad}`}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
+
+          {allowsBackorder && (
+            <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div>
+                <label className="mb-1 block text-[10px] text-gray-600">Dimensiones / referencia</label>
+                <input
+                  type="text"
+                  value={m.specification ?? ""}
+                  onChange={(e) => {
+                    patchMaterialRow(m.id, { specification: e.target.value.slice(0, 500) });
+                    setErrors((prev) => ({ ...prev, materiales: undefined }));
+                  }}
+                  className="h-9 w-full rounded-md border bg-white px-2.5 text-xs"
+                  placeholder="Ej. 200 mts, 6 pasos, industrial, 12V 10A"
+                  disabled={lookupsLoading || saving}
+                />
+              </div>
+              <div className="rounded-md border bg-white px-3 py-2 text-[11px] text-gray-600">
+                {m.availability === "SOLICITAR" ? "Estado: Bajo pedido" : "Estado: Disponible"}
+              </div>
+            </div>
+          )}
         </div>
       );
     });
@@ -1680,6 +1974,7 @@ const {
     available: ProductOption[];
     subtotalValue: number;
   }) {
+    const allowsBackorder = supportsOrderBackorder(scope);
     return (
       <div className="mt-3 rounded-lg border bg-white p-2.5">
         <div className="mb-2 flex items-center justify-between gap-3">
@@ -1700,16 +1995,32 @@ const {
           )}
         </div>
 
-        <div className="mt-2">
+        <div className={`mt-2 ${allowsBackorder ? "grid gap-2 md:grid-cols-2" : ""}`}>
           <button
             type="button"
-            onClick={() => addMaterialRow(scope)}
+            onClick={() => addMaterialRow(scope, "inventory")}
             className="w-full h-9 rounded-md bg-gray-100 border hover:bg-gray-50 text-xs disabled:opacity-60"
-            disabled={!available.length || !productsCatalog.length || lookupsLoading || saving}
-            title={!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible.` : undefined}
+            disabled={(!available.length && !allowsBackorder) || lookupsLoading || saving}
+            title={
+              !available.length && !allowsBackorder
+                ? `No hay mas ${title.toLowerCase()} con stock disponible.`
+                : undefined
+            }
           >
-            {!available.length ? `No hay mas ${title.toLowerCase()} con stock disponible` : `Anadir ${title.toLowerCase()}`}
+            {!available.length && !allowsBackorder
+              ? `No hay mas ${title.toLowerCase()} con stock disponible`
+              : `Anadir ${title.toLowerCase()}`}
           </button>
+          {allowsBackorder && (
+            <button
+              type="button"
+              onClick={() => addMaterialRow(scope, "manual")}
+              className="w-full h-9 rounded-md border border-amber-200 bg-amber-50 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-60"
+              disabled={lookupsLoading || saving}
+            >
+              Anadir bajo pedido
+            </button>
+          )}
         </div>
       </div>
     );
@@ -2511,6 +2822,36 @@ const {
                     <div className="text-xs text-gray-500">Subtotal: {formatCOP(subtotalMateriales)}</div>
                   </header>
                   <div className="p-4">
+                    {renderInventoryGroup({
+                      title: "Productos adicionales",
+                      helper: "Productos comerciales extra que el cliente solicito aparte de la orden original.",
+                      scope: "sellable",
+                      rows: additionalSellableMaterials,
+                      available: availableSellableProducts,
+                      subtotalValue: subtotalAdditionalSellableMaterials,
+                    })}
+
+                    {renderInventoryGroup({
+                      title: "Materiales de servicio",
+                      helper: "Material consumible del inventario tecnico y bajo pedido para ejecutar la orden.",
+                      scope: "service_material",
+                      rows: additionalServiceMaterials,
+                      available: availableServiceMaterialProducts,
+                      subtotalValue: subtotalAdditionalServiceMaterials,
+                    })}
+
+                    {renderInventoryGroup({
+                      title: "Herramientas",
+                      helper: "Herramientas del inventario tecnico o registradas bajo pedido para la orden.",
+                      scope: "tool",
+                      rows: additionalToolMaterials,
+                      available: availableToolProducts,
+                      subtotalValue: subtotalAdditionalToolMaterials,
+                    })}
+
+                    {errors.materiales && <p className={errorText}>{errors.materiales}</p>}
+
+                    <div className="hidden">
                     <div className="mb-3 grid gap-2">
                       <button
                         type="button"
@@ -2700,6 +3041,7 @@ const {
                       >
                         {availableSellableProducts.length === 0 ? "Sin mas productos adicionales" : "Anadir producto adicional"}
                       </button>
+                    </div>
                     </div>
                   </div>
                 </section>
