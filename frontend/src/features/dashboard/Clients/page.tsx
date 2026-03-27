@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import * as XLSX from "xlsx";
 import Colors from "@/shared/theme/colors";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -58,7 +57,7 @@ export default function ClientsPage() {
   }, [clients, sortField, sortDir]);
 
   // ── Exportar clientes a Excel ──────────────────────────────────────────────
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const rows = clients.map((c) => ({
       "ID": c.id,
       "Nombre completo": `${c.nombre} ${c.apellido}`.trim(),
@@ -70,10 +69,46 @@ export default function ClientsPage() {
       "Código Postal": c.codigoPostal,
       "Estado": c.estado,
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
-    XLSX.writeFile(wb, `clientes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const mod = await import("exceljs");
+    const ExcelJS: any = (mod as any).default ?? mod;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Clientes");
+
+    worksheet.columns = [
+      { header: "ID", key: "ID", width: 10 },
+      { header: "Nombre completo", key: "Nombre completo", width: 28 },
+      { header: "Tipo Documento", key: "Tipo Documento", width: 18 },
+      { header: "Documento", key: "Documento", width: 18 },
+      { header: "TelÃ©fono", key: "TelÃ©fono", width: 18 },
+      { header: "Correo", key: "Correo", width: 28 },
+      { header: "Ciudad", key: "Ciudad", width: 18 },
+      { header: "CÃ³digo Postal", key: "CÃ³digo Postal", width: 16 },
+      { header: "Estado", key: "Estado", width: 14 },
+    ];
+
+    rows.forEach((row) => worksheet.addRow(row));
+
+    worksheet.getRow(1).eachCell((cell: any) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFB91C1C" },
+      };
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `clientes_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   };
 
   const columns: Column<Client>[] = [

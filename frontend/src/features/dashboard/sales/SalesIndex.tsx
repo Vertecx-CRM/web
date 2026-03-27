@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import * as XLSX from "xlsx";
 import { DataTable } from "@/features/dashboard/components/datatable/DataTable";
 import { Column } from "@/features/dashboard/components/datatable/types/column.types";
 import Modal from "@/features/dashboard/components/Modal";
@@ -174,7 +173,7 @@ export default function SalesIndex() {
   }, [sales, sortField, sortDir]);
 
   // ── Exportar a Excel ──────────────────────────────────────────────────────
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const rows = sales.map((s) => ({
       "#": s.id,
       "Código": s.codigo,
@@ -184,10 +183,44 @@ export default function SalesIndex() {
       "Estado": s.estado,
       "Estado Pago": s.estadoPago ?? "—",
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Ventas");
-    XLSX.writeFile(wb, `ventas_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const mod = await import("exceljs");
+    const ExcelJS: any = (mod as any).default ?? mod;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Ventas");
+
+    worksheet.columns = [
+      { header: "#", key: "#", width: 10 },
+      { header: "CÃ³digo", key: "CÃ³digo", width: 18 },
+      { header: "Cliente", key: "Cliente", width: 28 },
+      { header: "Fecha", key: "Fecha", width: 16 },
+      { header: "Total", key: "Total", width: 16, style: { numFmt: '"$" #,##0' } },
+      { header: "Estado", key: "Estado", width: 16 },
+      { header: "Estado Pago", key: "Estado Pago", width: 18 },
+    ];
+
+    rows.forEach((row) => worksheet.addRow(row));
+
+    worksheet.getRow(1).eachCell((cell: any) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFB91C1C" },
+      };
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ventas_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   };
 
 
