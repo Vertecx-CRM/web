@@ -72,4 +72,22 @@ export const purchases: IPurchase[] = [
     amount: 600.75,
     status: "Aprobado",
   },
+  {
+    id: 9,
+    orderNumber: "OC-2025-009",
+    invoiceNumber: "FAC-2025-1009",
+    supplier: "Proveedor I",
+    registerDate: "2025-08-28",
+    amount: 950.0,
+    status: "Aprobado",
+  },
+  {
+    id: 10,
+    orderNumber: "OC-2025-010",
+    invoiceNumber: "FAC-2025-1010",
+    supplier: "Proveedor J",
+    registerDate: "2025-08-29",
+    amount: 780.5,
+    status: "Aprobado",
+  },
 ];

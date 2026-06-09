@@ -248,7 +248,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
         <p className="text-xs text-gray-500 text-center leading-relaxed">
           Al enviar este formulario, aceptas que procesemos tus datos para responderte. 
           <br />
-          Respuesta típica en 24 horas durante días laborables.
+          Respuesta típica en 12 horas durante días laborables.
         </p>
       </div>
     </div>

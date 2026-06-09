@@ -1,4 +1,12 @@
+import { Suspense } from "react";
 import LoginPage from "@/features/auth/login/login";
-export default function page() {
-  return <LoginPage />;
+
+export const dynamic = "force-dynamic";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPage />
+    </Suspense>
+  );
 }

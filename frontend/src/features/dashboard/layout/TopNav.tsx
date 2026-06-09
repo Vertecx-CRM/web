@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { UserCircle, LogOut, Pencil } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { UserCircle, LogOut, Pencil, Menu, X, Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { routes } from "@/shared/routes";
 import { useAuth } from "@/features/auth/authcontext";
-import { useLoader } from "@/shared/components/loader";
 import ProfileModal from "@/features/auth/porfile/porfilemodal";
 
 const titles: Record<string, string> = {
@@ -13,176 +13,188 @@ const titles: Record<string, string> = {
   [routes.dashboard.users]: "Usuarios",
   [routes.dashboard.roles]: "Roles",
   [routes.dashboard.purchases]: "Compras",
-  [routes.dashboard.purchasesOrders]: "Órdenes de Compras",
-  [routes.dashboard.purchasesGraph]: "Graficas de Compras",
+  [routes.dashboard.purchasesOrders]: "Ordenes de Compras",
   [routes.dashboard.services]: "Servicios",
-  [routes.dashboard.technicians]: "Técnicos",
+  [routes.dashboard.technicians]: "Tecnicos",
   [routes.dashboard.newService]: "Nuevo Servicio",
   [routes.dashboard.clients]: "Clientes",
   [routes.dashboard.newClient]: "Nuevo Cliente",
   [routes.dashboard.settings]: "Configuración",
   [routes.dashboard.products]: "Productos",
-  [routes.dashboard.productsCategories]: "Categorías de Productos",
+  [routes.dashboard.productsCategories]: "Categoría de Productos",
   [routes.dashboard.suppliers]: "Proveedores",
   [routes.dashboard.requestsServices]: "Solicitudes de Servicio",
   [routes.dashboard.ordersServices]: "Ordenes de Servicio",
+  [routes.dashboard.orders]: "Órdenes de Servicio",
+  [routes.dashboard.appointments]: "Citas",
+  [routes.dashboard.sales]: "Ventas",
+  [routes.dashboard.quotes]: "Cotizaciones",
 };
 
-type TopNavProps = {
-  logoutRedirectTo?: string;
-  fallbackUserName?: string;
-};
+function Loader() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-[#0D141C]/60 backdrop-blur-sm z-[9999]">
+      <div className="w-12 h-12 border-4 border-[#B20000] border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 export default function TopNav({
   logoutRedirectTo = "/auth/login",
   fallbackUserName = "Usuario",
-}: TopNavProps) {
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
-  const { showLoader, hideLoader } = useLoader();
+  const { user, profile, logout } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [menuProfileOpen, setMenuProfileOpen] = useState(false);
 
-  const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const currentTitle =
-    titles[pathname] ||
-    Object.entries(titles)
-      .sort((a, b) => b[0].length - a[0].length)
-      .find(([path]) => pathname.startsWith(path))?.[1] ||
-    "Dashboard";
+  const currentTitle = useMemo(() => {
+    return (
+      titles[pathname] ||
+      Object.entries(titles)
+        .sort((a, b) => b[0].length - a[0].length)
+        .find(([path]) => pathname.startsWith(path))?.[1] ||
+      "Gestión"
+    );
+  }, [pathname]);
 
+  const display = useMemo(
+    () => ({
+      name: profile?.name ?? user?.name ?? "Ingeniero",
+      email: profile?.email ?? user?.email ?? "",
+      image: profile?.image ?? user?.image ?? "",
+    }),
+    [profile, user],
+  );
+
+  // Efecto de escritura para el título (más fluido)
   useEffect(() => {
-    setDisplayedText("");
     let i = 0;
+    setDisplayedText("");
     const interval = setInterval(() => {
-      if (i < currentTitle.length) {
-        setDisplayedText(currentTitle.slice(0, i + 1));
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 80);
+      setDisplayedText(currentTitle.slice(0, i + 1));
+      i++;
+      if (i >= currentTitle.length) clearInterval(interval);
+    }, 50);
     return () => clearInterval(interval);
   }, [currentTitle]);
 
-  useEffect(() => {
-    router.prefetch(logoutRedirectTo);
-  }, [router, logoutRedirectTo]);
-
-  useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!menuProfileOpen) return;
-      if (menuRef.current?.contains(t)) return;
-      if (btnRef.current?.contains(t)) return;
-      setMenuProfileOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuProfileOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuProfileOpen]);
-
   const handleLogout = async () => {
-    setMenuProfileOpen(false);
     setLoading(true);
-    showLoader();
-    sessionStorage.setItem("__loader_min_until__", String(Date.now() + 200));
     try {
-      logout();
-      await Promise.resolve();
+      await logout();
       router.replace(logoutRedirectTo);
-    } catch {
-      hideLoader();
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenProfile = () => {
-    setMenuProfileOpen(false);
-    setProfileOpen(true);
-  };
-
   return (
-    <header className="bg-white shadow-[0_6px_10px_-1px_rgba(0,0,0,0.25)] px-4 md:px-8 py-3 flex items-center justify-between relative">
-      <h1 className="text-xl md:text-4xl font-bold text-red-800 truncate pl-2 md:pl-5">
-        {displayedText}
-      </h1>
+    <>
+      {loading && <Loader />}
 
-      {/* Botón avatar (abre dropdown) */}
-      <div className="relative">
-        <button
-          ref={btnRef}
-          onClick={() => setMenuProfileOpen((v) => !v)}
-          aria-haspopup="menu"
-          aria-expanded={menuProfileOpen}
-          className="flex items-center gap-3 rounded-full focus:outline-none focus:ring-2 focus:ring-red-700/40"
-        >
-          <span className="hidden md:block text-gray-700 max-w-[180px] truncate">
-            {user?.name ?? fallbackUserName}
-          </span>
+      <header className="bg-[#E8E8E8] border-b border-[#626262]/20 px-6 py-4 flex items-center justify-between sticky top-0 z-30 h-20">
+        {/* Título con Estilo Técnico */}
+        <div className="flex items-center gap-4">
+          <div className="h-8 w-[3px] bg-[#B20000] hidden md:block" />
+          <h1 className="text-xl md:text-2xl font-black uppercase tracking-[0.15em] text-[#0D141C]">
+            {displayedText}
+            <span className="inline-block w-2 h-5 bg-[#B20000]/30 ml-1 animate-pulse" />
+          </h1>
+        </div>
 
-          {user?.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.avatar}
-              alt="avatar"
-              className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover ring-1 ring-gray-200"
-            />
-          ) : (
-            <UserCircle className="w-9 h-9 md:w-10 md:h-10 text-gray-600" />
-          )}
-        </button>
+        <div className="flex items-center gap-6">
+         
 
-        {/* Dropdown perfil */}
-        {menuProfileOpen && (
-          <div
-            ref={menuRef}
-            role="menu"
-            className="absolute right-0 mt-2 w-56 rounded-xl border bg-white shadow-xl z-50 overflow-hidden"
-          >
-            <div className="px-4 py-3 border-b">
-              <p className="text-sm font-medium truncate">
-                {user?.name ?? fallbackUserName}
-              </p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            </div>
-
+          {/* Perfil del Usuario */}
+          <div className="relative" ref={menuRef}>
             <button
-              onClick={handleOpenProfile}
-              role="menuitem"
-              className="w-full text-left px-4 py-3 flex items-center gap-2 hover:bg-gray-50"
+              onClick={() => setMenuProfileOpen(!menuProfileOpen)}
+              className={`flex items-center gap-3 pl-3 pr-1 py-1 rounded-full transition-all duration-300 border ${
+                menuProfileOpen
+                  ? "bg-[#0D141C] border-[#0D141C] shadow-lg"
+                  : "bg-white border-[#626262]/20 hover:border-[#B20000]/50"
+              }`}
             >
-              <Pencil size={16} />
-              Editar perfil
+              <span
+                className={`text-[10px] font-black uppercase tracking-widest hidden md:block ml-2 ${
+                  menuProfileOpen ? "text-white" : "text-[#0D141C]"
+                }`}
+              >
+                {display.name}
+              </span>
+
+              <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-[#B20000] bg-[#330101] flex items-center justify-center">
+                {display.image ? (
+                  <img
+                    src={display.image}
+                    alt="user"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UserCircle size={22} className="text-white" />
+                )}
+              </div>
             </button>
 
-            <button
-              onClick={handleLogout}
-              disabled={loading}
-              role="menuitem"
-              className="w-full text-left px-4 py-3 flex items-center gap-2 text-red-700 hover:bg-red-50 disabled:opacity-60"
-            >
-              <LogOut size={16} />
-              {loading ? "Saliendo…" : "Cerrar sesión"}
-            </button>
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {menuProfileOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-3 w-64 bg-[#0D141C] rounded-xl shadow-2xl border border-[#626262]/40 overflow-hidden z-50"
+                >
+                  <div className="p-5 border-b border-[#626262]/40 bg-[#ffffff]/5">
+                    <p className="text-[11px] font-black text-[#B20000] uppercase tracking-widest mb-1">
+                      Sesión Iniciada
+                    </p>
+                    <p className="text-sm font-bold text-white truncate">
+                      {display.name}
+                    </p>
+                    <p className="text-[10px] text-[#717680] truncate font-medium">
+                      {display.email}
+                    </p>
+                  </div>
+
+                  <div className="p-2">
+                    <button
+                      onClick={() => {
+                        setProfileOpen(true);
+                        setMenuProfileOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-[#d1d1d1] uppercase tracking-wider hover:bg-[#B20000] hover:text-white transition-all rounded-lg"
+                    >
+                      <Pencil size={14} />
+                      Configurar Perfil
+                    </button>
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-[11px] font-bold text-[#FF0000] uppercase tracking-wider hover:bg-[#FF0000]/10 transition-all rounded-lg mt-1"
+                    >
+                      <LogOut size={14} />
+                      Finalizar Sesión
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Modal de perfil */}
-      <ProfileModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
-    </header>
+        <ProfileModal
+          isOpen={profileOpen}
+          onClose={() => setProfileOpen(false)}
+        />
+      </header>
+    </>
   );
 }

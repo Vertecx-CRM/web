@@ -1,490 +1,694 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { useAuth } from "@/features/auth/authcontext";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Nav from "@/features/landing/layout/Nav";
-import styles from "@/features/auth/login/auth.module.css";
-import React, { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/features/auth/authcontext";
+import { showError, showSuccess } from "@/shared/utils/notifications";
+import { useDocumentTypes } from "@/features/dashboard/Users/hooks/useDocumentTypes";
+import { useRoles } from "@/features/dashboard/Users/hooks/useRoles";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
-type DocType = "CC" | "CE" | "TI" | "PP";
+//  catálogo offline ciudades (Colombia)
+import { City } from "country-state-city";
 
 type FormState = {
-  docType: DocType;
-  docNumber: string;
-  fullName: string;
-  email: string;
+  name: string;
+  lastname: string;
+  typeid: string;
+  documentnumber: string;
   phone: string;
-  password: string;
-  confirm: string;
-  terms: boolean;
+  city: string;
+  zipcode: string;
+  email: string;
 };
+
+type FormErrors = Record<keyof FormState, string>;
+type FormTouched = Record<keyof FormState, boolean>;
+
+const emptyErrors: FormErrors = {
+  name: "",
+  lastname: "",
+  typeid: "",
+  documentnumber: "",
+  phone: "",
+  city: "",
+  zipcode: "",
+  email: "",
+};
+
+const emptyTouched: FormTouched = {
+  name: false,
+  lastname: false,
+  typeid: false,
+  documentnumber: false,
+  phone: false,
+  city: false,
+  zipcode: false,
+  email: false,
+};
+
+const sanitize = (v: unknown) => String(v ?? "").trim();
+
+const hasSpecialChars = (value: string) =>
+  /[@,.;:_{}\[\]^`+*~¡¿?\\'=)(/&%$#"|<>]/.test(value);
+
+//  normalizador para comparar sin tildes / mayúsculas
+const normalizeText = (s: string) =>
+  sanitize(s)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+//  IMPORTANTE: catálogo de ciudades CO *fuera* del componente (para que validateField lo vea)
+const COLOMBIA_CITY_SET: Set<string> = (() => {
+  const list = City.getCitiesOfCountry("CO") ?? [];
+  const set = new Set<string>();
+  for (const c of list) set.add(normalizeText(c.name));
+  return set;
+})();
+
+const COLOMBIA_CITY_NAMES: string[] = (() => {
+  const list = City.getCitiesOfCountry("CO") ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of list.sort((a, b) => a.name.localeCompare(b.name))) {
+    const key = normalizeText(c.name);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(c.name);
+    }
+  }
+  return out;
+})();
+
+function validateField(
+  field: keyof FormState,
+  value: string,
+  form: FormState,
+): string {
+  const v = sanitize(value);
+  const typeIdNum = Number(form.typeid || 0);
+  const isNit = typeIdNum === 4;
+
+  switch (field) {
+    case "name": {
+      if (!v)
+        return isNit
+          ? "El nombre de la empresa es obligatorio"
+          : "El nombre es obligatorio";
+      if (!isNit && /[0-9]/.test(v))
+        return "El nombre no puede contener números";
+      if (hasSpecialChars(v))
+        return "El nombre no puede contener caracteres especiales";
+      return "";
+    }
+
+    case "lastname": {
+      if (isNit) return "";
+      if (!v) return "El apellido es obligatorio";
+      if (/[0-9]/.test(v)) return "El apellido no puede contener números";
+      if (hasSpecialChars(v))
+        return "El apellido no puede contener caracteres especiales";
+      return "";
+    }
+
+    case "typeid": {
+      if (!v) return "El tipo de documento es obligatorio";
+      return "";
+    }
+
+    case "documentnumber": {
+      if (!v) return "El número de documento es obligatorio";
+      if (!typeIdNum) return "Seleccione el tipo de documento";
+      if (isNit) {
+        if (!/^\d{5,12}-\d{1}$/.test(v))
+          return "Formato inválido (Ej: 900123456-7)";
+        return "";
+      }
+      if (typeIdNum === 2 && !/^\d{7}$/.test(v))
+        return "PPT debe tener 7 dígitos";
+      if (typeIdNum === 3 && !/^[A-Za-z]{2}\d{6}$/.test(v))
+        return "Formato pasaporte inválido (Ej: AB123456)";
+      if (typeIdNum === 5 && !/^\d{9}$/.test(v))
+        return "CE debe tener 9 dígitos";
+      if (typeIdNum === 6 && !/^\d{12}$/.test(v))
+        return "Visa debe tener 12 dígitos";
+      if (!/^\d+$/.test(v)) return "Solo números permitidos";
+      if (v.length > 10) return "Máximo 10 caracteres";
+      return "";
+    }
+
+    case "phone": {
+      if (!v) return "El teléfono es obligatorio";
+      if (!/^\d+$/.test(v)) return "Solo números";
+      if (v.length !== 10) return "Debe tener 10 dígitos";
+      return "";
+    }
+
+    //  ciudad solo Colombia
+    case "city": {
+      if (!v) return "La ciudad es obligatoria";
+      if (/[0-9]/.test(v)) return "No puede contener números";
+
+      const target = normalizeText(v);
+      const found = COLOMBIA_CITY_SET.has(target);
+
+      if (!found) return "La ciudad no existe en Colombia";
+      return "";
+    }
+
+    // ZIP de Colombia
+    case "zipcode": {
+      if (!v) return "Obligatorio";
+      if (!/^\d{6}$/.test(v)) return "Debe tener 6 dígitos numéricos";
+      return "";
+    }
+
+    case "email": {
+      if (!v) return "El correo es obligatorio";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Formato inválido";
+      return "";
+    }
+
+    default:
+      return "";
+  }
+}
+
+function validateAll(form: FormState): FormErrors {
+  return {
+    name: validateField("name", form.name, form),
+    lastname: validateField("lastname", form.lastname, form),
+    typeid: validateField("typeid", form.typeid, form),
+    documentnumber: validateField("documentnumber", form.documentnumber, form),
+    phone: validateField("phone", form.phone, form),
+    city: validateField("city", form.city, form),
+    zipcode: validateField("zipcode", form.zipcode, form),
+    email: validateField("email", form.email, form),
+  };
+}
+
+function hasErrors(errors: FormErrors): boolean {
+  return Object.values(errors).some((e) => e !== "");
+}
 
 export default function RegisterPage() {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") || "/dashboard";
   const { register } = useAuth();
-
-  const [showPwd, setShowPwd] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  // --- Modal de términos ---
-  const [showTerms, setShowTerms] = useState(false);
-  const [canAcceptTerms, setCanAcceptTerms] = useState(false);
-  const scrollBoxRef = useRef<HTMLDivElement>(null);
+  const { documentTypes } = useDocumentTypes();
+  const { roles } = useRoles();
 
   const [form, setForm] = useState<FormState>({
-    docType: "CC",
-    docNumber: "",
-    fullName: "",
-    email: "",
+    name: "",
+    lastname: "",
+    typeid: "",
+    documentnumber: "",
     phone: "",
-    password: "",
-    confirm: "",
-    terms: false,
+    city: "",
+    zipcode: "",
+    email: "",
   });
 
-  const passwordsMatch = form.password === form.confirm;
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
-  const phoneOk = /^[0-9]{7,15}$/.test(form.phone.replace(/\D/g, ""));
-  const docOk = /^[A-Za-z0-9.-]{4,20}$/.test(form.docNumber.trim());
-  const passOk = form.password.length >= 6;
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>(emptyErrors);
+  const [touched, setTouched] = useState<FormTouched>(emptyTouched);
 
-  const canSubmit =
-    form.fullName.trim().length >= 3 &&
-    emailOk &&
-    phoneOk &&
-    docOk &&
-    passOk &&
-    passwordsMatch &&
-    form.terms &&
-    !loading;
+  const [checking, setChecking] = useState({
+    documentnumber: false,
+    phone: false,
+    email: false,
+  });
 
-  function update<K extends keyof FormState>(key: K, val: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: val }));
-  }
+  const latestCheckRef = useRef({
+    documentnumber: "",
+    phone: "",
+    email: "",
+  });
 
-  // Abre el modal cuando intentan marcar la casilla
-  function handleTermsCheckbox(e: React.ChangeEvent<HTMLInputElement>) {
-    const checked = e.target.checked;
-    if (checked && !form.terms) {
-      e.preventDefault();
-      setShowTerms(true);
-    } else {
-      update("terms", false);
+  const clientRole = useMemo(
+    () =>
+      roles.find((r: any) => String(r?.name ?? "").toLowerCase() === "cliente"),
+    [roles],
+  );
+
+  const setField = (name: keyof FormState, value: string) => {
+    let nextForm: FormState = { ...form, [name]: value };
+    if (name === "typeid" && Number(value || 0) === 4) {
+      nextForm = { ...nextForm, lastname: "" };
     }
-  }
 
-  // Habilita "Aceptar y continuar" al llegar al final del scroll
-  function onTermsScroll(e: React.UIEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
-    if (atBottom) setCanAcceptTerms(true);
-  }
+    setForm(nextForm);
 
-  // Bloquea scroll del body cuando el modal está abierto
-  useEffect(() => {
-    if (showTerms) {
-      document.body.style.overflow = "hidden";
-      setCanAcceptTerms(false);
-      requestAnimationFrame(() => {
-        if (scrollBoxRef.current) scrollBoxRef.current.scrollTop = 0;
-      });
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
+    const nextTouched = { ...touched, [name]: true };
+    if (name === "typeid") nextTouched.documentnumber = true;
+    setTouched(nextTouched);
+
+    const nextErrors: FormErrors = {
+      ...errors,
+      [name]: validateField(name, nextForm[name], nextForm),
     };
-  }, [showTerms]);
 
-  // Cerrar modal con Escape
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setShowTerms(false);
+    if (name === "typeid") {
+      nextErrors.documentnumber = validateField(
+        "documentnumber",
+        nextForm.documentnumber,
+        nextForm,
+      );
+      nextErrors.lastname = validateField(
+        "lastname",
+        nextForm.lastname,
+        nextForm,
+      );
     }
-    if (showTerms) window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showTerms]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
+    setErrors(nextErrors);
+  };
 
-    if (!passwordsMatch) return setMsg("Las contraseñas no coinciden");
-    if (!form.terms) return setMsg("Debes aceptar los términos y condiciones");
+  const onChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    setField(e.target.name as keyof FormState, e.target.value);
+  };
+
+  const onBlur = (
+    e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
+    const name = e.target.name as keyof FormState;
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    setErrors((prev) => ({
+      ...prev,
+      [name]: validateField(name, form[name], form),
+    }));
+  };
+
+  const runDuplicateCheck = async (
+    field: "documentnumber" | "phone" | "email",
+    value: string,
+  ) => {
+    const cleanValue = sanitize(value);
+    if (!cleanValue) return;
+    latestCheckRef.current[field] = cleanValue;
+    setChecking((prev) => ({ ...prev, [field]: true }));
 
     try {
-      setLoading(true);
-      const res = await register({
-        docType: form.docType,
-        docNumber: form.docNumber.trim(),
-        name: form.fullName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        password: form.password,
+      const res = await api.get("/users/check", {
+        params: { [field]: cleanValue },
       });
-      setLoading(false);
+      const payload = (res.data?.data ?? res.data) as any;
+      const exists = Boolean(payload?.[field]);
+      if (latestCheckRef.current[field] !== cleanValue) return;
 
-      if (!res?.ok) return setMsg(res?.message || "No se pudo crear la cuenta");
-
-      router.replace(next);
-      router.refresh();
+      if (exists) {
+        setErrors((prev) => ({
+          ...prev,
+          [field]: `Ya registrado en el sistema`,
+        }));
+      }
     } catch {
-      setLoading(false);
-      setMsg("Ocurrió un error inesperado. Inténtalo de nuevo.");
+      // silencio
+    } finally {
+      setChecking((prev) => ({ ...prev, [field]: false }));
     }
-  }
+  };
+
+  useEffect(() => {
+    if (
+      !form.documentnumber ||
+      validateField("documentnumber", form.documentnumber, form)
+    )
+      return;
+    const h = setTimeout(
+      () => runDuplicateCheck("documentnumber", form.documentnumber),
+      450,
+    );
+    return () => clearTimeout(h);
+  }, [form.documentnumber, form.typeid]);
+
+  useEffect(() => {
+    if (!form.phone || validateField("phone", form.phone, form)) return;
+    const h = setTimeout(() => runDuplicateCheck("phone", form.phone), 450);
+    return () => clearTimeout(h);
+  }, [form.phone]);
+
+  useEffect(() => {
+    if (!form.email || validateField("email", form.email, form)) return;
+    const h = setTimeout(() => runDuplicateCheck("email", form.email), 450);
+    return () => clearTimeout(h);
+  }, [form.email]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!clientRole) return showError("Error de configuración de roles.");
+
+    const newErrors = validateAll(form);
+    setErrors(newErrors);
+    setTouched(
+      Object.keys(emptyTouched).reduce(
+        (acc, k) => ({ ...acc, [k]: true }),
+        {} as FormTouched,
+      ),
+    );
+
+    if (hasErrors(newErrors))
+      return showError("Revisa los campos marcados en rojo.");
+
+    // ✅ PAYLOAD LIMPIO: NO enviamos city ni zipcode (porque DTO no los acepta)
+    const payload = {
+      name: sanitize(form.name),
+      lastname: sanitize(form.lastname),
+      typeid: Number(form.typeid),
+      documentnumber: sanitize(form.documentnumber),
+      phone: sanitize(form.phone),
+      email: sanitize(form.email),
+      roleid: clientRole.roleid,
+      stateid: 1,
+      customercity: sanitize(form.city),
+      customerzipcode: sanitize(form.zipcode),
+    };
+
+    setLoading(true);
+    const res = await register(payload as any);
+    setLoading(false);
+
+    if (res.ok) {
+      showSuccess("Registro exitoso. Verifica tu correo.");
+      router.push("/auth/login");
+    } else {
+      showError(res.message || "Fallo en el registro");
+    }
+  };
+
+  const isNit = Number(form.typeid || 0) === 4;
 
   return (
-    <div className={styles.root}>
+    <div className="min-h-screen w-full flex flex-col bg-white text-black font-sans overflow-x-hidden">
       <Nav />
 
-      <div className="flex flex-1 items-center justify-center px-3 py-6">
-        <div
-          className="
-            grid w-full max-w-3xl overflow-hidden rounded-xl shadow-lg
-            lg:grid-cols-2
-            max-h-[calc(100dvh-140px)] overflow-auto
-          "
-        >
-          {/* Izquierda: branding */}
-          <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
-            <div className="absolute inset-x-0 bottom-0 h-10 bg-black/10 blur-2xl" />
-            <h2 className="mb-2 text-2xl font-extrabold tracking-tight">
-              SistemasPc
+      <div className="flex flex-col lg:flex-row flex-1 px-6 lg:px-20 items-center justify-center gap-16 py-12 max-w-7xl mx-auto w-full">
+        {/* Lado Izquierdo: Formulario */}
+        <div className="w-full lg:w-[60%] flex flex-col">
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-10 h-[2px] bg-red-600"></span>
+              <span className="text-red-600 font-bold tracking-[0.3em] text-[10px] uppercase">
+                Nuevo Usuario
+              </span>
+            </div>
+            <h2 className="text-5xl lg:text-6xl font-black tracking-tighter mb-4 leading-none">
+              CREAR <br /> <span className="text-red-600">CUENTA.</span>
             </h2>
-            <p className="max-w-xs text-red-50 text-sm">
-              20 años conectando tu mundo
+            <p className="text-gray-400 font-light text-sm max-w-sm">
+              Únete a Sistemas PC para gestionar tus requerimientos tecnológicos
+              de manera profesional.
             </p>
           </div>
 
-          {/* Derecha: formulario */}
-          <div className="bg-white p-6">
-            <h1 className="mb-4 text-center text-xl font-semibold text-gray-800">
-              Crear cuenta
-            </h1>
-
-            <form className="grid gap-3 md:grid-cols-2" onSubmit={onSubmit} noValidate>
-              {/* Tipo + Número de documento */}
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-gray-700">
-                  Tipo y número de documento
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={form.docType}
-                    onChange={(e) => update("docType", e.target.value as DocType)}
-                    className="w-28 rounded-md border border-gray-300 bg-gray-100 px-2 h-9 text-sm shadow-sm
-                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                  >
-                    <option value="CC">CC</option>
-                    <option value="CE">CE</option>
-                    <option value="TI">TI</option>
-                    <option value="PP">PP</option>
-                  </select>
-
-                  <input
-                    name="docNumber"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Número Documento"
-                    value={form.docNumber}
-                    onChange={(e) => update("docNumber", e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
-                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                  />
-                </div>
-                {!docOk && form.docNumber.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Ingresa un documento válido (4–20 caracteres).
-                  </p>
-                )}
-              </div>
-
-              {/* Nombre */}
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-gray-700">
-                  Nombre completo
-                </label>
-                <input
-                  name="fullName"
-                  type="text"
-                  placeholder="Nombre Completo"
-                  value={form.fullName}
-                  onChange={(e) => update("fullName", e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
-                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-              </div>
-
-              {/* Correo */}
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-gray-700">
-                  Correo
-                </label>
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="Correo"
-                  value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
-                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-                {!emailOk && form.email.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">Correo inválido.</p>
-                )}
-              </div>
-
-              {/* Teléfono */}
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-xs text-gray-700">
-                  Teléfono
-                </label>
-                <input
-                  name="phone"
-                  type="tel"
-                  inputMode="tel"
-                  placeholder="Teléfono"
-                  value={form.phone}
-                  onChange={(e) => update("phone", e.target.value.replace(/[^\d+]/g, ""))}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 h-9 text-sm shadow-sm
-                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                />
-                {!phoneOk && form.phone.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">
-                    Ingresa un teléfono válido (7–15 dígitos).
-                  </p>
-                )}
-              </div>
-
-              {/* Contraseña */}
-              <div>
-                <label className="mb-1 block text-xs text-gray-700">Contraseña</label>
-                <div className="relative">
-                  <input
-                    name="password"
-                    type={showPwd ? "text" : "password"}
-                    placeholder="Contraseña"
-                    value={form.password}
-                    onChange={(e) => update("password", e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm
-                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd((s) => !s)}
-                    className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
-                    title={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  >
-                    {showPwd ? (
-                      <img src="/icons/Eye.svg" className="h-4 w-4" />
-                    ) : (
-                      <img src="/icons/eye-off.svg" className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                {!passOk && form.password.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">Mínimo 6 caracteres.</p>
-                )}
-              </div>
-
-              {/* Confirmar */}
-              <div>
-                <label className="mb-1 block text-xs text-gray-700">Confirmar contraseña</label>
-                <div className="relative">
-                  <input
-                    name="confirm"
-                    type={showConfirm ? "text" : "password"}
-                    placeholder="Confirmar contraseña"
-                    value={form.confirm}
-                    onChange={(e) => update("confirm", e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 pr-10 h-9 text-sm shadow-sm
-                   focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm((s) => !s)}
-                    className="absolute inset-y-0 right-2 my-auto h-7 w-7 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
-                    title={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
-                  >
-                    {showConfirm ? (
-                      <img src="/icons/Eye.svg" className="h-4 w-4" />
-                    ) : (
-                      <img src="/icons/eye-off.svg" className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                {!passwordsMatch && form.confirm.length > 0 && (
-                  <p className="mt-1 text-[11px] text-red-600">Las contraseñas no coinciden.</p>
-                )}
-              </div>
-
-              {/* Términos */}
-              <div className="md:col-span-2 flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-gray-700">
-                  <input
-                    type="checkbox"
-                    className="size-4 rounded border-gray-300 text-[#CC0000] focus:ring-[#CC0000]"
-                    checked={form.terms}
-                    onChange={handleTermsCheckbox}
-                  />
-                  Acepto términos y condiciones
-                </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowTerms(true);
-                  }}
-                  className="text-xs text-[#CC0000] hover:underline"
-                >
-                  Leer términos
-                </button>
-              </div>
-
-              {/* Mensajes */}
-              {msg && (
-                <div className="md:col-span-2 rounded-md bg-red-50 p-2 text-xs text-red-700">
-                  {msg}
-                </div>
+          <form
+            noValidate
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8"
+          >
+            {/* Tipo de Documento */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Documento
+              </label>
+              <select
+                name="typeid"
+                value={form.typeid}
+                onChange={onChange}
+                onBlur={onBlur}
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all appearance-none cursor-pointer ${
+                  touched.typeid && errors.typeid
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              >
+                <option value="">Seleccionar Tipo...</option>
+                {documentTypes.map((t: any) => (
+                  <option key={t.typeofdocumentid} value={t.typeofdocumentid}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {touched.typeid && errors.typeid && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.typeid}
+                </p>
               )}
+            </div>
 
-              {/* Botón principal */}
+            {/* Número */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Identificación
+              </label>
+              <input
+                name="documentnumber"
+                value={form.documentnumber}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Número de identificación"
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.documentnumber && errors.documentnumber
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {checking.documentnumber && (
+                <p className="absolute -bottom-5 text-[9px] text-gray-400 animate-pulse uppercase">
+                  Validando...
+                </p>
+              )}
+              {touched.documentnumber && errors.documentnumber && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.documentnumber}
+                </p>
+              )}
+            </div>
+
+            {/* Nombre */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                {isNit ? "Razón Social" : "Nombres"}
+              </label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder={
+                  isNit ? "Nombre de la empresa" : "Ingresa tus nombres"
+                }
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.name && errors.name
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {touched.name && errors.name && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.name}
+                </p>
+              )}
+            </div>
+
+            {/* Apellido */}
+            <div className="relative">
+              <label
+                className={`text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1 ${
+                  isNit ? "opacity-30" : ""
+                }`}
+              >
+                Apellidos
+              </label>
+              <input
+                name="lastname"
+                value={form.lastname}
+                onChange={onChange}
+                onBlur={onBlur}
+                disabled={isNit}
+                placeholder={
+                  isNit ? "N/A para empresas" : "Ingresa tus apellidos"
+                }
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.lastname && errors.lastname
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                } ${isNit ? "opacity-30 italic" : ""}`}
+              />
+              {touched.lastname && errors.lastname && !isNit && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.lastname}
+                </p>
+              )}
+            </div>
+
+            {/* Telefono */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Contacto Telefónico
+              </label>
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Ej: 3001234567"
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.phone && errors.phone
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {checking.phone && (
+                <p className="absolute -bottom-5 text-[9px] text-gray-400 animate-pulse uppercase">
+                  Validando...
+                </p>
+              )}
+              {touched.phone && errors.phone && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.phone}
+                </p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Dirección Email
+              </label>
+              <input
+                name="email"
+                value={form.email}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="usuario@dominio.com"
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.email && errors.email
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {checking.email && (
+                <p className="absolute -bottom-5 text-[9px] text-gray-400 animate-pulse uppercase">
+                  Validando...
+                </p>
+              )}
+              {touched.email && errors.email && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Ciudad (CO) */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Ubicación / Ciudad
+              </label>
+              <input
+                name="city"
+                value={form.city}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Ciudad de residencia"
+                list="colombia-cities"
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.city && errors.city
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {touched.city && errors.city && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.city}
+                </p>
+              )}
+            </div>
+
+            <datalist id="colombia-cities">
+              {COLOMBIA_CITY_NAMES.map((city) => (
+                <option key={city} value={city} />
+              ))}
+            </datalist>
+
+            {/* Código Postal */}
+            <div className="relative">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Código Postal
+              </label>
+              <input
+                name="zipcode"
+                value={form.zipcode}
+                onChange={onChange}
+                onBlur={onBlur}
+                placeholder="Ej: 050001"
+                className={`w-full h-12 bg-transparent border-b-2 outline-none transition-all ${
+                  touched.zipcode && errors.zipcode
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+              />
+              {touched.zipcode && errors.zipcode && (
+                <p className="absolute -bottom-5 text-[9px] font-bold text-red-600 uppercase tracking-tighter italic">
+                  {errors.zipcode}
+                </p>
+              )}
+            </div>
+
+            {/* Botón de Envío */}
+            <div className="md:col-span-2 pt-6">
               <button
                 type="submit"
-                disabled={!canSubmit}
-                className="md:col-span-2 h-9 rounded-md bg-[#CC0000] px-3 text-sm font-semibold text-white shadow-sm
-               hover:bg-[#b30000] focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40
-               disabled:opacity-60"
+                disabled={loading}
+                className="cursor-pointer group relative w-full h-14 bg-black overflow-hidden transition-all duration-500 shadow-xl"
               >
-                {loading ? "Creando cuenta..." : "Acceder"}
+                <div
+                  className={`absolute inset-0 bg-red-600 transition-transform duration-500 translate-y-full group-hover:translate-y-0 ${
+                    loading ? "translate-y-0" : ""
+                  }`}
+                ></div>
+                <span className="relative z-10 text-white font-black uppercase tracking-[0.3em] text-xs">
+                  {loading ? "PROCESANDO REGISTRO..." : "CREAR CUENTA "}
+                </span>
               </button>
 
-              {/* Enlaces inferiores */}
-              <div className="md:col-span-2 mt-1 flex items-center justify-between text-xs">
-                <span className="text-gray-600">¿Ya tienes una cuenta?</span>
-                <Link href="/auth/login" className="text-[#CC0000] hover:underline">
-                  Iniciar sesión
-                </Link>
-              </div>
-            </form>
+              <p className="text-[10px] text-center text-gray-400 mt-6 font-bold uppercase tracking-widest">
+                ¿YA TIENES UNA CUENTA?{" "}
+                <a
+                  href="/auth/login"
+                  className="text-black hover:text-red-600 transition-colors underline underline-offset-4 decoration-2"
+                >
+                  INICIAR SESIÓN
+                </a>
+              </p>
+            </div>
+          </form>
+        </div>
+
+        {/* Lado Derecho: Branding Gráfico */}
+        <div className="hidden lg:flex lg:w-[35%] justify-center relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[90%] border-l border-r border-gray-100 z-0"></div>
+          <div className="relative z-10 grayscale hover:grayscale-0 transition-all duration-1000">
+            <Image
+              src="/assets/imgs/previewSinFondo.png"
+              alt="Sistemas PC Registration Hero"
+              width={450}
+              height={450}
+              className="object-contain drop-shadow-2xl"
+            />
           </div>
         </div>
       </div>
 
-      {/* ======= Modal de Términos ======= */}
-      {showTerms && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          aria-labelledby="terms-title"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setShowTerms(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 id="terms-title" className="text-sm font-semibold text-gray-800">
-                Términos y Condiciones de uso
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowTerms(false)}
-                className="rounded p-1 text-gray-500 hover:bg-gray-100"
-                aria-label="Cerrar"
-                title="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div
-              ref={scrollBoxRef}
-              onScroll={onTermsScroll}
-              className="max-h-[70vh] overflow-y-auto px-4 py-3 text-sm leading-relaxed text-gray-700"
-            >
-              {/* --- Contenido simulado de términos --- */}
-              <p className="mb-2">
-                Bienvenido/a a <strong>SistemasPc</strong>. Estos Términos y Condiciones regulan
-                el uso de nuestros servicios. Al crear una cuenta, aceptas cumplirlos.
-              </p>
-              <h3 className="mt-3 font-semibold">1. Cuenta y seguridad</h3>
-              <p>
-                Eres responsable de mantener la confidencialidad de tus credenciales y de todas
-                las actividades realizadas desde tu cuenta.
-              </p>
-              <h3 className="mt-3 font-semibold">2. Uso aceptable</h3>
-              <p>
-                Te comprometes a no utilizar la plataforma para fines ilícitos, a respetar los
-                derechos de terceros y a cumplir la normativa aplicable.
-              </p>
-              <h3 className="mt-3 font-semibold">3. Datos personales</h3>
-              <p>
-                Tratamos tus datos conforme a nuestra Política de Privacidad. Puedes ejercer tus
-                derechos de acceso, rectificación y supresión según corresponda.
-              </p>
-              <h3 className="mt-3 font-semibold">4. Disponibilidad del servicio</h3>
-              <p>
-                Hacemos esfuerzos razonables para mantener el servicio disponible; no garantizamos
-                disponibilidad ininterrumpida ni ausencia de errores.
-              </p>
-              <h3 className="mt-3 font-semibold">5. Limitación de responsabilidad</h3>
-              <p>
-                En la medida permitida por la ley, no seremos responsables por pérdidas indirectas
-                o consecuentes derivadas del uso del servicio.
-              </p>
-              <h3 className="mt-3 font-semibold">6. Modificaciones</h3>
-              <p>
-                Podemos actualizar estos términos. Las modificaciones serán comunicadas por los
-                canales habituales y entrarán en vigor desde su publicación.
-              </p>
-              <h3 className="mt-3 font-semibold">7. Contacto</h3>
-              <p className="mb-8">
-                Para dudas sobre estos términos, contáctanos a soporte@sistemaspc.co.
-              </p>
-
-              {/* Indicador para el usuario */}
-              <div className="sticky bottom-0 -mx-4 mt-6 border-t bg-white px-4 py-2 text-[11px] text-gray-500">
-                Desplázate hasta el final para habilitar “Aceptar y continuar”.
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  update("terms", false);
-                  setShowTerms(false);
-                }}
-                className="h-9 rounded-md border px-3 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Rechazar
-              </button>
-              <button
-                type="button"
-                disabled={!canAcceptTerms}
-                onClick={() => {
-                  update("terms", true);
-                  setShowTerms(false);
-                }}
-                className={`h-9 rounded-md px-3 text-sm font-semibold text-white shadow-sm
-                  ${canAcceptTerms ? "bg-[#CC0000] hover:bg-[#b30000] focus:outline-none focus:ring-2 focus:ring-[#CC0000]/40" : "bg-gray-300 cursor-not-allowed"}`}
-              >
-                Aceptar y continuar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="absolute bottom-6 right-10 hidden md:block">
+        <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.5em] rotate-90 origin-right">
+          SISTEMAS PC — INFRASTRUCTURE FIRST
+        </p>
+      </div>
     </div>
   );
 }

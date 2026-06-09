@@ -1,251 +1,746 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import Modal from "@/features/dashboard/components/Modal";
 import Colors from "@/shared/theme/colors";
-import { DocumentType, CreateTechnicianData } from "../../types/typesTechnicians";
+import {
+  DocumentType,
+  CreateTechnicianData,
+  Technician,
+} from "../../types/typesTechnicians";
+import {
+  validateTechnicianField,
+  validateTechnicianForm,
+  TechnicianErrors,
+} from "@/features/dashboard/technicians/validations/techniciansValidations";
+import { showWarning } from "@/shared/utils/notifications";
+import { Upload, X } from "lucide-react";
+import { getDocumentTypes } from "../../api/typeofdocuments.api";
+import { checkUserDuplicates } from "../../api/technicians.api";
+
+type TechnicianField =
+  | "documentType"
+  | "documentNumber"
+  | "name"
+  | "lastName"
+  | "phone"
+  | "email"
+  | "types"
+  | "resumePdf";
 
 interface CreateTechnicianModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: CreateTechnicianData) => void;
+  technicians: Technician[];
+  typeOptions?: string[];
 }
 
-const documentTypes: DocumentType[] = ["CC", "CE", "TI", "Pasaporte", "PPT", "PEP", "Otro"];
+const TECH_TYPES = [
+  "Instalacion CCTV",
+  "Mantenimiento CCTV",
+  "Cableado estructurado",
+  "Redes y configuracion",
+  "Soporte electrico",
+];
 
+const removeBtnClass =
+  "text-xs text-red-500 border border-red-300 rounded-md px-2 py-1 hover:bg-red-50 hover:text-red-700 flex items-center gap-1";
 
-const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({ isOpen, onClose, onSave }) => {
-  const [name, setName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [documentType, setDocumentType] = useState<DocumentType>("CC");
-  const [documentNumber, setDocumentNumber] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
+type DuplicateField = "documentNumber" | "phone" | "email";
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleCircleClick = () => fileInputRef.current?.click();
+const duplicateFieldMessages: Record<DuplicateField, string> = {
+  documentNumber: "Ya existe un usuario con este número de documento",
+  phone: "Ya existe un usuario con este teléfono",
+  email: "Ya existe un usuario con este correo",
+};
+
+const CreateTechnicianModal: React.FC<CreateTechnicianModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  technicians,
+  typeOptions,
+}) => {
+  const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [tipoDocumento, setTipoDocumento] = useState<string>("");
+  const [tipoDocumentoId, setTipoDocumentoId] = useState<number>(0);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+
+  const [numeroDocumento, setNumeroDocumento] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [imagen, setImagen] = useState<File | null>(null);
+  const [previewImagen, setPreviewImagen] = useState<string | null>(null);
+
+  const [types, setTypes] = useState<string[]>([]);
+  const [resumePdf, setResumePdf] = useState<File | null>(null);
+  const [resumeName, setResumeName] = useState<string>("");
+
+  const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
+  const [duplicateErrors, setDuplicateErrors] = useState<
+    Partial<Pick<TechnicianErrors, DuplicateField>>
+  >({});
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const duplicateRequestRef = useRef<Record<DuplicateField, number>>({
+    documentNumber: 0,
+    phone: 0,
+    email: 0,
+  });
 
   const resetForm = () => {
-    setName("");
-    setLastName("");
-    setPassword("");
-    setConfirmPassword("");
-    setDocumentType("CC");
-    setDocumentNumber("");
-    setPhone("");
-    setEmail("");
-    setImageFile(null);
-    setPreviewImage(undefined);
+    setNombre("");
+    setApellido("");
+    setTipoDocumento("");
+    setTipoDocumentoId(0);
+    setNumeroDocumento("");
+    setTelefono("");
+    setCorreo("");
+    setImagen(null);
+    setPreviewImagen(null);
+    setTypes([]);
+    setResumePdf(null);
+    setResumeName("");
+    setErrors({});
+    setDuplicateErrors({});
+    setImageError(null);
+    setPdfError(null);
   };
 
   useEffect(() => {
-    if (isOpen) resetForm();
-  }, [isOpen]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !lastName || !password || !confirmPassword || !documentNumber || !phone || !email) {
-      alert("Por favor completa todos los campos obligatorios");
-      return;
-    }
-    if (password !== confirmPassword) {
-      alert("Las contraseñas no coinciden");
-      return;
-    }
-
-    onSave({
-      name,
-      lastName,
-      password,
-      confirmPassword,
-      documentType,
-      documentNumber,
-      phone,
-      email,
-      image: imageFile ? URL.createObjectURL(imageFile) : undefined,
-      state: "Activo",
-    });
+    if (!isOpen) return;
 
     resetForm();
-    onClose();
+
+    getDocumentTypes()
+      .then((data) => {
+        const filtered = data.filter((d) => d.name !== "NIT");
+        setDocumentTypes(filtered);
+
+        if (filtered.length > 0) {
+          setTipoDocumentoId(filtered[0].typeofdocumentid);
+          setTipoDocumento(filtered[0].name);
+        }
+      })
+      .catch((error) => {
+        console.error("Error cargando tipos de documento para técnicos:", error);
+        setDocumentTypes([]);
+        setTipoDocumentoId(0);
+        setTipoDocumento("");
+      });
+
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fields: Array<{
+      key: DuplicateField;
+      value: string;
+      queryKey: "documentnumber" | "phone" | "email";
+    }> = [
+      {
+        key: "documentNumber",
+        value: numeroDocumento,
+        queryKey: "documentnumber",
+      },
+      {
+        key: "phone",
+        value: telefono,
+        queryKey: "phone",
+      },
+      {
+        key: "email",
+        value: correo,
+        queryKey: "email",
+      },
+    ];
+
+    const timeouts = fields.map(({ key, value, queryKey }) => {
+      const localError = validateTechnicianField(key, value, technicians, {
+        documentType: tipoDocumento,
+      });
+
+      if (!String(value || "").trim() || localError) {
+        setDuplicateErrors((prev) =>
+          prev[key] ? { ...prev, [key]: undefined } : prev
+        );
+        return null;
+      }
+
+      return window.setTimeout(async () => {
+        const requestId = duplicateRequestRef.current[key] + 1;
+        duplicateRequestRef.current[key] = requestId;
+
+        try {
+          const result = await checkUserDuplicates({ [queryKey]: value.trim() });
+
+          if (duplicateRequestRef.current[key] !== requestId) return;
+
+          setDuplicateErrors((prev) => ({
+            ...prev,
+            [key]: result[queryKey] ? duplicateFieldMessages[key] : undefined,
+          }));
+        } catch (error) {
+          console.error(`Error validando duplicado de ${key}:`, error);
+        }
+      }, 400);
+    });
+
+    return () => {
+      timeouts.forEach((timeoutId) => {
+        if (timeoutId) window.clearTimeout(timeoutId);
+      });
+    };
+  }, [isOpen, numeroDocumento, telefono, correo, tipoDocumento, technicians]);
+
+  const getFieldError = (field: keyof TechnicianErrors) =>
+    errors[field] ||
+    duplicateErrors[field as DuplicateField];
+
+  const handleFieldChange = (field: TechnicianField, rawValue: any) => {
+    let value = rawValue;
+    const hasDigits = typeof rawValue === "string" && /\d/.test(rawValue);
+
+    if (field === "documentType") {
+      const id = Number(rawValue);
+      const doc = documentTypes.find((d) => d.typeofdocumentid === id);
+
+      setTipoDocumentoId(id);
+      setTipoDocumento(doc?.name ?? "");
+
+      const docTypeError = validateTechnicianField(
+        "documentType",
+        doc?.name ?? "",
+        technicians,
+        { documentType: doc?.name ?? "" }
+      );
+      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
+      setDuplicateErrors((prev) => ({ ...prev, documentNumber: undefined }));
+
+      return;
+    }
+
+    if (field === "name" || field === "lastName")
+      value = String(rawValue).replace(/\d/g, "");
+
+    if (field === "phone") value = String(rawValue).replace(/\D/g, "");
+
+    if (field === "documentNumber") {
+      const raw = String(rawValue);
+
+      if (tipoDocumento === "PA") {
+        value = raw.replace(/[^a-zA-Z0-9]/g, "");
+      } else {
+        value = raw.replace(/\D/g, "");
+      }
+    }
+
+    switch (field) {
+      case "name":
+        setNombre(value);
+        break;
+      case "lastName":
+        setApellido(value);
+        break;
+      case "documentNumber":
+        setNumeroDocumento(value);
+        duplicateRequestRef.current.documentNumber += 1;
+        setDuplicateErrors((prev) => ({ ...prev, documentNumber: undefined }));
+        break;
+      case "phone":
+        setTelefono(value);
+        duplicateRequestRef.current.phone += 1;
+        setDuplicateErrors((prev) => ({ ...prev, phone: undefined }));
+        break;
+      case "email":
+        setCorreo(value);
+        duplicateRequestRef.current.email += 1;
+        setDuplicateErrors((prev) => ({ ...prev, email: undefined }));
+        break;
+      case "types":
+        setTypes(value as string[]);
+        break;
+      case "resumePdf":
+        setResumePdf(value as File | null);
+        break;
+    }
+
+    let fieldError = validateTechnicianField(
+      field,
+      value,
+      technicians,
+      { documentType: tipoDocumento }
+    );
+
+    if ((field === "name" || field === "lastName") && hasDigits) {
+      fieldError =
+        field === "name"
+          ? "El nombre no puede contener números"
+          : "El apellido no puede contener números";
+    }
+
+    setErrors((prev) => ({ ...prev, [field]: fieldError }));
   };
 
-  if (!isOpen) return null;
+  const validateImage = (file: File | null) => {
+    if (!file) return null;
+    if (!file.type.startsWith("image/"))
+      return "El archivo debe ser una imagen";
+    if (file.size > 2 * 1024 * 1024) return "La imagen no debe superar 2MB";
+    return null;
+  };
 
-  return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white p-3 rounded-lg shadow-lg w-full max-w-2xl relative z-50 mx-auto">
-        <button onClick={onClose} className="absolute top-2 right-2 z-10">
-          <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
-        </button>
+  const handleImageChange = (file: File | null) => {
+    if (file) {
+      const err = validateImage(file);
+      if (err) {
+        setImageError(err);
+        setImagen(null);
+        setPreviewImagen(null);
+        return;
+      }
+    }
+    setImageError(null);
+    setImagen(file);
+    setPreviewImagen(file ? URL.createObjectURL(file) : null);
+  };
 
-        <div className="text-black font-semibold text-2xl text-center mb-3">
-          Crear Técnico
+  const handlePdfChange = (file: File | null) => {
+    if (!file) {
+      setResumePdf(null);
+      setResumeName("");
+      setPdfError("La hoja de vida (PDF) es obligatoria");
+      setErrors((p) => ({
+        ...p,
+        resumePdf: "La hoja de vida (PDF) es obligatoria",
+      }));
+      return;
+    }
+    if (file.type !== "application/pdf") {
+      const msg = "El archivo debe ser un PDF";
+      setPdfError(msg);
+      setErrors((p) => ({ ...p, resumePdf: msg }));
+      setResumePdf(null);
+      setResumeName("");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = "El PDF no debe superar 10MB";
+      setPdfError(msg);
+      setErrors((p) => ({ ...p, resumePdf: msg }));
+      setResumePdf(null);
+      setResumeName("");
+      return;
+    }
+    setPdfError(null);
+    setErrors((p) => ({ ...p, resumePdf: undefined }));
+    setResumePdf(file);
+    setResumeName(file.name);
+  };
+
+  const handleToggleType = (option: string) => {
+    setTypes((prev) =>
+      prev.includes(option)
+        ? prev.filter((t) => t !== option)
+        : [...prev, option]
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData: CreateTechnicianData = {
+      name: nombre,
+      lastName: apellido,
+      documentType: tipoDocumento,
+      typeid: tipoDocumentoId,
+      documentNumber: numeroDocumento,
+      phone: telefono,
+      email: correo,
+      image: imagen || undefined,
+      state: "Activo",
+      types,
+      resumePdf: resumePdf as File,
+    };
+
+    const formErrors = validateTechnicianForm(formData, technicians);
+    const nextDuplicateErrors: Partial<Pick<TechnicianErrors, DuplicateField>> =
+      {};
+
+    try {
+      const duplicateCheck = await checkUserDuplicates({
+        documentnumber: numeroDocumento.trim(),
+        phone: telefono.trim(),
+        email: correo.trim(),
+      });
+
+      if (duplicateCheck.documentnumber) {
+        nextDuplicateErrors.documentNumber =
+          duplicateFieldMessages.documentNumber;
+      }
+
+      if (duplicateCheck.phone) {
+        nextDuplicateErrors.phone = duplicateFieldMessages.phone;
+      }
+
+      if (duplicateCheck.email) {
+        nextDuplicateErrors.email = duplicateFieldMessages.email;
+      }
+    } catch (error) {
+      console.error("Error validando duplicados antes de crear técnico:", error);
+    }
+
+    setErrors(formErrors);
+    setDuplicateErrors(nextDuplicateErrors);
+
+    if (
+      Object.keys(formErrors).length > 0 ||
+      Object.keys(nextDuplicateErrors).length > 0 ||
+      imageError ||
+      pdfError
+    ) {
+      showWarning("Por favor completa los campos obligatorios correctamente");
+      return;
+    }
+
+    onSave(formData);
+  };
+
+  return (
+    <Modal
+      title="Crear Técnico"
+      isOpen={isOpen}
+      onClose={() => {
+        resetForm();
+        onClose();
+      }}
+      footer={
+        <div className="flex justify-end gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer transition duration-300 hover:bg-gray-200 hover:text-black hover:scale-105 px-4 py-2 rounded-lg bg-gray-300 text-black w-full sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="create-technician-form"
+            className="cursor-pointer transition duration-300 hover:bg-black hover:text-white hover:scale-105 px-4 py-2 rounded-lg bg-black text-white w-full sm:w-auto"
+          >
+            Guardar
+          </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
-
-          {/* Imagen */}
-          <div className="col-span-2 flex flex-col items-center mb-3">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                setImageFile(file);
-                if (file) setPreviewImage(URL.createObjectURL(file));
-              }}
-            />
-            <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1"
-              onClick={handleCircleClick}
-              style={{ borderColor: Colors.table.lines }}
+      }
+    >
+      <form
+        id="create-technician-form"
+        onSubmit={handleSubmit}
+        className="flex flex-col h-full"
+      >
+        <div className="flex-1 grid grid-cols-2 gap-3 p-1">
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
             >
-              {previewImage ? (
-                <img src={previewImage} alt="Técnico" className="w-full h-full object-cover rounded-full" />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              )}
-            </div>
-            <div className="text-center text-xs text-gray-500 mb-1">
-              Haga clic en el círculo para {previewImage ? "cambiar" : "seleccionar"} la imagen
-            </div>
-            {previewImage && (
-              <div className="flex flex-col items-center space-y-1">
-                <div className="text-xs text-green-600 font-medium">{imageFile?.name ?? "Imagen actual"}</div>
-                <button
-                  type="button"
-                  onClick={() => { setImageFile(null); setPreviewImage(undefined); }}
-                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                  style={{ borderColor: Colors.states.nullable }}
+              Tipo de Documento <span className="text-red-500">*</span>
+            </label>
+
+            <select
+              value={tipoDocumentoId}
+              onChange={(e) =>
+                handleFieldChange("documentType", e.target.value)
+              }
+              className="w-full px-2 py-1 border rounded-md"
+              style={{
+                borderColor: errors.documentType ? "red" : Colors.table.lines,
+              }}
+            >
+              <option value={0}>Selecciona el tipo de documento</option>
+              {documentTypes.map((doc) => (
+                <option
+                  key={doc.typeofdocumentid}
+                  value={doc.typeofdocumentid}
                 >
-                  Eliminar imagen
-                </button>
-              </div>
+                  {doc.name}
+                </option>
+              ))}
+            </select>
+
+            {errors.documentType && (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.documentType}
+              </p>
             )}
           </div>
 
-          {/* Campos */}
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Nombre</label>
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Número de Documento <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Número de documento"
+              value={numeroDocumento}
+              onChange={(e) =>
+                handleFieldChange("documentNumber", e.target.value)
+              }
+              onBlur={() =>
+                handleFieldChange("documentNumber", numeroDocumento)
+              }
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: getFieldError("documentNumber")
+                  ? "red"
+                  : Colors.table.lines,
+              }}
+            />
+            {getFieldError("documentNumber") && (
+              <p className="mt-1 text-xs text-red-600">
+                {getFieldError("documentNumber")}
+              </p>
+            )}
+          </div>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Nombre <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               placeholder="Ingrese nombre"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+              value={nombre}
+              onChange={(e) => handleFieldChange("name", e.target.value)}
+              onBlur={() => handleFieldChange("name", nombre)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{ borderColor: errors.name ? "red" : Colors.table.lines }}
             />
+            {errors.name && (
+              <p className="mt-1 text-xs text-red-600">{errors.name}</p>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Apellido</label>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Apellido <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               placeholder="Ingrese apellido"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+              value={apellido}
+              onChange={(e) => handleFieldChange("lastName", e.target.value)}
+              onBlur={() => handleFieldChange("lastName", apellido)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: errors.lastName ? "red" : Colors.table.lines,
+              }}
             />
+            {errors.lastName && (
+              <p className="mt-1 text-xs text-red-600">
+                {errors.lastName}
+              </p>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Contraseña</label>
-            <input
-              type="password"
-              placeholder="Ingrese contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Confirmar Contraseña</label>
-            <input
-              type="password"
-              placeholder="Confirme contraseña"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Tipo de Documento</label>
-            <select
-              value={documentType}
-              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
             >
-              {documentTypes.map((doc) => <option key={doc} value={doc}>{doc}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Número de Documento</label>
-            <input
-              type="text"
-              placeholder="Ingrese número de documento"
-              value={documentNumber}
-              onChange={(e) => setDocumentNumber(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Teléfono</label>
+              Teléfono <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               placeholder="Ingrese teléfono"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+              value={telefono}
+              onChange={(e) => handleFieldChange("phone", e.target.value)}
+              onBlur={() => handleFieldChange("phone", telefono)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: getFieldError("phone") ? "red" : Colors.table.lines,
+              }}
             />
+            {getFieldError("phone") && (
+              <p className="mt-1 text-xs text-red-600">{getFieldError("phone")}</p>
+            )}
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: Colors.texts.primary }}>Correo electrónico</label>
+
+          <div className="relative">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Correo electrónico <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
-              placeholder="Ingrese correo electrónico"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+              placeholder="Correo@gmail.com"
+              value={correo}
+              onChange={(e) => handleFieldChange("email", e.target.value)}
+              onBlur={() => handleFieldChange("email", correo)}
+              className="w-full px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              style={{
+                borderColor: getFieldError("email") ? "red" : Colors.table.lines,
+              }}
             />
+            {getFieldError("email") && (
+              <p className="mt-1 text-xs text-red-600">{getFieldError("email")}</p>
+            )}
           </div>
 
-          {/* Botones */}
-          <div className="col-span-2 flex justify-end space-x-2 pt-2">
-            <button
-              type="button"
-              onClick={() => { resetForm(); onClose(); }}
-              className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-              style={{ backgroundColor: Colors.buttons.tertiary, color: Colors.texts.quaternary }}
+          <div className="col-span-2">
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
             >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md font-medium text-white text-sm"
-              style={{ backgroundColor: Colors.buttons.quaternary, color: Colors.texts.quaternary }}
-            >
-              Guardar
-            </button>
+              Tipos de técnico <span className="text-red-500">*</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {(typeOptions ?? TECH_TYPES).map((opt) => {
+                const active = types.includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      handleToggleType(opt);
+                      setTimeout(
+                        () =>
+                          handleFieldChange(
+                            "types",
+                            types.includes(opt)
+                              ? types.filter((t) => t !== opt)
+                              : [...types, opt]
+                          ),
+                        0
+                      );
+                    }}
+                    className={`px-3 py-1 rounded-full border text-sm transition ${active
+                      ? "bg-red-600 text-white border-red-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                      }`}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.types && (
+              <p className="mt-1 text-xs text-red-600">{errors.types}</p>
+            )}
           </div>
 
-        </form>
-      </div>
-    </div>,
-    document.body
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Hoja de vida (PDF) <span className="text-red-500">*</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <div
+                onClick={() => pdfInputRef.current?.click()}
+                className="flex h-10 min-w-10 max-w-[260px] items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-700 cursor-pointer hover:bg-gray-100 px-2"
+                title={resumeName || "Subir PDF"}
+              >
+                {resumePdf ? (
+                  <span className="text-xs truncate w-full">
+                    {resumeName}
+                  </span>
+                ) : (
+                  <Upload size={16} />
+                )}
+              </div>
+              {resumePdf && (
+                <button
+                  type="button"
+                  onClick={() => handlePdfChange(null)}
+                  className={removeBtnClass}
+                >
+                  <X size={14} /> Eliminar
+                </button>
+              )}
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) =>
+                  handlePdfChange(e.target.files?.[0] ?? null)
+                }
+              />
+            </div>
+            {(pdfError || errors.resumePdf) && (
+              <p className="mt-1 text-xs text-red-600">
+                {pdfError || errors.resumePdf}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: Colors.texts.primary }}
+            >
+              Imagen
+            </label>
+            <div className="mt-1 flex items-center gap-2">
+              <div
+                onClick={() => imgInputRef.current?.click()}
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 text-gray-600 cursor-pointer overflow-hidden"
+              >
+                {previewImagen ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewImagen}
+                    alt="preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <Upload size={16} />
+                )}
+              </div>
+              {imagen && (
+                <button
+                  type="button"
+                  onClick={() => handleImageChange(null)}
+                  className={removeBtnClass}
+                >
+                  <X size={14} /> Eliminar
+                </button>
+              )}
+              <input
+                ref={imgInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) =>
+                  handleImageChange(e.target.files?.[0] ?? null)
+                }
+              />
+            </div>
+            {imageError && (
+              <p className="mt-1 text-xs text-red-600">{imageError}</p>
+            )}
+          </div>
+        </div>
+      </form>
+    </Modal>
   );
 };
 

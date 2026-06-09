@@ -1,137 +1,79 @@
-import type { Metadata } from 'next';
-import Image from 'next/image';
-import { Target, Eye, Flag, ChevronDown } from 'lucide-react';
-import Container from '@/features/landing/about/components/Container';
-import SectionTitle from '@/features/landing/about/components/SectionTitle';
-import Card from '@/features/landing/about/components/Card';
-import { JSX } from 'react';
-import Nav from '../layout/Nav';
-import Footer from '../layout/Footer';
-import Accordion from './components/Accordion';
+"use client";
 
-/**
- * Interface para definir la estructura de cada item del FAQ
- */
-interface FAQItem {
-  question: string;
-  answer: string;
-}
+import React from "react";
+import Image from "next/image";
+import {
+  Target,
+  Eye,
+  Flag,
+  ShieldCheck,
+  Laptop,
+  Users,
+  Zap,
+} from "lucide-react";
+import Container from "@/features/landing/about/components/Container";
+import Card from "@/features/landing/about/components/Card";
+import Nav from "../layout/Nav";
+import Footer from "../layout/Footer";
+import Accordion from "./components/Accordion";
 
-/**
- * Interface para el schema de datos estructurados de Schema.org
- */
-interface OrganizationSchema {
-  "@context": string;
-  "@type": string;
-  name: string;
-  url: string;
-  logo: string;
-  sameAs: string[];
-  contactPoint: {
-    "@type": string;
-    telephone: string;
-    contactType: string;
-    email: string;
-    areaServed: string;
-    availableLanguage: string[];
-  };
-}
-
-/**
- * Metadata para SEO
- */
-export const metadata: Metadata = {
-  title: 'Sobre Nosotros',
-  description: 'Conoce más sobre Tu Empresa, nuestra misión, visión y valores que nos guían para ofrecer las mejores soluciones.',
-};
-
-/**
- * Array de preguntas frecuentes
- */
-const faqItems: FAQItem[] = [
+const faqItems = [
   {
-    question: "¿Cuál es su horario de atención al cliente?",
-    answer: "Nuestro horario de atención es de lunes a viernes de 9:00 AM a 6:00 PM, y sábados de 9:00 AM a 2:00 PM. También puedes contactarnos por email en cualquier momento."
+    question: "¿Qué tipo de soporte técnico ofrecen?",
+    answer:
+      "Brindamos soporte integral en SistemaPC: desde mantenimiento preventivo y correctivo hasta optimización avanzada de hardware y redes para empresas.",
   },
   {
-    question: "¿Cómo solicitar una cotización?",
-    answer: "Puedes solicitar una cotización a través de nuestro formulario de contacto, por teléfono o por email. Te responderemos en un máximo de 24 horas con una propuesta personalizada."
+    question: "¿Cómo funciona el sistema de entrega de credenciales?",
+    answer:
+      "Implementamos un protocolo de seguridad mediante el cual las credenciales se generan y entregan de forma encriptada, asegurando que solo el cliente final tenga acceso a sus datos técnicos.",
   },
   {
-    question: "¿Qué métodos de pago aceptan?",
-    answer: "Aceptamos transferencias bancarias, tarjetas de crédito y débito, PayPal, y pagos en efectivo. También ofrecemos planes de financiamiento para proyectos grandes."
+    question: "¿Tienen planes de mantenimiento corporativo?",
+    answer:
+      "Sí, diseñamos planes a medida bajo el modelo de Tech Solutions, con tiempos de respuesta prioritarios y soporte preventivo mensual para evitar caídas de sistema.",
   },
-  {
-    question: "¿Ofrecen garantía en sus servicios?",
-    answer: "Sí, todos nuestros servicios incluyen garantía. El período varía según el tipo de servicio, pero generalmente ofrecemos entre 6 meses a 2 años de garantía."
-  },
-  {
-    question: "¿Trabajan con empresas de todos los tamaños?",
-    answer: "Absolutamente. Trabajamos desde emprendedores y pequeñas empresas hasta grandes corporaciones. Adaptamos nuestras soluciones a las necesidades específicas de cada cliente."
-  }
 ];
 
-/**
- * Datos estructurados para SEO
- */
-const organizationSchema: OrganizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "Tu Empresa",
-  "url": "https://tuempresa.com",
-  "logo": "https://tuempresa.com/logo.png",
-  "sameAs": [
-    "https://facebook.com/tuempresa",
-    "https://instagram.com/tuempresa"
-  ],
-  "contactPoint": {
-    "@type": "ContactPoint",
-    "telephone": "+52-55-1234-5678",
-    "contactType": "customer service",
-    "email": "soporte@empresa.com",
-    "areaServed": "MX",
-    "availableLanguage": ["Spanish"]
-  }
-};
-
-/**
- * Componente principal de la página "Sobre Nosotros"
- */
-export default function About(): JSX.Element {
+export default function About() {
   return (
-    <>
+    <div className="min-h-screen bg-white">
       <Nav />
-      
-      {/* JSON-LD Schema para SEO */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(organizationSchema)
-        }}
-      />
 
-      {/* Hero Section */}
-      <section className="bg-red-600 text-white relative overflow-hidden">
-        {/* Contenido principal */}
-        <div className="relative z-10 py-16 lg:py-20">
+      {/* Hero Section - Usando el Rojo #B20000 */}
+      <section className="bg-[#B20000] text-white relative overflow-hidden">
+        {/* Decoración de fondo para que no sea un bloque plano */}
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-black/10 -skew-x-12 transform translate-x-1/2"></div>
+
+        <div className="relative z-10 py-20 lg:py-28">
           <Container>
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Columna de texto */}
-              <div>
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-                  Sobre Nosotros
+              <div className="space-y-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/20 rounded-full text-sm font-semibold backdrop-blur-md">
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  <span>Soluciones Tecnológicas Reales</span>
+                </div>
+                <h1 className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-none">
+                  SISTEMA<span className="text-red-200">PC</span>
                 </h1>
-                <p className="text-lg md:text-xl lg:text-2xl leading-relaxed text-red-100">
-                  Somos una empresa comprometida con la excelencia, la innovación y el crecimiento de nuestros clientes. Con más de una década de experiencia, hemos ayudado a cientos de empresas a alcanzar sus objetivos.
+                <p className="text-xl md:text-2xl leading-relaxed text-red-50/90 max-w-xl font-light">
+                  Más que soporte técnico, somos tu aliado en la era digital. En
+                  **Tech Solutions** transformamos problemas complejos en
+                  sistemas eficientes.
                 </p>
+                <div className="flex gap-4">
+                  <button className="px-8 py-4 bg-white text-[#B20000] font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg">
+                    Ver Servicios
+                  </button>
+                </div>
               </div>
-              
-              {/* Columna de imagen */}
-              <div className="flex justify-center lg:justify-end">
-                <div className="relative w-72 h-48 md:w-96 md:h-64 lg:w-[400px] lg:h-[280px] rounded-xl overflow-hidden shadow-2xl">
+
+              <div className="relative">
+                <div className="absolute -inset-4 bg-white/10 rounded-3xl blur-3xl"></div>
+                <div className="relative aspect-video rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl">
                   <Image
                     src="/assets/imgs/about.png"
-                    alt="Paneles solares - energía renovable"
+                    alt="Equipo tecnico y soluciones tecnologicas de Vertecx"
                     fill
                     className="object-cover"
                     priority
@@ -141,93 +83,108 @@ export default function About(): JSX.Element {
             </div>
           </Container>
         </div>
-        
-        {/* Onda decorativa */}
-        <div className="absolute bottom-0 left-0 w-full overflow-hidden">
+
+        {/* Wave Divider */}
+        <div className="absolute bottom-0 left-0 w-full overflow-hidden rotate-180">
           <svg
-            className="relative block w-full h-16 lg:h-20"
-            xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 1200 120"
             preserveAspectRatio="none"
+            className="relative block w-full h-12 fill-white"
           >
-            <path
-              d="M0,120V73.71c47.79-22.2,103.59-32.17,158-28,70.36,5.37,136.33,33.31,206.8,37.5C438.64,87.57,512.34,66.33,583,47.95c69.27-18,138.3-24.88,209.4-13.08,36.15,6,69.85,17.84,104.45,29.34C989.49,95,1113,134.29,1200,67.53V120Z"
-              fill="white"
-            />
+            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V46.29C80.7,52.57,177.51,58.52,257.7,60.73,280,61.27,301.14,59.94,321.39,56.44Z"></path>
           </svg>
         </div>
       </section>
 
-      {/* Sección de Pilares */}
-      <section className="py-16 lg:py-20 bg-white">
+      {/* Pilares con acento en el rojo del proyecto */}
+      <section className="py-24 bg-white">
         <Container>
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-4">
-              Nuestros Pilares
-            </h2>
+          <div className="flex flex-col md:flex-row items-end justify-between mb-16 gap-6">
+            <div className="max-w-2xl">
+              <h2 className="text-[#B20000] font-bold uppercase tracking-widest text-sm mb-3">
+                Nuestra Esencia
+              </h2>
+              <p className="text-4xl md:text-5xl font-black text-slate-900 leading-tight">
+                Comprometidos con la excelencia técnica.
+              </p>
+            </div>
+            <div className="h-1 w-24 bg-[#B20000] mb-4 hidden md:block"></div>
           </div>
-          
+
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Card de Visión */}
-            <Card variant="pillar">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Eye className="w-10 h-10 text-gray-800" />
+            <Card
+              variant="pillar"
+              className="group hover:bg-[#B20000] transition-all duration-500 border-slate-100"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white/20 transition-colors">
+                <Eye className="w-8 h-8 text-[#B20000] group-hover:text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-800">VISIÓN</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Ser la empresa líder en nuestro sector, reconocida por la calidad 
-                de nuestros servicios y el impacto positivo en la comunidad empresarial.
+              <h3 className="text-2xl font-bold mb-4 text-slate-800 group-hover:text-white">
+                VISIÓN
+              </h3>
+              <p className="text-slate-600 group-hover:text-red-50 leading-relaxed">
+                Ser el referente regional en soporte IT, destacando por nuestra
+                rapidez y el uso de herramientas de última generación.
               </p>
             </Card>
 
-            {/* Card de Misión */}
-            <Card variant="pillar">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Target className="w-10 h-10 text-gray-800" />
+            <Card
+              variant="pillar"
+              className="group hover:bg-[#B20000] transition-all duration-500 border-slate-100"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white/20 transition-colors">
+                <Target className="w-8 h-8 text-[#B20000] group-hover:text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-800">MISIÓN</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Proporcionar soluciones innovadoras y personalizadas que impulsen 
-                el crecimiento y éxito de nuestros clientes, superando sus expectativas.
+              <h3 className="text-2xl font-bold mb-4 text-slate-800 group-hover:text-white">
+                MISIÓN
+              </h3>
+              <p className="text-slate-600 group-hover:text-red-50 leading-relaxed">
+                Resolver cada incidencia técnica con precisión, garantizando que
+                la tecnología sea una herramienta de crecimiento y no un
+                obstáculo.
               </p>
             </Card>
 
-            {/* Card de Objetivo */}
-            <Card variant="pillar">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Flag className="w-10 h-10 text-gray-800" />
+            <Card
+              variant="pillar"
+              className="group hover:bg-[#B20000] transition-all duration-500 border-slate-100"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white/20 transition-colors">
+                <ShieldCheck className="w-8 h-8 text-[#B20000] group-hover:text-white" />
               </div>
-              <h3 className="text-xl font-bold mb-3 text-gray-800">OBJETIVO</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Mantener la excelencia en cada proyecto, construir relaciones duraderas 
-                y contribuir al desarrollo sostenible del sector empresarial.
+              <h3 className="text-2xl font-bold mb-4 text-slate-800 group-hover:text-white">
+                VALORES
+              </h3>
+              <p className="text-slate-600 group-hover:text-red-50 leading-relaxed">
+                Honestidad en el diagnóstico, seguridad en el manejo de datos y
+                una pasión innegociable por la informática.
               </p>
             </Card>
           </div>
         </Container>
       </section>
 
-      {/* Sección de FAQ */}
-      <section className="py-16 lg:py-20 bg-white">
+      {/* FAQ Section - Clean & Professional */}
+      <section className="py-24 bg-slate-50 border-t border-slate-100">
         <Container>
-          {/* Título y subtítulo centrados */}
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-4">
-              Preguntas Frecuentes
-            </h2>
-            <p className="text-lg text-gray-600">
-              Encuentra respuestas a las consultas más comunes
-            </p>
-          </div>
-          
-          {/* Componente Accordion */}
           <div className="max-w-4xl mx-auto">
-            <Accordion items={faqItems} />
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4">
+                Resolviendo tus dudas
+              </h2>
+              <p className="text-slate-500 text-lg font-light">
+                Todo lo que necesitas saber sobre SistemaPC
+              </p>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-4 md:p-8 border border-slate-200">
+              <Accordion items={faqItems} />
+            </div>
           </div>
         </Container>
       </section>
 
       <Footer />
-    </>
+    </div>
   );
-};
+}

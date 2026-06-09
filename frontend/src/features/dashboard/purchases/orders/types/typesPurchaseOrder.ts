@@ -1,53 +1,70 @@
+import { ReactNode } from "react";
+
+/* ============================= */
+/* ITEM DE ORDEN */
+/* ============================= */
+
+export interface PurchaseOrderItem {
+  imagen?: string; // URL o base64 si luego manejas preview
+  producto: string;
+  cantidad: number;
+  precioUnitario: number;
+}
+
+/* ============================= */
+/* MODELO PRINCIPAL (BACKEND) */
+/* ============================= */
+
 export interface purchaseOrder {
-  monto: string;
-  fechaCreacion: ReactNode;
-  id?: number;
-  numeroOrden: string;
-  proveedor: string;
-  precioUnitario: number;
-  fecha: string;
-  estado: "Pendiente" | "Completada" | "Cancelada" | "En Proceso";
-  descripcion?: string;
-  cantidad?: number;
-  total?: number;
-}
-
-export interface purchaseOrderBase {
-  numeroOrden: string;
-  proveedor: string;
-  precioUnitario: number;
-  fecha: string;
-  descripcion?: string;
-  cantidad?: number;
-}
-
-export interface createPurchaseOrderData extends purchaseOrderBase {
-  cantidad: number;
-}
-
-export interface editPurchaseOrder extends purchaseOrderBase {
   id: number;
-  estado: "Pendiente" | "Completada" | "Cancelada" | "En Proceso";
-  cantidad: number;
+  numeroOrden: string; // Generado por backend
+  proveedor: string;
+  fecha: string;
+  estado: "Pendiente";
+  descripcion?: string;
+  items: PurchaseOrderItem[];
+  total: number;
+
+  // Solo para visualización si luego lo necesitas
+  fechaCreacion?: ReactNode;
+  monto?: string;
 }
+
+/* ============================= */
+/* CREACIÓN */
+/* ============================= */
+
+export interface createPurchaseOrderData {
+  proveedor: string; // Nombre
+  proveedorId: number; // ID para la DB
+  fecha: string;
+  descripcion?: string;
+  items: PurchaseOrderItem[];
+}
+
+/* ============================= */
+/* ERRORES DE FORMULARIO */
+/* ============================= */
 
 export interface formErrors {
-  numeroOrden: string;
   proveedor: string;
-  precioUnitario: string;
   fecha: string;
   descripcion: string;
-  cantidad: string;
 }
 
+/* ============================= */
+/* TOUCHED DE FORMULARIO */
+/* ============================= */
+
 export interface formTouched {
-  numeroOrden: boolean;
   proveedor: boolean;
-  precioUnitario: boolean;
   fecha: boolean;
   descripcion: boolean;
-  cantidad: boolean;
 }
+
+/* ============================= */
+/* PROPS MODAL CREAR */
+/* ============================= */
 
 export interface createPurchaseOrderModalProps {
   isOpen: boolean;
@@ -55,12 +72,9 @@ export interface createPurchaseOrderModalProps {
   onSave: (purchaseOrderData: createPurchaseOrderData) => void;
 }
 
-export interface editPurchaseOrderModalProps {
-  isOpen: boolean;
-  purchaseOrder: editPurchaseOrder | null; 
-  onClose: () => void;
-  onSave: (purchaseOrderData: editPurchaseOrder) => void;
-}
+/* ============================= */
+/* PROPS MODAL VER */
+/* ============================= */
 
 export interface viewPurchaseOrderModalProps {
   isOpen: boolean;
@@ -68,14 +82,24 @@ export interface viewPurchaseOrderModalProps {
   onClose: () => void;
 }
 
+/* ============================= */
+/* PROPS TABLA */
+/* ============================= */
+
 export interface PurchaseOrdersTableProps {
   purchaseOrders: purchaseOrder[];
   onView: (purchaseOrder: purchaseOrder) => void;
-  onEdit: (purchaseOrder: editPurchaseOrder) => void;
-  onDelete: (purchaseOrder: purchaseOrder) => void;
   onCreate: () => void;
+  rightActions?: ReactNode;
 }
 
-export interface purchaseOrderForTable extends Omit<purchaseOrder, 'id'> {
+/* ============================= */
+/* PARA TABLA */
+/* ============================= */
+
+export interface purchaseOrderForTable
+  extends Omit<purchaseOrder, "id"> {
   id: number;
+  /** Campo auxiliar de texto plano para búsqueda en DataTable */
+  searchQuery?: string;
 }

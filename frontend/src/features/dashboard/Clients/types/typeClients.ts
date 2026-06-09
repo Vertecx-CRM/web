@@ -1,71 +1,76 @@
-// types/typeClients.ts
+// ================================
+// UI MODEL (DATA TABLE)
+// ================================
 
 export interface Client {
   id: number;
-  tipo: string; // CC, TI, PPT, etc.
-  documento: string;
   nombre: string;
+  apellido: string;
+  tipo: string; // nombre del tipo (CC, TI, CE...)
+  tipoId: number; // ID numérico para pre-seleccionar en el select
+  documento: string;
   telefono: string;
   correoElectronico: string;
-  rol: "Cliente" | "Administrador" | "Empleado";
-  estado: "Activo" | "Inactivo" | string; // ← string para permitir valores iniciales como ''
+  estado: string;
+  ciudad: string;
+  codigoPostal: string;
 }
 
-// Tipo base para crear y editar
-export interface ClientBase {
-  tipo: string;
-  documento: string;
+// ================================
+// CREATE FORM DATA (UI FORM STATE)
+// ================================
+
+export interface CreateClientData {
   nombre: string;
+  apellido: string;
+  tipo: number; // 👈 SIEMPRE number
+  documento: string;
   telefono: string;
   correoElectronico: string;
-  rol: "Cliente" | "Administrador" | "Empleado";
-  estado: "Activo" | "Inactivo" | string; // ← string para permitir valores iniciales como ''
+  estado: string;
+  ciudad: string;
+  codigoPostal: string;
 }
 
-// Crear
-export interface CreateClientData extends ClientBase {}
+// ================================
+// EDIT FORM DATA
+// ================================
 
-// Editar
-export interface EditClientData extends ClientBase {
+export interface EditClientData extends CreateClientData {
   id: number;
 }
 
-export interface FormErrors {
-  tipo: string;
-  documento: string;
-  nombre: string;
-  telefono: string;
-  correoElectronico: string;
-  rol: string;
-  estado?: string;
-}
+// ================================
+// FORM STATE
+// ================================
 
-export interface FormTouched {
-  tipo: boolean;
-  documento: boolean;
-  nombre: boolean;
-  telefono: boolean;
-  correoElectronico: boolean;
-  rol: boolean;
-  estado?: boolean;
-}
+export type ClientFormErrors = Partial<
+  Record<keyof CreateClientData, string>
+>;
+
+export type ClientFormTouched = Partial<
+  Record<keyof CreateClientData, boolean>
+>;
+
+// ================================
+// MODAL PROPS
+// ================================
 
 export interface CreateClientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (clientData: CreateClientData) => void;
+  onSave: (data: CreateClientData) => Promise<void>;
 }
 
 export interface EditClientModalProps {
   isOpen: boolean;
-  client: EditClientData | null;
   onClose: () => void;
-  onSave: (clientData: EditClientData) => void;
+  client: Client | null;
+  onSave: (data: EditClientData) => Promise<void>;
 }
 
 export interface ViewClientModalProps {
   isOpen: boolean;
-  client: Client | null;
   onClose: () => void;
+  client: Client | null;
 }
-

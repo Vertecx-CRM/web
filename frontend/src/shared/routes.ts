@@ -7,10 +7,13 @@ interface IRoutes {
     about: string;
     contact: string;
     cart: string;
+    trajectory: string;
   };
   auth: {
     login: string;
     register: string;
+    forgotPassword: string;
+    resetPassword: string;
   };
   dashboard: {
     newClient: any;
@@ -34,7 +37,12 @@ interface IRoutes {
     quotes: string;
     settings: string;
     profile: string;
+    orders: string;
   };
+
+  quotes:{
+    register: string
+  }
   notFound: string;
 }
 export const routes: IRoutes = {
@@ -46,14 +54,17 @@ export const routes: IRoutes = {
     about: "/landing/about",
     contact: "/landing/contact",
     cart: "/cart",
+    trajectory: "/landing/trajectory",
   },
   auth: {
     login: "/auth/login",
     register: "/auth/register",
+    forgotPassword: "/auth/forgot-password",
+    resetPassword: "/auth/reset-password",
   },
   dashboard: {
     main: "/dashboard",
-    users: "/dashboard/access/users",
+    users: "/dashboard/users",
     products: "/dashboard/products",
     productsCategories: "/dashboard/products/categories",
     roles: "/dashboard/roles",
@@ -68,11 +79,15 @@ export const routes: IRoutes = {
     clients: "/dashboard/clients",
     requestsServices: "/dashboard/requests",
     ordersServices: "/dashboard/orders-services",
+    orders: "/dashboard/orders",
     quotes: "/dashboard/quotes",
     settings: "/dashboard/settings",
     profile: "/dashboard/profile",
     newClient: undefined,
     newService: undefined
+  },
+  quotes: {
+    register: "/quotes/register"
   },
   notFound: "/404",
 };

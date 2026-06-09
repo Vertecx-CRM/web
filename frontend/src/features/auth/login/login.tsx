@@ -1,126 +1,272 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import React, { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import styles from "@/features/auth/login/auth.module.css";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/features/auth/authcontext";
 import Nav from "@/features/landing/layout/Nav";
+import { showError } from "@/shared/utils/notifications";
 import { routes } from "@/shared/routes";
-import { useLoader, LoaderGate } from "@/shared/components/loader";
 
-type FormState = { email: string; password: string; remember: boolean };
+type FormState = {
+  email: string;
+  password: string;
+};
+
+type FormErrors = {
+  email: string;
+  password: string;
+};
+
+type FormTouched = {
+  email: boolean;
+  password: boolean;
+};
+
+const emptyErrors: FormErrors = { email: "", password: "" };
+const emptyTouched: FormTouched = { email: false, password: false };
 
 export default function LoginPage() {
-  const router = useRouter();
-  const search = useSearchParams();
   const { login } = useAuth();
-  const { showLoader, hideLoader } = useLoader();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [form, setForm] = useState<FormState>({ email: "", password: "" });
+  const [errors, setErrors] = useState<FormErrors>(emptyErrors);
+  const [touched, setTouched] = useState<FormTouched>(emptyTouched);
+
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>({ email: "", password: "", remember: false });
-  const next = search.get("next") || "/dashboard";
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    setLoading(true);
-    showLoader();
-    try {
-      const res = await login(form.email, form.password);
-      if (!res.ok) {
-        setMsg(res.message || "No se pudo iniciar sesión");
-        hideLoader();
-        setLoading(false);
-        return;
-      }
-      router.replace(next);
-    } catch {
-      setMsg("Ocurrió un error inesperado");
-      hideLoader();
-      setLoading(false);
+  // --- Lógica de Validación ---
+  const validateEmail = (value: string) => {
+    const v = value.trim();
+    if (!v) return "El correo electrónico es obligatorio";
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(v);
+    if (!ok) return "Ingresa un correo electrónico válido";
+    return "";
+  };
+
+  const validatePassword = (value: string) => {
+    const v = value.trim();
+    if (!v) return "La contraseña es obligatoria";
+    return "";
+  };
+
+  const validateField = (name: keyof FormState, value: string) => {
+    if (name === "email") return validateEmail(value);
+    if (name === "password") return validatePassword(value);
+    return "";
+  };
+
+  const setField = (name: keyof FormState, value: string) => {
+    setForm((prev) => ({ ...prev, [name]: value }));
+    if (touched[name]) {
+      const err = validateField(name, value);
+      setErrors((prev) => ({ ...prev, [name]: err }));
     }
-  }
+  };
+
+  const touchField = (name: keyof FormState) => {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    const err = validateField(name, form[name]);
+    setErrors((prev) => ({ ...prev, [name]: err }));
+  };
+
+  const validateAll = () => {
+    const nextErrors: FormErrors = {
+      email: validateEmail(form.email),
+      password: validatePassword(form.password),
+    };
+    setErrors(nextErrors);
+    setTouched({ email: true, password: true });
+    return !nextErrors.email && !nextErrors.password;
+  };
+
+  // --- Manejo de Envío ---
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (loading) return;
+
+    const ok = validateAll();
+    if (!ok) return;
+
+    const next = searchParams.get("next");
+
+    setLoading(true);
+    const result = await login(form.email.trim(), form.password.trim(), next);
+    setLoading(false);
+
+    if (!result.ok) {
+      showError(result.message || "Correo o contraseña incorrectos.");
+      return;
+    }
+
+    if (!result.redirectTo) {
+      showError("Tu rol no tiene acceso a ningún módulo disponible.");
+      return;
+    }
+
+    router.replace(result.redirectTo);
+  };
+
+  const emailHasError = !!errors.email && touched.email;
+  const passHasError = !!errors.password && touched.password;
 
   return (
-    <div className={styles.root}>
-      <LoaderGate />
+    <div className="min-h-screen w-full flex flex-col bg-white overflow-hidden text-black font-sans">
       <Nav />
-      <div className="flex flex-1 items-center justify-center px-4 py-10">
-        <div className="grid w-full max-w-5xl overflow-hidden rounded-xl shadow-lg lg:grid-cols-2">
-          <div className="relative hidden bg-[#CC0000] p-8 text-white lg:flex lg:flex-col lg:items-center lg:justify-center text-center">
-            <div className="absolute inset-x-0 bottom-0 h-10 bg-black/10 blur-2xl" />
-            <h2 className="mb-4 text-3xl font-extrabold tracking-tight">SistemasPc</h2>
-            <p className="max-w-xs text-red-50">20 años conectando tu mundo</p>
+
+      <div className="flex flex-col lg:flex-row flex-1 px-6 lg:px-20 items-center justify-center gap-12 lg:gap-24 max-w-7xl mx-auto w-full">
+        {/* Columna Izquierda: Formulario Minimalista */}
+        <div className="w-full lg:w-[45%] max-w-md flex flex-col justify-center py-10">
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-10 h-[2px] bg-red-600"></span>
+              <span className="text-red-600 font-bold tracking-[0.3em] text-[10px] uppercase">
+                Acceso Autorizado
+              </span>
+            </div>
+            <h2 className="text-5xl lg:text-6xl font-black tracking-tighter mb-4 leading-none">
+              INICIAR <br /> <span className="text-red-600">SESIÓN.</span>
+            </h2>
+            <p className="text-gray-400 font-light text-sm max-w-xs">
+              Bienvenido al portal técnico de Sistemas PC. Por favor,
+              identifícate.
+            </p>
           </div>
-          <div className="bg-white p-8">
-            <h1 className="mb-6 text-center text-2xl font-semibold text-gray-800">Iniciar sesión</h1>
-            <form className="space-y-4" onSubmit={onSubmit}>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">Correo</label>
-                <input
-                  name="email"
-                  type="email"
-                  required
-                  placeholder="Correo"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-gray-700">Contraseña</label>
-                <div className="relative">
-                  <input
-                    name="password"
-                    type={show ? "text" : "password"}
-                    required
-                    placeholder="Contraseña"
-                    value={form.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 pr-10 text-sm shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShow((s) => !s)}
-                    className="absolute inset-y-0 right-2 my-auto h-8 w-8 rounded-md text-gray-500 hover:bg-gray-200"
-                    aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
-                    title={show ? "Ocultar contraseña" : "Mostrar contraseña"}
-                  >
-                    {show ? <img src="/icons/Eye.svg" className="h-4 w-4" /> : <img src="/icons/eye-off.svg" className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="size-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                  checked={form.remember}
-                  onChange={(e) => setForm((f) => ({ ...f, remember: e.target.checked }))}
-                />
-                Recuérdame
+
+          <form noValidate onSubmit={handleSubmit} className="space-y-8">
+            {/* Input Email con estilo Industrial */}
+            <div className="relative group">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Credencial de Correo
               </label>
-              {msg && <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{msg}</div>}
+              <input
+                type="text"
+                inputMode="email"
+                className={`w-full h-12 px-0 bg-transparent border-b-2 outline-none transition-all duration-300 ${
+                  emailHasError
+                    ? "border-red-600"
+                    : "border-gray-100 focus:border-red-600"
+                }`}
+                value={form.email}
+                onChange={(e) => setField("email", e.target.value)}
+                onBlur={() => touchField("email")}
+                placeholder="usuario@sistemaspc.com"
+                autoComplete="email"
+              />
+              {emailHasError && (
+                <p className="absolute -bottom-5 text-[10px] font-bold text-red-600 uppercase tracking-tighter">
+                  {errors.email}
+                </p>
+              )}
+            </div>
+
+            {/* Input Password */}
+            <div className="relative group pt-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                Contraseña de Seguridad
+              </label>
+              <div
+                className={`flex items-center w-full border-b-2 transition-all duration-300 ${
+                  passHasError
+                    ? "border-red-600"
+                    : "border-gray-100 focus-within:border-red-600"
+                }`}
+              >
+                <input
+                  type={show ? "text" : "password"}
+                  className="flex-1 h-12 px-0 outline-none bg-transparent"
+                  value={form.password}
+                  onChange={(e) => setField("password", e.target.value)}
+                  onBlur={() => touchField("password")}
+                  placeholder="••••••••••••"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShow(!show)}
+                  className="cursor-pointer px-2 text-gray-400 hover:text-red-600 transition-colors"
+                >
+                  <Image
+                    src={show ? "/icons/eye-off.svg" : "/icons/Eye.svg"}
+                    alt="Ver"
+                    width={20}
+                    height={20}
+                    className={show ? "opacity-100" : "opacity-30"}
+                  />
+                </button>
+              </div>
+              {passHasError && (
+                <p className="absolute -bottom-5 text-[10px] font-bold text-red-600 uppercase tracking-tighter">
+                  {errors.password}
+                </p>
+              )}
+            </div>
+
+            {/* Botón de Entrada Industrial */}
+            <div className="pt-4">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                className="cursor-pointer   group relative w-full h-14 bg-black overflow-hidden transition-all duration-500 hover:shadow-2xl hover:shadow-red-500/20"
               >
-                {loading ? "Accediendo..." : "Acceder"}
+                <div
+                  className={`absolute inset-0 bg-red-600 transition-transform duration-500 translate-y-full group-hover:translate-y-0 ${loading ? "translate-y-0" : ""}`}
+                ></div>
+                <span className="relative z-10 text-white font-black uppercase tracking-[0.3em] text-xs">
+                  {loading ? "VERIFICANDO..." : "AUTENTICAR"}
+                </span>
               </button>
-              <div className="mt-2 flex items-center justify-between text-xs text-red-600">
-                <Link href="#" className="hover:underline">¿Olvidaste tu contraseña?</Link>
-                <Link href={routes.auth.register}>Crear Cuenta</Link>
-              </div>
-              <div className="pt-2 text-xs text-gray-500">
-                <p>
-                  <strong>Demo:</strong> <code>admin@sistemaspc.com</code> / <code>123456</code>
-                </p>
-              </div>
-            </form>
+            </div>
+          </form>
+
+          {/* Footer del Formulario */}
+          <div className="mt-12 flex flex-col gap-4">
+            <Link
+              href={routes.auth.forgotPassword}
+              className="text-[10px] font-bold text-gray-400 hover:text-red-600 uppercase tracking-widest transition-colors inline-flex items-center gap-2"
+            >
+              <span className="w-4 h-[1px] bg-gray-200"></span> ¿Olvidaste tus
+              credenciales?
+            </Link>
+
+            <p className="text-[10px] text-gray-400 font-medium tracking-tight">
+              ¿SIN ACCESO AL SISTEMA?{" "}
+              <Link
+                href="/auth/register"
+                className="text-black font-black hover:text-red-600 transition-colors underline underline-offset-4"
+              >
+                REGISTRAR NUEVA CUENTA
+              </Link>
+            </p>
           </div>
         </div>
+
+        {/* Columna Derecha: Imagen Estructural */}
+        <div className="hidden lg:flex w-[50%] justify-center relative group">
+          {/* Decoración de fondo (Marco Industrial) */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[80%] border-l border-r border-gray-100 z-0"></div>
+
+          <div className="relative z-10 w-full aspect-square max-w-[500px] grayscale hover:grayscale-0 transition-all duration-1000">
+            <Image
+              src="/assets/imgs/previewSinFondo.png"
+              alt="Sistemas PC Hero"
+              fill
+              className="object-contain drop-shadow-2xl"
+              priority
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Indicador de Version o Status Sutil */}
+      <div className="absolute bottom-6 left-6 hidden md:block">
+        <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.5em]">
+          System Status: Online / v2.0.26
+        </p>
       </div>
     </div>
   );

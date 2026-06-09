@@ -1,373 +1,341 @@
-import { useEffect, useState } from "react";
-import { createPurchaseOrderData, createPurchaseOrderModalProps, editPurchaseOrder, editPurchaseOrderModalProps, formErrors, formTouched, purchaseOrder } from "../types/typesPurchaseOrder";
-import { showSuccess, showWarning } from "@/shared/utils/notifications";
-import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
-import { validateField, validateAllFields, hasErrors, validateSpecificFields, validateFormWithNotification } from "../Validations/UserValidations";
-import { initialPurchaseOrders } from "../mocks/mockUser";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createPurchaseOrderData,
+  createPurchaseOrderModalProps,
+  formErrors,
+  formTouched,
+  purchaseOrder,
+  PurchaseOrderItem
+} from "../types/typesPurchaseOrder";
+import { showSuccess, showError, showWarning } from "@/shared/utils/notifications";
+import {
+  validateField,
+  validateFormWithNotification
+} from "../Validations/UserValidations";
+import {
+  getPurchaseOrdersFromAPI,
+  createPurchaseOrderInDB,
+  generateOrderNumber,
+} from "../services/suppliersOrderService";
+
+/* ============================= */
+/* Hook PRINCIPAL ORDENES        */
+/* ============================= */
 
 export const usePurchaseOrders = () => {
-  const [purchaseOrders, setPurchaseOrders] = useState<purchaseOrder[]>(initialPurchaseOrders);
+  const [purchaseOrders, setPurchaseOrders] = useState<purchaseOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingPurchaseOrder, setEditingPurchaseOrder] = useState<editPurchaseOrder | null>(null);
-  const [viewingPurchaseOrder, setViewingPurchaseOrder] = useState<purchaseOrder | null>(null);
+  const [viewingPurchaseOrder, setViewingPurchaseOrder] =
+    useState<purchaseOrder | null>(null);
 
-  const handleCreatePurchaseOrder = (purchaseOrderData: createPurchaseOrderData) => {
-    const existingIds = purchaseOrders.map(po => po.id).filter((id): id is number => id !== undefined);
-    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+  // ── Cargar órdenes desde el backend ────────────────────────────────────────
+  const loadPurchaseOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getPurchaseOrdersFromAPI();
+      console.log("Purchase orders loaded in hook:", data.length);
+      setPurchaseOrders(data);
+    } catch (error) {
+      console.error("Hook load error:", error);
+      showError("Error al cargar las órdenes de compra.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const newPurchaseOrder: purchaseOrder = {
-      id: maxId + 1,
-      numeroOrden: purchaseOrderData.numeroOrden,
-      proveedor: purchaseOrderData.proveedor,
-      precioUnitario: purchaseOrderData.precioUnitario,
-      fecha: purchaseOrderData.fecha,
-      estado: "Pendiente",
-      descripcion: purchaseOrderData.descripcion || '',
-      cantidad: purchaseOrderData.cantidad || 1,
-      total: (purchaseOrderData.precioUnitario || 0) * (purchaseOrderData.cantidad || 1),
-    };
+  useEffect(() => {
+    loadPurchaseOrders();
+  }, [loadPurchaseOrders]);
 
-    setPurchaseOrders(prev => [...prev, newPurchaseOrder]);
-    setIsCreateModalOpen(false);
-
-    showSuccess('Orden de compra creada exitosamente!');
-  };
-
-  const handleEditPurchaseOrder = (purchaseOrderData: editPurchaseOrder) => {
-    if (!purchaseOrderData.id) return;
-
-    setPurchaseOrders(prev =>
-      prev.map(purchaseOrder =>
-        purchaseOrder.id === purchaseOrderData.id ?
-          {
-            ...purchaseOrder,
-            ...purchaseOrderData,
-            total: (purchaseOrderData.precioUnitario || purchaseOrder.precioUnitario) * 
-                   (purchaseOrderData.cantidad || purchaseOrder.cantidad),
-          }
-          : purchaseOrder
-      )
+  // ── Crear orden en el backend ──────────────────────────────────────────────
+  const handleCreatePurchaseOrder = async (
+    purchaseOrderData: createPurchaseOrderData & { proveedorId?: number }
+  ) => {
+    const subtotal = purchaseOrderData.items.reduce(
+      (acc, item) => acc + item.cantidad * item.precioUnitario,
+      0
     );
-    setEditingPurchaseOrder(null);
-    showSuccess('Orden de compra actualizada exitosamente!');
-  };
+    const iva = subtotal * 0.19;
+    const total = subtotal + iva;
 
-  const performDeletePurchaseOrder = async (purchaseOrder: purchaseOrder): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: purchaseOrder.numeroOrden,
-        itemType: 'orden de compra',
-        successMessage: `La orden de compra "${purchaseOrder.numeroOrden}" ha sido eliminada correctamente.`,
-        errorMessage: 'No se pudo eliminar la orden de compra. Por favor, intenta nuevamente.',
-      },
-      () => {
-        setPurchaseOrders(prev => prev.filter(po => po.id !== purchaseOrder.id));
-        return Promise.resolve(); 
-      }
-    );
+    try {
+      await createPurchaseOrderInDB({
+        numeroOrden: generateOrderNumber(),
+        proveedorId: purchaseOrderData.proveedorId ?? 0,
+        fecha: purchaseOrderData.fecha,
+        items: purchaseOrderData.items,
+        total,
+        subtotal,
+        iva,
+        descripcion: purchaseOrderData.descripcion,
+      });
+
+      showSuccess("Orden de compra guardada exitosamente.");
+      setIsCreateModalOpen(false);
+      // Recargar lista
+      await loadPurchaseOrders();
+    } catch {
+      showError("Error al guardar la orden de compra.");
+    }
   };
 
   const handleView = (purchaseOrder: purchaseOrder) => {
     setViewingPurchaseOrder(purchaseOrder);
   };
 
-  const handleEdit = (purchaseOrder: editPurchaseOrder) => {
-    setEditingPurchaseOrder(purchaseOrder);
-  };
-
-  const handleDelete = async (purchaseOrder: purchaseOrder) => {
-    await performDeletePurchaseOrder(purchaseOrder);
-  };
-
   const closeModals = () => {
-    setEditingPurchaseOrder(null);
     setViewingPurchaseOrder(null);
     setIsCreateModalOpen(false);
   };
 
   return {
     purchaseOrders,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
-    editingPurchaseOrder,
     viewingPurchaseOrder,
     handleCreatePurchaseOrder,
-    handleEditPurchaseOrder,
-    performDeletePurchaseOrder,
     handleView,
-    handleEdit,
-    handleDelete,
     closeModals,
-    setEditingPurchaseOrder,
-    setViewingPurchaseOrder
   };
 };
 
-// Hook para el formulario de creación
+
+/* ============================= */
+/* Hook CREAR ORDEN DE COMPRA */
+/* ============================= */
+
+type HeaderFields = "proveedor" | "fecha" | "descripcion";
+
 export const useCreatePurchaseOrderForm = ({
   isOpen,
   onClose,
   onSave
 }: createPurchaseOrderModalProps) => {
   const [formData, setFormData] = useState<createPurchaseOrderData>({
-    numeroOrden: '',
-    proveedor: '',
-    precioUnitario: 0,
-    fecha: '',
-    descripcion: '',
-    cantidad: 1,
+    proveedor: "",
+    proveedorId: 0,
+    fecha: "",
+    descripcion: "",
+    items: [{ producto: "", cantidad: 1, precioUnitario: 0 }]
   });
 
   const [errors, setErrors] = useState<formErrors>({
-    numeroOrden: '',
-    proveedor: '',
-    precioUnitario: '',
-    fecha: '',
-    descripcion: '',
-    cantidad: '',
+    proveedor: "",
+    fecha: "",
+    descripcion: ""
   });
 
   const [touched, setTouched] = useState<formTouched>({
-    numeroOrden: false,
     proveedor: false,
-    precioUnitario: false,
     fecha: false,
-    descripcion: false,
-    cantidad: false,
+    descripcion: false
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleInputChange = (field: keyof createPurchaseOrderData, value: string | number) => {
+  /* ============================= */
+  /* TOTAL DINÁMICO */
+  /* ============================= */
+
+  const calculatedTotal = useMemo(() => {
+    return formData.items.reduce(
+      (acc, item) => acc + item.cantidad * item.precioUnitario,
+      0
+    );
+  }, [formData.items]);
+
+  /* ============================= */
+  /* HANDLERS HEADER */
+  /* ============================= */
+
+  const handleInputChange = (field: HeaderFields, value: string) => {
     const newFormData = { ...formData, [field]: value };
     setFormData(newFormData);
 
-    if (touched[field as keyof formTouched]) {
-      validateFieldOnChange(field, value);
+    if (touched[field]) {
+      const error = validateField(field, value, newFormData, false);
+      setErrors((prev) => ({ ...prev, [field]: error }));
     }
   };
 
-  const handleBlur = (field: keyof formTouched) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-    const formDataValue = formData[field as keyof createPurchaseOrderData];
-    validateFieldOnChange(field as string, formDataValue);
+  const handleBlur = (field: HeaderFields) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+
+    const value = formData[field];
+
+    const error = validateField(field, value, formData, false);
+    setErrors((prev) => ({ ...prev, [field]: error }));
   };
 
-  const validateFieldOnChange = (fieldName: string, value: string | number) => {
-    const error = validateField(fieldName, value, formData, false);
-    setErrors(prev => ({ ...prev, [fieldName]: error }));
+  const handleSupplierChange = (name: string, id: number) => {
+    const newFormData = { ...formData, proveedor: name, proveedorId: id };
+    setFormData(newFormData);
+
+    if (touched.proveedor) {
+      const error = validateField("proveedor", name, newFormData, false);
+      setErrors((prev) => ({ ...prev, proveedor: error }));
+    }
+  };
+
+  /* ============================= */
+  /* HANDLERS ITEMS */
+  /* ============================= */
+
+  const handleAddItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      items: [...prev.items, { producto: "", cantidad: 1, precioUnitario: 0 }]
+    }));
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleItemChange = (
+    index: number,
+    field: keyof PurchaseOrderItem,
+    value: string | number
+  ) => {
+    const newItems = [...formData.items];
+
+    newItems[index] = {
+      ...newItems[index],
+      [field]:
+        field === "cantidad" || field === "precioUnitario"
+          ? Number(value)
+          : value
+    };
+
+    setFormData((prev) => ({ ...prev, items: newItems }));
+  };
+
+  /* ============================= */
+  /* VALIDACIONES */
+  /* ============================= */
+
+  const validateItems = (): boolean => {
+    if (formData.items.length === 0) {
+      showWarning("Debe agregar al menos un producto.");
+      return false;
+    }
+
+    for (const item of formData.items) {
+      if (!item.producto.trim()) {
+        showWarning("Todos los productos deben tener nombre.");
+        return false;
+      }
+
+      if (item.cantidad <= 0) {
+        showWarning("La cantidad debe ser mayor a 0.");
+        return false;
+      }
+
+      if (item.precioUnitario < 0) {
+        showWarning("El precio no puede ser negativo.");
+        return false;
+      }
+    }
+
+    if (calculatedTotal <= 0) {
+      showWarning("El total debe ser mayor a 0.");
+      return false;
+    }
+
+    return true;
   };
 
   const validateFormWithNotifications = (): boolean => {
-    return validateFormWithNotification(
+    const headerValid = validateFormWithNotification(
       formData,
       setErrors,
-      setTouched,
-      false
+      setTouched
     );
+
+    const itemsValid = validateItems();
+
+    return headerValid && itemsValid;
   };
+
+  /* ============================= */
+  /* SUBMIT */
+  /* ============================= */
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    if (validateFormWithNotifications()) {
-      setIsSubmitting(true);
-      try {
-        onSave(formData);
-        onClose();
-      } catch (error) {
-        console.error('Error al guardar orden de compra:', error);
-        showWarning('Error al guardar la orden de compra. Por favor, intenta nuevamente.');
-      } finally {
-        setIsSubmitting(false);
-      }
+    if (!validateFormWithNotifications()) return;
+
+    setIsSubmitting(true);
+
+    try {
+      onSave(formData);
+      onClose();
+    } catch (error) {
+      console.error("Error al guardar orden:", error);
+      showWarning("Error al guardar la orden de compra.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  /* ============================= */
+  /* RESET AL ABRIR MODAL */
+  /* ============================= */
 
   useEffect(() => {
     if (isOpen) {
       setFormData({
-        numeroOrden: '',
-        proveedor: '',
-        precioUnitario: 0,
-        fecha: '',
-        descripcion: '',
-        cantidad: 1,
+        proveedor: "",
+        proveedorId: 0,
+        fecha: "",
+        descripcion: "",
+        items: [{ producto: "", cantidad: 1, precioUnitario: 0 }]
       });
+
       setErrors({
-        numeroOrden: '',
-        proveedor: '',
-        precioUnitario: '',
-        fecha: '',
-        descripcion: '',
-        cantidad: '',
+        proveedor: "",
+        fecha: "",
+        descripcion: ""
       });
+
       setTouched({
-        numeroOrden: false,
         proveedor: false,
-        precioUnitario: false,
         fecha: false,
-        descripcion: false,
-        cantidad: false,
+        descripcion: false
       });
+
       setIsSubmitting(false);
     }
   }, [isOpen]);
 
-  return {
-    formData,
-    setFormData,
-    errors,
-    setErrors,
-    touched,
-    setTouched,
-    isSubmitting,
-    handleInputChange,
-    handleBlur,
-    handleSubmit,
-    validateForm: validateFormWithNotifications
-  };
-};
-
-// Hook para el formulario de edición
-export const useEditPurchaseOrderForm = ({
-  isOpen,
-  onClose,
-  onSave,
-  purchaseOrder
-}: editPurchaseOrderModalProps) => {
-  const [formData, setFormData] = useState<editPurchaseOrder>({
-    id: 0,
-    numeroOrden: '',
-    proveedor: '',
-    precioUnitario: 0,
-    fecha: '',
-    estado: "Pendiente",
-    descripcion: '',
-    cantidad: 1,
-  });
-
-  const [errors, setErrors] = useState<formErrors>({
-    numeroOrden: '',
-    proveedor: '',
-    precioUnitario: '',
-    fecha: '',
-    descripcion: '',
-    cantidad: '',
-  });
-
-  const [touched, setTouched] = useState<formTouched>({
-    numeroOrden: false,
-    proveedor: false,
-    precioUnitario: false,
-    fecha: false,
-    descripcion: false,
-    cantidad: false,
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const convertToPurchaseOrderForValidation = (editData: editPurchaseOrder): purchaseOrder => {
-    return {
-      ...editData,
-      total: editData.precioUnitario * (editData.cantidad || 1)
-    };
-  };
-
-  const handleInputChange = (field: keyof editPurchaseOrder, value: string | number) => {
-    const newFormData = { ...formData, [field]: value };
-    setFormData(newFormData);
-
-    if (touched[field as keyof formTouched]) {
-      validateFieldOnChange(field, value);
-    }
-  };
-
-  const handleBlur = (field: keyof formTouched) => {
-    setTouched(prev => ({ ...prev, [field]: true }));
-    const formDataValue = formData[field as keyof editPurchaseOrder];
-    validateFieldOnChange(field as string, formDataValue);
-  };
-
-  const validateFieldOnChange = (fieldName: string, value: string | number) => {
-    const purchaseOrderData = convertToPurchaseOrderForValidation(formData);
-    const error = validateField(fieldName, value, purchaseOrderData, true);
-    setErrors(prev => ({ ...prev, [fieldName]: error }));
-  };
-
-  const validateFormWithNotifications = (): boolean => {
-    const purchaseOrderData = convertToPurchaseOrderForValidation(formData);
-    return validateFormWithNotification(
-      purchaseOrderData,
-      setErrors,
-      setTouched,
-      true
-    );
-  };
-
-  const handleSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-
-    if (validateFormWithNotifications()) {
-      setIsSubmitting(true);
-      try {
-        onSave(formData);
-        onClose();
-      } catch (error) {
-        console.error('Error al actualizar orden de compra:', error);
-        showWarning('Error al actualizar la orden de compra. Por favor, intenta nuevamente.');
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen && purchaseOrder) {
-      setFormData({
-        id: purchaseOrder.id,
-        numeroOrden: purchaseOrder.numeroOrden,
-        proveedor: purchaseOrder.proveedor,
-        precioUnitario: purchaseOrder.precioUnitario,
-        fecha: purchaseOrder.fecha,
-        estado: purchaseOrder.estado,
-        descripcion: purchaseOrder.descripcion || '',
-        cantidad: purchaseOrder.cantidad || 1,
-      });
-
-      setErrors({
-        numeroOrden: '',
-        proveedor: '',
-        precioUnitario: '',
-        fecha: '',
-        descripcion: '',
-        cantidad: '',
-      });
-
-      setTouched({
-        numeroOrden: false,
-        proveedor: false,
-        precioUnitario: false,
-        fecha: false,
-        descripcion: false,
-        cantidad: false,
-      });
-
-      setIsSubmitting(false);
-    }
-  }, [isOpen, purchaseOrder]);
+  /** Reemplaza todos los items directamente (útil para cargar productos del proveedor) */
+  const setItems = useCallback(
+    (items: PurchaseOrderItem[]) =>
+      setFormData((prev) => ({ ...prev, items })),
+    []
+  );
 
   return {
     formData,
-    setFormData,
     errors,
-    setErrors,
     touched,
-    setTouched,
     isSubmitting,
+    calculatedTotal,
     handleInputChange,
+    handleSupplierChange,
     handleBlur,
+    handleAddItem,
+    handleRemoveItem,
+    handleItemChange,
     handleSubmit,
-    validateForm: validateFormWithNotifications
+    setItems,
   };
 };
+

@@ -1,140 +1,343 @@
-import { useState } from "react";
-import { Product, CreateProductData, EditProductData } from "../types/typesProducts";
-import { initialProducts } from "../mocks/mockProducts";
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showSuccess, showWarning } from "@/shared/utils/notifications";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
+import { uploadImageToCloudinary } from "@/shared/utils/cloudinary";
 
-const validateProductWithNotification = (
-  productData: CreateProductData | EditProductData,
-  existingProducts: Product[],
-  editingId?: number
-): boolean => {
-  if (!productData.name.trim()) {
-    showWarning("El nombre del producto es obligatorio");
-    return false;
-  }
+import type { Product, CreateProductData, EditProductData } from "../types/typesProducts";
+import type { UpdateProductPayload, StatusQuery } from "../api/products.api";
+import {
+  createProduct,
+  deleteProduct,
+  getProducts,
+  updateProduct,
+  getProductDeletionInfo,
+  type ProductDeletionInfo,
+} from "../api/products.api";
 
-  if (!productData.category) {
-    showWarning("Debe seleccionar una categoría");
-    return false;
-  }
-
-  if (productData.price <= 0) {
-    showWarning("El precio debe ser mayor a cero");
-    return false;
-  }
-
-  if (productData.stock < 0) {
-    showWarning("El stock no puede ser negativo");
-    return false;
-  }
-
-  return true;
+type ApiErrorShape = {
+  response?: { data?: { message?: string } };
+  message?: string;
 };
 
-export const useProducts = () => {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<EditProductData | null>(null);
-  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+const getErrorMessage = (error: unknown, fallback: string) => {
+  const e = error as ApiErrorShape | null;
+  return e?.response?.data?.message ?? e?.message ?? fallback;
+};
 
-  const isEditModalOpen = editingProduct !== null;
-  const isViewModalOpen = viewingProduct !== null;
+const MAX_IMAGES = 6;
+
+export const useProducts = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const isEditModalOpen = useMemo(() => editingProduct !== null, [editingProduct]);
+  const isViewModalOpen = useMemo(() => viewingProduct !== null, [viewingProduct]);
 
   const selectedProduct = editingProduct ?? viewingProduct ?? null;
 
-  const handleCreateProduct = (payload: CreateProductData) => {
-    if (!validateProductWithNotification(payload, products)) return;
+  const waitForRender = useCallback(async () => {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  }, []);
 
-    const nextId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
-    const newProduct: Product = {
-      id: nextId,
-      name: payload.name.trim(),
-      category: payload.category,
-      price: payload.price,
-      stock: payload.stock,
-      state: "Activo",
-      image: payload.image,
-      description: payload.description || "",
+  const applyProductsResponse = useCallback(
+    async (list: Product[]) => {
+      const sorted = [...list].sort((a, b) => Number(b.id ?? 0) - Number(a.id ?? 0));
+      setProducts(sorted);
+      await waitForRender();
+    },
+    [waitForRender]
+  );
+
+  const refreshProducts = useCallback(
+    async (nextStatus: StatusQuery = "all") => {
+      const list = await getProducts(nextStatus);
+      await applyProductsResponse(list);
+      return 200 as const;
+    },
+    [applyProductsResponse]
+  );
+
+  const hasFetchedRef = useRef(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const code = await refreshProducts("all");
+        if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+      } catch (error: unknown) {
+        console.error("Error al cargar productos:", error);
+        showWarning("Error al cargar productos desde el servidor");
+      } finally {
+        setLoading(false);
+      }
     };
-    setProducts(prev => [...prev, newProduct]);
-    setIsCreateModalOpen(false);
-    showSuccess("Producto creado exitosamente!");
+
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      load();
+    }
+  }, [refreshProducts]);
+
+  const normalizeToUrl = async (item: File | string) => {
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (!trimmed) throw new Error("Imagen inválida.");
+      return trimmed;
+    }
+
+    const url = await uploadImageToCloudinary(item);
+    if (!url?.trim()) throw new Error("No se pudo subir una imagen a Cloudinary.");
+    return url.trim();
   };
 
-  const handleEditProduct = (id: number, payload: EditProductData) => {
-    if (!validateProductWithNotification(payload, products, id)) return;
+  const requireImagesUrls = async (images: Array<File | string> | null | undefined) => {
+    const list = (images ?? []).filter(Boolean);
 
-    setProducts(prev =>
-      prev.map(p =>
-        p.id === id
-          ? { ...p, ...payload, name: payload.name.trim() }
-          : p
-      )
-    );
-    setEditingProduct(null);
-    showSuccess("Producto actualizado exitosamente!");
+    if (list.length === 0) throw new Error("Debe agregar al menos una imagen para el producto.");
+    if (list.length > MAX_IMAGES) throw new Error(`Máximo ${MAX_IMAGES} imágenes por producto.`);
+
+    const urls: string[] = [];
+    for (const img of list) {
+      urls.push(await normalizeToUrl(img));
+    }
+
+    // dedupe manteniendo orden + cap
+    return Array.from(new Set(urls)).slice(0, MAX_IMAGES);
+  };
+
+  const handleCreateProduct = async (payload: CreateProductData) => {
+    setLoading(true);
+    try {
+      setIsCreateModalOpen(false);
+
+      if (!payload.name?.trim()) throw new Error("El nombre del producto es obligatorio.");
+      if (!payload.categoryId) throw new Error("Debe seleccionar una categoría.");
+      if (!payload.supplierCategory?.trim())
+        throw new Error("La categoría del proveedor es obligatoria.");
+      if (!payload.code?.trim()) throw new Error("El código es obligatorio.");
+
+      const imagesUrls = await requireImagesUrls(payload.images);
+
+      await createProduct({
+        productname: payload.name.trim(),
+        productdescription: (payload.description ?? "").trim() || null,
+        categoryid: payload.categoryId,
+        suppliercategory: payload.supplierCategory.trim(),
+        images: imagesUrls,
+        productcode: payload.code.trim(),
+        isactive: true,
+      });
+
+      const code = await refreshProducts("all");
+      if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+
+      showSuccess("Producto creado exitosamente");
+      await waitForRender();
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, "Error al crear producto");
+      console.error(error);
+      showWarning(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditProduct = async (id: number, payload: EditProductData) => {
+    setLoading(true);
+    try {
+      if (!id) return;
+
+      if (!payload.name?.trim()) throw new Error("El nombre del producto es obligatorio.");
+      if (!payload.categoryId) throw new Error("Debe seleccionar una categoría.");
+      if (!payload.supplierCategory?.trim())
+        throw new Error("La categoría del proveedor es obligatoria.");
+      if (!payload.code?.trim()) throw new Error("El código es obligatorio.");
+
+      const body: UpdateProductPayload = {
+        productname: payload.name.trim(),
+        productdescription: (payload.description ?? "").trim() || null,
+        categoryid: payload.categoryId,
+        suppliercategory: payload.supplierCategory.trim(),
+        productcode: payload.code?.trim(),
+        isactive: payload.state === "Activo",
+      };
+
+      const imagesUrls = await requireImagesUrls(payload.images);
+      body.images = imagesUrls;
+
+      await updateProduct(id, body);
+
+      const code = await refreshProducts("all");
+      if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+
+      showSuccess("Producto actualizado exitosamente");
+      await waitForRender();
+      setEditingProduct(null);
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, "Error al actualizar producto");
+      console.error(error);
+      showWarning(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteProduct = async (product: Product): Promise<boolean> => {
+    let info: ProductDeletionInfo | null = null;
+
+    setLoading(true);
+    try {
+      info = await getProductDeletionInfo(product.id);
+    } catch (error: unknown) {
+      console.error(error);
+      info = null;
+    } finally {
+      setLoading(false);
+    }
+
+    if (info?.canDelete === true) {
+      return confirmDelete(
+        {
+          itemName: product.name,
+          itemType: "producto",
+          title: "Eliminar producto",
+          customMessage: `¿Deseas eliminar definitivamente "${product.name}"? Esta acción no se puede deshacer.`,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Cancelar",
+          skipSuccessToast: true,
+          errorMessage: "No se pudo eliminar el producto. Intenta nuevamente.",
+        },
+        async () => {
+          setLoading(true);
+          try {
+            await deleteProduct(product.id);
+
+            const code = await refreshProducts("all");
+            if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+            await waitForRender();
+
+            showSuccess(`El producto "${product.name}" se eliminó correctamente.`);
+          } finally {
+            setLoading(false);
+          }
+        }
+      );
+    }
+
+    if (info?.canDelete === false) {
+      const reason =
+        info.reason?.trim() || "Está asociado a compras/órdenes/ventas u otros registros.";
+      const isAlreadyInactive = product.state === "Inactivo";
+
+      if (isAlreadyInactive || info.canDeactivate === false) {
+        return confirmDelete(
+          {
+            itemName: product.name,
+            itemType: "producto",
+            title: "No se puede eliminar",
+            customMessage:
+              `El producto "${product.name}" no se puede eliminar.\n` +
+              `${reason}\n\n` +
+              `Este producto ya se encuentra desactivado o no se puede desactivar.`,
+            showConfirmButton: false,
+            showCancelButton: true,
+            cancelButtonText: "Cerrar",
+            skipSuccessToast: true,
+          },
+          async () => {}
+        );
+      }
+
+      return confirmDelete(
+        {
+          itemName: product.name,
+          itemType: "producto",
+          title: "No se puede eliminar",
+          customMessage:
+            `El producto "${product.name}" no se puede eliminar.\n` +
+            `${reason}\n\n` +
+            `¿Deseas desactivarlo?`,
+          confirmButtonText: "Sí, desactivar",
+          cancelButtonText: "Cancelar",
+          skipSuccessToast: true,
+          errorMessage: "No se pudo desactivar el producto. Intenta nuevamente.",
+        },
+        async () => {
+          setLoading(true);
+          try {
+            await updateProduct(product.id, { isactive: false });
+
+            const code = await refreshProducts("all");
+            if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+            await waitForRender();
+
+            showSuccess(`El producto "${product.name}" se desactivó correctamente.`);
+          } finally {
+            setLoading(false);
+          }
+        }
+      );
+    }
+
     return confirmDelete(
       {
         itemName: product.name,
         itemType: "producto",
-        successMessage: `El producto "${product.name}" ha sido eliminado correctamente.`,
-        errorMessage: "No se pudo eliminar el producto. Intenta nuevamente.",
+        title: "Eliminar producto",
+        customMessage:
+          `¿Deseas eliminar "${product.name}"?\n\n` +
+          `Si está asociado a registros, el sistema podría desactivarlo en lugar de eliminarlo.`,
+        confirmButtonText: "Continuar",
+        cancelButtonText: "Cancelar",
+        skipSuccessToast: true,
+        errorMessage: "No se pudo eliminar/desactivar el producto. Intenta nuevamente.",
       },
-      () => {
-        setProducts(prev => prev.filter(p => p.id !== product.id));
+      async () => {
+        setLoading(true);
+        try {
+          await deleteProduct(product.id);
+
+          const code = await refreshProducts("all");
+          if (code !== 200) throw new Error(`Refresh products devolvió ${code}`);
+          await waitForRender();
+
+          showSuccess(`Acción aplicada sobre "${product.name}".`);
+        } finally {
+          setLoading(false);
+        }
       }
     );
   };
 
-  const handleView = (product: Product) => {
-    setViewingProduct(product);
-  };
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct({
-      id: product.id,
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      stock: product.stock,
-      state: product.state,
-      image: product.image,
-      description: product.description,
-    });
-  };
-
-  const handleDelete = async (product: Product) => {
-    await handleDeleteProduct(product);
-  };
-
-  const closeModals = () => {
-    setIsCreateModalOpen(false);
-    setEditingProduct(null);
-    setViewingProduct(null);
-  };
-
   return {
     products,
+    loading,
+
     isCreateModalOpen,
     setIsCreateModalOpen,
+
     isEditModalOpen,
-    setIsEditModalOpen: (v: boolean) => { if (!v) setEditingProduct(null); },
     isViewModalOpen,
-    setIsViewModalOpen: (v: boolean) => { if (!v) setViewingProduct(null); },
-    selectedProduct,
-    handleCreateProduct,
-    handleEditProduct,
-    handleView,
-    handleEdit,
-    handleDelete,
-    closeModals,
+
     editingProduct,
     viewingProduct,
+    selectedProduct,
+
     setEditingProduct,
     setViewingProduct,
+
+    handleCreateProduct,
+    handleEditProduct,
+    handleDelete: handleDeleteProduct,
+
+    refreshProducts,
   };
 };

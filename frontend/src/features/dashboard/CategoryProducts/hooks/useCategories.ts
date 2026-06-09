@@ -1,85 +1,268 @@
-import { useState, useEffect } from "react";
-import {  Category, CreateCategoryData, EditCategoryData, FormErrors, FormTouched, EditCategoryModalProps, CreateCategoryModalProps } from "../types/typeCategoryProducts";
-import { initialCategories } from "../mocks/mockCategoryProducts";
-import { showSuccess } from "@/shared/utils/notifications";
-import { 
-  hasNumbers, 
-  hasSpecialChars, 
-
-  validateFormWithNotification,
-  validateNombreWithNotification,
-  validateDescripcionWithNotification
-} from "../validations/categoryValidations";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { confirmDelete } from "@/shared/utils/Delete/confirmDelete";
+import { showSuccess, showError } from "@/shared/utils/notifications";
+import { getProducts } from "@/features/dashboard/products/api/products.api";
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from "../connection/categoryApi";
+import {
+  Category,
+  CreateCategoryData,
+  EditCategoryData,
+} from "../types/typeCategoryProducts";
+
+const sortCategories = (list: Category[]): Category[] =>
+  [...list].sort((a, b) => {
+    const nameA = a.name ?? "";
+    const nameB = b.name ?? "";
+    return nameA.localeCompare(nameB, "es", { sensitivity: "base" });
+  });
+
+const waitForNextRender = async () => {
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        resolve();
+      }),
+    );
+  });
+};
+
+const resolvePayloadData = (value: unknown): any => {
+  if (!value || typeof value !== "object") return value;
+  if ("data" in value) return resolvePayloadData((value as any).data);
+  return value;
+};
+
+const toBoolean = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null) return false;
+  if (typeof value === "number") return Boolean(value);
+  if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (lower === "true" || lower === "1") return true;
+    if (lower === "false" || lower === "0") return false;
+  }
+  return Boolean(value);
+};
+
+const parseCategoryPayload = (payload: any): Category | null => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const resolved = resolvePayloadData(payload);
+  if (!resolved || typeof resolved !== "object") return null;
+
+  const idValue = resolved.id ?? resolved.categoryid ?? resolved.category_id;
+  const numericId =
+    typeof idValue === "number" ? idValue : Number(idValue);
+  const id =
+    typeof idValue === "number"
+      ? idValue
+      : Number.isFinite(numericId)
+        ? numericId
+        : null;
+
+  if (id === null) {
+    return null;
+  }
+
+  return {
+    id,
+    name: resolved.name ?? resolved.categoryname ?? "",
+    description: resolved.description ?? resolved.categorydescription ?? "",
+    status: toBoolean(resolved.status ?? resolved.isactive),
+    icon: resolved.icon ?? null,
+  };
+};
+
+const extractPayloadCategory = (response: any): Category | null => {
+  return parseCategoryPayload(response);
+};
 
 export const useCategories = () => {
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<EditCategoryData | null>(null);
+  const [editingCategory, setEditingCategory] =
+    useState<EditCategoryData | null>(null);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [categoryProductCounts, setCategoryProductCounts] = useState<
+    Record<number, number>
+  >({});
 
-  const handleCreateCategory = (categoryData: CreateCategoryData) => {
-    const newCategory: Category = {
-      id: Math.max(...categories.map(c => c.id)) + 1,
-      nombre: categoryData.nombre,
-      descripcion: categoryData.descripcion,
-      estado: "Activo",
-      icono: categoryData.icono
+  const hasFetchedRef = useRef(false);
+
+  const refreshCategoryProductCounts = useCallback(async () => {
+    try {
+      const products = await getProducts("all");
+      const counts: Record<number, number> = {};
+      products.forEach((product) => {
+        const categoryId = product.categoryId;
+        if (!categoryId) return;
+        counts[categoryId] = (counts[categoryId] ?? 0) + 1;
+      });
+      setCategoryProductCounts(counts);
+    } catch (error) {
+      console.error(
+        "Error al cargar productos para verificar las categorías:",
+        error,
+      );
+      setCategoryProductCounts({});
+    }
+  }, []);
+
+  const refreshCategories = useCallback(async () => {
+    const list = await getCategories();
+    setCategories(sortCategories(list));
+    void refreshCategoryProductCounts();
+    await waitForNextRender();
+    return list;
+  }, [refreshCategoryProductCounts]);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        await refreshCategories();
+      } catch (error) {
+        console.error("Error al cargar categorias:", error);
+        showError("No se pudieron cargar las categorias.");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setCategories(prev => [...prev, newCategory]);
-    setIsCreateModalOpen(false);
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      load();
+    }
+  }, [refreshCategories]);
 
-    showSuccess('Categoría de producto creada exitosamente!');
-  };
+  const addCategoryToState = useCallback((category: Category) => {
+    setCategories((prev) => sortCategories([...prev, category]));
+  }, []);
 
-  const handleEditCategory = (id: number, categoryData: EditCategoryData) => {
-    setCategories(prev =>
-      prev.map(category =>
-        category.id === id
-          ? { ...category, ...categoryData }
-          : category
-      )
+  const updateCategoryInState = useCallback((category: Category) => {
+    setCategories((prev) =>
+      sortCategories(prev.map((item) => (item.id === category.id ? category : item))),
     );
-    setEditingCategory(null);
+  }, []);
 
-    showSuccess('Categoría de producto actualizada exitosamente!');
-  };
+  const removeCategoryFromState = useCallback((categoryId: number) => {
+    setCategories((prev) =>
+      sortCategories(prev.filter((item) => item.id !== categoryId)),
+    );
+  }, []);
 
-  const handleDeleteCategory = async (category: Category): Promise<boolean> => {
-    return confirmDelete(
-      {
-        itemName: category.nombre,
-        itemType: 'categoría',
-        successMessage: `La categoría "${category.nombre}" ha sido eliminada correctamente.`,
-        errorMessage: 'No se pudo eliminar la categoría. Por favor, intenta nuevamente.',
-      },
-      () => {
-        setCategories(prev => prev.filter(c => c.id !== category.id));
+  const handleCreateCategory = useCallback(
+    async (categoryData: CreateCategoryData) => {
+      setLoading(true);
+      try {
+        setIsCreateModalOpen(false);
+
+        const response = await createCategory(categoryData);
+        const createdCategory = extractPayloadCategory(response);
+
+        if (createdCategory) {
+          addCategoryToState(createdCategory);
+        } else {
+          await refreshCategories();
+        }
+
+        showSuccess("Categoria creada exitosamente!");
+        await waitForNextRender();
+      } catch (error) {
+        console.error("Error al crear categoria:", error);
+        showError("No se pudo crear la categoria.");
+      } finally {
+        setLoading(false);
       }
-    );
-  };
+    },
+    [addCategoryToState, refreshCategories],
+  );
 
-  const handleView = (category: Category) => {
+  const handleEditCategory = useCallback(
+    async (id: number, categoryData: EditCategoryData) => {
+      setLoading(true);
+      try {
+        const response = await updateCategory(id, categoryData);
+        const updatedCategory = extractPayloadCategory(response);
+
+        if (updatedCategory) {
+          updateCategoryInState(updatedCategory);
+        } else {
+          await refreshCategories();
+        }
+
+        showSuccess("Categoria actualizada exitosamente!");
+        await waitForNextRender();
+      } catch (error) {
+        console.error("Error al actualizar categoria:", error);
+        showError("No se pudo actualizar la categoria.");
+      } finally {
+        setLoading(false);
+        setEditingCategory(null);
+      }
+    },
+    [refreshCategories, updateCategoryInState],
+  );
+
+  const handleDeleteCategory = useCallback(
+    async (category: Category): Promise<boolean> => {
+      return confirmDelete(
+        {
+          itemName: category.name,
+          itemType: "categoria",
+          successMessage: `La categoria "${category.name}" ha sido eliminada correctamente.`,
+          errorMessage: "No se pudo eliminar la categoria.",
+        },
+        async () => {
+          setLoading(true);
+          try {
+            await deleteCategory(category.id);
+            removeCategoryFromState(category.id);
+            await waitForNextRender();
+          } catch (error) {
+            console.error("Error al eliminar categoria:", error);
+            const parsedError = error instanceof Error ? error.message : undefined;
+            showError(parsedError ?? "Error al eliminar la categoria.");
+            throw error;
+          } finally {
+            setLoading(false);
+          }
+        },
+      );
+    },
+    [removeCategoryFromState],
+  );
+
+  const handleView = useCallback((category: Category) => {
     setViewingCategory(category);
-  };
+  }, []);
 
-  const handleEdit = (category: EditCategoryData) => {
-    setEditingCategory(category);
-  };
+  const handleEdit = useCallback((category: Category) => {
+    setEditingCategory({
+      id: category.id,
+      name: category.name,
+      description: category.description,
+      status: category.status,
+      icon: category.icon,
+    });
+  }, []);
 
-  const handleDelete = async (category: Category) => {
-    await handleDeleteCategory(category);
-  };
-
-  const closeModals = () => {
+  const closeModals = useCallback(() => {
     setEditingCategory(null);
     setViewingCategory(null);
     setIsCreateModalOpen(false);
-  };
+  }, []);
 
   return {
     categories,
+    categoryProductCounts,
+    loading,
     isCreateModalOpen,
     setIsCreateModalOpen,
     editingCategory,
@@ -89,243 +272,6 @@ export const useCategories = () => {
     handleDeleteCategory,
     handleView,
     handleEdit,
-    handleDelete,
     closeModals,
-    setEditingCategory,
-    setViewingCategory
-  };
-};
-
-// Hook para el formulario de creación
-export const useCreateCategoryForm = ({
-  isOpen,
-  onClose,
-  onSave,
-}: CreateCategoryModalProps) => {
-  const [formData, setFormData] = useState<CreateCategoryData>({
-    nombre: '',
-    descripcion: '',
-    icono: null,
-  });
-
-  const [errors, setErrors] = useState<FormErrors>({
-    nombre: '',
-    descripcion: ''
-  });
-
-  const [touched, setTouched] = useState<FormTouched>({
-    nombre: false,
-    descripcion: false
-  });
-
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        nombre: '',
-        descripcion: '',
-        icono: null
-      });
-      setErrors({
-        nombre: '',
-        descripcion: ''
-      });
-      setTouched({
-        nombre: false,
-        descripcion: false
-      });
-    }
-  }, [isOpen]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-
-    if (name === 'nombre' || name === 'descripcion') {
-      // Usar las funciones de validación importadas
-      if (hasSpecialChars(value)) return;
-      if (name === 'nombre' && hasNumbers(value)) return;
-    }
-
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setTouched(prev => ({ ...prev, [name]: true }));
-    
-    // Validación en tiempo real con notificaciones
-    if (name === 'nombre') {
-      validateNombreWithNotification({ nombre: value, descripcion: formData.descripcion }, setErrors, setTouched);
-    } else if (name === 'descripcion') {
-      validateDescripcionWithNotification({ nombre: formData.nombre, descripcion: value }, setErrors, setTouched);
-    }
-  };
-
-  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setFormData((prev) => ({ ...prev, icono: file }));
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name } = e.target;
-    setTouched((prev) => ({ ...prev, [name]: true }));
-    
-    // Validación al perder el foco
-    if (name === 'nombre') {
-      validateNombreWithNotification(formData, setErrors, setTouched);
-    } else if (name === 'descripcion') {
-      validateDescripcionWithNotification(formData, setErrors, setTouched);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Usar la nueva función de validación con notificaciones
-    const isValid = validateFormWithNotification(formData, setErrors, setTouched);
-
-    if (isValid) {
-      onSave(formData);
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    }
-  };
-
-  return {
-    formData,
-    errors,
-    touched,
-    handleInputChange,
-    handleIconChange,
-    handleBlur,
-    handleSubmit
-  };
-};
-
-// Hook para el formulario de Editar 
-export const useEditCategoryForm = ({
-  isOpen,
-  category,
-  onClose,
-  onSave,
-}: EditCategoryModalProps) => {
-  const [formData, setFormData] = useState<EditCategoryData>({
-    id: 0,
-    nombre: '',
-    descripcion: '',
-    estado: 'Activo',
-    icono: null,
-  });
-
-  const [errors, setErrors] = useState<FormErrors>({
-    nombre: '',
-    descripcion: ''
-  });
-
-  const [touched, setTouched] = useState<FormTouched>({
-    nombre: false,
-    descripcion: false
-  });
-
-  const [currentIcon, setCurrentIcon] = useState<File | null>(null);
-
-  useEffect(() => {
-    if (isOpen && category) {
-      setFormData({
-        id: category.id,
-        nombre: category.nombre,
-        descripcion: category.descripcion,
-        icono: category.icono || null,
-        estado: category.estado
-      });
-      setCurrentIcon(category.icono || null);
-      setErrors({
-        nombre: '',
-        descripcion: ''
-      });
-      setTouched({
-        nombre: false,
-        descripcion: false
-      });
-    }
-  }, [isOpen, category]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-
-    if (name === 'nombre' || name === 'descripcion') {
-      if (hasSpecialChars(value)) return;
-      if (name === 'nombre' && hasNumbers(value)) return;
-    }
-
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setTouched(prev => ({ ...prev, [name]: true }));
-    
-    // Validación en tiempo real con notificaciones
-    if (name === 'nombre') {
-      validateNombreWithNotification({ nombre: value, descripcion: formData.descripcion }, setErrors, setTouched);
-    } else if (name === 'descripcion') {
-      validateDescripcionWithNotification({ nombre: formData.nombre, descripcion: value }, setErrors, setTouched);
-    }
-  };
-
-  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setFormData(prev => ({ ...prev, icono: file }));
-    setCurrentIcon(file);
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name } = e.target;
-    setTouched(prev => ({ ...prev, [name]: true }));
-    
-    // Validación al perder el foco
-    if (name === 'nombre') {
-      validateNombreWithNotification(formData, setErrors, setTouched);
-    } else if (name === 'descripcion') {
-      validateDescripcionWithNotification(formData, setErrors, setTouched);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Usar la nueva función de validación con notificaciones
-    const isValid = validateFormWithNotification(formData, setErrors, setTouched);
-
-    if (isValid) {
-      onSave(formData);
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    }
-  };
-
-  const removeIcon = () => {
-    setFormData(prev => ({ ...prev, icono: null }));
-    setCurrentIcon(null);
-  };
-
-  return {
-    formData,
-    errors,
-    touched,
-    currentIcon,
-    handleInputChange,
-    handleIconChange,
-    handleBlur,
-    handleSubmit,
-    removeIcon
-  };
-};
-
-// Hook para el formulario de Ver 
-export const useViewCategory = (category: Category | null) => {
-  const [currentIcon, setCurrentIcon] = useState<File | null>(null);
-
-  useEffect(() => {
-    if (category) {
-      setCurrentIcon(category.icono || null);
-    }
-  }, [category]);
-
-  return {
-    currentIcon
   };
 };

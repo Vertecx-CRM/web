@@ -1,0 +1,13 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: vertecx-frontend
+    env_file:
+      - .env.docker
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

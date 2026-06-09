@@ -1,365 +1,506 @@
-// src/features/dashboard/technicians/components/editTechniciansModal/editTechniciansModal.tsx
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import Colors from "@/shared/theme/colors";
+import Modal from "@/features/dashboard/components/Modal";
 import {
-  Technician,
   DocumentType,
   EditTechnicianData,
+  Technician,
   TechnicianState,
 } from "../../types/typesTechnicians";
+import {
+  validateTechnicianField,
+  validateTechnicianForm,
+  TechnicianErrors,
+} from "@/features/dashboard/technicians/validations/techniciansValidations";
+import { showWarning } from "@/shared/utils/notifications";
+import { Upload} from "lucide-react";
+import { getDocumentTypes } from "../../api/typeofdocuments.api";
+
+const states: TechnicianState[] = ["Activo", "Inactivo"];
+const TECH_TYPES = [
+  "Instalacion CCTV",
+  "Mantenimiento CCTV",
+  "Cableado estructurado",
+  "Redes y configuracion",
+  "Soporte electrico",
+];
+
+function fileNameFromUrl(u?: string) {
+  if (!u) return "";
+  try {
+    const url = new URL(u);
+    const last = url.pathname.split("/").filter(Boolean).pop() || "";
+    return decodeURIComponent(last);
+  } catch {
+    const parts = u.split("?")[0].split("/").filter(Boolean);
+    return decodeURIComponent(parts.pop() || "");
+  }
+}
 
 interface EditTechnicianModalProps {
   isOpen: boolean;
   technician: Technician;
+  technicians: Technician[];
+  typeOptions?: string[];
   onClose: () => void;
   onUpdate: (data: EditTechnicianData) => void;
 }
 
-const documentTypes: DocumentType[] = ["CC", "CE", "TI", "Pasaporte", "PPT", "PEP", "Otro"];
-
-const states: TechnicianState[] = ["Activo", "Inactivo"];
-
 const EditTechnicianModal: React.FC<EditTechnicianModalProps> = ({
   isOpen,
   technician,
+  technicians,
+  typeOptions,
   onClose,
   onUpdate,
 }) => {
-  const [name, setName] = useState(technician.name);
-  const [lastName, setLastName] = useState(technician.lastName);
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [documentType, setDocumentType] = useState<DocumentType>(
-    technician.documentType
-  );
-  const [documentNumber, setDocumentNumber] = useState(
-    technician.documentNumber
-  );
-  const [phone, setPhone] = useState(technician.phone);
-  const [email, setEmail] = useState(technician.email);
-  const [state, setState] = useState<TechnicianState>(
-    technician.state ?? "Activo"
-  );
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [documentTypeId, setDocumentTypeId] = useState<number>(0);
+  const [documentTypeName, setDocumentTypeName] = useState<string>("");
+
+  const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<TechnicianState>("Activo");
+
+  const [types, setTypes] = useState<string[]>([]);
+  const [resumePdf, setResumePdf] = useState<File | null>(null);
+  const [resumeName, setResumeName] = useState<string>("");
+
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | undefined>(
-    technician.image
-  );
+  const [previewImage, setPreviewImage] = useState<string | undefined>(undefined);
+
+  const [errors, setErrors] = useState<Partial<TechnicianErrors>>({});
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const handleCircleClick = () => fileInputRef.current?.click();
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    getDocumentTypes()
+      .then((data) => {
+        const filtered = data.filter((d) => d.name !== "NIT");
+        setDocumentTypes(filtered);
+
+        const currentDoc = filtered.find((d) => d.name === technician.documentType);
+
+        if (currentDoc) {
+          setDocumentTypeId(currentDoc.typeofdocumentid);
+          setDocumentTypeName(currentDoc.name);
+        } else {
+          setDocumentTypeId(filtered[0]?.typeofdocumentid ?? 0);
+          setDocumentTypeName(filtered[0]?.name ?? "");
+        }
+      })
+      .catch((error) => {
+        console.error("Error cargando tipos de documento para editar técnico:", error);
+        setDocumentTypes([]);
+        setDocumentTypeId(0);
+        setDocumentTypeName("");
+      });
+  }, [isOpen, technician]);
 
   const resetForm = () => {
     setName(technician.name);
     setLastName(technician.lastName);
-    setPassword("");
-    setConfirmPassword("");
-    setDocumentType(technician.documentType);
     setDocumentNumber(technician.documentNumber);
     setPhone(technician.phone);
     setEmail(technician.email);
     setState(technician.state ?? "Activo");
+
+    setTypes(technician.types ?? []);
+
+    setResumePdf(null);
+    setResumeName(fileNameFromUrl(technician.resumeUrl));
+
     setImageFile(null);
     setPreviewImage(technician.image);
+
+    setErrors({});
+    setImageError(null);
+    setPdfError(null);
   };
 
   useEffect(() => {
     if (isOpen) resetForm();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, technician]);
+
+  const handleFieldChange = (field: any, rawValue: any) => {
+    let value = rawValue;
+
+    if (field === "documentType") {
+      const id = Number(rawValue);
+      const doc = documentTypes.find((d) => d.typeofdocumentid === id);
+
+      setDocumentTypeId(id);
+      setDocumentTypeName(doc?.name ?? "");
+
+      const docTypeError = validateTechnicianField(
+        "documentType",
+        doc?.name ?? "",
+        technicians,
+        { documentType: doc?.name, excludeId: technician.id }
+      );
+
+      setErrors((prev) => ({ ...prev, documentType: docTypeError }));
+      return;
+    }
+
+    if (field === "name") value = String(rawValue).replace(/\d/g, "");
+    if (field === "lastName") value = String(rawValue).replace(/\d/g, "");
+    if (field === "phone") value = String(rawValue).replace(/\D/g, "");
+
+    if (field === "documentNumber") {
+      const raw = String(rawValue);
+
+      if (documentTypeName === "PA") {
+        value = raw.replace(/[^a-zA-Z0-9]/g, "");
+      } else {
+        value = raw.replace(/\D/g, "");
+      }
+    }
+
+    switch (field) {
+      case "name":
+        setName(value);
+        break;
+      case "lastName":
+        setLastName(value);
+        break;
+      case "documentNumber":
+        setDocumentNumber(value);
+        break;
+      case "phone":
+        setPhone(value);
+        break;
+      case "email":
+        setEmail(value);
+        break;
+      case "types":
+        setTypes(value as string[]);
+        break;
+      case "resumePdf":
+        setResumePdf(value as File | null);
+        break;
+    }
+
+    const fieldError = validateTechnicianField(
+      field,
+      value,
+      technicians,
+      { documentType: documentTypeName, excludeId: technician.id }
+    );
+
+    setErrors((prev) => ({ ...prev, [field]: fieldError }));
+  };
+
+  const handleToggleType = (opt: string) => {
+    const next = types.includes(opt)
+      ? types.filter((t) => t !== opt)
+      : [...types, opt];
+
+    setTypes(next);
+    setTimeout(() => handleFieldChange("types", next), 0);
+  };
+
+  const validateImage = (file: File | null) => {
+    if (!file) return null;
+    if (!file.type.startsWith("image/")) return "El archivo debe ser una imagen";
+    if (file.size > 2 * 1024 * 1024) return "La imagen no debe superar 2MB";
+    return null;
+  };
+
+  const handleImageChange = (file: File | null) => {
+    if (file) {
+      const err = validateImage(file);
+      if (err) {
+        setImageError(err);
+        setImageFile(null);
+        setPreviewImage(technician.image);
+        return;
+      }
+    }
+
+    setImageError(null);
+    setImageFile(file);
+    setPreviewImage(file ? URL.createObjectURL(file) : technician.image);
+  };
+
+  const handlePdfChange = (file: File | null) => {
+    if (!file) {
+      setResumePdf(null);
+      setResumeName(fileNameFromUrl(technician.resumeUrl));
+      setPdfError(null);
+      return;
+    }
+
+    if (file.type !== "application/pdf") return setPdfError("El archivo debe ser un PDF");
+    if (file.size > 10 * 1024 * 1024) return setPdfError("El PDF no debe superar 10MB");
+
+    setPdfError(null);
+    setResumePdf(file);
+    setResumeName(file.name);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !lastName || !documentNumber || !phone || !email) {
-      alert("Por favor completa todos los campos obligatorios");
-      return;
-    }
-    if (password && password !== confirmPassword) {
-      alert("Las contraseñas no coinciden");
-      return;
-    }
 
-    const updatedData: EditTechnicianData = {
+    const updated: EditTechnicianData = {
       id: technician.id,
       name,
       lastName,
-      documentType,
+      documentType: documentTypeName,
+      typeid: documentTypeId, 
       documentNumber,
       phone,
       email,
       state,
-      password: password || undefined,
-      confirmPassword: confirmPassword || undefined,
-      image: imageFile ? URL.createObjectURL(imageFile) : previewImage,
+      image: imageFile || undefined,
+      types,
+      resumePdf: resumePdf || undefined,
     };
 
-    onUpdate(updatedData);
+    const formErrors = validateTechnicianForm(updated, technicians, {
+      excludeId: technician.id,
+      requirePdf: false,
+      hasExistingResume: Boolean(technician.resumeUrl),
+    });
+
+    setErrors(formErrors);
+
+    if (Object.keys(formErrors).length > 0 || imageError || pdfError) {
+      showWarning("Por favor completa los campos obligatorios correctamente");
+      return;
+    }
+
+    onUpdate(updated);
     resetForm();
     onClose();
   };
 
-  if (!isOpen) return null;
+  return (
+    <Modal
+      title="Editar Técnico"
+      isOpen={isOpen}
+      onClose={() => {
+        resetForm();
+        onClose();
+      }}
+      footer={
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer px-4 py-2 rounded-lg bg-gray-300 hover:bg-gray-200"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="edit-technician-form"
+            className="cursor-pointer px-4 py-2 rounded-lg bg-black text-white hover:bg-gray-900"
+          >
+            Guardar
+          </button>
+        </div>
+      }
+    >
+      <form id="edit-technician-form" onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
+        
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Tipo de Documento <span className="text-red-500">*</span>
+          </label>
 
-  return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 p-4 sm:p-0">
-      <div className="bg-white p-3 rounded-lg shadow-lg w-full max-w-2xl relative z-50 mx-auto">
-        <button onClick={onClose} className="absolute top-2 right-2 z-10">
-          <img src="/icons/X.svg" alt="Cerrar" className="w-5 h-5" />
-        </button>
+          <select
+            value={documentTypeId}
+            onChange={(e) => handleFieldChange("documentType", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          >
+            <option value={0}>Selecciona el tipo de documento</option>
+            {documentTypes.map((d) => (
+              <option key={d.typeofdocumentid} value={d.typeofdocumentid}>{d.name}</option>
+            ))}
+          </select>
 
-        <div className="text-black font-semibold text-2xl text-center mb-3">
-          Editar Técnico
+          {errors.documentType && (
+            <p className="text-xs text-red-600 mt-1">{errors.documentType}</p>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 p-1">
-          {/* Imagen */}
-          <div className="col-span-2 flex flex-col items-center mb-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Número de Documento *</label>
+          <input
+            type="text"
+            value={documentNumber}
+            onChange={(e) => handleFieldChange("documentNumber", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.documentNumber && (
+            <p className="text-xs text-red-600 mt-1">{errors.documentNumber}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Nombre *</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => handleFieldChange("name", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.name && (
+            <p className="text-xs text-red-600 mt-1">{errors.name}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Apellido *</label>
+          <input
+            type="text"
+            value={lastName}
+            onChange={(e) => handleFieldChange("lastName", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.lastName && (
+            <p className="text-xs text-red-600 mt-1">{errors.lastName}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Teléfono *</label>
+          <input
+            type="text"
+            value={phone}
+            onChange={(e) => handleFieldChange("phone", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.phone && (
+            <p className="text-xs text-red-600 mt-1">{errors.phone}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Correo *</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => handleFieldChange("email", e.target.value)}
+            className="w-full px-2 py-1 border rounded-md"
+          />
+          {errors.email && (
+            <p className="text-xs text-red-600 mt-1">{errors.email}</p>
+          )}
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">Estado</label>
+          <select
+            value={state}
+            onChange={(e) => setState(e.target.value as TechnicianState)}
+            className="w-full px-2 py-1 border rounded-md"
+          >
+            {states.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="col-span-2">
+          <label className="block text-sm font-medium mb-1">
+            Tipos de técnico *
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            {(typeOptions ?? TECH_TYPES).map((opt) => {
+              const active = types.includes(opt);
+
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleToggleType(opt)}
+                  className={`px-3 py-1 rounded-full border text-sm transition ${
+                    active
+                      ? "bg-red-600 text-white border-red-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+
+          {errors.types && (
+            <p className="text-xs text-red-600 mt-1">{errors.types}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Hoja de vida (PDF)
+          </label>
+          <div className="flex items-center gap-3">
+            <div
+              onClick={() => pdfInputRef.current?.click()}
+              className="flex h-10 min-w-10 max-w-[260px] items-center justify-center rounded-md border border-dashed border-gray-500 cursor-pointer px-2"
+            >
+              {resumePdf ? (
+                <span className="text-xs truncate w-full">{resumeName}</span>
+              ) : (
+                <span className="text-xs truncate w-full">{resumeName || "Subir PDF"}</span>
+              )}
+            </div>
+
             <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => handlePdfChange(e.target.files?.[0] ?? null)}
+            />
+          </div>
+
+          {pdfError && <p className="text-xs text-red-600 mt-1">{pdfError}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Imagen</label>
+          <div className="flex items-center gap-2">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-gray-500 cursor-pointer overflow-hidden"
+            >
+              {previewImage ? (
+                <img src={previewImage} className="h-full w-full object-cover" />
+              ) : (
+                <Upload size={16} />
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                setImageFile(file);
-                if (file) setPreviewImage(URL.createObjectURL(file));
-              }}
-            />
-            <div
-              className="w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-1"
-              onClick={handleCircleClick}
-              style={{ borderColor: Colors.table.lines }}
-            >
-              {previewImage ? (
-                <img
-                  src={previewImage}
-                  alt="Técnico"
-                  className="w-full h-full object-cover rounded-full"
-                />
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-              )}
-            </div>
-            <div className="text-center text-xs text-gray-500 mb-1">
-              Haga clic en el círculo para{" "}
-              {previewImage ? "cambiar" : "seleccionar"} la imagen
-            </div>
-            {previewImage && (
-              <div className="flex flex-col items-center space-y-1">
-                <div className="text-xs text-green-600 font-medium">
-                  {imageFile?.name ?? "Imagen actual"}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImageFile(null);
-                    setPreviewImage(undefined);
-                  }}
-                  className="text-red-500 text-xs hover:text-red-700 px-2 py-1 border border-red-200 rounded-md"
-                  style={{ borderColor: Colors.states.nullable }}
-                >
-                  Eliminar imagen
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Campos */}
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Nombre
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Apellido
-            </label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Contraseña
-            </label>
-            <input
-              type="password"
-              placeholder="Ingrese nueva contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Confirmar Contraseña
-            </label>
-            <input
-              type="password"
-              placeholder="Confirme contraseña"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Tipo de Documento
-            </label>
-            <select
-              value={documentType}
-              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            >
-              {documentTypes.map((doc) => (
-                <option key={doc} value={doc}>
-                  {doc}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Número de Documento
-            </label>
-            <input
-              type="text"
-              value={documentNumber}
-              onChange={(e) => setDocumentNumber(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Teléfono
-            </label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Correo electrónico
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
+              onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
             />
           </div>
 
-          {/* Nuevo campo: Estado */}
-          <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: Colors.texts.primary }}
-            >
-              Estado
-            </label>
-            <select
-              value={state}
-              onChange={(e) => setState(e.target.value as TechnicianState)}
-              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-              style={{ borderColor: Colors.table.lines }}
-            >
-              {states.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Botones */}
-          <div className="col-span-2 flex justify-end space-x-2 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-                onClose();
-              }}
-              className="px-4 py-2 rounded-md font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors text-sm"
-              style={{
-                backgroundColor: Colors.buttons.tertiary,
-                color: Colors.texts.quaternary,
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md font-medium text-white text-sm"
-              style={{
-                backgroundColor: Colors.buttons.quaternary,
-                color: Colors.texts.quaternary,
-              }}
-            >
-              Guardar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>,
-    document.body
+          {imageError && <p className="text-xs text-red-600 mt-1">{imageError}</p>}
+        </div>
+      </form>
+    </Modal>
   );
 };
 
