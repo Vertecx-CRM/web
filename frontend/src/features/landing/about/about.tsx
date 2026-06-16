@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Target,
   Eye,
@@ -16,12 +17,13 @@ import Card from "@/features/landing/about/components/Card";
 import Nav from "../layout/Nav";
 import Footer from "../layout/Footer";
 import Accordion from "./components/Accordion";
+import { routes } from "@/shared/routes";
 
 const faqItems = [
   {
     question: "¿Qué tipo de soporte técnico ofrecen?",
     answer:
-      "Brindamos soporte integral en SistemaPC: desde mantenimiento preventivo y correctivo hasta optimización avanzada de hardware y redes para empresas.",
+      "Brindamos soporte integral en Vertecx: desde mantenimiento preventivo y correctivo hasta optimizacion avanzada de hardware y redes para empresas.",
   },
   {
     question: "¿Cómo funciona el sistema de entrega de credenciales?",
@@ -31,7 +33,7 @@ const faqItems = [
   {
     question: "¿Tienen planes de mantenimiento corporativo?",
     answer:
-      "Sí, diseñamos planes a medida bajo el modelo de Tech Solutions, con tiempos de respuesta prioritarios y soporte preventivo mensual para evitar caídas de sistema.",
+      "Si, disenamos planes a medida en Vertecx, con tiempos de respuesta prioritarios y soporte preventivo mensual para evitar caidas de sistema.",
   },
 ];
 
@@ -54,17 +56,20 @@ export default function About() {
                   <span>Soluciones Tecnológicas Reales</span>
                 </div>
                 <h1 className="text-5xl md:text-6xl lg:text-7xl font-black tracking-tight leading-none">
-                  SISTEMA<span className="text-red-200">PC</span>
+                  VERT<span className="text-red-200">ECX</span>
                 </h1>
                 <p className="text-xl md:text-2xl leading-relaxed text-red-50/90 max-w-xl font-light">
-                  Más que soporte técnico, somos tu aliado en la era digital. En
-                  **Tech Solutions** transformamos problemas complejos en
-                  sistemas eficientes.
+                  Mas que soporte tecnico, somos tu aliado en la era digital. En
+                  Vertecx transformamos problemas complejos en sistemas
+                  eficientes.
                 </p>
                 <div className="flex gap-4">
-                  <button className="px-8 py-4 bg-white text-[#B20000] font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg">
+                  <Link
+                    href={routes.landing.services}
+                    className="px-8 py-4 bg-white text-[#B20000] font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg"
+                  >
                     Ver Servicios
-                  </button>
+                  </Link>
                 </div>
               </div>
 
@@ -173,7 +178,7 @@ export default function About() {
                 Resolviendo tus dudas
               </h2>
               <p className="text-slate-500 text-lg font-light">
-                Todo lo que necesitas saber sobre SistemaPC
+                Todo lo que necesitas saber sobre Vertecx Sistemas PC
               </p>
             </div>
 

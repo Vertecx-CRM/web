@@ -1,6 +1,8 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { routes } from "@/shared/routes";
 
 const HeaderSlider = () => {
   const images = [
@@ -36,32 +38,39 @@ const HeaderSlider = () => {
             <div className="flex items-center gap-3 animate-slideInLeft">
               <span className="w-12 h-[2px] bg-red-600 origin-left scale-x-0 animate-growWidth"></span>
               <span className="text-red-600 font-bold tracking-[0.3em] text-xs uppercase opacity-0 animate-fadeIn delay-300">
-                SistemasPC Technology
+                Vertecx Sistemas PC
               </span>
             </div>
 
             {/* Título principal con animación de aparición y desplazamiento */}
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black text-black leading-[0.9] tracking-tighter opacity-0 animate-fadeInUp delay-500">
-              SOLUCIONES <br />
+              VERT<span className="text-red-700">ECX</span> <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-800 inline-block animate-gradient">
-                DIGITALES.
+                SOLUCIONES IT.
               </span>
             </h1>
 
             {/* Párrafo con fade-in */}
             <p className="text-xl text-gray-500 font-light max-w-md leading-relaxed opacity-0 animate-fadeIn delay-700">
-              Expertos en soporte técnico, redes y mantenimiento industrial con
-              más de 20 años de trayectoria.
+              Vertecx ofrece soporte tecnico empresarial, mantenimiento de
+              computadores, redes, servidores y hardware para organizaciones en
+              Colombia.
             </p>
 
             {/* Botones con animación de escala y sombra */}
             <div className="flex flex-wrap gap-4 opacity-0 animate-fadeIn delay-1000">
-              <button className="cursor-pointer px-10 py-4 bg-black text-white font-bold uppercase tracking-widest text-xs hover:bg-red-600 transition-all duration-300 shadow-2xl shadow-gray-200 hover:scale-105 hover:shadow-red-600/30">
+              <Link
+                href={routes.landing.contact}
+                className="cursor-pointer px-10 py-4 bg-black text-white font-bold uppercase tracking-widest text-xs hover:bg-red-600 transition-all duration-300 shadow-2xl shadow-gray-200 hover:scale-105 hover:shadow-red-600/30"
+              >
                 Contactar Ahora
-              </button>
-              <button className="cursor-pointer px-10 py-4 border-2 border-gray-100 text-black font-bold uppercase tracking-widest text-xs hover:border-red-600 transition-all duration-300 hover:scale-105">
+              </Link>
+              <Link
+                href={routes.landing.services}
+                className="cursor-pointer px-10 py-4 border-2 border-gray-100 text-black font-bold uppercase tracking-widest text-xs hover:border-red-600 transition-all duration-300 hover:scale-105"
+              >
                 Nuestros Servicios
-              </button>
+              </Link>
             </div>
 
             {/* Indicadores de Slide con animación de rebote */}

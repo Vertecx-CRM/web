@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Mail, MapPin, Phone, MessageSquare, clock } from "lucide-react";
+import { Mail, MapPin, Phone, MessageSquare } from "lucide-react";
 import Container from "@/features/landing/contact/components/container";
 import SectionTitle from "@/features/landing/contact/components/SectionTitle";
 import Card from "@/features/landing/contact/components/Card";
@@ -57,10 +57,10 @@ export default function Contact({ className = "" }: ContactProps) {
                 Para consultas técnicas y presupuestos detallados.
               </p>
               <a
-                href="vertecxoficial@gmail.com"
+                href="mailto:vertecxoficial@gmail.com"
                 className="text-[#B20000] font-bold hover:underline"
               >
-                soporte@sistemapc.com
+                vertecxoficial@gmail.com
               </a>
             </Card>
 

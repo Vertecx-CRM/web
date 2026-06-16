@@ -24,6 +24,10 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+const noIndexHeaders = [
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+];
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   output: "standalone",
@@ -50,6 +54,22 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        source: "/auth/:path*",
+        headers: noIndexHeaders,
+      },
+      {
+        source: "/dashboard/:path*",
+        headers: noIndexHeaders,
+      },
+      {
+        source: "/payments/:path*",
+        headers: noIndexHeaders,
+      },
+      {
+        source: "/api/:path*",
+        headers: noIndexHeaders,
       },
     ];
   },

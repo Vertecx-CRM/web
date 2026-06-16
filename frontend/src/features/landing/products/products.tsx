@@ -12,7 +12,7 @@ import { useProducts, Product } from "./hooks/useProducts";
 import CategoryCarousel from "./components/CategoryCarousel";
 import { useCart } from "../contexts/CartContext";
 import { showSuccess, showError } from "@/shared/utils/notifications";
-import { LayoutGrid, ListFilter } from "lucide-react";
+import { LayoutGrid, ListFilter, Package } from "lucide-react";
 import CardProduct from "./components/CardProducts";
 
 export default function ProductsLanding() {

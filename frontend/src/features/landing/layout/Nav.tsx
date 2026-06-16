@@ -111,7 +111,7 @@ const Nav = () => {
           >
             <Image
               src="/assets/imgs/logo.png"
-              alt="logo"
+              alt="Vertecx Sistemas PC"
               width={180}
               height={50}
               priority

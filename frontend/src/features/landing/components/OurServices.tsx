@@ -1,5 +1,7 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { routes } from "@/shared/routes";
 
 const OurServices = () => {
   const services = [
@@ -89,7 +91,10 @@ const OurServices = () => {
                   {service.description}
                 </p>
 
-                <button className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest group-hover:gap-5 transition-all">
+                <Link
+                  href={routes.landing.services}
+                  className="inline-flex items-center gap-3 text-xs font-black uppercase tracking-widest group-hover:gap-5 transition-all"
+                >
                   <span>Consultar Servicio</span>
                   <div className="w-6 h-6 rounded-full bg-black text-white flex items-center justify-center group-hover:bg-red-600 transition-colors group-hover:rotate-45">
                     <svg
@@ -106,7 +111,7 @@ const OurServices = () => {
                       />
                     </svg>
                   </div>
-                </button>
+                </Link>
               </div>
 
               {/* Línea decorativa roja en hover */}
@@ -117,12 +122,15 @@ const OurServices = () => {
 
         {/* Footer animado */}
         <div className="mt-20 flex flex-col items-center opacity-0 animate-fadeInUp delay-1000">
-          <button className="cursor-pointer group relative overflow-hidden bg-black px-12 py-5 text-white transition-all hover:bg-red-600">
+          <Link
+            href={routes.landing.services}
+            className="cursor-pointer group relative overflow-hidden bg-black px-12 py-5 text-white transition-all hover:bg-red-600"
+          >
             <span className="relative z-10 font-bold tracking-widest uppercase text-sm">
               Solicitar Servicio Online
             </span>
             <div className="absolute inset-0 -translate-x-full bg-red-600 transition-transform duration-300 group-hover:translate-x-0"></div>
-          </button>
+          </Link>
           <p className="mt-6 text-gray-400 text-xs uppercase tracking-tighter">
             Disponibilidad 12hs
           </p>

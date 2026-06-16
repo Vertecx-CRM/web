@@ -689,7 +689,7 @@ export default function EditRequestModal({
   function addTechnician(id: number) {
     if (!Number.isFinite(id) || id <= 0) return;
     if (busyTechnicianIds.has(id)) {
-      showWarning("Este técnico ya está ocupado en el horario seleccionado.");
+      showWarning("Este tÃ©cnico ya estÃ¡ ocupado en el horario seleccionado.");
       return;
     }
     markTouched("technicians");
@@ -1724,7 +1724,7 @@ export default function EditRequestModal({
                         Checklist del cliente
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Datos del sitio que ayudan a decidir si la instalación
+                        Datos del sitio que ayudan a decidir si la instalaciÃ³n
                         puede seguir sin visita previa.
                       </p>
                     </div>
@@ -1829,7 +1829,7 @@ export default function EditRequestModal({
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
                         Productos ya comprados o declarados por el cliente para
-                        esta instalación.
+                        esta instalaciÃ³n.
                       </p>
                     </div>
                     <span
@@ -2128,7 +2128,7 @@ export default function EditRequestModal({
                       className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-gray-200"
                       disabled={saving || techLoading}
                     >
-                      ×
+                      Ã—
                     </button>
                   </span>
                 ))}
