@@ -3,8 +3,7 @@ import type { Metadata } from "next";
 export const SITE_NAME = "Vertecx";
 export const SITE_LEGAL_NAME = "Vertecx Sistemas PC";
 export const SITE_ALTERNATE_NAME = "Sistemas PC";
-export const DEFAULT_SITE_URL =
-  "https://vertecx-frontend-ftetddefakf8egc2.canadacentral-01.azurewebsites.net";
+export const DEFAULT_SITE_URL = "https://www.sistemaspc.co";
 export const DEFAULT_OG_IMAGE = "/assets/imgs/preview.png";
 export const DEFAULT_DESCRIPTION =
   "Vertecx es una empresa colombiana de soporte tecnico, mantenimiento preventivo y correctivo, redes, servidores y equipos tecnologicos para empresas.";
