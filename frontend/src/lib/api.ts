@@ -1,7 +1,16 @@
 import axios, { AxiosError, AxiosHeaders, InternalAxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/";
+const DEFAULT_API_URL =
+  "https://vertecx-back-c5abeza7bwcrg2hh.canadacentral-01.azurewebsites.net/";
+
+function normalizeApiUrl(value?: string) {
+  const raw = (value || DEFAULT_API_URL).trim();
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return withProtocol.endsWith("/") ? withProtocol : `${withProtocol}/`;
+}
+
+const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL);
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -87,7 +96,7 @@ async function refreshAccessToken(): Promise<string> {
   if (!rt) throw new Error("NO_REFRESH_TOKEN");
 
   const { data } = await axios.post<TokensResponse>(
-    `${API_URL}auth/refresh`,
+    new URL("auth/refresh", API_URL).toString(),
     { refresh_token: rt },
     {
       withCredentials: true,

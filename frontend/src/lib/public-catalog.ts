@@ -36,8 +36,9 @@ export type PublicProductForSeo = {
 };
 
 function apiBaseUrl() {
-  const raw = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL;
-  return raw.endsWith("/") ? raw : `${raw}/`;
+  const raw = (process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL).trim();
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  return withProtocol.endsWith("/") ? withProtocol : `${withProtocol}/`;
 }
 
 function apiUrl(path: string, params?: Record<string, string>) {
