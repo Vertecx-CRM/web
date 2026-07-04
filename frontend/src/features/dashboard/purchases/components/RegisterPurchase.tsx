@@ -480,7 +480,7 @@ export default function RegisterPurchaseForm({
           <>
             <label className="block text-sm font-medium mb-2">Producto</label>
 
-            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_6rem] sm:items-end">
               {/* BUSCADOR */}
               <div className="flex-1">
                 <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -491,7 +491,7 @@ export default function RegisterPurchaseForm({
                   <input
                     type="text"
                     placeholder="Escribe el nombre del producto"
-                    className="w-100 border rounded-md px-3 py-2 text-sm shadow-sm"
+                    className="w-full border rounded-md px-3 py-2 text-sm shadow-sm"
                     value={
                       selectedProduct
                         ? products.find(
@@ -525,10 +525,12 @@ export default function RegisterPurchaseForm({
                               setSearchProduct("");
                               setDropdownOpen(false);
                             }}
-                            className="p-2 cursor-pointer hover:bg-gray-100 text-sm flex justify-between"
+                              className="p-2 cursor-pointer hover:bg-gray-100 text-sm grid grid-cols-[minmax(0,1fr)_auto] gap-3"
                           >
-                            <span>{p.productname}</span>
-                            <span className="text-gray-600 font-semibold">
+                            <span className="min-w-0 break-words">
+                              {p.productname}
+                            </span>
+                            <span className="text-gray-600 font-semibold whitespace-nowrap">
                               {formatCOP(p.productpriceofsupplier || 0)}
                             </span>
                           </div>
@@ -540,7 +542,7 @@ export default function RegisterPurchaseForm({
               </div>
 
               {/* PRECIO COMPRA */}
-              <div className="flex-1 sm:w-32">
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Precio compra (unidad)
                 </label>
@@ -559,7 +561,7 @@ export default function RegisterPurchaseForm({
               </div>
 
               {/* PRECIO VENTA */}
-              <div className="flex-1 sm:w-32">
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Precio venta (unidad) — opcional
                 </label>
@@ -578,7 +580,7 @@ export default function RegisterPurchaseForm({
               </div>
 
               {/* CANTIDAD */}
-              <div className="flex-1 sm:w-20">
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Cantidad
                 </label>
@@ -589,7 +591,7 @@ export default function RegisterPurchaseForm({
                   min={1}
                   placeholder="0"
                   onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="w-12 rounded-md border px-2 py-2 text-center text-sm shadow-sm"
+                  className="w-full rounded-md border px-2 py-2 text-center text-sm shadow-sm"
                 />
               </div>
             </div>
@@ -604,7 +606,7 @@ export default function RegisterPurchaseForm({
 
         {/* MODO CREAR PRODUCTO */}
         {isNewProduct && (
-          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_6rem] sm:items-end">
             <div className="flex-1">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Nombre del producto
@@ -614,11 +616,11 @@ export default function RegisterPurchaseForm({
                 placeholder="Ej. Taladro industrial"
                 value={newProductName}
                 onChange={(e) => setNewProductName(e.target.value)}
-                className="w-100 rounded-md border px-3 py-2 text-sm shadow-sm"
+                className="w-full rounded-md border px-3 py-2 text-sm shadow-sm"
               />
             </div>
 
-            <div className="flex-1 sm:w-32">
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Precio compra (unidad)
               </label>
@@ -635,7 +637,7 @@ export default function RegisterPurchaseForm({
               />
             </div>
 
-            <div className="flex-1 sm:w-32">
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Precio venta (unidad) — opcional
               </label>
@@ -652,7 +654,7 @@ export default function RegisterPurchaseForm({
               />
             </div>
 
-            <div className="flex-1 sm:w-20">
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Cantidad
               </label>
@@ -662,7 +664,7 @@ export default function RegisterPurchaseForm({
                 min={1}
                 placeholder="0"
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="w-12 rounded-md border px-3 py-2 text-center text-sm shadow-sm"
+                className="w-full rounded-md border px-3 py-2 text-center text-sm shadow-sm"
               />
             </div>
           </div>

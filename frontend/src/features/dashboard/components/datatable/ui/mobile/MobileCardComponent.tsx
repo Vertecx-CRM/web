@@ -59,12 +59,12 @@ export function MobileCardComponent<T>({
         {priorityColumns.slice(0, 3).map((column) => (
           <div
             key={String(column.key)}
-            className="flex justify-between items-start"
+            className="grid grid-cols-[minmax(84px,auto)_minmax(0,1fr)] items-start gap-3"
           >
-            <span className="text-xs text-gray-500 font-medium min-w-0 mr-2">
+            <span className="text-xs text-gray-500 font-medium break-words">
               {column.header}:
             </span>
-            <span className="text-sm text-gray-900 text-right break-words">
+            <span className="min-w-0 text-sm text-gray-900 text-right break-words [overflow-wrap:anywhere]">
               {column.render ? column.render(row) : String(row[column.key])}
             </span>
           </div>
@@ -96,12 +96,12 @@ export function MobileCardComponent<T>({
               {otherColumns.map((column) => (
                 <div
                   key={String(column.key)}
-                  className="flex justify-between items-start"
+                  className="grid grid-cols-[minmax(84px,auto)_minmax(0,1fr)] items-start gap-3"
                 >
-                  <span className="text-xs text-gray-500 font-medium min-w-0 mr-2">
+                  <span className="text-xs text-gray-500 font-medium break-words">
                     {column.header}:
                   </span>
-                  <span className="text-sm text-gray-900 text-right break-words">
+                  <span className="min-w-0 text-sm text-gray-900 text-right break-words [overflow-wrap:anywhere]">
                     {column.render
                       ? column.render(row)
                       : String(row[column.key])}

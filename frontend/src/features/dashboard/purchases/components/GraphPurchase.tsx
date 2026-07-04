@@ -64,22 +64,25 @@ const GraphPurchase: React.FC = () => {
     <div
       style={{
         width: "100%",
-        height: 350,
-        padding: 20,
-        borderRadius: 20,
+        height: 320,
+        padding: "56px 4px 8px",
+        borderRadius: 8,
         position: "relative",
+        overflow: "hidden",
       }}
     >
       {/* Selector de año */}
       <div
         style={{
           position: "absolute",
-          top: -10,
+          top: 8,
           left: "50%",
           transform: "translateX(-50%)",
           display: "flex",
           alignItems: "center",
-          gap: 16,
+          gap: 8,
+          justifyContent: "center",
+          flexWrap: "wrap",
           zIndex: 10,
         }}
       >
@@ -92,7 +95,7 @@ const GraphPurchase: React.FC = () => {
             boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
           }}
         />
-        <div style={{ fontSize: 16, fontWeight: "bold", color: "#000" }}>
+        <div style={{ fontSize: 14, fontWeight: "bold", color: "#000" }}>
           Compras del año
         </div>
 
@@ -139,7 +142,7 @@ const GraphPurchase: React.FC = () => {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={purchaseData[year]}
-          margin={{ top: 50, right: 30, left: 20, bottom: 40 }}
+          margin={{ top: 16, right: 8, left: -18, bottom: 8 }}
         >
           <defs>
             <linearGradient id="colorPurchases" x1="0" y1="0" x2="0" y2="1">
@@ -150,9 +153,9 @@ const GraphPurchase: React.FC = () => {
           <XAxis
             dataKey="month"
             interval={0} // 📌 muestra todos los meses
-            tick={{ fontSize: 12 }}
-            angle={-45}
-            textAnchor="end"
+            tick={{ fontSize: 10 }}
+            tickFormatter={(value) => String(value).slice(0, 3)}
+            minTickGap={6}
             height={60} // 📌 más espacio para que no se corten
           />
           <YAxis />

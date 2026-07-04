@@ -10,7 +10,14 @@ import React, {
   useState,
 } from "react";
 import Cookies from "js-cookie";
-import { api, clearTokens, setAccessToken, setRefreshToken, setTokens } from "@/lib/api";
+import {
+  api,
+  clearTokens,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  setTokens,
+} from "@/lib/api";
 import { AuthUser } from "@/features/auth/types/AuthUser";
 import { RegisterPayload } from "@/features/auth/types/RegisterPayload";
 import {
@@ -196,6 +203,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         newPassword,
         confirmNewPassword: newPassword,
       });
+
+      const refreshToken = getRefreshToken();
+      if (refreshToken) {
+        const { data } = await api.post("/auth/refresh", {
+          refresh_token: refreshToken,
+        });
+        if (data?.access_token && data?.refresh_token) {
+          setTokens(data);
+        }
+      }
+
       await loadUser();
       return { ok: true };
     } catch (err: any) {

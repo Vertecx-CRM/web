@@ -172,6 +172,20 @@ export default function PurchasesIndex() {
     []
   );
 
+  const mobileColumns = useMemo(
+    () =>
+      columns.map((column) => {
+        if (column.key === "numberoforder" || column.key === "supplier" || column.key === "amount") {
+          return { ...column, priority: "high" as const };
+        }
+        if (column.key === "reference" || column.key === "createdat" || column.key === "state") {
+          return { ...column, priority: "medium" as const };
+        }
+        return column;
+      }),
+    [columns]
+  );
+
   const confirmCancelPurchase = useCallback(
     async (purchase: IPurchase) => {
       if (purchase.state?.name?.toLowerCase() === "revoke") {
@@ -285,7 +299,7 @@ export default function PurchasesIndex() {
       <DataTable
         module="purchases"
         data={purchasesForSearch}
-        columns={columns}
+        columns={mobileColumns}
         searchableKeys={searchableKeys}
         pageSize={8}
         onCancel={confirmCancelPurchase}
