@@ -91,6 +91,20 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 let isRefreshing = false;
 let queue: Array<(t: string | null) => void> = [];
 
+function isServiceRequestsListNotFound(error: AxiosError) {
+  if (error.response?.status !== 404) return false;
+
+  const method = error.config?.method?.toLowerCase();
+  if (method && method !== "get") return false;
+
+  const path = String(error.config?.url ?? "")
+    .split("?")[0]
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "");
+
+  return path === "service-requests";
+}
+
 async function refreshAccessToken(): Promise<string> {
   const rt = getRefreshToken();
   if (!rt) throw new Error("NO_REFRESH_TOKEN");
@@ -111,6 +125,15 @@ async function refreshAccessToken(): Promise<string> {
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError) => {
+    if (isServiceRequestsListNotFound(error) && error.response) {
+      return {
+        ...error.response,
+        status: 200,
+        statusText: "OK",
+        data: [],
+      };
+    }
+
     const original = error.config as (InternalAxiosRequestConfig & { _retry?: boolean });
 
     if (error?.response?.status !== 401 || original?._retry) {

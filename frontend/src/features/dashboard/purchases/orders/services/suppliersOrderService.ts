@@ -85,8 +85,6 @@ export async function getPurchaseOrdersFromAPI(): Promise<purchaseOrder[]> {
                 }];
             }
 
-            console.log("Mapped PO:", po.numeroorden, "Items:", items.length);
-
             return {
                 id: po.id,
                 numeroOrden: po.numeroorden,
@@ -99,7 +97,6 @@ export async function getPurchaseOrdersFromAPI(): Promise<purchaseOrder[]> {
             };
         });
 
-        console.log("Total mapped orders:", mapped.length);
         return mapped;
     } catch (error) {
         return [];

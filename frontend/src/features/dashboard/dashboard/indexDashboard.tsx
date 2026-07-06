@@ -301,7 +301,7 @@ export const IndexDashboard = () => {
       {/* SECCIÓN CLIENTES */}
       <div className="bg-white rounded-2xl p-8 text-white shadow-xl overflow-hidden relative">
         <div className="absolute right-0 top-0 opacity-10 pointer-events-none">
-          <Image src="/icons/logo-bg.svg" alt="" width={400} height={400} />
+          <Image src="/assets/imgs/logo.png" alt="" width={400} height={400} />
         </div>
         <div className="relative z-10 h-[400px]">
           {!selectedMonthClients ? (

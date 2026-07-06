@@ -158,8 +158,6 @@ export default function PurchasesIndex() {
     setDetailModalOpen(true);
   }, []);
 
-  console.log("purchases:", purchases);
-
   const searchableKeys = useMemo(
     () => [
       "numberoforder",

@@ -35,7 +35,6 @@ export const usePurchaseOrders = () => {
     setLoading(true);
     try {
       const data = await getPurchaseOrdersFromAPI();
-      console.log("Purchase orders loaded in hook:", data.length);
       setPurchaseOrders(data);
     } catch (error) {
       console.error("Hook load error:", error);
