@@ -8,6 +8,8 @@ import {
   ArrowLeft,
   BadgeCheck,
   Building2,
+  CheckCircle2,
+  Clipboard,
   CreditCard,
   Landmark,
   LoaderCircle,
@@ -48,6 +50,21 @@ const PAYMENT_METHODS = [
   { label: "Tarjetas", icon: CreditCard },
 ];
 
+const TRANSFER_METHODS = [
+  {
+    label: "Nequi",
+    accountLabel: "Numero Nequi",
+    accountValue: "3113369669",
+    icon: Smartphone,
+  },
+  {
+    label: "Bancolombia",
+    accountLabel: "Cuenta de ahorros Bancolombia",
+    accountValue: "625-0000-3037",
+    icon: Building2,
+  },
+];
+
 type CheckoutCartItem = {
   id?: string | number;
   name?: string;
@@ -84,6 +101,7 @@ export default function WompiPaymentMethod() {
   const [checkout, setCheckout] = useState<StoredWompiCheckout | null>(null);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const requestedSaleId = Number(searchParams.get("saleId") ?? 0);
 
@@ -190,6 +208,19 @@ export default function WompiPaymentMethod() {
           ? err.message
           : "No se pudo abrir el checkout de Wompi.",
       );
+    }
+  };
+
+  const transferReference = session?.reference ?? checkout?.reference ?? saleLabel;
+  const transferMessage = `Pago Vertecx ${transferReference} por ${formatCOP(totalAmount)}`;
+
+  const copyToClipboard = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey(null), 1800);
+    } catch {
+      setError("No se pudo copiar automaticamente. Selecciona el dato y copialo manualmente.");
     }
   };
 
@@ -408,6 +439,117 @@ export default function WompiPaymentMethod() {
               <p className="mt-4 text-xs leading-relaxed text-slate-500">
                 El cobro final sucede en la pagina oficial de Wompi. Vertecx solo prepara el resumen y transfiere los datos de esta venta.
               </p>
+            </section>
+
+            <section className="rounded-[32px] border border-red-100 bg-white/95 p-6 shadow-[0_24px_64px_rgba(15,23,42,0.10)]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.26em] text-red-700">
+                    Respaldo manual
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                    Si Wompi no funciona, paga por transferencia
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                    Transfiere el valor exacto y usa la referencia de la venta en el mensaje del pago. La venta queda pendiente hasta validar el comprobante.
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+                  <Landmark className="h-6 w-6" />
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Valor exacto
+                    </p>
+                    <p className="mt-1 text-xl font-black text-slate-900">
+                      {formatCOP(totalAmount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Referencia
+                    </p>
+                    <p className="mt-1 break-all text-sm font-black text-slate-900">
+                      {transferReference}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {TRANSFER_METHODS.map(({ label, accountLabel, accountValue, icon: Icon }) => {
+                  const accountKey = `account-${label}`;
+                  const messageKey = `message-${label}`;
+                  return (
+                    <div
+                      key={label}
+                      className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-2xl bg-red-50 p-3 text-red-700">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-base font-black text-slate-900">{label}</p>
+                          <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                            {accountLabel}
+                          </p>
+                          <p className="mt-1 break-all text-lg font-black text-slate-900">
+                            {accountValue}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(accountKey, accountValue)}
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                          aria-label={`Copiar ${accountLabel}`}
+                          title={`Copiar ${accountLabel}`}
+                        >
+                          {copiedKey === accountKey ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <Clipboard className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                              Mensaje sugerido
+                            </p>
+                            <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+                              {transferMessage}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(messageKey, transferMessage)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                            aria-label="Copiar mensaje sugerido"
+                            title="Copiar mensaje sugerido"
+                          >
+                            {copiedKey === messageKey ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <Clipboard className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
+                Despues de transferir, envia el comprobante a soporte o al asesor que esta gestionando la venta para confirmar el pago manualmente.
+              </div>
             </section>
 
             <section className="rounded-[32px] border border-white bg-white/95 p-6 shadow-[0_24px_64px_rgba(15,23,42,0.10)]">
