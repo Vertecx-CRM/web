@@ -35,10 +35,10 @@ export function getSiteUrl() {
 
   if (explicit) return explicit;
 
+  if (process.env.NODE_ENV === "production") return DEFAULT_SITE_URL;
+
   const azureHost = normalizeBaseUrl(process.env.WEBSITE_HOSTNAME);
   if (azureHost) return azureHost;
-
-  if (process.env.NODE_ENV === "production") return DEFAULT_SITE_URL;
 
   return "http://localhost:3000";
 }

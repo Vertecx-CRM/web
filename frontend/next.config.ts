@@ -56,7 +56,15 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/auth/:path*",
+        source: "/auth/access",
+        headers: noIndexHeaders,
+      },
+      {
+        source: "/auth/forgot-password",
+        headers: noIndexHeaders,
+      },
+      {
+        source: "/auth/reset-password",
         headers: noIndexHeaders,
       },
       {

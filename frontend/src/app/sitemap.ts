@@ -10,6 +10,8 @@ const publicPages = [
   { path: "/landing/products", priority: 0.8 },
   { path: "/landing/about", priority: 0.8 },
   { path: "/landing/contact", priority: 0.9 },
+  { path: "/auth/login", priority: 0.4 },
+  { path: "/auth/register", priority: 0.5 },
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
