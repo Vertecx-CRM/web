@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Nav from "../layout/Nav";
 import Footer from "../layout/Footer";
 import Banner from "./components/Banner";
@@ -12,8 +12,9 @@ import { useProducts, Product } from "./hooks/useProducts";
 import CategoryCarousel from "./components/CategoryCarousel";
 import { useCart } from "../contexts/CartContext";
 import { showSuccess, showError } from "@/shared/utils/notifications";
-import { LayoutGrid, ListFilter, Package } from "lucide-react";
+import { ListFilter, Package } from "lucide-react";
 import CardProduct from "./components/CardProducts";
+import GoogleAd from "../components/GoogleAd";
 
 export default function ProductsLanding() {
   const { addToCart, cart } = useCart();
@@ -25,6 +26,7 @@ export default function ProductsLanding() {
     setSearchTerm,
     filteredProducts,
     availableCategories,
+    categoryCounts,
   } = useProducts([]);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -35,6 +37,10 @@ export default function ProductsLanding() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage,
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedFilters]);
 
   const handleAddToCart = (product: Product) => {
     if ((product.stock ?? 0) <= 0) {
@@ -85,7 +91,13 @@ export default function ProductsLanding() {
             </div>
           </div>
 
-          <CategoryCarousel />
+          <CategoryCarousel
+            categories={availableCategories}
+            categoryCounts={categoryCounts}
+            selectedFilters={selectedFilters}
+            onSelectCategory={handleToggleFilter}
+            productCount={filteredProducts.length}
+          />
 
           <div className="flex flex-col lg:flex-row gap-10">
             {/* Sidebar de Filtros Refinado */}
@@ -174,6 +186,7 @@ export default function ProductsLanding() {
         </div>
       </LayoutProductos>
 
+      <GoogleAd className="pb-8" />
       <Footer />
     </div>
   );

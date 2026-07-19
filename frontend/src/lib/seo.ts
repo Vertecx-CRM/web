@@ -6,10 +6,25 @@ export const SITE_ALTERNATE_NAME = "Sistemas PC";
 export const DEFAULT_SITE_URL = "https://www.sistemaspc.co";
 export const DEFAULT_OG_IMAGE = "/assets/imgs/preview.png";
 export const DEFAULT_DESCRIPTION =
-  "Vertecx es una empresa colombiana de soporte tecnico, mantenimiento preventivo y correctivo, redes, servidores y equipos tecnologicos para empresas.";
+  "Vertecx Sistemas PC vende productos tecnologicos y presta soporte tecnico empresarial en Colombia: computadores, camaras, redes, servidores, impresoras, accesorios y mantenimiento.";
 export const BRAND_KEYWORDS = [
   "Vertecx",
   "Vertecx Sistemas PC",
+  "SistemasPC",
+  "Sistemas PC Colombia",
+  "productos tecnologicos Colombia",
+  "tienda de tecnologia Colombia",
+  "catalogo de hardware",
+  "computadores empresariales",
+  "portatiles empresariales",
+  "camaras de seguridad",
+  "equipos de redes",
+  "routers empresariales",
+  "switches de red",
+  "discos duros",
+  "componentes de computador",
+  "impresoras",
+  "accesorios tecnologicos",
   "soporte tecnico empresarial",
   "mantenimiento de computadores",
   "mantenimiento preventivo",
@@ -135,6 +150,11 @@ export function organizationJsonLd() {
       "redes",
       "servidores",
       "hardware",
+      "computadores",
+      "portatiles",
+      "camaras de seguridad",
+      "impresoras",
+      "accesorios tecnologicos",
       "soluciones tecnologicas",
     ],
     contactPoint: {

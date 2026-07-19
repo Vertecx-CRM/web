@@ -18,6 +18,7 @@ import { useAuth } from "@/features/auth/authcontext";
 import { APP_TOAST_ID } from "@/shared/utils/notifications";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import GoogleAd from "../components/GoogleAd";
 
 interface ServicesProps {
   className?: string;
@@ -162,6 +163,7 @@ export default function ServicesLanding({ className = "" }: ServicesProps) {
         </div>
       </LayoutServicios>
 
+      <GoogleAd className="pb-8" />
       <Footer />
     </div>
   );

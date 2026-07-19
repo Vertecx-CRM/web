@@ -24,9 +24,9 @@ export async function generateMetadata({ params }: ProductDetailRouteProps) {
   }
 
   return createPageMetadata({
-    title: product.title,
+    title: `${product.title} | ${product.category}`,
     description: truncateDescription(
-      `${product.title}. ${product.description}. Categoria: ${product.category}.`,
+      `${product.title}. ${product.description}. Compra ${product.category} en Vertecx Sistemas PC Colombia con soporte tecnico y disponibilidad actualizada.`,
       170,
     ),
     path: `/landing/products/${product.id}`,

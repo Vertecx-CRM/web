@@ -103,6 +103,15 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
     );
   }, [products]);
 
+  const categoryCounts = useMemo(() => {
+    return products.reduce<Record<string, number>>((acc, product) => {
+      const category = product.category?.trim();
+      if (!category) return acc;
+      acc[category] = (acc[category] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [products]);
+
   return {
     loading,
     selectedFilters,
@@ -111,5 +120,6 @@ export const useProducts = (fallbackProducts: Product[] = []) => {
     setSearchTerm,
     filteredProducts,
     availableCategories,
+    categoryCounts,
   };
 };

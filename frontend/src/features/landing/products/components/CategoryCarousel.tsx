@@ -1,248 +1,230 @@
 "use client";
 
-import React, { useState, useEffect, useRef, JSX } from "react";
+import React, { JSX, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-
-import { Monitor, Camera, HardDrive, Cpu, Router } from "lucide-react";
+import {
+  Camera,
+  Cpu,
+  HardDrive,
+  Monitor,
+  PackageSearch,
+  Printer,
+  Router,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { getCategories } from "@/features/dashboard/CategoryProducts/connection/categoryApi";
 import { isLandingVisibleProductCategory } from "@/shared/utils/productInventory";
 
 const iconMap: Record<string, JSX.Element> = {
-  monitor: <Monitor className="w-6 h-6 text-[#B20000]" />,
-  camera: <Camera className="w-6 h-6 text-[#B20000]" />,
-  hard: <HardDrive className="w-6 h-6 text-[#B20000]" />,
-  cpu: <Cpu className="w-6 h-6 text-[#B20000]" />,
-  router: <Router className="w-6 h-6 text-[#B20000]" />,
+  monitor: <Monitor className="h-6 w-6" />,
+  camera: <Camera className="h-6 w-6" />,
+  hard: <HardDrive className="h-6 w-6" />,
+  cpu: <Cpu className="h-6 w-6" />,
+  router: <Router className="h-6 w-6" />,
+  printer: <Printer className="h-6 w-6" />,
 };
 
-interface Category {
+const fallbackIcons = [Monitor, Camera, Router, Cpu, HardDrive, Printer];
+
+type ApiCategory = {
   id: number;
   name: string;
   icon: string | null;
   status: boolean;
+};
+
+type CategoryItem = {
+  id: string;
+  name: string;
+  icon: string | null;
+  count?: number;
+};
+
+interface CategoryCarouselProps {
+  categories?: string[];
+  categoryCounts?: Record<string, number>;
+  selectedFilters?: string[];
+  onSelectCategory?: (category: string) => void;
+  productCount?: number;
 }
 
-const cardsPerView = 3;
-const buffer = cardsPerView;
-const ANIMATION_MS = 400;
+function normalizeText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
-const CategoryCarousel: React.FC = () => {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [extended, setExtended] = useState<any[]>([]);
-  const [index, setIndex] = useState(buffer);
-  const [isTransitioning, setIsTransitioning] = useState(true);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const [slideWidth, setSlideWidth] = useState<number>(0);
+const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
+  categories = [],
+  categoryCounts = {},
+  selectedFilters = ["all"],
+  onSelectCategory,
+  productCount = 0,
+}) => {
+  const [apiCategories, setApiCategories] = useState<CategoryItem[]>([]);
 
   useEffect(() => {
+    if (categories.length > 0) return;
+
     const load = async () => {
       try {
         const data = await getCategories();
-        if (Array.isArray(data)) {
-          const active = data.filter(
-            (c) => c.status === true && isLandingVisibleProductCategory(c.name),
-          );
+        if (!Array.isArray(data)) return;
 
-          setCategories(active);
+        const active = (data as ApiCategory[])
+          .filter(
+            (category) =>
+              category.status === true &&
+              isLandingVisibleProductCategory(category.name),
+          )
+          .map((category) => ({
+            id: String(category.id),
+            name: category.name,
+            icon: category.icon,
+          }));
 
-          setExtended([
-            ...active.slice(-buffer),
-            ...active,
-            ...active.slice(0, buffer),
-          ]);
-
-          setIndex(buffer);
-        }
+        setApiCategories(active);
       } catch (err) {
-        console.error("Error cargando categorías:", err);
+        console.error("Error cargando categorias:", err);
       }
     };
 
     load();
-  }, []);
+  }, [categories.length]);
 
-  useEffect(() => {
-    const measure = () => {
-      if (!viewportRef.current) return;
-      const vw = viewportRef.current.clientWidth;
-      setSlideWidth(vw / cardsPerView);
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
+  const categoryItems = useMemo<CategoryItem[]>(() => {
+    if (categories.length === 0) return apiCategories;
 
-  const handleNext = () => {
-    if (slideWidth === 0) return;
-    setIndex((prev) => prev + 1);
-  };
+    return categories
+      .map((category) => category.trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+      .map((category) => ({
+        id: normalizeText(category),
+        name: category,
+        icon: null,
+        count: categoryCounts[category],
+      }));
+  }, [apiCategories, categories, categoryCounts]);
 
-  const handlePrev = () => {
-    if (slideWidth === 0) return;
-    setIndex((prev) => prev - 1);
-  };
-
-  useEffect(() => {
-    if (extended.length === 0) return;
-
-    const realStart = buffer;
-    const realEnd = categories.length + buffer - 1;
-
-    if (index > realEnd) {
-      const t = setTimeout(() => {
-        setIsTransitioning(false);
-        setIndex(realStart);
-        setTimeout(() => setIsTransitioning(true), 20);
-      }, ANIMATION_MS);
-      return () => clearTimeout(t);
-    }
-
-    if (index < realStart) {
-      const t = setTimeout(() => {
-        setIsTransitioning(false);
-        setIndex(realEnd);
-        setTimeout(() => setIsTransitioning(true), 20);
-      }, ANIMATION_MS);
-      return () => clearTimeout(t);
-    }
-  }, [index, extended]);
-
-  const translateX = -index * slideWidth;
+  const visibleItems = categoryItems.slice(0, 8);
+  const hasCategories = visibleItems.length > 0;
 
   return (
-    <section className="relative w-full">
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <h2 className="text-center text-3xl md:text-4xl font-extrabold text-[#B20000] mb-10 tracking-tight">
-            Categorías de Productos
+    <section className="relative overflow-hidden rounded-[28px] border border-[#B20000]/10 bg-white px-4 py-6 shadow-sm sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#B20000]/15 bg-[#B20000]/5 px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#B20000]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Categorias principales
+          </div>
+          <h2 className="text-2xl font-black uppercase leading-tight tracking-tight text-[#0D141C] sm:text-3xl">
+            Encuentra rapido el equipo que necesitas
           </h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[#626262]">
+            Explora computadores, camaras, redes, componentes, impresoras y
+            accesorios disponibles en el catalogo publico de Vertecx Sistemas PC.
+          </p>
         </div>
 
-        <div className="relative px-4 sm:px-6 lg:px-8">
-          <div className="relative px-16 pb-8">
-            <div ref={viewportRef} className="overflow-hidden">
-              <motion.div
-                className="flex items-stretch"
-                animate={{ x: translateX }}
-                transition={
-                  isTransitioning
-                    ? { duration: ANIMATION_MS / 1000, ease: "easeInOut" }
-                    : { duration: 0 }
-                }
-                style={{ width: `${extended.length * slideWidth}px` }}
-              >
-                {extended.map((cat, idx) => (
-                  <div
-                    key={`${cat.id}-${idx}`}
-                    className="flex-shrink-0"
-                    style={{ width: `${slideWidth}px` }}
-                  >
-                    <div className="px-3 py-2 h-full">
-                      <div
-                        className={[
-                          "bg-white rounded-2xl",
-                          "border border-gray-100",
-                          "shadow-[0_6px_18px_rgba(0,0,0,0.06)]",
-                          "transition-all duration-300 ease-out",
-                          "hover:-translate-y-1 hover:shadow-[0_14px_28px_rgba(0,0,0,0.10)]",
-                          "hover:border-[#B20000]/30",
-                          "p-6 flex flex-col items-center text-center gap-5",
-                          "min-h-[180px]",
-                          "group",
-                        ].join(" ")}
-                      >
-                        <div
-                          className={[
-                            "bg-white rounded-full",
-                            "border-2 border-[#B20000]",
-                            "w-16 h-16 p-4",
-                            "flex items-center justify-center",
-                            "shadow-sm",
-                            "ring-1 ring-[#B20000]/10",
-                            "transition-transform duration-300",
-                            "group-hover:scale-[1.03]",
-                          ].join(" ")}
-                        >
-                          {cat.icon && cat.icon.startsWith("http") ? (
-                            <img
-                              src={cat.icon}
-                              alt={cat.name}
-                              className="w-10 h-10 object-contain"
-                            />
-                          ) : (
-                            iconMap[cat.icon || "monitor"] || iconMap["monitor"]
-                          )}
-                        </div>
-
-                        <h3 className="text-lg md:text-xl font-semibold text-gray-800 leading-tight">
-                          {cat.name}
-                        </h3>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            </div>
-
-            <button
-              onClick={handlePrev}
-              className={[
-                "absolute left-4 top-1/2 -translate-y-1/2 z-20",
-                "cursor-pointer",
-                "w-11 h-11 flex items-center justify-center",
-                "bg-white rounded-full",
-                "shadow-md border border-gray-100",
-                "transition-all duration-200",
-                "hover:shadow-lg hover:scale-110",
-                "focus:outline-none focus:ring-2 focus:ring-[#B20000]/30 focus:ring-offset-2",
-              ].join(" ")}
-              aria-label="Anterior"
-            >
-              <svg
-                className="w-6 h-6 text-gray-800"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-
-            <button
-              onClick={handleNext}
-              className={[
-                "absolute right-4 top-1/2 -translate-y-1/2 z-20",
-                "w-11 h-11 flex items-center justify-center",
-                "cursor-pointer",
-                "bg-white rounded-full",
-                "shadow-md border border-gray-100",
-                "transition-all duration-200",
-                "hover:shadow-lg hover:scale-110",
-                "focus:outline-none focus:ring-2 focus:ring-[#B20000]/30 focus:ring-offset-2",
-              ].join(" ")}
-              aria-label="Siguiente"
-            >
-              <svg
-                className="w-6 h-6 text-gray-800"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap lg:justify-end">
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+            <p className="text-2xl font-black text-[#0D141C]">{productCount}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#717680]">
+              Productos
+            </p>
+          </div>
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+            <p className="text-2xl font-black text-[#0D141C]">
+              {categoryItems.length}
+            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#717680]">
+              Categorias
+            </p>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {hasCategories
+          ? visibleItems.map((category, index) => {
+              const Icon = fallbackIcons[index % fallbackIcons.length];
+              const isActive =
+                selectedFilters.includes(category.name) ||
+                selectedFilters.some(
+                  (filter) => normalizeText(filter) === normalizeText(category.name),
+                );
+
+              return (
+                <motion.button
+                  key={category.id}
+                  type="button"
+                  onClick={() => onSelectCategory?.(category.name)}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={[
+                    "group min-h-[132px] rounded-2xl border p-4 text-left transition",
+                    "focus:outline-none focus:ring-2 focus:ring-[#B20000]/25 focus:ring-offset-2",
+                    isActive
+                      ? "border-[#B20000] bg-[#B20000] text-white shadow-[0_16px_30px_rgba(178,0,0,0.18)]"
+                      : "border-gray-100 bg-white text-[#0D141C] shadow-sm hover:border-[#B20000]/30 hover:shadow-md",
+                  ].join(" ")}
+                  aria-pressed={isActive}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={[
+                        "flex h-12 w-12 items-center justify-center rounded-2xl transition",
+                        isActive
+                          ? "bg-white/15 text-white"
+                          : "bg-[#B20000]/8 text-[#B20000] group-hover:bg-[#B20000]/12",
+                      ].join(" ")}
+                    >
+                      {category.icon && category.icon.startsWith("http") ? (
+                        <span
+                          aria-hidden="true"
+                          className="h-7 w-7 bg-contain bg-center bg-no-repeat"
+                          style={{ backgroundImage: `url(${category.icon})` }}
+                        />
+                      ) : (
+                        iconMap[category.icon || ""] ?? <Icon className="h-6 w-6" />
+                      )}
+                    </span>
+                    <ShieldCheck
+                      className={[
+                        "h-5 w-5 shrink-0",
+                        isActive ? "text-white/80" : "text-[#B20000]/55",
+                      ].join(" ")}
+                    />
+                  </div>
+
+                  <h3 className="mt-4 text-base font-black leading-tight">
+                    {category.name}
+                  </h3>
+                  <p
+                    className={[
+                      "mt-2 text-xs font-semibold uppercase tracking-widest",
+                      isActive ? "text-white/75" : "text-[#717680]",
+                    ].join(" ")}
+                  >
+                    {category.count ? `${category.count} productos` : "Ver productos"}
+                  </p>
+                </motion.button>
+              );
+            })
+          : Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="min-h-[132px] animate-pulse rounded-2xl border border-gray-100 bg-gray-50 p-4"
+              >
+                <PackageSearch className="h-8 w-8 text-gray-200" />
+                <div className="mt-6 h-4 w-3/4 rounded bg-gray-200" />
+                <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
+              </div>
+            ))}
       </div>
     </section>
   );

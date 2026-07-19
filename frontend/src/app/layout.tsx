@@ -1,5 +1,6 @@
 import '@/app/globals.css';
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import type { ReactNode } from 'react';
 import {
   DEFAULT_DESCRIPTION,
@@ -11,6 +12,7 @@ import {
   websiteJsonLd,
 } from '@/lib/seo';
 import AppProviders from './providers';
+import FloatingWhatsAppButton from '@/features/landing/components/FloatingWhatsAppButton';
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -64,10 +66,20 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   const businessSchema = organizationJsonLd();
   const websiteSchema = websiteJsonLd();
+  const adsenseClient = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT;
 
   return (
     <html lang="es">
       <body>
+        {adsenseClient ? (
+          <Script
+            id="google-adsense"
+            async
+            strategy="afterInteractive"
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClient}`}
+            crossOrigin="anonymous"
+          />
+        ) : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -80,7 +92,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             __html: JSON.stringify(websiteSchema).replace(/</g, '\\u003c'),
           }}
         />
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          {children}
+          <FloatingWhatsAppButton />
+        </AppProviders>
       </body>
     </html>
   );

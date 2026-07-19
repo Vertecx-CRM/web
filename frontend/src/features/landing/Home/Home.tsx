@@ -6,6 +6,7 @@ import SuppliersSlider from "../components/SuppliersSlider";
 import HeaderSlider from "../components/HeaderSlider";
 import Trajectory from "../components/Trajectory";
 import OurServices from "../components/OurServices";
+import GoogleAd from "../components/GoogleAd";
 
 const Home = () => {
   const [refHeader, inViewHeader] = useInView({ triggerOnce: true, threshold: 0.1 });
@@ -43,6 +44,7 @@ const Home = () => {
       <div ref={refServices}>
         <OurServices inView={inViewServices} />
       </div>
+      <GoogleAd className="my-8" />
       <div ref={refSuppliers}>
         <SuppliersSlider inView={inViewSuppliers} />
       </div>
