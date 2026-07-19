@@ -39,6 +39,7 @@ export const CreatePurchaseOrderModal: React.FC<createPurchaseOrderModalProps> =
     handleBlur,
     handleSubmit,
     isSubmitting,
+    setOrderNumber,
     setItems,
   } = useCreatePurchaseOrderForm({ isOpen, onClose, onSave });
 
@@ -47,7 +48,6 @@ export const CreatePurchaseOrderModal: React.FC<createPurchaseOrderModalProps> =
   const [supplierProducts, setSupplierProducts] = useState<ProductoAPI[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [orderNumber, setOrderNumber] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([
     { productoNombre: "", cantidad: 1, precioUnitario: 0 },
   ]);
@@ -63,7 +63,7 @@ export const CreatePurchaseOrderModal: React.FC<createPurchaseOrderModalProps> =
         .then((data) => setSuppliers(data))
         .catch(() => showError("Error al cargar proveedores."));
     }
-  }, [isOpen]);
+  }, [isOpen, setOrderNumber]);
 
   // Sincronizar rows → formData.items
   // NOTA: setItems está envuelto en useCallback en el hook (referencia estable)
@@ -172,7 +172,7 @@ export const CreatePurchaseOrderModal: React.FC<createPurchaseOrderModalProps> =
       setIsSending(true);
       try {
         const result = await sendPurchaseOrderNotification({
-          numeroOrden: orderNumber,
+          numeroOrden: formData.numeroOrden ?? "",
           proveedorId: selectedSupplier.supplierid,
           supplierName: selectedSupplier.name,
           supplierEmail: selectedSupplier.email || undefined,
@@ -238,7 +238,7 @@ export const CreatePurchaseOrderModal: React.FC<createPurchaseOrderModalProps> =
               <label className="block text-sm font-medium mb-2 text-gray-700">N° Orden (Auto)</label>
               <input
                 type="text"
-                value={orderNumber}
+                value={formData.numeroOrden ?? ""}
                 readOnly
                 tabIndex={-1}
                 className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed select-none"

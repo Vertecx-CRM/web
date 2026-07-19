@@ -35,6 +35,7 @@ export interface purchaseOrder {
 /* ============================= */
 
 export interface createPurchaseOrderData {
+  numeroOrden?: string;
   proveedor: string; // Nombre
   proveedorId: number; // ID para la DB
   fecha: string;

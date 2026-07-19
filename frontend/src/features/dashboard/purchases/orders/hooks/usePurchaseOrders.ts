@@ -61,7 +61,7 @@ export const usePurchaseOrders = () => {
 
     try {
       await createPurchaseOrderInDB({
-        numeroOrden: generateOrderNumber(),
+        numeroOrden: purchaseOrderData.numeroOrden || generateOrderNumber(),
         proveedorId: purchaseOrderData.proveedorId ?? 0,
         fecha: purchaseOrderData.fecha,
         items: purchaseOrderData.items,
@@ -114,6 +114,7 @@ export const useCreatePurchaseOrderForm = ({
   onSave
 }: createPurchaseOrderModalProps) => {
   const [formData, setFormData] = useState<createPurchaseOrderData>({
+    numeroOrden: "",
     proveedor: "",
     proveedorId: 0,
     fecha: "",
@@ -178,6 +179,10 @@ export const useCreatePurchaseOrderForm = ({
       setErrors((prev) => ({ ...prev, proveedor: error }));
     }
   };
+
+  const setOrderNumber = useCallback((numeroOrden: string) => {
+    setFormData((prev) => ({ ...prev, numeroOrden }));
+  }, []);
 
   /* ============================= */
   /* HANDLERS ITEMS */
@@ -291,6 +296,7 @@ export const useCreatePurchaseOrderForm = ({
   useEffect(() => {
     if (isOpen) {
       setFormData({
+        numeroOrden: generateOrderNumber(),
         proveedor: "",
         proveedorId: 0,
         fecha: "",
@@ -334,6 +340,7 @@ export const useCreatePurchaseOrderForm = ({
     handleRemoveItem,
     handleItemChange,
     handleSubmit,
+    setOrderNumber,
     setItems,
   };
 };

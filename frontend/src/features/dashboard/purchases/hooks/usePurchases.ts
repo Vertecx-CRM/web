@@ -87,7 +87,7 @@ export function usePurchases() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const generateNextOrderNumber = (data: IPurchase[]) => {
+  const generateNextOrderNumber = (data: IPurchase[] = []) => {
     const year = new Date().getFullYear();
     const currentYearOrders = data
       .map((p) => p.numberoforder || (p as any).orderNumber)
@@ -317,8 +317,10 @@ export function usePurchases() {
       return base;
     });
 
+    const numberoforder = form.orderNumber || generateNextOrderNumber(purchases);
+
     const payload = {
-      numberoforder: form.orderNumber || "TEMP-001",
+      numberoforder,
       reference: form.invoiceNumber,
       supplierid: Number(form.supplier),
       observation: form.description || "",
@@ -356,8 +358,10 @@ export function usePurchases() {
   };
 
   const resetForm = () => {
+    const nextOrder = generateNextOrderNumber(purchases);
+
     setForm({
-      orderNumber: "",
+      orderNumber: nextOrder,
       invoiceNumber: "",
       supplier: "",
       registerDate: "",
@@ -370,11 +374,6 @@ export function usePurchases() {
     setQuantity(1);
     setCart([]);
     setError("");
-
-    if (purchases.length > 0) {
-      const nextOrder = generateNextOrderNumber(purchases);
-      setForm((prev) => ({ ...prev, orderNumber: nextOrder }));
-    }
   };
 
   return {
