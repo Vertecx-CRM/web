@@ -7,11 +7,13 @@ import HeaderSlider from "../components/HeaderSlider";
 import Trajectory from "../components/Trajectory";
 import OurServices from "../components/OurServices";
 import GoogleAd from "../components/GoogleAd";
+import CustomerReviews from "../components/CustomerReviews";
 
 const Home = () => {
   const [refHeader, inViewHeader] = useInView({ triggerOnce: true, threshold: 0.1 });
   const [refTrajectory, inViewTrajectory] = useInView({ triggerOnce: true, threshold: 0.1 });
   const [refServices, inViewServices] = useInView({ triggerOnce: true, threshold: 0.1 });
+  const [refReviews] = useInView({ triggerOnce: true, threshold: 0.1 });
   const [refSuppliers, inViewSuppliers] = useInView({ triggerOnce: true, threshold: 0.1 });
 
   return (
@@ -45,6 +47,9 @@ const Home = () => {
         <OurServices inView={inViewServices} />
       </div>
       <GoogleAd className="my-8" />
+      <div ref={refReviews}>
+        <CustomerReviews />
+      </div>
       <div ref={refSuppliers}>
         <SuppliersSlider inView={inViewSuppliers} />
       </div>
