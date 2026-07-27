@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { fetchPublicProductsForSeo } from "@/lib/public-catalog";
 import { absoluteUrl } from "@/lib/seo";
+import { seoServicePages } from "@/features/landing/seo/servicePages";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: page.priority,
+    })),
+    ...seoServicePages.map((page) => ({
+      url: absoluteUrl(`/landing/soluciones/${page.slug}`),
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.85,
     })),
     ...products.map((product) => ({
       url: absoluteUrl(`/landing/products/${product.id}`),

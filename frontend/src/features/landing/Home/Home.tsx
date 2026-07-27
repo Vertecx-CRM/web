@@ -8,6 +8,7 @@ import Trajectory from "../components/Trajectory";
 import OurServices from "../components/OurServices";
 import GoogleAd from "../components/GoogleAd";
 import CustomerReviews from "../components/CustomerReviews";
+import SeoServiceLinks from "../components/SeoServiceLinks";
 
 const Home = () => {
   const [refHeader, inViewHeader] = useInView({ triggerOnce: true, threshold: 0.1 });
@@ -47,6 +48,7 @@ const Home = () => {
         <OurServices inView={inViewServices} />
       </div>
       <GoogleAd className="my-8" />
+      <SeoServiceLinks />
       <div ref={refReviews}>
         <CustomerReviews />
       </div>

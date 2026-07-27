@@ -45,6 +45,18 @@ const Footer = () => {
                 },
                 { href: routes.landing.about, label: "Sobre nosotros" },
                 { href: routes.landing.contact, label: "Centro de soporte" },
+                {
+                  href: "/landing/soluciones/soporte-tecnico-empresarial-colombia",
+                  label: "Soporte tecnico empresarial",
+                },
+                {
+                  href: "/landing/soluciones/mantenimiento-computadores-empresas",
+                  label: "Mantenimiento computadores",
+                },
+                {
+                  href: "/landing/soluciones/redes-servidores-empresas",
+                  label: "Redes y servidores",
+                },
               ].map((link) => (
                 <li key={link.label}>
                   <Link
